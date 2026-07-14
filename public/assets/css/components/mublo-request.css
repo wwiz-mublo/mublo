@@ -1,0 +1,147 @@
+/* ============================================================
+ * MubloRequest 컴포넌트 스타일 (MubloRequest.js 동반)
+ * JS 주입 <style> 대신 파일로 분리 — 토큰 소비(3단 폴백).
+ *
+ * 폴백 체인: 프론트 토큰 → 부트스트랩 기본 토큰(--bs-*) → 하드코딩(라이트).
+ *   · 프론트: 프론트 토큰 적중 → 프론트 룩(불변)
+ *   · admin : 프론트 토큰 없음 → --bs-* 로 → 부트스트랩 룩 + 다크 자동 적응
+ *   · 색 위 대비글자(--*-foreground)는 bs 짝이 없어 하드코딩 유지
+ * ============================================================ */
+
+/* ── 진행바(progress) — 전체 오버레이 + 중앙 스피너 ── */
+#progress {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    background: rgba(0, 0, 0, 0.25);
+}
+#progress::after {
+    content: "";
+    position: fixed;
+    top: calc(50% - 30px);
+    left: calc(50% - 30px);
+    width: 60px;
+    height: 60px;
+    border: 6px solid var(--border, var(--bs-border-color, #e5e7eb));
+    border-top-color: var(--muted-foreground, var(--bs-secondary-color, #71717a));
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+@keyframes spin {
+    0%   { transform: rotate(0); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ── 토스트(toast) ── */
+#mublo-toast-container {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+}
+.mublo-toast {
+    pointer-events: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, .15);
+    opacity: 0;
+    transform: translateX(40px);
+    transition: opacity .3s, transform .3s;
+    max-width: 400px;
+    word-break: keep-all;
+}
+.mublo-toast--visible { opacity: 1; transform: translateX(0); }
+.mublo-toast--success { background: var(--success, var(--bs-success, #198754)); color: var(--success-foreground, #fff); }
+.mublo-toast--error   { background: var(--destructive, var(--bs-danger, #dc3545)); color: var(--destructive-foreground, #fff); }
+.mublo-toast--info    { background: var(--info, var(--bs-info, #0d6efd)); color: var(--info-foreground, #fff); }
+.mublo-toast--warning { background: var(--warning, var(--bs-warning, #fd7e14)); color: var(--warning-foreground, #111827); }
+.mublo-toast__icon { flex-shrink: 0; font-size: 18px; }
+.mublo-toast__close {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: currentColor;
+    opacity: .7;
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 0 0 8px;
+    line-height: 1;
+}
+.mublo-toast__close:hover { opacity: 1; }
+
+/* ── 얼럿(alert) ── */
+#mublo-alert-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, .45);
+    opacity: 0;
+    transition: opacity .2s;
+}
+#mublo-alert-overlay.--visible { opacity: 1; }
+.mublo-alert {
+    background: var(--card, var(--bs-tertiary-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #212529));
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, .2);
+    max-width: 400px;
+    width: 90%;
+    padding: 28px 24px 20px;
+    text-align: center;
+    transform: scale(.9);
+    transition: transform .2s;
+}
+#mublo-alert-overlay.--visible .mublo-alert { transform: scale(1); }
+.mublo-alert__icon { font-size: 40px; margin-bottom: 12px; line-height: 1; }
+.mublo-alert__icon--error   { color: var(--destructive, var(--bs-danger, #dc3545)); }
+.mublo-alert__icon--warning { color: var(--warning, var(--bs-warning, #fd7e14)); }
+.mublo-alert__icon--info    { color: var(--info, var(--bs-info, #0d6efd)); }
+.mublo-alert__icon--success { color: var(--success, var(--bs-success, #198754)); }
+.mublo-alert__title { font-size: 16px; font-weight: 700; color: var(--foreground, var(--bs-body-color, #212529)); margin-bottom: 8px; }
+.mublo-alert__msg {
+    font-size: 14px;
+    color: var(--muted-foreground, var(--bs-secondary-color, #495057));
+    line-height: 1.6;
+    margin-bottom: 20px;
+    word-break: keep-all;
+    white-space: pre-line; /* 메시지의 \n 을 실제 줄바꿈으로 렌더 */
+}
+.mublo-alert__btn {
+    display: inline-block;
+    padding: 8px 32px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity .15s;
+}
+.mublo-alert__btn:hover { opacity: .85; }
+.mublo-alert__btn:focus { outline: none; }
+.mublo-alert__btn:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 2px var(--card, var(--bs-tertiary-bg, #fff)),
+        0 0 0 4px color-mix(in srgb, var(--ring, var(--bs-primary, #0d6efd)) 45%, transparent);
+}
+.mublo-alert__btn--error   { background: var(--destructive, var(--bs-danger, #dc3545)); color: var(--destructive-foreground, #fff); }
+.mublo-alert__btn--warning { background: var(--warning, var(--bs-warning, #fd7e14)); color: var(--warning-foreground, #111827); }
+.mublo-alert__btn--info    { background: var(--info, var(--bs-info, #0d6efd)); color: var(--info-foreground, #fff); }
+.mublo-alert__btn--success { background: var(--success, var(--bs-success, #198754)); color: var(--success-foreground, #fff); }

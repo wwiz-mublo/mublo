@@ -1,0 +1,78 @@
+/* ===================================
+   Banner Block Skin: basic (CLS FIX)
+   =================================== */
+
+.block-banner {
+    width: 100%;
+}
+
+/* ⭐ 배너 영역의 높이를 미리 확보 */
+.block-banner__inner {
+    border-radius: 12px;
+    overflow: hidden;
+
+    /* PC 기준 비율 (예: 1200 x 400 = 3:1) 
+    aspect-ratio: 3 / 1;
+    */
+}
+
+/* 링크는 영역 전체 */
+.block-banner__link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* 이미지가 영역을 정확히 채우도록 */
+.block-banner__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* PC/MO 이미지 전환 */
+.block-banner__image--mo {
+    display: none;
+}
+
+/* Slide 모드: 슬라이드가 컨테이너 폭에 맞도록 */
+.is-slide .block-banner__item {
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    /* 모바일 배너 비율이 다르면 여기서 분리 */
+    .block-banner__inner {
+        /* aspect-ratio: 1 / 1;예: 정사각 배너 */
+    }
+
+    .block-banner__item--has-mo .block-banner__image--pc {
+        display: none;
+    }
+
+    .block-banner__item--has-mo .block-banner__image--mo {
+        display: block;
+    }
+}
+
+/* 빈 상태 — 점선 박스 (board/코어 톤, 패키지/플러그인 소유) */
+.block-banner-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 100px;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.block-banner-empty__icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}

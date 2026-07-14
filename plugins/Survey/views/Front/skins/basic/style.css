@@ -1,0 +1,158 @@
+/* 독립 페이지 레이아웃 (인라인 style에서 이관) */
+.sv-page { max-width: 720px; margin: 0 auto; }
+.sv-page-header { margin-bottom: 24px; }
+
+.sv-page-title {
+    font-size: 22px; font-weight: 800; color: var(--foreground); margin: 0;
+}
+.sv-page-desc {
+    font-size: 14px; color: var(--muted-foreground); margin: 0; line-height: 1.6;
+}
+/* meta 간격은 margin-top으로 — desc 마크업이 없을 때도(인접 마진 상쇄)
+   title과 동일 간격을 유지한다. */
+.sv-page-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.sv-meta-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 12px; border-radius: 20px;
+    background: var(--muted); font-size: 12px; color: var(--muted-foreground);
+}
+.sv-meta-badge svg { flex-shrink: 0; }
+
+/* 참여불가 알림 */
+.sv-notice {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 18px; border-radius: 10px;
+    font-size: 14px; font-weight: 500;
+}
+.sv-notice--warn { background: var(--warning-subtle); color: var(--warning-subtle-foreground); border: 1px solid var(--warning-subtle-border); }
+
+/* 카드 */
+.sv-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px 22px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04);
+}
+/* 질문 카드 간 세로 간격 (프론트엔 부트스트랩 mb-3 미적용이라 직접 부여) */
+.sv-question { margin-bottom: 16px; }
+.sv-q-num-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.sv-q-num {
+    font-size: 11px; font-weight: 700; color: var(--accent-foreground);
+    background: var(--accent); padding: 2px 8px; border-radius: 4px;
+}
+.sv-required {
+    font-size: 10px; font-weight: 700; color: var(--destructive);
+    background: var(--danger-subtle); padding: 2px 6px; border-radius: 4px;
+}
+.sv-q-title {
+    font-size: 15px; font-weight: 600; color: var(--foreground); margin-bottom: 4px; line-height: 1.5;
+}
+.sv-q-hint { font-size: 12px; color: var(--muted-foreground); margin-bottom: 12px; }
+.sv-q-body { margin-top: 14px; }
+
+/* 선택지 */
+.sv-choice {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; margin-bottom: 6px;
+    border: 1.5px solid var(--border); border-radius: 8px;
+    cursor: pointer; font-size: 14px; color: var(--foreground);
+    transition: border-color .15s, background .15s;
+    user-select: none;
+}
+.sv-choice:last-child { margin-bottom: 0; }
+.sv-choice:hover { border-color: var(--primary); background: var(--accent); }
+.sv-choice input { display: none; }
+
+.sv-choice-mark {
+    width: 16px; height: 16px; flex-shrink: 0;
+    border: 2px solid var(--border); background: var(--card);
+    transition: border-color .15s, background .15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.sv-choice-mark--radio { border-radius: 50%; }
+.sv-choice-mark--check { border-radius: 4px; }
+.sv-choice-mark--radio::after {
+    content: ''; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--primary-foreground); opacity: 0; transition: opacity .15s;
+}
+.sv-choice-mark--check::after {
+    content: ''; width: 8px; height: 5px;
+    border-left: 2px solid var(--primary-foreground); border-bottom: 2px solid var(--primary-foreground);
+    transform: rotate(-45deg) translate(1px, -1px); opacity: 0; transition: opacity .15s;
+}
+.sv-choice.checked {
+    border-color: var(--primary); background: var(--accent);
+}
+.sv-choice.checked .sv-choice-mark {
+    border-color: var(--primary); background: var(--primary);
+}
+.sv-choice.checked .sv-choice-mark::after { opacity: 1; }
+
+/* select / input / textarea */
+.sv-select, .sv-input, .sv-textarea {
+    width: 100%; padding: 10px 14px;
+    border: 1.5px solid var(--input); border-radius: 8px;
+    font-size: 14px; color: var(--foreground); outline: none;
+    font-family: inherit; transition: border-color .15s;
+    box-sizing: border-box;
+}
+.sv-select { appearance: none; cursor: pointer; padding-right: 36px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239ca3af' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 10px center / 16px; }
+.sv-textarea { resize: vertical; }
+.sv-select:focus, .sv-input:focus, .sv-textarea:focus { border-color: var(--ring); }
+.sv-input::placeholder, .sv-textarea::placeholder { color: var(--muted-foreground); }
+
+/* 별점 */
+.sv-rating { display: flex; align-items: center; gap: 6px; }
+.sv-star {
+    font-size: 30px; color: var(--muted-foreground); cursor: pointer;
+    background: none; border: none; padding: 0; line-height: 1;
+    transition: color .1s, transform .1s;
+}
+.sv-star.on, .sv-star.hov { color: var(--color-amber-400); transform: scale(1.15); }
+.sv-rating-label { font-size: 12px; color: var(--muted-foreground); margin-left: 4px; }
+
+/* 제출 버튼 */
+.sv-submit-row { margin-top: 24px; text-align: center; }
+.sv-submit-btn {
+    padding: 14px 32px;
+    background: var(--primary); color: var(--primary-foreground);
+    font-size: 15px; font-weight: 700; border: none; border-radius: 10px;
+    cursor: pointer; transition: background .15s, transform .1s;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    letter-spacing: -.01em;
+}
+.sv-submit-btn:hover { opacity: .9; }
+.sv-submit-btn:active { transform: scale(.99); }
+.sv-submit-btn:disabled { opacity: .6; cursor: not-allowed; }
+/* 모바일에선 전체폭(PC는 콘텐츠 크기) */
+@media (max-width: 768px) {
+    .sv-submit-btn { display: flex; width: 100%; }
+}
+.sv-spinner {
+    display: none; width: 16px; height: 16px;
+    border: 2px solid color-mix(in srgb, var(--primary-foreground) 30%, transparent); border-top-color: var(--primary-foreground);
+    border-radius: 50%; animation: sv-spin .6s linear infinite;
+}
+.sv-submit-btn.loading .sv-spinner { display: inline-block; }
+@keyframes sv-spin { to { transform: rotate(360deg); } }
+
+/* 완료 카드 */
+.sv-done-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 48px 32px; text-align: center;
+    box-shadow: 0 4px 24px rgba(0,0,0,.06);
+}
+.sv-done-icon {
+    width: 64px; height: 64px; border-radius: 50%;
+    background: var(--success-subtle); margin: 0 auto 20px;
+    display: flex; align-items: center; justify-content: center;
+}
+.sv-done-icon svg { width: 32px; height: 32px; color: var(--success); }
+.sv-done-title { font-size: 20px; font-weight: 800; color: var(--foreground); margin: 0 0 8px; }
+.sv-done-msg { font-size: 14px; color: var(--muted-foreground); margin: 0 0 20px; }
+.sv-done-count {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 8px 20px; background: var(--accent); border-radius: 20px;
+    font-size: 14px; color: var(--accent-foreground);
+}
+.sv-done-count strong { font-size: 18px; font-weight: 800; }

@@ -1,0 +1,148 @@
+/*
+ * Block Skin: faq/basic
+ * 해시태그 탭 + 큼직한 카드형 아코디언.
+ * 색은 플랫폼 토큰(--primary/--card/--border/--foreground)만 소비한다.
+ *
+ * 노출 개수는 탭 하나당 적용된다. PC 개수 이내지만 모바일 개수는 넘는 항목에
+ * .cfaq-item--mo-hide 가 붙고, 모바일에서만 감춘다(JS 없이도 첫 화면이 정확).
+ */
+
+/* ── 카테고리 탭(칩) ── */
+.block-faq--basic .cfaq-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0 0 20px;
+}
+.block-faq--basic .cfaq-chip {
+    padding: 9px 16px;
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    background: var(--card);
+    color: var(--primary);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(16, 18, 22, 0.04);
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.block-faq--basic .cfaq-chip:hover {
+    border-color: color-mix(in srgb, var(--primary) 45%, var(--border));
+}
+.block-faq--basic .cfaq-chip.is-active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--primary-foreground, #fff);
+}
+.block-faq--basic .cfaq-chip:focus-visible {
+    outline: 2px solid var(--ring, var(--primary));
+    outline-offset: 2px;
+}
+
+/* ── 카드 리스트 ── */
+.block-faq--basic .cfaq-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.block-faq--basic .cfaq-item {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    box-shadow: 0 1px 2px rgba(16, 18, 22, 0.04);
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+.block-faq--basic .cfaq-item:hover {
+    box-shadow: 0 4px 14px rgba(16, 18, 22, 0.07);
+}
+.block-faq--basic .cfaq-item:focus-within {
+    outline: 2px solid var(--ring, var(--primary));
+    outline-offset: 2px;
+}
+
+/* ── 질문 ── */
+.block-faq--basic .cfaq-q {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 22px 26px;
+    border: 0;
+    background: none;
+    text-align: left;
+    font-family: inherit;
+    cursor: pointer;
+}
+.block-faq--basic .cfaq-q:focus-visible { outline: none; }
+.block-faq--basic .cfaq-q-text {
+    font-size: 15.5px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: var(--foreground);
+    line-height: 1.45;
+}
+.block-faq--basic .cfaq-chevron {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    color: var(--muted-foreground);
+    transition: transform 0.25s;
+}
+.block-faq--basic .cfaq-item.is-open .cfaq-chevron { transform: rotate(180deg); }
+
+/* ── 답변 ── */
+.block-faq--basic .cfaq-a {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.28s ease;
+}
+.block-faq--basic .cfaq-a-inner {
+    padding: 0 26px 24px;
+    border-top: 1px solid var(--border);
+    margin-top: -1px;
+    padding-top: 20px;
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--muted-foreground);
+}
+.block-faq--basic .cfaq-a-inner p { margin: 0 0 8px; }
+.block-faq--basic .cfaq-a-inner p:last-child { margin-bottom: 0; }
+.block-faq--basic .cfaq-a-inner img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+
+.block-faq--basic .cfaq-empty-filtered {
+    margin: 16px 0 0;
+    text-align: center;
+    font-size: 14px;
+    color: var(--muted-foreground);
+}
+
+/* ── 빈 상태 ── */
+.block-faq--basic .block-faq__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 120px;
+    padding: 20px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+    text-align: center;
+}
+.block-faq--basic .block-faq__empty-icon { font-size: 1.75rem; line-height: 1; }
+
+@media (max-width: 575px) {
+    .block-faq--basic .cfaq-q { padding: 18px 18px; gap: 12px; }
+    .block-faq--basic .cfaq-q-text { font-size: 14.5px; }
+    .block-faq--basic .cfaq-a-inner { padding: 16px 18px 20px; }
+    .block-faq--basic .cfaq-chip { padding: 8px 14px; font-size: 12.5px; }
+
+    /* PC 개수 이내지만 모바일 개수는 넘는 항목 */
+    .block-faq--basic .cfaq-item--mo-hide { display: none; }
+}

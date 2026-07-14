@@ -1,0 +1,4 @@
+/* 문의 작성 (Inquiry/Form) 스타일 */
+
+.shop-inquiry-form { max-width: 600px; margin: 0 auto; }
+.shop-inquiry-form__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 20px; }

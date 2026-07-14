@@ -1,0 +1,25 @@
+-- 운영자 설정 Action의 실행 이력과 재시도 큐.
+CREATE TABLE IF NOT EXISTS shop_action_executions (
+    execution_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    execution_key CHAR(64) NOT NULL COMMENT '주문/상태/Action 단위 중복 방지 키',
+    domain_id BIGINT UNSIGNED NOT NULL,
+    order_no VARCHAR(20) NOT NULL,
+    state_id VARCHAR(50) NOT NULL,
+    action_id VARCHAR(64) NOT NULL,
+    action_type VARCHAR(50) NOT NULL,
+    config_json JSON NOT NULL,
+    event_json JSON NOT NULL COMMENT 'PII를 제외한 상태 전이 정보',
+    status ENUM('PENDING','RUNNING','SUCCESS','FAILED') NOT NULL DEFAULT 'PENDING',
+    attempts SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    max_attempts SMALLINT UNSIGNED NOT NULL DEFAULT 5,
+    next_attempt_at DATETIME NULL,
+    last_error VARCHAR(1000) NULL,
+    started_at DATETIME NULL,
+    completed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_execution_key (execution_key),
+    INDEX idx_due (status, next_attempt_at),
+    INDEX idx_order (domain_id, order_no),
+    CONSTRAINT fk_action_execution_order FOREIGN KEY (order_no) REFERENCES shop_orders(order_no) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='Shop Action 실행 이력';

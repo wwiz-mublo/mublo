@@ -1,0 +1,208 @@
+/* 게시글 본문의 코드 블록 — basic/gallery 스킨 공통 */
+.board-view__content pre {
+    box-sizing: border-box;
+    max-width: 100%;
+    margin: 20px 0;
+    padding: 20px 22px;
+    overflow-x: auto;
+    color: #e2e8f0;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 12%);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    tab-size: 4;
+    white-space: pre;
+    word-break: normal;
+    overflow-wrap: normal;
+}
+
+.board-view__content pre code {
+    display: block;
+    min-width: max-content;
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    font: inherit;
+    line-height: inherit;
+    white-space: inherit;
+}
+
+.board-view__content :not(pre) > code {
+    padding: 0.15em 0.4em;
+    color: #be123c;
+    background: #fff1f2;
+    border: 1px solid #ffe4e6;
+    border-radius: 5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    font-size: 0.9em;
+    overflow-wrap: anywhere;
+}
+
+.board-code-block {
+    margin: 22px 0;
+    overflow: hidden;
+    color: #e2e8f0;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(15 23 42 / 14%);
+}
+
+.board-code-block__toolbar {
+    display: flex;
+    align-items: center;
+    min-height: 40px;
+    padding: 0 10px 0 16px;
+    color: #94a3b8;
+    background: #1e293b;
+    border-bottom: 1px solid #334155;
+}
+
+.board-code-block__dots {
+    width: 8px;
+    height: 8px;
+    margin-right: 40px;
+    background: #fb7185;
+    border-radius: 50%;
+    box-shadow: 14px 0 #fbbf24, 28px 0 #4ade80;
+    flex: 0 0 auto;
+}
+
+.board-code-block__dots::before {
+    content: none;
+}
+
+.board-code-block__language {
+    overflow: hidden;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.board-code-block__copy {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    width: 26px;
+    height: 26px;
+    margin-left: auto;
+    padding: 0;
+    color: #cbd5e1;
+    background: transparent;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: none;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease,
+        box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.board-code-block__copy::before {
+    content: '';
+    position: absolute;
+    top: 6px;
+    left: 9px;
+    width: 9px;
+    height: 10px;
+    border: 1.4px solid currentColor;
+    border-radius: 2px;
+}
+
+.board-code-block__copy::after {
+    content: '';
+    position: absolute;
+    top: 10px;
+    left: 6px;
+    width: 9px;
+    height: 10px;
+    background: #1e293b;
+    border: 1.4px solid currentColor;
+    border-radius: 2px;
+}
+
+.board-code-block__copy:hover {
+    color: #fff;
+    background: #334155;
+}
+
+.board-code-block__copy:active {
+    background: #475569;
+}
+
+.board-code-block__copy:focus-visible {
+    outline: 2px solid #60a5fa;
+    outline-offset: 2px;
+}
+
+.board-code-block__copy--success {
+    color: #bbf7d0;
+    background: rgb(22 101 52 / 35%);
+}
+
+.board-code-block__copy--success::before {
+    content: '\2713';
+    position: static;
+    width: auto;
+    height: auto;
+    border: 0;
+    font-size: 0.875rem;
+    font-weight: 700;
+}
+
+.board-code-block__copy--success::after {
+    display: none;
+}
+
+.board-code-block__copy--error {
+    color: #fecdd3;
+    background: rgb(190 18 60 / 30%);
+}
+
+.board-code-block__copy--error::before {
+    content: '!';
+    position: static;
+    width: auto;
+    height: auto;
+    border: 0;
+    font-weight: 700;
+}
+
+.board-code-block__copy--error::after {
+    display: none;
+}
+
+.board-code-block > pre {
+    width: 100%;
+    margin: 0;
+    padding: 20px 22px;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+}
+
+@media (max-width: 768px) {
+    .board-view__content pre,
+    .board-code-block > pre {
+        padding: 16px;
+        font-size: 0.875rem;
+        line-height: 1.65;
+    }
+
+    .board-code-block__toolbar {
+        min-height: 38px;
+        padding-left: 14px;
+    }
+}

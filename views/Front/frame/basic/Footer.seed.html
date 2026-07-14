@@ -1,0 +1,42 @@
+<!--
+    basic 스킨 편집 시드 (Footer)
+
+    도메인 프레임 편집을 처음 시작할 때 에디터에 로드되는 출발점 HTML.
+    {{...}} 템플릿 문자열은 렌더 시점에 코어가 치환한다.
+
+    {{business_info}}·{{cs_info}}는 관리자 사이트설정 값을 따라가는 슬롯이다 —
+    사업자 정보를 직접 타이핑하지 말 것 (설정 변경 시 자동 반영되지 않게 된다).
+    {{cs_info}}는 패키지(예: Shop)가 고객센터 정보를 덮어쓸 수 있는 자리이기도 하다.
+    {{theme_switch}}를 지우면 방문자의 다크모드 전환 수단이 사라진다.
+-->
+<footer class="mublo-footer">
+    <div class="mublo-container">
+
+{{menu_footer}}
+
+        <div class="footer-body">
+            <div class="footer-company">
+                <div class="footer-brand-row">
+                    <!-- 로고: 이미지 로고를 쓰려면 span을
+                         <img src="{{logo_url}}" alt="{{site_name}}">로 교체 -->
+                    <div class="footer-brand">
+                        <a href="/" class="footer-logo-text">{{site_name}}</a>
+                    </div>
+
+{{sns}}
+                </div>
+
+{{business_info}}
+
+                <div class="footer-copy">&copy; {{year}} {{site_name}}. All Rights Reserved.</div>
+            </div>
+
+{{cs_info}}
+        </div>
+
+        <div class="footer-bar">
+{{theme_switch}}
+        </div>
+
+    </div>
+</footer>

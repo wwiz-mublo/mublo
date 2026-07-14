@@ -1,0 +1,825 @@
+/**
+ * Shop Product List — Modern Layout
+ *
+ * BEM-like short prefix: spl (Shop Product List)
+ * - Desktop: 상단 카테고리 바 + 드롭다운
+ * - Mobile(≤768px): 카테고리 드로어 패널
+ */
+
+/* ========================================
+   Variables
+   ======================================== */
+.spl {
+    --spl-bg: var(--card);
+    --spl-bg-alt: var(--muted);
+    --spl-bg-hover: var(--accent);
+    --spl-border: var(--border);
+    --spl-text: var(--foreground);
+    --spl-text-sub: var(--muted-foreground);
+    --spl-text-muted: var(--muted-foreground);
+    --spl-primary: var(--primary);
+    --spl-accent: var(--destructive);
+    --spl-accent-light: var(--danger-subtle);
+    --spl-success: var(--success);
+    --spl-amber: var(--color-amber-500);
+    --spl-radius: 8px;
+    --spl-radius-sm: 4px;
+    --spl-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    --spl-shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
+    --spl-transition: 0.2s ease;
+}
+
+/* ========================================
+   Category Nav — Desktop (상단 바)
+   ======================================== */
+.spl-catnav {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border-bottom: 2px solid var(--border);
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.spl-catnav__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 20px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--spl-text-sub);
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: color var(--spl-transition), border-color var(--spl-transition);
+}
+
+.spl-catnav__item:hover {
+    color: var(--spl-text);
+}
+
+.spl-catnav__item--active {
+    color: var(--spl-primary);
+    font-weight: 700;
+    border-bottom-color: var(--spl-primary);
+}
+
+.spl-catnav__arrow {
+    font-size: 0.625rem;
+    transition: transform var(--spl-transition);
+}
+
+/* Dropdown group */
+.spl-catnav__group {
+    position: relative;
+}
+
+.spl-catnav__group--active > .spl-catnav__item {
+    color: var(--spl-primary);
+    font-weight: 600;
+}
+
+.spl-catnav__dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 180px;
+    background: var(--spl-bg);
+    border: 1px solid var(--spl-border);
+    border-radius: var(--spl-radius);
+    box-shadow: var(--spl-shadow-lg);
+    padding: 8px;
+    z-index: 100;
+    margin-top: 2px;
+}
+
+.spl-catnav__group:hover .spl-catnav__dropdown {
+    display: block;
+}
+
+.spl-catnav__group:hover .spl-catnav__arrow {
+    transform: rotate(180deg);
+}
+
+.spl-catnav__dropdown-item {
+    display: block;
+    padding: 6px 12px;
+    font-size: 0.875rem;
+    color: var(--spl-text-sub);
+    text-decoration: none;
+    border-radius: var(--spl-radius-sm);
+    transition: background var(--spl-transition), color var(--spl-transition);
+}
+
+/* 아이템 간 살짝 갭 — 활성/호버 하이라이트가 겹쳐보이지 않게 */
+.spl-catnav__dropdown-item + .spl-catnav__dropdown-item {
+    margin-top: 2px;
+}
+
+.spl-catnav__dropdown-item:hover {
+    background: var(--spl-bg-alt);
+    color: var(--spl-text);
+}
+
+.spl-catnav__dropdown-item--active {
+    color: var(--spl-primary);
+    font-weight: 600;
+    background: var(--spl-bg-alt);
+}
+
+.spl-catnav__dropdown-item--sub {
+    padding-left: 28px;
+    font-size: 0.8125rem;
+}
+
+/* ========================================
+   Filter Toggle — Mobile Only
+   ======================================== */
+.spl-filter-toggle {
+    display: none;
+    width: 100%;
+    padding: 12px 16px;
+    background: var(--spl-bg);
+    border: 1px solid var(--spl-border);
+    border-radius: var(--spl-radius);
+    font-size: 0.875rem;
+    color: var(--spl-text);
+    text-align: left;
+    cursor: pointer;
+    margin-bottom: 16px;
+    transition: border-color var(--spl-transition);
+}
+
+.spl-filter-toggle:hover {
+    border-color: var(--spl-text-sub);
+}
+
+.spl-filter-toggle i {
+    margin-right: 8px;
+    color: var(--spl-text-sub);
+}
+
+.spl-filter-toggle strong {
+    color: var(--spl-primary);
+}
+
+/* ========================================
+   Drawer — Mobile Category Panel
+   ======================================== */
+.spl-drawer {
+    display: none;
+}
+
+.spl-drawer--open {
+    display: block;
+}
+
+.spl-drawer__backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 1000;
+    animation: splFadeIn 0.2s ease;
+}
+
+.spl-drawer__panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(320px, 85vw);
+    background: var(--spl-bg);
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    animation: splSlideIn 0.25s ease;
+}
+
+@keyframes splFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes splSlideIn {
+    from { transform: translateX(100%); }
+    to { transform: translateX(0); }
+}
+
+.spl-drawer__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--spl-border);
+    flex-shrink: 0;
+}
+
+.spl-drawer__title {
+    font-size: 1.0625rem;
+    font-weight: 700;
+    color: var(--spl-text);
+}
+
+.spl-drawer__close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    border-radius: 50%;
+    color: var(--spl-text-sub);
+    cursor: pointer;
+    transition: background var(--spl-transition);
+}
+
+.spl-drawer__close:hover {
+    background: var(--spl-bg-alt);
+}
+
+.spl-drawer__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+    -webkit-overflow-scrolling: touch;
+}
+
+.spl-drawer__item {
+    display: block;
+    padding: 13px 20px;
+    font-size: 0.9375rem;
+    color: var(--spl-text-sub);
+    text-decoration: none;
+    transition: background var(--spl-transition);
+}
+
+.spl-drawer__item:hover {
+    background: var(--spl-bg-alt);
+}
+
+.spl-drawer__item--active {
+    color: var(--spl-primary);
+    font-weight: 700;
+    background: var(--spl-bg-alt);
+}
+
+.spl-drawer__group-header {
+    display: flex;
+    align-items: center;
+}
+
+.spl-drawer__group-header .spl-drawer__item {
+    flex: 1;
+}
+
+.spl-drawer__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: none;
+    background: none;
+    color: var(--spl-text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform var(--spl-transition);
+}
+
+.spl-drawer__group--open .spl-drawer__toggle i {
+    transform: rotate(180deg);
+}
+
+.spl-drawer__children {
+    display: none;
+    padding-bottom: 4px;
+}
+
+.spl-drawer__group--open .spl-drawer__children {
+    display: block;
+}
+
+.spl-drawer__child {
+    display: block;
+    padding: 10px 20px 10px 40px;
+    font-size: 0.875rem;
+    color: var(--spl-text-sub);
+    text-decoration: none;
+    transition: background var(--spl-transition);
+}
+
+.spl-drawer__child:hover {
+    background: var(--spl-bg-alt);
+}
+
+.spl-drawer__child--active {
+    color: var(--spl-primary);
+    font-weight: 600;
+}
+
+.spl-drawer__child--depth2 {
+    padding-left: 56px;
+    font-size: 0.8125rem;
+}
+
+/* ========================================
+   Toolbar
+   ======================================== */
+.spl-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-bottom: 16px;
+    margin-bottom: 20px;
+    border-bottom: 1px solid var(--spl-border);
+}
+
+.spl-toolbar__left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.spl-toolbar__count {
+    font-size: 0.875rem;
+    color: var(--spl-text-sub);
+    white-space: nowrap;
+}
+
+.spl-toolbar__count strong {
+    color: var(--spl-text);
+}
+
+.spl-toolbar__current-cat {
+    font-size: 0.8125rem;
+    color: var(--spl-text-sub);
+    padding: 3px 10px;
+    background: var(--spl-bg-alt);
+    border-radius: 20px;
+    white-space: nowrap;
+}
+
+.spl-toolbar__current-cat i {
+    font-size: 0.6875rem;
+}
+
+.spl-toolbar__right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.spl-toolbar__search {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    box-sizing: border-box;
+    border: 1px solid var(--spl-border);
+    border-radius: var(--spl-radius);
+    overflow: hidden;
+    transition: border-color var(--spl-transition);
+}
+
+.spl-toolbar__search:focus-within {
+    border-color: var(--spl-primary);
+}
+
+.spl-toolbar__search-input {
+    border: none;
+    height: 100%;
+    padding: 0 14px;
+    font-size: 0.8125rem;
+    width: 160px;
+    outline: none;
+    background: transparent;
+}
+
+.spl-toolbar__search-btn {
+    display: flex;
+    align-items: center;
+    border: none;
+    background: none;
+    height: 100%;
+    padding: 0 12px;
+    color: var(--spl-text-sub);
+    cursor: pointer;
+}
+
+.spl-toolbar__search-btn:hover {
+    color: var(--spl-text);
+}
+
+.spl-toolbar__sort {
+    height: 36px;
+    box-sizing: border-box;
+    border: 1px solid var(--spl-border);
+    border-radius: var(--spl-radius);
+    padding: 0 36px 0 14px;
+    font-size: 0.8125rem;
+    color: var(--spl-text);
+    background-color: var(--spl-bg);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='none' stroke='%23868e96' stroke-width='1.5' d='M1 1l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+}
+
+/* Search info */
+.spl-search-info {
+    font-size: 0.875rem;
+    color: var(--spl-text-sub);
+    margin-bottom: 16px;
+    padding: 10px 16px;
+    background: var(--spl-bg-alt);
+    border-radius: var(--spl-radius);
+}
+
+.spl-search-info strong {
+    color: var(--spl-accent);
+}
+
+.spl-search-info__clear {
+    margin-left: 8px;
+    color: var(--spl-text-muted);
+    font-size: 0.8125rem;
+}
+
+/* ========================================
+   Product Grid
+   ======================================== */
+.spl-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px 16px;
+}
+
+/* ========================================
+   Product Card
+   ======================================== */
+.spl-card {
+    position: relative;
+}
+
+.spl-card__thumb {
+    display: block;
+    position: relative;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: var(--spl-radius);
+    background: var(--spl-bg-alt);
+}
+
+.spl-card__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.35s ease;
+}
+
+.spl-card__thumb:hover .spl-card__img {
+    transform: scale(1.06);
+}
+
+.spl-card__img--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--spl-text-muted);
+    font-size: 2.5rem;
+}
+
+/* Soldout */
+.spl-card--soldout .spl-card__img {
+    opacity: 0.45;
+    filter: grayscale(0.3);
+}
+
+.spl-card__soldout {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0,0,0,0.65);
+    color: var(--color-white);
+    padding: 8px 24px;
+    border-radius: var(--spl-radius-sm);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 3px;
+}
+
+/* Badges */
+.spl-card__badges {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.spl-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    border-radius: var(--spl-radius-sm);
+    line-height: 1.3;
+    letter-spacing: 0.5px;
+}
+
+.spl-badge--new {
+    background: var(--spl-success);
+    color: var(--success-foreground);
+}
+
+.spl-badge--sale {
+    background: var(--spl-accent);
+    color: var(--destructive-foreground);
+}
+
+.spl-badge--custom {
+    background: var(--spl-accent);
+    color: var(--destructive-foreground);
+}
+
+/* Discount tag (우측 상단) — 코너 배지와 동일 메트릭 */
+.spl-card__discount-tag {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--spl-accent);
+    color: var(--destructive-foreground);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: var(--spl-radius-sm);
+    line-height: 1.3;
+    letter-spacing: 0.5px;
+}
+
+/* Card body */
+.spl-card__body {
+    padding: 10px 2px 0;
+}
+
+.spl-card__name {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.875rem;
+    color: var(--spl-text);
+    text-decoration: none;
+    line-height: 1.5;
+    margin-bottom: 6px;
+}
+
+.spl-card__name:hover {
+    text-decoration: underline;
+}
+
+/* Price */
+.spl-card__price {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.spl-card__price-origin {
+    font-size: 0.8125rem;
+    color: var(--spl-text-muted);
+}
+
+.spl-card__price-current {
+    font-size: 1rem;
+    font-weight: 800;
+    color: var(--spl-text);
+}
+
+/* Wishlist button */
+.spl-card__wish {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.85);
+    color: var(--spl-text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity var(--spl-transition), transform var(--spl-transition), color var(--spl-transition), background var(--spl-transition);
+    z-index: 2;
+}
+
+/* 글리프 baseline 흔들림만 정리 (폰트 자체 광학 중심은 보정하지 않음) */
+.spl-card__wish i {
+    display: block;
+    line-height: 1;
+}
+
+.spl-card__thumb:hover .spl-card__wish {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.spl-card__wish:hover {
+    background: var(--card);
+    color: var(--spl-accent);
+}
+
+.spl-card__wish--active {
+    color: var(--spl-accent);
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.spl-card__wish--active i::before {
+    content: "\f415";
+}
+
+/* Reward */
+.spl-card__reward {
+    font-size: 0.75rem;
+    color: var(--spl-text-sub);
+    margin-top: 4px;
+}
+
+.spl-card__reward i {
+    color: var(--spl-amber);
+}
+
+/* Review stars */
+.spl-card__review {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+}
+
+.spl-card__stars {
+    display: inline-flex;
+    gap: 1px;
+    color: var(--spl-amber);
+    font-size: 0.6875rem;
+    line-height: 1;
+}
+
+.spl-card__stars .bi-star {
+    color: var(--spl-border);
+}
+
+.spl-card__review-count {
+    font-size: 0.75rem;
+    color: var(--spl-text-muted);
+}
+
+/* ========================================
+   Empty state
+   ======================================== */
+.spl-empty {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--spl-text-sub);
+}
+
+.spl-empty i {
+    font-size: 3rem;
+    color: var(--spl-text-muted);
+    display: block;
+    margin-bottom: 16px;
+}
+
+.spl-empty p {
+    font-size: 0.9375rem;
+    margin: 0;
+}
+
+.spl-empty strong {
+    color: var(--spl-accent);
+}
+
+/* ========================================
+   Pagination
+   ======================================== */
+.spl-pagination {
+    /* 상단 여백·중앙정렬은 공용 .nav-page 가 담당 (중복 방지) */
+    --pagination-margin-top: 40px;
+}
+
+/* ========================================
+   Responsive — Tablet (≤992px)
+   ======================================== */
+@media (max-width: 991.98px) {
+    .spl-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px 12px;
+    }
+}
+
+/* ========================================
+   Responsive — Mobile (≤768px)
+   ======================================== */
+@media (max-width: 768px) {
+    /* 데스크탑 카테고리 바 숨김 */
+    .spl-catnav {
+        display: none;
+    }
+
+    /* 모바일 필터 버튼 표시 */
+    .spl-filter-toggle {
+        display: flex;
+        align-items: center;
+    }
+
+    /* 그리드 2열 */
+    .spl-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px 10px;
+    }
+
+    /* 툴바 세로 배치 */
+    .spl-toolbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+
+    .spl-toolbar__left {
+        justify-content: space-between;
+    }
+
+    .spl-toolbar__right {
+        width: 100%;
+    }
+
+    .spl-toolbar__search {
+        flex: 1;
+    }
+
+    .spl-toolbar__search-input {
+        width: 100%;
+    }
+
+    /* 카드 미세 조정 */
+    .spl-card__name {
+        font-size: 0.8125rem;
+    }
+
+    .spl-card__price-current {
+        font-size: 0.9375rem;
+    }
+
+    .spl-card__discount-tag {
+        font-size: 0.6875rem;
+        padding: 2px 6px;
+    }
+
+    /* 모바일: 찜 버튼 항상 표시 */
+    .spl-card__wish {
+        opacity: 1;
+        transform: translateY(0);
+        width: 30px;
+        height: 30px;
+        font-size: 0.875rem;
+    }
+
+    .spl-card__stars {
+        font-size: 0.625rem;
+    }
+}
+
+/* ========================================
+   Responsive — XL (≥1200px)
+   ======================================== */
+@media (min-width: 1200px) {
+    .spl-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 28px 20px;
+    }
+}
+
+/* ========================================
+   Responsive — XXL (≥1400px) — 4열
+   (perPage 12 정합: 5열은 마지막 행 빈칸 발생)
+   ======================================== */
+@media (min-width: 1400px) {
+    .spl-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}

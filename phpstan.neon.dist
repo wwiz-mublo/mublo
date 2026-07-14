@@ -1,0 +1,22 @@
+parameters:
+    # level 0 만 게이트로 쓴다.
+    #
+    # 실측 결과 level 0 은 오탐 0 건이고, "부르는데 없는" 클래스·인터페이스·메서드를
+    # 잡는다. 실제로 include 블록의 서비스 주입, 쇼핑몰 카테고리 삭제,
+    # 주문서 파일 업로드가 이 종류의 버그로 깨져 있었다.
+    #
+    # level 1 이상은 지금 넣지 않는다. 95건 중 85건이 constant.notFound(런타임 정의 상수)이고,
+    # method.notFound 상당수는 EventDispatcher::dispatch() 의 반환 타입이 EventInterface 라서
+    # 생기는 타입 한계다. 오탐이 지배하면 베이스라인이 오탐 창고가 되고 아무도 보지 않는다.
+    # 타입 힌트가 충실해지고 dispatch() 가 제네릭을 갖춘 뒤 다시 검토한다.
+    level: 0
+
+    paths:
+        - src
+        - packages
+        - plugins
+
+    excludePaths:
+        analyseAndScan:
+            - packages/*/tests
+            - plugins/*/tests

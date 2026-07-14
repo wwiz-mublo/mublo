@@ -1,0 +1,15 @@
+{
+    "name": "MemberPoint",
+    "label": "회원 포인트",
+    "description": "회원 포인트 적립/차감/내역 관리 플러그인",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "member",
+    "icon": "bi-coin",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

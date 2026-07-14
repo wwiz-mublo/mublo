@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>StarRating Demo</title>
+  <script src="./star.js"></script>
+</head>
+<body>
+  <h2>별점 입력</h2>
+  <form onsubmit="event.preventDefault(); alert(document.getElementsByName('score')[0].value)">
+    <div id="ratingInput"></div>
+    <button type="submit">제출</button>
+  </form>
+
+  <h2>출력용</h2>
+  <div id="ratingOutput"></div>
+
+  <script>
+    new StarRating("#ratingInput", {
+      mode: "input",
+      iconType: "heart",
+      maxStars: 10,
+      rating: 7.5,
+      starSize: "2em",
+      inputName: "score",
+      showScore: true,
+      starColor: "#ff3366"
+    });
+
+    const rawScore = 8.6;
+    new StarRating("#ratingOutput", {
+      mode: "display",
+      rating: Math.round((rawScore / 2) * 10) / 10,
+      iconType: "star",
+      maxStars: 5,
+      starColor: "#FFD700",
+      showScore: true
+    });
+  </script>
+</body>
+</html>
+
+<!-- 목록 출력 --->
+<div class="product-list">
+  <div class="product" data-score="8.6">
+    <h4>상품 A</h4>
+    <div class="rating-widget"></div>
+  </div>
+  <div class="product" data-score="7.2">
+    <h4>상품 B</h4>
+    <div class="rating-widget"></div>
+  </div>
+  <div class="product" data-score="9.5">
+    <h4>상품 C</h4>
+    <div class="rating-widget"></div>
+  </div>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll(".product").forEach(product => {
+    const score10 = parseFloat(product.dataset.score) || 0;
+    const score5 = Math.round((score10 / 2) * 10) / 10;
+
+    const target = product.querySelector(".rating-widget");
+
+    new StarRating(target, {
+      mode: "display",
+      rating: score5,
+      maxStars: 7,
+      maxScore: 10,
+      iconType: "star",
+      showScore: true,
+      starColor: "#FFD700",
+      starSize: "1.5em"
+    });
+  });
+});
+</script>
+
+
+<!-- 다수 입력 -->
+<form id="productRatingForm" onsubmit="event.preventDefault(); submitAllRatings();">
+  <div class="product" data-name="productA" data-initial="7.5">
+    <h4>상품 A</h4>
+    <div class="rating-input"></div>
+  </div>
+  <div class="product" data-name="productB" data-initial="5.0">
+    <h4>상품 B</h4>
+    <div class="rating-input"></div>
+  </div>
+  <div class="product" data-name="productC" data-initial="9.0">
+    <h4>상품 C</h4>
+    <div class="rating-input"></div>
+  </div>
+
+  <button type="submit">전체 제출</button>
+</form>
+<script>
+// 입력용 별점 초기화
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll(".product").forEach(product => {
+    const initial = parseFloat(product.dataset.initial) || 0;
+    const inputName = product.dataset.name || 'rating';
+
+    const target = product.querySelector(".rating-input");
+
+    new StarRating(target, {
+      mode: "input",
+      rating: initial,
+      maxStars: 7,
+      maxScore: 10,
+      iconType: "star",
+      inputName: inputName,
+      showScore: true,
+      starSize: "1.8em",
+      starColor: "#FF6600"
+    });
+  });
+});
+
+// 입력된 점수 전송 시 사용
+function submitAllRatings() {
+  const data = {};
+  const form = document.getElementById("productRatingForm");
+  const inputs = form.querySelectorAll("input[type=hidden]");
+
+  inputs.forEach(input => {
+    data[input.name] = input.value;
+  });
+
+  console.log("제출된 별점 데이터:", data);
+
+  // 실제로 전송하려면 여기서 fetch 또는 XMLHttpRequest 사용
+  alert("제출 완료! 콘솔 확인");
+}
+</script>

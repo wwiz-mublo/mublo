@@ -1,0 +1,150 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  # 임의 브랜치/커밋을 수동으로 검증할 때 사용한다.
+  #   gh workflow run ci.yml --ref <브랜치>
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: [ '8.2', '8.3', '8.4' ]
+
+    # 통합 테스트용 DB. 없으면 tests/Integration 은 스킵되므로,
+    # 리포지토리 계층의 SQL 이 검증되지 않은 채 통과한다.
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mublo_integration_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_mysql, mysqli, mbstring, openssl, json, curl, fileinfo, gd, zip, xml, intl
+          coverage: none
+
+      # v4 는 Node.js 20 을 타깃해 러너가 24 로 강제 실행하며 폐기 경고를 낸다.
+      # v5 부터 node24 다. path/key/restore-keys 는 그대로다.
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # 배포되는 운영 의존성의 알려진 취약점을 차단(dev 도구 CVE는 사용자 배포물에 없으므로 제외).
+      - name: Security audit (production deps)
+        run: composer audit --no-dev
+
+      - name: Run DI check
+        run: composer check-di
+
+      # 확장이 안정 API 밖의 코어 심볼에 새로 의존하는 것을 막는다.
+      # 기존 의존은 tools/extension-api-baseline.json 에 동결되어 있다.
+      - name: Run extension API check
+        run: composer check-extension-api
+
+      # 정적분석 level 0 — "부르는데 없는" 클래스·인터페이스·메서드를 잡는다.
+      # 오탐 0건이라 베이스라인 없이 게이트로 쓴다. 설정은 phpstan.neon.dist.
+      - name: Run static analysis
+        run: composer analyse
+
+      # DB_TEST_* 가 있으면 tests/Integration 이 실 DB 를 태운다(없으면 스킵).
+      # 리포지토리·QueryBuilder 의 SQL 은 mock 으로는 검증되지 않는다.
+      - name: Run tests
+        run: composer test
+        env:
+          DB_TEST_HOST: 127.0.0.1
+          DB_TEST_PORT: 3306
+          DB_TEST_USER: root
+          DB_TEST_PASS: root
+          DB_TEST_NAME: mublo_integration_test
+
+  database-compatibility:
+    name: DB compatibility (${{ matrix.name }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MySQL 5.7
+            image: mysql:5.7
+          - name: MySQL 8.4 LTS
+            image: mysql:8.4
+          - name: MariaDB 10.3
+            image: mariadb:10.3
+          - name: MariaDB 10.11 LTS
+            image: mariadb:10.11
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          # 두 이미지 계열이 이해하는 이름을 함께 주되 값은 동일하게 유지한다.
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mublo_compatibility_test
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mublo_compatibility_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # DB 하한 호환성은 지원 PHP 하한에서 검증해 불필요한 교차 매트릭스를 피한다.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mysqli, mbstring, openssl, json, curl, fileinfo, gd, zip, xml, intl
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: composer-db-compat-${{ hashFiles('composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # 연결 실패/지원 버전 미달/마이그레이션 오류는 skip이 아니라 즉시 실패한다.
+      - name: Run fresh-install and upgrade migration smoke test
+        run: composer check-db-compat
+        env:
+          DB_TEST_HOST: 127.0.0.1
+          DB_TEST_PORT: 3306
+          DB_TEST_USER: root
+          DB_TEST_PASS: root
+          DB_TEST_NAME: mublo_compatibility_test

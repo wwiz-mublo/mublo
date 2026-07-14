@@ -1,0 +1,24 @@
+{
+    "_comment": "확장이 의존하는 비안정 코어 심볼. 새 항목 추가 금지 — 하나씩 줄여 나간다.",
+    "_generated_by": "php tools/check-extension-api.php --baseline",
+    "symbols": [
+        "Mublo\\Entity\\Member\\Member",
+        "Mublo\\Infrastructure\\Database\\DatabaseManager",
+        "Mublo\\Infrastructure\\Database\\QueryBuilder",
+        "Mublo\\Infrastructure\\Session\\SessionManager",
+        "Mublo\\Repository\\Block\\BlockColumnRepository",
+        "Mublo\\Repository\\Domain\\DomainRepository",
+        "Mublo\\Repository\\Member\\MemberLevelRepository",
+        "Mublo\\Repository\\Member\\MemberRepository",
+        "Mublo\\Repository\\Menu\\MenuItemRepository",
+        "Mublo\\Service\\Auth\\AuthService",
+        "Mublo\\Service\\Block\\BlockRenderService",
+        "Mublo\\Service\\CustomField\\CustomFieldFileHandler",
+        "Mublo\\Service\\CustomField\\CustomFieldValidator",
+        "Mublo\\Service\\Member\\FieldEncryptionService",
+        "Mublo\\Service\\Member\\MemberLevelService",
+        "Mublo\\Service\\Member\\MemberService",
+        "Mublo\\Service\\Member\\PolicyService",
+        "Mublo\\Service\\Menu\\MenuService"
+    ]
+}

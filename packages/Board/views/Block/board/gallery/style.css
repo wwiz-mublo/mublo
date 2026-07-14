@@ -1,0 +1,155 @@
+/**
+ * Block Skin: board/gallery  (게시판 최신글 — 갤러리 스킨)
+ *
+ * 스코프 규칙: 모든 선택자를 스킨 고유 루트 `.block-board--board-gallery` 로 시작.
+ * 로드: gallery.php 에서 $assets->addCss('/serve/package/Board/views/Block/board/gallery/style.css')
+ * 레이아웃: 썸네일 카드. 열 수/간격/모드(list|slide)는 코어 MubloItemLayout이 칸 설정값
+ *   (data-pc-cols/mo-cols)에 따라 처리하므로 여기서 그리드를 정의하지 않는다. 카드 내부만 스타일링.
+ */
+
+/* ── 카드 ─────────────────────────────── */
+.block-board--board-gallery .block-board__card-link {
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* ── 썸네일 ───────────────────────────── */
+.block-board--board-gallery .block-board__thumb {
+    position: relative;
+    display: block;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--muted);
+}
+
+.block-board--board-gallery .block-board__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.block-board--board-gallery .block-board__thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--muted-foreground);
+}
+
+/* N 뱃지 (썸네일 위 오버레이) */
+.block-board--board-gallery .block-board__badge-new {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+/* ── 카드 본문 ────────────────────────── */
+.block-board--board-gallery .block-board__card-body {
+    padding-top: 8px;
+}
+
+.block-board--board-gallery .block-board__title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: var(--foreground);
+}
+
+/* 카드 hover — 제목만 살짝 연하게 */
+.block-board--board-gallery .block-board__card-link:hover .block-board__title {
+    color: var(--muted-foreground);
+}
+
+.block-board--board-gallery .block-board__meta {
+    display: flex;
+    align-items: center;
+    line-height: 1.25;
+    margin-top: 4px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+}
+
+/* 작성자 · 작성일 가운뎃점 */
+.block-board--board-gallery .block-board__sep {
+    margin: 0 6px;
+    color: var(--muted-foreground);
+}
+
+/* ════════════════════════════════════════
+   "자동(auto)" 해석 — 갤러리 스킨 고유 (코어 기본값 오버라이드)
+   설정값(pc_cols/mo_cols="auto")은 원시 데이터일 뿐, 해석은 스킨 몫.
+   ════════════════════════════════════════ */
+
+/* 리스트형 + 자동 → 열 수 = 아이템 수 (한 줄에 전부 균등 배치).
+   1줄에 너무 많아 좁아지는 건 설정값 책임 → min/스크롤 안전장치를 두지 않는다. */
+.block-board--board-gallery .mublo-item-layout:not(.is-slide)[data-pc-cols="auto"] > ul {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+}
+
+/* 슬라이드형 + 자동 → slidesPerView:'auto' 가 슬라이드(li) CSS 폭을 사용하므로 기준폭 부여 */
+@media (min-width: 769px) {
+    .block-board--board-gallery .mublo-item-layout.is-slide[data-pc-cols="auto"] .block-board__card {
+        width: 200px;   /* 고정폭: 뷰포트에 따라 노출 개수 자동(+다음 카드 살짝). 스킨 고유값 */
+    }
+}
+
+@media (max-width: 768px) {
+    .block-board--board-gallery .mublo-item-layout:not(.is-slide)[data-mo-cols="auto"] > ul {
+        grid-template-columns: none;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+    }
+    .block-board--board-gallery .mublo-item-layout.is-slide[data-mo-cols="auto"] .block-board__card {
+        width: 150px;    /* 모바일 고정폭 */
+    }
+}
+
+/* ── 빈 상태 (board/basic 과 동일 패턴: 칸을 세로로 꽉 채우는 점선 박스) ── */
+.block-board--board-gallery {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.block-board--board-gallery .block-board__content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+}
+
+.block-board--board-gallery .block-board__empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+}
+
+.block-board--board-gallery .block-board__empty-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}

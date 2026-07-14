@@ -1,0 +1,507 @@
+/**
+ * Auth 기본 스킨 CSS (shadcn login-03 룩)
+ *
+ * Login, FindAccount, ResetPassword, ResetPasswordExpired,
+ * SnsLogin 프로필 완성 페이지 공용 스타일.
+ * shadcn/ui new-york v4 뉴트럴(zinc) 팔레트 기준.
+ *
+ * ⚠ 다크모드: 현재 frame 스킨은 .dark / [data-theme="dark"] 토글을 켜지 않으므로
+ *   아래 다크 블록은 동작상 무해(inert)하다. 추후 frame 스킨이 테마 토글을 도입하면
+ *   루트 엘리먼트에 해당 클래스/속성만 붙이면 즉시 적용된다. (bit-rot 방지를 위해
+ *   주석이 아닌 실제 규칙으로 유지)
+ */
+
+/* =========================================================
+ * 디자인 토큰
+ * ========================================================= */
+
+/**
+ * ⚠ 이 블록은 코어 토큰(public/assets/css/tokens.css)의 alias 계층이다.
+ *   더 이상 hex를 복제하지 않는다 — semantic(--background 등) 우선,
+ *   auth 고유 역할만 primitive(--color-*) 직접 참조.
+ *   값은 종전과 픽셀 동일. radius(0.875)만 로그인 고유로 유지(도메인 디자인 보존).
+ *   semantic 참조분은 .dark에서 자동 반전되므로 아래 .dark는 auth 고유분만 덮는다.
+ */
+:root {
+    /* 형태 — radius는 로그인/회원가입 고유값 유지 (shadcn 표준 0.625와 별개) */
+    --auth-radius: 0.875rem;
+    --auth-radius-sm: var(--radius-lg);   /* 0.5rem */
+    --auth-control-h: 2.5rem;     /* (textarea min-height 등 참조용) */
+    --auth-control-pad-y: 9px;    /* 컨트롤 상하 패딩 — 입력/버튼 공통(텍스트 세로 중앙) */
+    --auth-control-pad-x: 12px;   /* 컨트롤 좌우 패딩 */
+
+    /* 표면 */
+    --auth-bg: var(--color-zinc-100);     /* 페이지 배경(회색) — auth 고유, semantic --background(흰색)와 다름 */
+    --auth-card: var(--card);
+    --auth-card-shadow: var(--shadow-sm);
+
+    /* 텍스트 */
+    --auth-fg: var(--foreground);
+    --auth-muted-fg: var(--muted-foreground);
+
+    /* 경계 / 입력 */
+    --auth-border: var(--border);
+    --auth-input: var(--input);
+    --auth-input-bg: var(--card);
+    --auth-ring: var(--color-zinc-900);   /* near-black 포커스 링 — auth 고유(>semantic --ring) */
+
+    /* primary 버튼 (new-york = near-black) */
+    --auth-primary: var(--primary);
+    --auth-primary-fg: var(--primary-foreground);
+    --auth-primary-hover: var(--color-zinc-800);
+    --auth-primary-disabled: var(--color-zinc-400);
+
+    /* 상태색 */
+    --auth-danger-bg: var(--color-red-50);
+    --auth-danger-fg: var(--color-red-700);
+    --auth-danger-border: var(--color-red-200);
+    --auth-success-bg: var(--color-green-50);
+    --auth-success-fg: var(--color-green-700);
+    --auth-success-border: var(--color-green-200);
+    --auth-info-bg: var(--color-blue-50);
+    --auth-info-fg: var(--color-blue-700);
+    --auth-info-border: var(--color-blue-200);
+}
+
+/* 다크모드 — auth 고유분만 덮는다(semantic 참조분은 tokens.css가 자동 반전) */
+.dark,
+[data-theme="dark"] {
+    --auth-bg: var(--color-zinc-950);
+    --auth-card-shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 1px 2px rgb(0 0 0 / 0.3);
+    --auth-ring: var(--color-zinc-300);
+    --auth-primary-hover: var(--color-zinc-200);
+    --auth-primary-disabled: var(--color-zinc-600);
+
+    --auth-danger-bg: var(--color-red-950);
+    --auth-danger-fg: var(--color-red-300);
+    --auth-danger-border: var(--color-red-900);
+    --auth-success-bg: var(--color-green-950);
+    --auth-success-fg: var(--color-green-300);
+    --auth-success-border: var(--color-green-800);
+    --auth-info-bg: var(--color-blue-950);
+    --auth-info-fg: var(--color-blue-300);
+    --auth-info-border: var(--color-blue-800);
+}
+
+/* =========================================================
+ * 레이아웃 — 헤더/푸터 없이 화면 정중앙 배치
+ * ========================================================= */
+
+/* 페이지 배경 — body에 걸어 오버스크롤/여백까지 덮음(html 캔버스로 전파) */
+body:has(.auth-shell) {
+    background: var(--auth-bg);
+}
+
+.mublo-main:has(.auth-shell) {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+
+.mublo-main:has(.auth-shell) .mublo-content,
+.mublo-main:has(.auth-shell) .mublo-layout,
+.mublo-main:has(.auth-shell) .mublo-layout__content {
+    display: contents;
+}
+
+/* =========================================================
+ * 셸 — 브랜드(카드 위) · 카드 · 약관(카드 아래)을 세로로 묶음
+ * ========================================================= */
+
+.auth-shell {
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.auth-shell--wide {
+    max-width: 440px;
+}
+
+/* =========================================================
+ * 카드
+ * ========================================================= */
+
+.login-card,
+.find-account-wrapper,
+.reset-pw-wrapper,
+.expired-wrapper {
+    padding: 32px;
+    background: var(--auth-card);
+    color: var(--auth-fg);
+    border: 1px solid var(--auth-border);
+    border-radius: var(--auth-radius);
+    box-shadow: var(--auth-card-shadow);
+    box-sizing: border-box;
+}
+
+.expired-wrapper { text-align: center; }
+
+/* =========================================================
+ * 상단 브랜드 (ico + 사이트명) — 카드 바깥, 셸 최상단
+ * ========================================================= */
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--auth-fg);
+}
+
+.auth-brand__ico {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+
+.auth-brand__name {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
+
+/* =========================================================
+ * 헤더 (제목 + 설명)
+ * ========================================================= */
+
+.auth-card__header {
+    text-align: center;
+    margin-bottom: 24px;
+}
+
+.auth-card__title {
+    margin: 0 0 2px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: var(--auth-fg);
+}
+
+.auth-card__desc {
+    margin: 0;
+    font-size: 14px;
+    color: var(--auth-muted-fg);
+    line-height: 1.6;
+}
+
+/* =========================================================
+ * 폼
+ * ========================================================= */
+
+.login-card .field,
+.find-account-wrapper .form-group,
+.reset-pw-wrapper .form-group {
+    margin-bottom: 18px;
+}
+
+/* 로그인: 라벨행(라벨 + 우측 링크) */
+.login-card .field__label-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.login-card .field__link {
+    font-size: 13px;
+    color: var(--auth-muted-fg);
+    text-decoration: none;
+}
+
+.login-card .field__link:hover {
+    color: var(--auth-fg);
+    text-decoration: underline;
+}
+
+/* 라벨 */
+.login-card label,
+.find-account-wrapper .form-group label,
+.reset-pw-wrapper .form-group label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--auth-fg);
+}
+
+/* 라벨 단독 필드 (label__row 미사용 시 — SNS 프로필 완성 등) */
+.login-card .field > label,
+.find-account-wrapper .form-group label,
+.reset-pw-wrapper .form-group label {
+    display: block;
+    margin-bottom: 8px;
+}
+
+.login-card .required {
+    color: var(--auth-danger-fg);
+}
+
+/* 입력 */
+.login-card .form-control,
+.find-account-wrapper .form-control,
+.reset-pw-wrapper .form-control {
+    width: 100%;
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--auth-fg);
+    background: var(--auth-input-bg);
+    border: 1px solid var(--auth-input);
+    border-radius: var(--auth-radius-sm);
+    box-sizing: border-box;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* 여러 줄 입력(커스텀 필드 textarea)은 높이 고정에서 제외 */
+.login-card textarea.form-control,
+.find-account-wrapper textarea.form-control,
+.reset-pw-wrapper textarea.form-control {
+    height: auto;
+    min-height: var(--auth-control-h);
+    padding: 10px 12px;
+}
+
+.login-card .form-control::placeholder,
+.find-account-wrapper .form-control::placeholder,
+.reset-pw-wrapper .form-control::placeholder {
+    color: var(--auth-muted-fg);
+}
+
+.login-card .form-control:focus,
+.find-account-wrapper .form-control:focus,
+.reset-pw-wrapper .form-control:focus {
+    outline: none;
+    border-color: var(--auth-ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-ring) 18%, transparent);
+}
+
+.login-card .form-control:disabled {
+    background: var(--auth-bg);
+    color: var(--auth-muted-fg);
+    cursor: not-allowed;
+}
+
+/* 보조 설명 */
+.login-card .form-help,
+.find-account-wrapper .form-help,
+.reset-pw-wrapper .form-help {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--auth-muted-fg);
+}
+
+/* 버튼 아래 안내 노트 (가운데 정렬 + 위 간격) */
+.find-account-wrapper .form-help--note {
+    margin-top: 10px;
+    text-align: center;
+}
+
+/* =========================================================
+ * 버튼
+ * ========================================================= */
+
+.login-card .btn,
+.find-account-wrapper .btn,
+.reset-pw-wrapper .btn,
+.expired-wrapper .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--auth-primary-fg);
+    background: var(--auth-primary);
+    border: 1px solid transparent;
+    border-radius: var(--auth-radius-sm);
+    box-sizing: border-box;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.15s;
+}
+
+.expired-wrapper .btn {
+    display: inline-flex;
+    width: auto;
+    padding: var(--auth-control-pad-y) 28px;
+}
+
+.login-card .btn:hover,
+.find-account-wrapper .btn:hover,
+.reset-pw-wrapper .btn:hover,
+.expired-wrapper .btn:hover {
+    background: var(--auth-primary-hover);
+    color: var(--auth-primary-fg);
+    text-decoration: none;
+}
+
+.find-account-wrapper .btn:disabled,
+.reset-pw-wrapper .btn:disabled {
+    background: var(--auth-primary-disabled);
+    cursor: not-allowed;
+}
+
+/* SNS 로그인 버튼(플러그인 주입)도 동일 높이로 — 로그인 카드 안에서만 덮어씀 */
+.login-card .btn-sns {
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    box-sizing: border-box;
+    border-radius: var(--auth-radius-sm);
+}
+
+/* =========================================================
+ * 알림
+ * ========================================================= */
+
+.login-card .alert,
+.find-account-wrapper .alert,
+.reset-pw-wrapper .alert {
+    padding: 10px 12px;
+    margin-bottom: 18px;
+    border-radius: var(--auth-radius-sm);
+    font-size: 13px;
+}
+
+.login-card .alert-danger,
+.find-account-wrapper .alert-danger,
+.reset-pw-wrapper .alert-danger {
+    background: var(--auth-danger-bg);
+    color: var(--auth-danger-fg);
+    border: 1px solid var(--auth-danger-border);
+}
+
+.find-account-wrapper .alert-success,
+.reset-pw-wrapper .alert-success {
+    background: var(--auth-success-bg);
+    color: var(--auth-success-fg);
+    border: 1px solid var(--auth-success-border);
+}
+
+.find-account-wrapper .alert-info {
+    background: var(--auth-info-bg);
+    color: var(--auth-info-fg);
+    border: 1px solid var(--auth-info-border);
+}
+
+/* =========================================================
+ * 하단 링크 (로그인 푸터 / 계정찾기 링크)
+ * ========================================================= */
+
+.login-card .auth-card__footer,
+.find-account-wrapper .auth-links {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--auth-muted-fg);
+}
+
+.login-card .auth-card__footer a,
+.find-account-wrapper .auth-links a {
+    color: var(--auth-fg);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.login-card .auth-card__footer a:hover,
+.find-account-wrapper .auth-links a:hover {
+    text-decoration: underline;
+}
+
+/* =========================================================
+ * FindAccount 전용 — 탭 / 결과
+ * ========================================================= */
+
+.find-account-wrapper .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--auth-border);
+    margin-bottom: 24px;
+}
+
+.find-account-wrapper .tab-btn {
+    flex: 1;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--auth-muted-fg);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    cursor: pointer;
+}
+
+.find-account-wrapper .tab-btn.active {
+    color: var(--auth-fg);
+    border-bottom-color: var(--auth-primary);
+}
+
+.find-account-wrapper .tab-content {
+    display: none;
+}
+
+.find-account-wrapper .tab-content.active {
+    display: block;
+}
+
+.find-account-wrapper .result-box {
+    padding: 18px;
+    background: var(--auth-bg);
+    border: 1px solid var(--auth-border);
+    border-radius: var(--auth-radius-sm);
+    text-align: center;
+    margin-top: 18px;
+}
+
+.find-account-wrapper .result-box .user-id {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--auth-fg);
+    letter-spacing: 0.5px;
+}
+
+/* =========================================================
+ * ResetPasswordExpired 전용 — 아이콘
+ * ========================================================= */
+
+.expired-wrapper .icon {
+    font-size: 44px;
+    color: var(--auth-danger-fg);
+    margin-bottom: 12px;
+}
+
+.expired-wrapper p {
+    font-size: 14px;
+    color: var(--auth-muted-fg);
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+/* =========================================================
+ * 약관 안내 (카드 바깥, 셸 하단)
+ * ========================================================= */
+
+.auth-terms {
+    margin: 0;
+    text-align: center;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--auth-muted-fg);
+}
+
+.auth-terms a {
+    color: var(--auth-muted-fg);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.auth-terms a:hover {
+    color: var(--auth-fg);
+}

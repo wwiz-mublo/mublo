@@ -1,0 +1,44 @@
+/* 문의 목록 (Inquiry/List) 스타일 */
+
+.shop-inquiry-list { max-width: 960px; margin: 0 auto; }
+
+/* 페이지 타이틀 (구매후기 페이지와 통일된 컨벤션) */
+.shop-inquiry-list__head { margin-bottom: 20px; }
+.shop-inquiry-list__title { font-size: 1.5rem; font-weight: 700; color: var(--foreground); margin: 0; }
+.shop-inquiry-list__count { font-size: 0.9rem; font-weight: 500; color: var(--muted-foreground); }
+
+/* 개별 문의 카드 */
+.shop-inquiry-list__items { display: flex; flex-direction: column; gap: 12px; }
+.shop-inquiry-item { border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; background: var(--card); transition: box-shadow 0.15s ease; }
+.shop-inquiry-item:hover { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06); }
+
+/* 상품 링크 (상단, 디바이더로 본문과 구분) */
+.shop-inquiry-item__product { display: flex; align-items: center; gap: 10px; padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid var(--border-subtle); text-decoration: none; color: var(--foreground); }
+.shop-inquiry-item__product-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); flex-shrink: 0; }
+.shop-inquiry-item__product-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.shop-inquiry-item__product-name { font-size: 0.85rem; font-weight: 500; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.15s ease; }
+.shop-inquiry-item__product:hover .shop-inquiry-item__product-name { color: var(--foreground); }
+.shop-inquiry-item__product-price { font-size: 0.85rem; font-weight: 600; color: var(--muted-foreground); transition: color 0.15s ease; }
+.shop-inquiry-item__product:hover .shop-inquiry-item__product-price { color: var(--foreground); }
+.shop-inquiry-item__product-arrow { margin-left: auto; color: var(--border); font-size: 0.8rem; transition: transform 0.15s ease, color 0.15s ease; }
+.shop-inquiry-item__product:hover .shop-inquiry-item__product-arrow { transform: translateX(3px); color: var(--muted-foreground); }
+
+.shop-inquiry-item__header { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.shop-inquiry-item__type { display: inline-block; padding: 2px 8px; background: var(--muted); border-radius: 4px; font-size: 0.75rem; color: var(--muted-foreground); white-space: nowrap; }
+.shop-inquiry-item__status-replied { display: inline-block; padding: 2px 8px; background: var(--color-emerald-50); color: var(--color-emerald-600); border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.shop-inquiry-item__status-waiting { display: inline-block; padding: 2px 8px; background: var(--warning-subtle); color: var(--color-orange-500); border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.shop-inquiry-item__secret { color: var(--muted-foreground); font-size: 0.8rem; }
+.shop-inquiry-item__title { font-size: 0.9rem; font-weight: 500; color: var(--foreground); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-inquiry-item__date { font-size: 0.8rem; color: var(--muted-foreground); white-space: nowrap; }
+.shop-inquiry-item__toggle { color: var(--border); font-size: 0.8rem; transition: transform 0.2s ease; }
+.shop-inquiry-item.is-expanded .shop-inquiry-item__toggle { transform: rotate(180deg); }
+
+.shop-inquiry-item__body { display: none; margin-top: 12px; padding: 14px; background: var(--muted); border-radius: 8px; }
+.shop-inquiry-item__body.is-open { display: block; }
+.shop-inquiry-item__content { font-size: 0.9rem; color: var(--foreground); white-space: pre-line; line-height: 1.6; }
+.shop-inquiry-item__reply { margin-top: 12px; padding: 12px; background: var(--color-emerald-50); border-radius: 8px; border-left: 3px solid var(--color-emerald-500); }
+.shop-inquiry-item__reply-label { font-size: 0.8rem; font-weight: 600; color: var(--color-emerald-600); margin-bottom: 6px; }
+.shop-inquiry-item__reply-text { font-size: 0.85rem; color: var(--foreground); white-space: pre-line; }
+
+.shop-inquiry-list__empty { text-align: center; padding: 48px 40px; color: var(--muted-foreground); }
+.shop-inquiry-list__empty i { font-size: 2rem; color: var(--border); display: block; margin-bottom: 8px; }

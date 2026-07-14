@@ -1,0 +1,333 @@
+/* ==========================================================================
+   Mublo CustomField — 커스텀 필드 위젯 (자기완결 브랜드 컴포넌트)
+
+   소비처: 회원가입·회원정보·마이페이지·SnsLogin·Shop 체크아웃 (member_fields +
+   shop order_fields 공용). CustomFieldRenderer 가 출력하는 마크업과 짝.
+
+   원칙
+   - 모든 클래스는 custom-field-* 네임스페이스 (전역 충돌 0). 폼엘리먼트 어휘
+     (form-control 등)에 의존하지 않는다 — 이건 "custom-field" 라는 독립 위젯.
+   - 색·치수는 코어 토큰을 쓰되 전부 폴백값 동반: var(--token, fallback).
+     → tokens.css 있으면 사이트 테마·다크 자동 동기, 없어도 폴백으로 완전 렌더.
+     하드 의존 0 · 생략 0. 어디에 떨궈도 혼자서 살아남는다(<img> 처럼).
+   - 로드 순서: custom-field(order 100) → front.css → skin. 뒤가 오버라이드 가능하되
+     이 파일 단독으로 완결. front.css 에 의존하지 않는다.
+
+   JS 계약(MubloCustomField.js·MubloAddress, 변경 시 동시수정): 클래스 custom-field-file
+   / custom-field-avatar / custom-field-file-name, id 서픽스 _meta/_current/_result/
+   _preview/_preview_img, data-field-id/-id-prefix/-max-size/-existing-url.
+   ========================================================================== */
+
+/* ========================================
+   필드 단위 래퍼 (라벨 + 컨트롤 + 설명) — 렌더러가 한 단위로 출력
+   ======================================== */
+.custom-field-group {
+    margin-bottom: 1rem;
+}
+
+.custom-field-label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--foreground, #18181b);
+}
+
+.custom-field-required {
+    margin-left: 2px;
+    color: var(--destructive, #ef4444);
+}
+
+/* ========================================
+   텍스트 컨트롤 — input · textarea · select
+   ======================================== */
+.custom-field-input,
+.custom-field-textarea,
+.custom-field-select {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--foreground, #18181b);
+    background: var(--card, #ffffff);
+    border: 1px solid var(--input, #e4e4e7);
+    border-radius: var(--radius-md, 6px);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.custom-field-input::placeholder,
+.custom-field-textarea::placeholder {
+    color: var(--muted-foreground, #71717a);
+}
+
+.custom-field-input:focus,
+.custom-field-textarea:focus,
+.custom-field-select:focus {
+    outline: none;
+    border-color: var(--ring, #18181b);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring, #18181b) 25%, transparent);
+}
+
+.custom-field-input:disabled,
+.custom-field-textarea:disabled,
+.custom-field-select:disabled {
+    background: var(--muted, #f4f4f5);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.custom-field-textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+/* select — 네이티브 캐럿 제거 + 자체 chevron(뉴트럴) */
+.custom-field-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 1rem;
+    cursor: pointer;
+}
+
+/* ========================================
+   라디오 / 체크박스 그룹
+   ======================================== */
+.custom-field-radio,
+.custom-field-checkbox {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1.25rem;   /* row 8px / 옵션 간 20px */
+    padding: 0.25rem 0;
+}
+
+.custom-field-radio label,
+.custom-field-checkbox label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;           /* 입력 ↔ 라벨 (렌더러 공백 제거 후 단일 소스) */
+    margin: 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    font-weight: 400;
+    color: var(--foreground, #18181b);
+    cursor: pointer;
+}
+
+.custom-field-radio input,
+.custom-field-checkbox input {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;             /* 브라우저 기본 마진 제거 → 세로정렬·간격 정상화 */
+    flex-shrink: 0;
+    accent-color: var(--primary, #18181b);
+    cursor: pointer;
+}
+
+/* ========================================
+   안내문
+   ======================================== */
+.custom-field-help {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--muted-foreground, #71717a);
+}
+
+/* 파일 그룹 내부에선 그룹 gap(8px)이 간격 전담 → help 자체 마진 제거(이중간격 방지) */
+.custom-field-file-group .custom-field-help {
+    margin-top: 0;
+}
+
+/* ========================================
+   Address 위젯
+   ======================================== */
+.custom-field-address {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.custom-field-address-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+
+.custom-field-address-zipcode {
+    width: 140px;
+    flex: 0 0 auto;
+}
+
+/* 주소검색 버튼 — input 높이에 맞춰 stretch, 줄바꿈 방지 */
+.custom-field-address-search {
+    flex-shrink: 0;
+    white-space: nowrap;
+    padding: 0.5rem 0.875rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    color: var(--secondary-foreground, #18181b);
+    background: var(--secondary, #f4f4f5);
+    border: 1px solid var(--border, #e4e4e7);
+    border-radius: var(--radius-md, 6px);
+    cursor: pointer;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.custom-field-address-search:hover {
+    background: color-mix(in srgb, var(--secondary, #f4f4f5) 90%, var(--foreground, #18181b));
+}
+
+/* ========================================
+   File / Avatar 위젯
+   ======================================== */
+.custom-field-file-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+/* 파일 선택 input(네이티브 버튼 포함) — 박스도 자체 스타일 */
+/* 네이티브 input 시각 숨김(접근성·기능 유지) — 가상 트리거가 UI 담당 */
+.custom-field-file {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+    opacity: 0;
+}
+
+/* 가상 트리거 = 텍스트 input과 동일 박스(패딩·높이 일치, 브라우저 무관) */
+.custom-field-file-trigger {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--muted-foreground, #71717a);
+    background: var(--card, #ffffff);
+    border: 1px solid var(--input, #e4e4e7);
+    border-radius: var(--radius-md, 6px);
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+/* 키보드 포커스 링 — 숨은 input이 포커스를 받으면 트리거에 표시 */
+.custom-field-file:focus-visible + .custom-field-file-trigger {
+    outline: none;
+    border-color: var(--ring, #18181b);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring, #18181b) 25%, transparent);
+}
+
+/* 가상 "파일 선택" 버튼 — 높이 20px로 트리거를 38px에 고정 */
+.custom-field-file-button {
+    flex-shrink: 0;
+    padding: 2px 0.625rem;
+    font-size: 0.75rem;
+    line-height: 1rem;
+    font-weight: 500;
+    color: var(--secondary-foreground, #18181b);
+    background: var(--secondary, #f4f4f5);
+    border-radius: var(--radius-sm, 4px);
+}
+
+.custom-field-file-trigger:hover .custom-field-file-button {
+    background: var(--accent, #f4f4f5);
+}
+
+/* 선택된 파일명(없으면 플레이스홀더) */
+.custom-field-file-chosen {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* 아바타 미리보기 썸네일 */
+.custom-field-avatar-preview {
+    width: 96px;
+    height: 96px;
+    border-radius: var(--radius, 8px);
+    overflow: hidden;
+    background: var(--muted, #f4f4f5);
+    border: 1px solid var(--border, #e4e4e7);
+}
+
+.custom-field-avatar-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* 선택/기존 파일 칩 */
+.custom-field-file-current,
+.custom-field-file-result {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    line-height: 1.25rem;
+    color: var(--foreground, #18181b);
+    background: var(--muted, #f4f4f5);
+    border: 1px solid var(--border, #e4e4e7);
+    border-radius: var(--radius-md, 6px);
+}
+
+/* 업로드 완료 결과 — 기본 숨김(JS가 flex 표시), 블루틴트로 신규 강조 */
+.custom-field-file-result {
+    display: none;
+    background: var(--info-subtle, #eff6ff);
+    color: var(--info-subtle-foreground, #1d4ed8);
+    border-color: var(--info-subtle-border, #bfdbfe);
+}
+
+/* 파일명 — 한 줄 말줄임(칩 폭 초과 시) */
+.custom-field-file-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+}
+
+.custom-field-file-size {
+    flex-shrink: 0;
+    font-size: 0.75rem;
+    color: var(--muted-foreground, #71717a);
+}
+
+/* 삭제 / 취소 버튼 */
+.custom-field-file-delete,
+.custom-field-file-remove {
+    flex-shrink: 0;
+    padding: 0;            /* 텍스트만 — 칩 높이를 키우지 않아 input과 정렬 */
+    font-size: 0.75rem;
+    line-height: 1;
+    color: var(--destructive, #ef4444);
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+
+.custom-field-file-delete:hover,
+.custom-field-file-remove:hover {
+    color: color-mix(in srgb, var(--destructive, #ef4444) 75%, var(--foreground, #18181b));
+}

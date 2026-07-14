@@ -1,0 +1,98 @@
+@charset "utf-8";
+
+/**
+ * Pagination Component CSS
+ *
+ * 공유 페이지네이션 컴포넌트(views/Components/pagination.php)의 구조 스타일.
+ * 소비자(패키지/플러그인/스킨)는 자신의 wrapper 클래스에서 CSS 변수를 오버라이드하여 테마를 적용한다.
+ *
+ * 변수는 var(name, fallback) 인라인 폴백 패턴 — 정의 안 하면 폴백값 사용.
+ *
+ * 사용 예시:
+ *   .board-list__pagination {
+ *       --pagination-color: var(--board-text-secondary);
+ *       --pagination-active-bg: var(--board-primary);
+ *   }
+ *
+ * 로딩: ViewContext::pagination() 호출 시 AssetManager 통해 자동 등록.
+ */
+
+.nav-page {
+    display: flex;
+    justify-content: center;
+    margin-top: var(--pagination-margin-top, 24px);
+}
+
+.pagination {
+    display: flex;
+    align-items: center;
+    gap: var(--pagination-gap, 0.25rem);
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.page-item {
+    display: flex;
+}
+
+.page-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--pagination-item-size, 32px);
+    height: var(--pagination-item-size, 32px);
+    padding: 0 6px;
+    font-size: var(--pagination-font-size, 0.8125rem);
+    color: var(--pagination-color, var(--muted-foreground));
+    text-decoration: none;
+    border-radius: var(--pagination-border-radius, 6px);
+    border: none;
+    background: transparent;
+    transition: background-color 0.15s, color 0.15s;
+    cursor: pointer;
+}
+
+.page-link:hover {
+    background: var(--pagination-hover-bg, var(--muted));
+    color: var(--pagination-hover-color, var(--foreground));
+    text-decoration: none;
+}
+
+.page-item.active .page-link {
+    background: var(--pagination-active-bg, var(--primary));
+    color: var(--pagination-active-color, var(--primary-foreground));
+    font-weight: 700;
+    pointer-events: none;
+}
+
+.page-item.disabled .page-link {
+    /* disabled는 항상 일반보다 흐리게 — 모드 무관(다크에서 #bbb가 더 밝아 역전되던 문제 해소) */
+    color: var(--pagination-disabled-color, color-mix(in srgb, var(--muted-foreground) 45%, transparent));
+    pointer-events: none;
+    cursor: default;
+}
+
+/* 이전/다음 텍스트: 기본 숨김 */
+.page-label {
+    display: none;
+}
+
+/* 모바일: 처음/마지막/번호 숨기고 이전/다음 + 텍스트 표시 */
+@media (max-width: 424.98px) {
+    .page-start,
+    .page-end,
+    .page-count {
+        display: none;
+    }
+
+    .page-label {
+        display: inline;
+    }
+
+    .page-prev .page-link,
+    .page-next .page-link {
+        gap: 4px;
+        padding: 0 12px;
+    }
+}

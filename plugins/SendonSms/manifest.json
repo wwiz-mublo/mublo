@@ -1,0 +1,15 @@
+{
+    "name": "SendonSms",
+    "label": "센드온 SMS",
+    "description": "센드온 SMS/LMS/MMS 발송 플러그인 (도메인별 자체 API 연동)",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "messaging",
+    "icon": "bi-chat-square-text",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

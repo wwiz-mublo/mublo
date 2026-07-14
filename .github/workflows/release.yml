@@ -1,0 +1,69 @@
+name: Release
+
+# 릴리즈 발행 시 vendor를 포함한 배포 zip을 빌드해 릴리즈 에셋으로 첨부한다.
+# composer를 사용할 수 없는 서버 환경에 배포하기 위함 (v1.0.0의
+# MubloFramework-release.zip 수동 작업을 자동화).
+
+on:
+  release:
+    types: [published]
+  # 수동 재빌드용 (이미 존재하는 릴리즈 태그에 에셋 재첨부)
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '에셋을 올릴 릴리즈 태그 (예: v1.1.0)'
+        required: true
+
+permissions:
+  contents: write   # 릴리즈 에셋 업로드 권한
+
+jobs:
+  build:
+    name: Build & attach release zip
+    runs-on: ubuntu-latest
+
+    env:
+      # release 이벤트면 릴리즈 태그, 수동 실행이면 입력 태그
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      ASSET: MubloFramework-${{ github.event.release.tag_name || inputs.tag }}.zip
+
+    steps:
+      - name: Checkout (대상 태그)
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      # 지원 최저 버전(8.2)으로 빌드해야 상위 PHP에서도 안전 (composer.json platform=8.2.0)
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mysqli, mbstring, openssl, json, curl, fileinfo, gd, zip, xml, intl
+          coverage: none
+
+      # 배포 산출물이므로 운영 의존성만 (--no-dev) + autoload 최적화.
+      # composer.lock 기준 install (절대 update 아님) → 재현 가능한 산출물.
+      - name: Install production dependencies
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      # vendor 포함, v1.0.0과 동일하게 루트에 파일 배치(래퍼 폴더 없음).
+      # .git / .github / .devcontainer / node_modules / build 만 제외.
+      - name: Build release archive
+        run: |
+          set -euo pipefail
+          DIST=build/dist
+          rm -rf build
+          mkdir -p "$DIST"
+          rsync -a ./ "$DIST/" \
+            --exclude='/.git' \
+            --exclude='/.github' \
+            --exclude='/.devcontainer' \
+            --exclude='/node_modules' \
+            --exclude='/build'
+          ( cd "$DIST" && zip -rqyX "../../$ASSET" . )
+          echo "built:" && ls -lh "$ASSET"
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" "$ASSET" --clobber

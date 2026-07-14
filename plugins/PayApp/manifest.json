@@ -1,0 +1,15 @@
+{
+    "name": "PayApp",
+    "label": "페이앱",
+    "description": "페이앱(PayApp) 결제 연동 플러그인. 카드/휴대폰/카카오페이/네이버페이/가상계좌 등을 지원합니다.",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "payment",
+    "icon": "bi-credit-card",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

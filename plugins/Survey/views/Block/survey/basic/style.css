@@ -1,0 +1,349 @@
+/* ── Survey Block Basic Skin ─────────────────────────────── */
+.block-survey--basic {
+    --sv-primary:      var(--primary);
+    --sv-primary-dk:   var(--color-indigo-600);
+    --sv-primary-lt:   var(--accent);
+    --sv-star:         var(--color-amber-400);
+    --sv-success:      var(--success);
+    --sv-border:       var(--border);
+    --sv-bg:           var(--card);
+    --sv-bg-muted:     var(--muted);
+    --sv-text:         var(--foreground);
+    --sv-text-muted:   var(--muted-foreground);
+    --sv-text-sm:      13px;
+    --sv-radius:       12px;
+    --sv-radius-sm:    8px;
+    font-family: inherit;
+}
+
+/* ── 래퍼 ─────────────────────────────────────────────────── */
+.block-survey--basic .bsv-wrap {
+    background: var(--sv-bg);
+    border: 1px solid var(--sv-border);
+    border-radius: var(--sv-radius);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.04);
+}
+
+/* ── 헤더 ─────────────────────────────────────────────────── */
+.block-survey--basic .bsv-header {
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--sv-border);
+    background: linear-gradient(135deg, var(--sv-primary-lt) 0%, var(--card) 100%);
+}
+.block-survey--basic .bsv-header-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 36px; height: 36px; border-radius: 10px;
+    background: var(--sv-primary); color: var(--primary-foreground);
+    margin-bottom: 10px;
+}
+.block-survey--basic .bsv-header-icon svg { width: 18px; height: 18px; }
+.block-survey--basic .bsv-title {
+    font-size: 16px; font-weight: 700; color: var(--sv-text);
+    margin: 0 0 4px; line-height: 1.4;
+}
+.block-survey--basic .bsv-desc {
+    font-size: var(--sv-text-sm); color: var(--sv-text-muted); margin: 0;
+    line-height: 1.6;
+}
+
+/* ── 질문 목록 ──────────────────────────────────────────────── */
+.block-survey--basic .bsv-body { padding: 0; }
+
+.block-survey--basic .bsv-question {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--sv-border);
+    transition: background .15s;
+}
+.block-survey--basic .bsv-question:last-child { border-bottom: none; }
+
+.block-survey--basic .bsv-q-header {
+    display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px;
+}
+.block-survey--basic .bsv-q-num {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 24px; height: 24px; padding: 0 7px;
+    background: var(--sv-primary); color: var(--primary-foreground);
+    font-size: 11px; font-weight: 700; border-radius: 6px;
+    margin-top: 1px;
+}
+.block-survey--basic .bsv-q-title {
+    font-size: 14px; font-weight: 600; color: var(--sv-text); line-height: 1.5;
+    flex: 1;
+}
+.block-survey--basic .bsv-required {
+    color: var(--destructive); font-size: 13px; margin-left: 2px;
+}
+.block-survey--basic .bsv-q-hint {
+    font-size: 12px; color: var(--sv-text-muted); margin: -8px 0 10px 34px;
+    line-height: 1.5;
+}
+
+/* ── 라디오 / 체크박스 ──────────────────────────────────────── */
+.block-survey--basic .bsv-choices { display: flex; flex-direction: column; gap: 8px; padding-left: 34px; }
+
+.block-survey--basic .bsv-choice {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 14px; border-radius: var(--sv-radius-sm);
+    border: 1.5px solid var(--sv-border);
+    background: var(--sv-bg); cursor: pointer;
+    transition: border-color .15s, background .15s;
+    font-size: var(--sv-text-sm); color: var(--sv-text);
+    user-select: none;
+}
+.block-survey--basic .bsv-choice:hover {
+    border-color: var(--sv-primary); background: var(--sv-primary-lt);
+}
+.block-survey--basic .bsv-choice input[type="radio"],
+.block-survey--basic .bsv-choice input[type="checkbox"] { display: none; }
+
+.block-survey--basic .bsv-choice-dot {
+    width: 16px; height: 16px; border-radius: 50%; flex-shrink: 0;
+    border: 2px solid var(--input); background: var(--card);
+    transition: border-color .15s, background .15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.block-survey--basic .bsv-choice-dot::after {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: var(--primary-foreground); opacity: 0; transition: opacity .15s;
+}
+.block-survey--basic .bsv-choice.bsv-choice--box .bsv-choice-dot {
+    border-radius: 4px;
+}
+.block-survey--basic .bsv-choice.bsv-choice--box .bsv-choice-dot::after {
+    width: 9px; height: 6px; border-radius: 0;
+    background: none; border-left: 2px solid var(--primary-foreground); border-bottom: 2px solid var(--primary-foreground);
+    transform: rotate(-45deg) translate(1px, -1px);
+}
+.block-survey--basic .bsv-choice.checked {
+    border-color: var(--sv-primary); background: var(--sv-primary-lt);
+}
+.block-survey--basic .bsv-choice.checked .bsv-choice-dot {
+    border-color: var(--sv-primary); background: var(--sv-primary);
+}
+.block-survey--basic .bsv-choice.checked .bsv-choice-dot::after { opacity: 1; }
+
+/* ── select ─────────────────────────────────────────────────── */
+.block-survey--basic .bsv-select {
+    margin-left: 34px; width: calc(100% - 34px);
+    padding: 9px 36px 9px 12px; border-radius: var(--sv-radius-sm);
+    border: 1.5px solid var(--sv-border); background: var(--sv-bg);
+    font-size: var(--sv-text-sm); color: var(--sv-text); outline: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' viewBox='0 0 24 24'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    cursor: pointer;
+    transition: border-color .15s;
+}
+.block-survey--basic .bsv-select:focus { border-color: var(--sv-primary); }
+
+/* ── text / textarea ─────────────────────────────────────────── */
+.block-survey--basic .bsv-input,
+.block-survey--basic .bsv-textarea {
+    margin-left: 34px; width: calc(100% - 34px);
+    padding: 9px 12px; border-radius: var(--sv-radius-sm);
+    border: 1.5px solid var(--sv-border); background: var(--sv-bg);
+    font-size: var(--sv-text-sm); color: var(--sv-text); outline: none;
+    font-family: inherit; resize: vertical; transition: border-color .15s;
+    box-sizing: border-box;
+}
+.block-survey--basic .bsv-input:focus,
+.block-survey--basic .bsv-textarea:focus { border-color: var(--sv-primary); }
+.block-survey--basic .bsv-input::placeholder,
+.block-survey--basic .bsv-textarea::placeholder { color: var(--muted-foreground); }
+
+/* ── 별점 ────────────────────────────────────────────────────── */
+.block-survey--basic .bsv-rating { display: flex; gap: 6px; padding-left: 34px; }
+.block-survey--basic .bsv-star {
+    font-size: 28px; color: var(--muted-foreground); cursor: pointer; line-height: 1;
+    transition: color .1s, transform .1s;
+    background: none; border: none; padding: 0;
+}
+.block-survey--basic .bsv-star:hover,
+.block-survey--basic .bsv-star.hov { color: var(--sv-star); transform: scale(1.15); }
+.block-survey--basic .bsv-star.on { color: var(--sv-star); }
+.block-survey--basic .bsv-rating-label {
+    margin-left: 4px; align-self: center;
+    font-size: 12px; color: var(--sv-text-muted);
+}
+
+/* ── 푸터 / 제출 ─────────────────────────────────────────────── */
+.block-survey--basic .bsv-footer {
+    padding: 16px 24px;
+    background: var(--sv-bg-muted);
+    border-top: 1px solid var(--sv-border);
+    display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 10px;
+}
+.block-survey--basic .bsv-progress {
+    font-size: 12px; color: var(--sv-text-muted);
+    display: flex; align-items: center; gap: 8px;
+}
+.block-survey--basic .bsv-progress-bar {
+    width: 80px; height: 4px; background: var(--sv-border); border-radius: 2px;
+    overflow: hidden;
+}
+.block-survey--basic .bsv-progress-fill {
+    display: block;
+    height: 100%; background: var(--sv-primary); border-radius: 2px;
+    transition: width .3s ease;
+    width: 0%;
+}
+.block-survey--basic .bsv-submit {
+    padding: 9px 24px; border-radius: var(--sv-radius-sm);
+    background: var(--sv-primary); color: var(--primary-foreground);
+    font-size: 14px; font-weight: 600; border: none; cursor: pointer;
+    transition: background .15s, transform .1s, opacity .15s;
+    display: inline-flex; align-items: center; gap: 6px;
+    letter-spacing: -.01em;
+}
+.block-survey--basic .bsv-submit:hover { background: var(--sv-primary-dk); }
+.block-survey--basic .bsv-submit:active { transform: scale(.98); }
+.block-survey--basic .bsv-submit:disabled { opacity: .6; cursor: not-allowed; }
+.block-survey--basic .bsv-submit .bsv-spinner {
+    display: none; width: 14px; height: 14px;
+    border: 2px solid color-mix(in srgb, var(--primary-foreground) 30%, transparent); border-top-color: var(--primary-foreground);
+    border-radius: 50%; animation: bsv-spin .6s linear infinite;
+}
+.block-survey--basic .bsv-submit.loading .bsv-spinner { display: inline-block; }
+@keyframes bsv-spin { to { transform: rotate(360deg); } }
+
+/* ── 완료 / 안내 메시지 ─────────────────────────────────────── */
+.block-survey--basic .bsv-done {
+    display: none; padding: 40px 24px; text-align: center;
+}
+.block-survey--basic .bsv-done-icon {
+    width: 56px; height: 56px; border-radius: 50%;
+    background: var(--success-subtle); margin: 0 auto 16px;
+    display: flex; align-items: center; justify-content: center;
+}
+.block-survey--basic .bsv-done-icon svg { width: 28px; height: 28px; color: var(--sv-success); }
+.block-survey--basic .bsv-done-msg {
+    font-size: 16px; font-weight: 700; color: var(--sv-text); margin: 0 0 6px;
+}
+.block-survey--basic .bsv-done-sub {
+    font-size: var(--sv-text-sm); color: var(--sv-text-muted); margin: 0;
+}
+
+.block-survey--basic .bsv-notice {
+    padding: 28px 24px; text-align: center;
+    color: var(--sv-text-muted); font-size: var(--sv-text-sm);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.block-survey--basic .bsv-notice svg { width: 32px; height: 32px; color: var(--muted-foreground); }
+
+/* ── 결과 모드 ─────────────────────────────────────────────── */
+.block-survey--basic .bsv-result-header {
+    padding: 16px 24px;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--sv-border);
+    background: var(--sv-bg-muted);
+}
+.block-survey--basic .bsv-result-badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 5px 12px; border-radius: 20px;
+    background: var(--sv-primary-lt); color: var(--sv-primary);
+    font-size: 13px; font-weight: 600;
+}
+.block-survey--basic .bsv-result-badge svg { width: 14px; height: 14px; }
+
+/* ── 결과 바 차트 ────────────────────────────────────────────── */
+.block-survey--basic .bsv-bar-list { display: flex; flex-direction: column; gap: 10px; padding-left: 34px; }
+.block-survey--basic .bsv-bar-row { }
+.block-survey--basic .bsv-bar-meta {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 4px;
+}
+.block-survey--basic .bsv-bar-label {
+    font-size: 12px; color: var(--sv-text); font-weight: 500;
+    flex: 1; padding-right: 8px;
+}
+.block-survey--basic .bsv-bar-val {
+    font-size: 12px; font-weight: 700; color: var(--sv-primary); flex-shrink: 0;
+}
+.block-survey--basic .bsv-bar-track {
+    height: 8px; background: var(--sv-border); border-radius: 4px; overflow: hidden;
+}
+.block-survey--basic .bsv-bar-fill {
+    height: 100%; border-radius: 4px;
+    background: linear-gradient(90deg, var(--sv-primary) 0%, var(--color-indigo-400) 100%);
+    transition: width .6s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── 결과 별점 ───────────────────────────────────────────────── */
+.block-survey--basic .bsv-result-rating { padding-left: 34px; display: flex; align-items: center; gap: 12px; }
+.block-survey--basic .bsv-result-avg {
+    font-size: 32px; font-weight: 800; color: var(--sv-text); line-height: 1;
+}
+.block-survey--basic .bsv-result-stars { display: flex; gap: 3px; }
+.block-survey--basic .bsv-result-stars span { font-size: 20px; }
+.block-survey--basic .bsv-result-stars .on  { color: var(--sv-star); }
+.block-survey--basic .bsv-result-stars .off { color: var(--border); }
+.block-survey--basic .bsv-result-stars .half {
+    position: relative; color: var(--border);
+    display: inline-block; overflow: hidden;
+}
+.block-survey--basic .bsv-result-stars .half::after {
+    content: '★'; position: absolute; left: 0; top: 0;
+    color: var(--sv-star);
+    width: 50%; overflow: hidden; display: block;
+}
+
+/* ── 결과 텍스트 답변 ────────────────────────────────────────── */
+.block-survey--basic .bsv-text-list {
+    padding-left: 34px; display: flex; flex-direction: column; gap: 6px;
+}
+.block-survey--basic .bsv-text-item {
+    padding: 8px 12px; background: var(--sv-bg-muted);
+    border-radius: var(--sv-radius-sm); border-left: 3px solid var(--sv-primary);
+    font-size: 13px; color: var(--sv-text); line-height: 1.5;
+}
+.block-survey--basic .bsv-text-more {
+    font-size: 12px; color: var(--sv-text-muted); padding-left: 34px; margin-top: 4px;
+}
+
+/* ── 빈 상태 ─────────────────────────────────────────────────── */
+.block-survey--basic .bsv-empty {
+    padding: 40px 24px; text-align: center;
+    color: var(--sv-text-muted); font-size: var(--sv-text-sm);
+}
+
+/* ── 종료/참여불가 안내 ───────────────────────────────────────── */
+.block-survey--basic .bsv-closed {
+    padding: 28px 24px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+}
+.block-survey--basic .bsv-closed-icon {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: var(--muted); display: flex; align-items: center; justify-content: center;
+}
+.block-survey--basic .bsv-closed-icon svg { width: 22px; height: 22px; color: var(--muted-foreground); }
+.block-survey--basic .bsv-closed-msg {
+    font-size: 14px; font-weight: 600; color: var(--sv-text); margin: 0;
+}
+.block-survey--basic .bsv-closed-sub {
+    font-size: 12px; color: var(--sv-text-muted); margin: 0;
+}
+
+/* 빈 상태 — 점선 박스 (board/코어 톤, 플러그인 소유) */
+.block-survey--basic .block-survey__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 100px;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.block-survey--basic .block-survey__empty-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}

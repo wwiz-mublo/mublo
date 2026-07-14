@@ -1,0 +1,868 @@
+/**
+ * MubloEditor Default Theme
+ */
+.mublo-editor-wrapper {
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .375rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #212529));
+    overflow: hidden;
+    position: relative;
+}
+.mublo-editor-wrapper.focused {
+    border-color: var(--bs-primary, #0d6efd);
+    box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .25);
+}
+.mublo-editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+    padding: .5rem;
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    border-bottom: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+.mublo-editor-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    border-radius: .25rem;
+    background: transparent;
+    color: var(--foreground, var(--bs-body-color, #212529));
+    cursor: pointer;
+    transition: background .15s;
+}
+.mublo-editor-btn:hover {
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+}
+.mublo-editor-btn.active {
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+}
+.mublo-editor-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.mublo-editor-separator {
+    width: 1px;
+    height: 24px;
+    margin: 4px;
+    background: var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-dropdown {
+    position: relative;
+}
+.mublo-editor-dropdown-btn {
+    width: auto;
+    padding: 0 8px;
+    gap: 4px;
+}
+.mublo-editor-caret {
+    opacity: .5;
+    margin-left: 2px;
+}
+.mublo-editor-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 1000;
+    min-width: 120px;
+    padding: .25rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .375rem;
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .15);
+}
+.mublo-editor-dropdown-menu.show {
+    display: block;
+}
+.mublo-editor-dropdown-item {
+    display: block;
+    width: 100%;
+    padding: .375rem .75rem;
+    border: none;
+    background: none;
+    text-align: left;
+    color: var(--foreground, var(--bs-body-color, #212529));
+    cursor: pointer;
+    border-radius: .25rem;
+}
+.mublo-editor-dropdown-item:hover {
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+}
+.mublo-editor-color-menu {
+    min-width: auto;
+    padding: .5rem;
+}
+.mublo-editor-color-palette {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 2px;
+}
+.mublo-editor-color-btn {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: 2px;
+    cursor: pointer;
+}
+.mublo-editor-color-btn:hover {
+    transform: scale(1.2);
+    z-index: 1;
+}
+.mublo-editor-color-custom {
+    width: 100%;
+    height: 30px;
+    margin-top: 6px;
+    padding: 2px;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: 4px;
+    background: var(--background, var(--bs-body-bg, #fff));
+    cursor: pointer;
+}
+.mublo-editor-content {
+    padding: 1rem;
+    overflow-y: auto;
+    outline: none;
+    min-height: 150px;
+}
+.mublo-editor-content:empty:before {
+    content: attr(data-placeholder);
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    pointer-events: none;
+}
+.mublo-editor-content img {
+    max-width: 100%;
+    height: auto;
+}
+.mublo-editor-content .mublo-image {
+    margin: 1em 0;
+}
+.mublo-editor-content .mublo-image img {
+    border-radius: 4px;
+}
+.mublo-editor-video-wrapper {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    max-width: 100%;
+    margin: 1rem 0;
+}
+.mublo-editor-video-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+.mublo-editor-content table {
+    width: 100%;
+    margin-bottom: 1rem;
+    border-collapse: collapse;
+}
+.mublo-editor-content table td, .mublo-editor-content table th {
+    padding: .5rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-content blockquote {
+    margin: 1rem 0;
+    padding: .5rem 1rem;
+    border-left: 4px solid var(--bs-primary, #0d6efd);
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+}
+.mublo-editor-content pre {
+    padding: 1rem;
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    border-radius: .375rem;
+    overflow-x: auto;
+}
+.mublo-editor-source {
+    width: 100%;
+    padding: 1rem;
+    border: none;
+    outline: none;
+    font-family: var(--bs-font-monospace, monospace);
+    font-size: .875rem;
+    resize: vertical;
+    background: var(--background, var(--bs-body-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #212529));
+    line-height: 1.5;
+}
+.mublo-editor-progress {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+}
+.mublo-editor-progress-bar {
+    height: 100%;
+    background: var(--bs-primary, #0d6efd);
+    transition: width .3s ease;
+    width: 0;
+}
+.mublo-editor-fullscreen {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 9999;
+    border-radius: 0;
+}
+.mublo-editor-fullscreen .mublo-editor-content, .mublo-editor-fullscreen .mublo-editor-source {
+    height: calc(100vh - 50px) !important;
+    max-height: none !important;
+}
+body.mublo-editor-noscroll {
+    overflow: hidden;
+}
+.mublo-editor-statusbar {
+    display: flex;
+    justify-content: flex-end;
+    padding: .25rem .5rem;
+    font-size: .75rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    border-top: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-over-limit {
+    color: var(--bs-danger, #dc3545);
+    font-weight: bold;
+}
+.mublo-editor-readonly {
+    opacity: .7;
+}
+.mublo-editor-readonly .mublo-editor-toolbar {
+    pointer-events: none;
+    opacity: .5;
+}
+.mublo-editor-readonly .mublo-editor-content {
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+}
+.mublo-editor-findreplace {
+    display: none;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem;
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    border-bottom: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-find-input, .mublo-editor-replace-input {
+    padding: .25rem .5rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .25rem;
+    font-size: .875rem;
+    width: 150px;
+    background: var(--background, var(--bs-body-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-find-input:focus, .mublo-editor-replace-input:focus {
+    outline: none;
+    border-color: var(--bs-primary, #0d6efd);
+}
+.mublo-editor-find-count {
+    font-size: .75rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    min-width: 70px;
+}
+.mublo-editor-highlight {
+    background: var(--bs-warning, #ffc107);
+    color: #000;
+    padding: 0 2px;
+    border-radius: 2px;
+}
+/* 다크모드는 테마 전용 셀렉터 없이 각 속성의 폴백 체인으로 처리한다.
+ * var(--프론트토큰, var(--bs-*, #라이트)) 순서:
+ *   1) 프론트 토큰(--background/--foreground/--border/--muted/…) — tokens.css가 .dark에서 자동 remap
+ *   2) 부트스트랩 토큰(--bs-*) — 관리자(부트스트랩 로드)에서 data-bs-theme로 다크 처리
+ *   3) 라이트 기준색 — 최후 폴백
+ * 색상 액센트(--bs-primary/danger/warning)는 다크에서도 대비가 유지되어 그대로 둔다. */
+
+/* Generic Modal System */
+.mublo-editor-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: mublo-editor-modal-fadein .2s ease;
+}
+.mublo-editor-modal-closing {
+    animation: mublo-editor-modal-fadeout .2s ease forwards;
+}
+@keyframes mublo-editor-modal-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+@keyframes mublo-editor-modal-fadeout {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
+.mublo-editor-modal-backdrop {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, .5);
+}
+.mublo-editor-modal-dialog {
+    position: relative;
+    width: 90%;
+    max-width: 600px;
+    max-height: 90vh;
+    background: var(--background, var(--bs-body-bg, #fff));
+    border-radius: .5rem;
+    box-shadow: 0 1rem 3rem rgba(0, 0, 0, .175);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.mublo-editor-modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-modal-header h5 {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-modal-close {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    cursor: pointer;
+    border-radius: .25rem;
+}
+.mublo-editor-modal-close:hover {
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-modal-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+.mublo-editor-modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem;
+    border-top: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+}
+.mublo-editor-modal-footer > div {
+    display: flex;
+    gap: .5rem;
+}
+.mublo-editor-modal-btn {
+    padding: .5rem 1rem;
+    border: 1px solid transparent;
+    border-radius: .375rem;
+    font-size: .875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all .15s;
+}
+.mublo-editor-modal-btn-primary {
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+    border-color: var(--bs-primary, #0d6efd);
+}
+.mublo-editor-modal-btn-primary:hover:not(:disabled) {
+    background: #0b5ed7;
+    border-color: #0a58ca;
+}
+.mublo-editor-modal-btn-primary:disabled {
+    opacity: .65;
+    cursor: not-allowed;
+}
+.mublo-editor-modal-btn-secondary {
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+    color: var(--foreground, var(--bs-body-color, #212529));
+    border-color: var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-modal-btn-secondary:hover {
+    background: var(--border, var(--bs-border-color, #dee2e6));
+}
+
+/* Modal Form Elements */
+.mublo-editor-modal-form-group { margin-bottom: 1rem; }
+.mublo-editor-modal-label { display: block; margin-bottom: .5rem; font-weight: 500; font-size: .875rem; color: var(--foreground, var(--bs-body-color, #212529)); }
+.mublo-editor-modal-input { width: 100%; padding: .5rem .75rem; font-size: .875rem; border: 1px solid var(--border, var(--bs-border-color, #dee2e6)); border-radius: .375rem; background: var(--background, var(--bs-body-bg, #fff)); color: var(--foreground, var(--bs-body-color, #212529)); }
+.mublo-editor-modal-input:focus { outline: none; border-color: var(--bs-primary, #0d6efd); }
+.mublo-editor-modal-check { display: flex; align-items: center; gap: .5rem; font-size: .875rem; cursor: pointer; color: var(--foreground, var(--bs-body-color, #212529)); }
+.mublo-editor-modal-check input { width: auto; cursor: pointer; }
+
+/* Table Picker (Grid) */
+.mublo-editor-table-picker { display: flex; flex-direction: column; align-items: center; }
+.mublo-editor-table-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; margin-bottom: .5rem; padding: 2px; border: 1px solid var(--border, var(--bs-border-color, #dee2e6)); background: var(--background, var(--bs-body-bg, #fff)); }
+.mublo-editor-table-cell { width: 18px; height: 18px; border: 1px solid var(--border, var(--bs-border-color, #dee2e6)); cursor: pointer; background: var(--muted, var(--bs-tertiary-bg, #f8f9fa)); }
+.mublo-editor-table-cell.active { background: var(--bs-primary, #0d6efd); border-color: var(--bs-primary, #0d6efd); }
+.mublo-editor-table-info { text-align: center; font-size: .875rem; font-weight: 600; color: var(--foreground, var(--bs-body-color, #212529)); }
+
+/* Image Upload Specifics */
+.mublo-editor-image-count {
+    font-size: .875rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+}
+.mublo-editor-image-upload-zone {
+    border: 2px dashed var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .5rem;
+    padding: 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+}
+.mublo-editor-image-upload-zone:hover, .mublo-editor-image-upload-zone-active {
+    border-color: var(--bs-primary, #0d6efd);
+    background: rgba(13, 110, 253, .05);
+}
+.mublo-editor-image-upload-zone svg {
+    margin-bottom: .5rem;
+    opacity: .5;
+}
+.mublo-editor-image-upload-zone p {
+    margin: .25rem 0;
+}
+.mublo-editor-image-upload-hint {
+    font-size: .75rem;
+    opacity: .7;
+}
+.mublo-editor-image-url-input {
+    display: flex;
+    gap: .5rem;
+    margin-top: 1rem;
+}
+.mublo-editor-image-url-input input {
+    flex: 1;
+    padding: .5rem .75rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .375rem;
+    font-size: .875rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-image-url-input input:focus {
+    outline: none;
+    border-color: var(--bs-primary, #0d6efd);
+}
+.mublo-editor-image-url-input button {
+    padding: .5rem 1rem;
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .375rem;
+    cursor: pointer;
+    font-size: .875rem;
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-image-url-input button:hover {
+    background: var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-image-preview-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: .75rem;
+    margin-top: 1rem;
+    min-height: 50px;
+}
+.mublo-editor-image-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .375rem;
+    overflow: hidden;
+    cursor: grab;
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    transition: transform .15s, box-shadow .15s;
+}
+.mublo-editor-image-preview-item:hover {
+    box-shadow: 0 .25rem .5rem rgba(0, 0, 0, .1);
+}
+.mublo-editor-image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.mublo-editor-image-preview-name {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: .25rem .5rem;
+    background: rgba(0, 0, 0, .7);
+    color: #fff;
+    font-size: .625rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mublo-editor-image-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(220, 53, 69, .9);
+    color: #fff;
+    font-size: .875rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity .15s;
+}
+.mublo-editor-image-preview-item:hover .mublo-editor-image-preview-remove {
+    opacity: 1;
+}
+.mublo-editor-image-preview-remove:hover {
+    background: #dc3545;
+}
+.mublo-editor-image-preview-order {
+    position: absolute;
+    top: 4px;
+    left: 4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+    font-size: .625rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.mublo-editor-image-preview-dragging {
+    opacity: .5;
+    transform: scale(.95);
+}
+.mublo-editor-image-drag-hint {
+    text-align: center;
+    font-size: .75rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    margin-top: .5rem;
+}
+.mublo-editor-image-meta {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-content figure.mublo-image figcaption,
+.mublo-editor-content .mublo-image-caption {
+    margin-top: .375rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    font-size: .875rem;
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* Image Resizer */
+.mublo-editor-resizer {
+    position: absolute;
+    border: 1px solid var(--bs-primary, #0d6efd);
+    display: none;
+    pointer-events: none;
+    z-index: 50;
+}
+.mublo-editor-resizer.active {
+    display: block;
+}
+.mublo-editor-resizer-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: var(--bs-primary, #0d6efd);
+    border: 1px solid #fff;
+    pointer-events: auto;
+}
+/* 모서리 4개 (비율 유지) */
+.mublo-editor-resizer-nw { top: -5px; left: -5px; cursor: nw-resize; }
+.mublo-editor-resizer-ne { top: -5px; right: -5px; cursor: ne-resize; }
+.mublo-editor-resizer-sw { bottom: -5px; left: -5px; cursor: sw-resize; }
+.mublo-editor-resizer-se { bottom: -5px; right: -5px; cursor: se-resize; }
+/* 가운데 4개 (자유 크기) */
+.mublo-editor-resizer-n { top: -5px; left: 50%; margin-left: -5px; cursor: n-resize; }
+.mublo-editor-resizer-s { bottom: -5px; left: 50%; margin-left: -5px; cursor: s-resize; }
+.mublo-editor-resizer-e { top: 50%; right: -5px; margin-top: -5px; cursor: e-resize; }
+.mublo-editor-resizer-w { top: 50%; left: -5px; margin-top: -5px; cursor: w-resize; }
+/* 드래그 중 실시간 크기 표시 라벨 */
+.mublo-editor-resizer-size {
+    position: absolute;
+    top: -26px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 2px 8px;
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.4;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity .1s;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.mublo-editor-resizer.active .mublo-editor-resizer-size,
+.mublo-editor-resizer-dragging .mublo-editor-resizer-size { opacity: 1; }
+
+/* 이미지 hover 교체 안내 툴팁 */
+.mublo-editor-img-tooltip {
+    position: absolute;
+    z-index: 99999;
+    background: #1e293b;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 14px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    white-space: nowrap;
+    pointer-events: auto;
+    animation: mublo-tooltip-in 0.2s ease;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.mublo-editor-img-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: -5px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #1e293b;
+}
+@keyframes mublo-tooltip-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Toast Notification */
+.mublo-editor-toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 99999;
+    color: #fff;
+    padding: 10px 24px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+    animation: mublo-tooltip-in 0.25s ease;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+.mublo-editor-toast-info { background: #3b82f6; }
+.mublo-editor-toast-success { background: #22c55e; }
+.mublo-editor-toast-error { background: #ef4444; }
+
+/* Autosave Restore Banner */
+.mublo-editor-autosave-banner {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    background: var(--warning-subtle, var(--bs-warning-bg-subtle, #fff3cd));
+    border-bottom: 1px solid var(--warning-subtle-border, var(--bs-warning-border-subtle, #ffe69c));
+    font-size: .875rem;
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-autosave-banner span { flex: 1; }
+.mublo-editor-autosave-banner .mublo-editor-modal-btn {
+    padding: .25rem .75rem;
+    font-size: .8125rem;
+}
+
+/* =========================================================
+ * 테이블 셀 편집 — 컨텍스트 메뉴 + 셀 선택 하이라이트
+ * ========================================================= */
+.mublo-editor-table-menu {
+    position: fixed;
+    z-index: 10001;
+    min-width: 180px;
+    padding: .25rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .5rem;
+    box-shadow: 0 .5rem 1.5rem rgba(0, 0, 0, .18);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    animation: mublo-editor-modal-fadein .12s ease;
+}
+.mublo-editor-table-menu-item {
+    display: block;
+    width: 100%;
+    padding: .5rem .75rem;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: .8125rem;
+    color: var(--foreground, var(--bs-body-color, #212529));
+    cursor: pointer;
+    border-radius: .375rem;
+}
+.mublo-editor-table-menu-item:hover:not(:disabled) {
+    background: var(--secondary, var(--bs-secondary-bg, #e9ecef));
+}
+.mublo-editor-table-menu-item:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+}
+.mublo-editor-table-menu-item.danger { color: var(--bs-danger, #dc3545); }
+.mublo-editor-table-menu-item.danger:hover:not(:disabled) {
+    background: var(--bs-danger, #dc3545);
+    color: #fff;
+}
+.mublo-editor-table-menu-sep {
+    height: 1px;
+    margin: .25rem .5rem;
+    background: var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-content td.mublo-editor-cell-selected,
+.mublo-editor-content th.mublo-editor-cell-selected {
+    background: rgba(13, 110, 253, .18);
+    outline: 2px solid var(--bs-primary, #0d6efd);
+    outline-offset: -2px;
+}
+
+/* =========================================================
+ * 코드 블록 — 어두운 배경 + 고정폭 + 좌측 라인넘버 영역
+ * ========================================================= */
+.mublo-editor-content pre.mublo-code-block {
+    position: relative;
+    margin: 1rem 0;
+    padding: .875rem 1rem .875rem 3rem;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    border: 1px solid #313244;
+    border-radius: .5rem;
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, 'SFMono-Regular', 'Courier New', monospace;
+    font-size: .85rem;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    tab-size: 2;
+}
+.mublo-editor-content pre.mublo-code-block code {
+    display: block;
+    background: none;
+    color: inherit;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    white-space: inherit;
+}
+/* 좌측 라인넘버 영역 (장식용 거터) */
+.mublo-editor-content pre.mublo-code-block::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 2.25rem;
+    background: #181825;
+    border-right: 1px solid #313244;
+    border-radius: .5rem 0 0 .5rem;
+    pointer-events: none;
+}
+/* 언어 배지 (우측 상단) */
+.mublo-editor-content pre.mublo-code-block[data-language]::after {
+    content: attr(data-language);
+    position: absolute;
+    top: 0;
+    right: 0;
+    padding: 2px 10px;
+    background: #313244;
+    color: #a6adc8;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    border-radius: 0 .5rem 0 .5rem;
+    pointer-events: none;
+}
+/* 구문 강조 토큰 (VS Code Dark+ 팔레트) */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-keyword  { color: #c586c0; }              /* 키워드 — 보라 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-string   { color: #ce9178; }              /* 문자열 — 주황 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-comment  { color: #7f848e; font-style: italic; } /* 주석 — 회색 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-number   { color: #b5cea8; }              /* 숫자 — 연두 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-operator { color: #d4d4d4; }              /* 연산자 — 밝은색 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-variable { color: #9cdcfe; }              /* 변수($) — 하늘 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-tag      { color: #569cd6; }              /* HTML 태그 — 파랑 */
+.mublo-editor-content pre.mublo-code-block .mublo-tok-property { color: #9cdcfe; }              /* CSS 속성/HTML 속성 — 하늘 */
+
+/* 인라인 코드 (코드 블록 밖의 <code>) */
+.mublo-editor-content code:not(pre code) {
+    padding: .1em .35em;
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: 4px;
+    font-family: var(--bs-font-monospace, Consolas, 'Courier New', monospace);
+    font-size: .875em;
+    color: var(--bs-danger, #d63384);
+}
+
+/* 코드 블록 언어 선택 바 (커서가 코드 블록 안일 때 표시) */
+.mublo-editor-code-langbar {
+    position: absolute;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    padding: 2px;
+    background: #313244;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .3);
+}
+.mublo-editor-code-lang-select {
+    padding: 2px 6px;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    background: #1e1e2e;
+    color: #cdd6f4;
+    font-size: 11px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    cursor: pointer;
+    outline: none;
+}
+.mublo-editor-code-lang-select:focus { border-color: var(--bs-primary, #0d6efd); }
+
+/* =========================================================
+ * 마크다운 단축키 변환 시각 피드백
+ * ========================================================= */
+.mublo-editor-md-flash .mublo-editor-content {
+    animation: mublo-editor-md-flash .25s ease;
+}
+@keyframes mublo-editor-md-flash {
+    0% { box-shadow: inset 0 0 0 2px rgba(13, 110, 253, .4); }
+    100% { box-shadow: inset 0 0 0 2px rgba(13, 110, 253, 0); }
+}

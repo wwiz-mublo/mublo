@@ -1,0 +1,100 @@
+/**
+ * Block Skin: visitor_stats/basic (방문자 통계 — 숫자형, 카드)
+ * 오늘 / 어제 / 전체 방문자 3그룹. 각 그룹: 큰 방문자 수 + 구분선 + (페이지뷰·회원).
+ * 스코프 루트: .block-vstats--basic
+ * 카드 스타일은 __card 래퍼에만 준다(.block-body 의 동적 padding 과 충돌 방지).
+ */
+.block-vstats--basic .block-vstats__card {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;               /* 그룹 간격 = 카드 패딩 (디바이더 대신 여백으로 구분) */
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card, var(--background));
+}
+
+/* 상단: 라벨 + 방문자 수 (한 줄) */
+.block-vstats--basic .block-vstats__main {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.block-vstats--basic .block-vstats__label {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+}
+
+.block-vstats--basic .block-vstats__value {
+    font-size: 2rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--foreground);
+}
+
+.block-vstats--basic .block-vstats__change {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.block-vstats--basic .block-vstats__change--up   { color: var(--success, #16a34a); }
+.block-vstats--basic .block-vstats__change--down { color: var(--destructive, #dc3545); }
+
+/* 하단: 구분선 + 페이지뷰·회원 */
+.block-vstats--basic .block-vstats__sub {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+}
+
+.block-vstats--basic .block-vstats__sub-item b {
+    color: var(--foreground);
+    font-weight: 600;
+}
+
+/* 어제/전체 묶음 — 서로 간격 좁게 (오늘과는 카드 gap 만큼 떨어짐) */
+.block-vstats--basic .block-vstats__rows {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+/* 컴팩트 1행: 라벨 · 숫자(축소) · 페이지뷰(숫자 옆) */
+.block-vstats--basic .block-vstats__row {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.block-vstats--basic .block-vstats__row-label {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+}
+
+.block-vstats--basic .block-vstats__row-value {
+    font-size: 1.125rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--foreground);
+}
+
+.block-vstats--basic .block-vstats__row-pv {
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+}
+
+.block-vstats--basic .block-vstats__row-pv b {
+    color: var(--foreground);
+    font-weight: 600;
+}

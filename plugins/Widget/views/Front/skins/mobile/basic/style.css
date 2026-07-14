@@ -1,0 +1,36 @@
+/* Widget Mobile Skin - basic
+ * 아이템 크기는 --widget-item-size (뷰가 config 값으로 주입) */
+#mublo-widget-mobile {
+    position: fixed;
+    right: 15px;
+    bottom: 100px;
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+#mublo-widget-mobile .widget-item {
+    width: var(--widget-item-size, 40px);
+    height: var(--widget-item-size, 40px);
+    transition: transform 0.2s;
+}
+#mublo-widget-mobile .widget-item:hover {
+    transform: scale(1.1);
+}
+#mublo-widget-mobile .widget-item a {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+#mublo-widget-mobile .widget-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+@media (min-width: 769px) {
+    #mublo-widget-mobile {
+        display: none !important;
+    }
+}

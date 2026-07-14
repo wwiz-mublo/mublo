@@ -1,0 +1,150 @@
+/**
+ * Block Skin: menu/sidebar
+ * 사이드바 메뉴 스킨 스타일
+ */
+
+.sidebar-menu {
+    width: 100%;
+    font-size: 0.9375rem;
+}
+
+/* ── 리스트 리셋 ── */
+.sidebar-menu__list,
+.sidebar-menu__sub {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* ── 1depth 항목 ── */
+.sidebar-menu__item {
+    border-bottom: 1px solid #eee;
+}
+
+.sidebar-menu__item:last-child {
+    border-bottom: none;
+}
+
+.sidebar-menu__row {
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-menu__link {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 4px;
+    color: #333;
+    text-decoration: none;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.sidebar-menu__link:hover {
+    color: var(--bs-primary, #0d6efd);
+}
+
+/* 링크 없는 항목 — 클릭 불가 라벨 (하위만 여는 부모) */
+.sidebar-menu__link--nolink,
+.sidebar-menu__link--nolink:hover {
+    cursor: default;
+    color: #333;
+}
+
+.sidebar-menu__icon {
+    width: 18px;
+    text-align: center;
+    font-size: 1rem;
+    color: #888;
+    flex-shrink: 0;
+}
+
+/* ── 토글 버튼 ── */
+.sidebar-menu__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: none;
+    color: #999;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: transform 0.2s;
+}
+
+.sidebar-menu__toggle:hover {
+    color: #333;
+}
+
+.sidebar-menu__item--open > .sidebar-menu__row > .sidebar-menu__toggle {
+    transform: rotate(180deg);
+}
+
+/* ── 하위 메뉴 (아코디언) ── */
+.sidebar-menu__sub {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.25s ease;
+}
+
+.sidebar-menu__item--open > .sidebar-menu__sub {
+    max-height: 500px;
+}
+
+/* 2depth */
+.sidebar-menu__sub--depth2 {
+    padding-left: 12px;
+    background-color: #fafafa;
+    border-top: 1px solid #eee;
+}
+
+.sidebar-menu__sub--depth2 .sidebar-menu__link {
+    padding: 9px 4px 9px 12px;
+    font-size: 0.875rem;
+    color: #555;
+}
+
+.sidebar-menu__sub--depth2 .sidebar-menu__item {
+    border-bottom-color: #f0f0f0;
+}
+
+/* 3depth */
+.sidebar-menu__sub--depth3 {
+    padding-left: 12px;
+}
+
+.sidebar-menu__sub--depth3 .sidebar-menu__link {
+    padding: 7px 4px 7px 12px;
+    font-size: 0.8125rem;
+    color: #777;
+}
+
+/* ── 활성 상태 ── */
+.sidebar-menu__item--active > .sidebar-menu__row > .sidebar-menu__link {
+    color: var(--bs-primary, #0d6efd);
+    font-weight: 600;
+}
+
+.sidebar-menu__item--parent-active > .sidebar-menu__row > .sidebar-menu__link {
+    color: var(--bs-primary, #0d6efd);
+}
+
+/* ── 활성 표시 바 ── */
+.sidebar-menu__item--active > .sidebar-menu__row {
+    position: relative;
+}
+
+.sidebar-menu__item--active > .sidebar-menu__row::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background-color: var(--bs-primary, #0d6efd);
+    border-radius: 2px;
+}

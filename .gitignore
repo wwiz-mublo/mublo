@@ -1,0 +1,79 @@
+# Mublo Framework public repository
+
+# Installed/generated directories
+/config/*
+/storage/*
+/vendor/
+!/config/
+!/config/.gitkeep
+!/config/extension-publishers.example.php
+!/storage/
+!/storage/.gitkeep
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Local PHPUnit overrides
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache/
+/coverage/
+
+# Logs and cache
+*.log
+/.cache/
+
+# Local build artifacts
+/node_modules/
+/public/build/
+npm-debug.log*
+yarn-error.log*
+
+# Playwright MCP test artifacts (browser verification sessions)
+/.playwright-mcp/
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+*.tmp
+
+# Local backup files
+*.bak
+*.backup-*
+
+# Local/public runtime uploads
+/public/storage/*
+!/public/storage/
+!/public/storage/.gitkeep
+# 업로드 저장소 실행 차단 가드는 버전관리에 포함(방어-심층화)
+!/public/storage/.htaccess
+!/public/storage/web.config
+
+# Editor local override
+/public/assets/lib/editor/*/config.local.php
+
+# Local notes and review artifacts
+.mcp.json
+guide.md
+/reviews/
+/openReviews/
+/review-notes/
+/regacy-docs/
+/공개검토/
+
+# 로컬 정션: public/sample/{combo,assets} → packages/Mshop/sample/* (샘플 웹 노출용)
+/public/sample/
+
+# Misc local files
+composer.phar
+nul
+
+# Playwright MCP 세션 아티팩트
+/.playwright-mcp/

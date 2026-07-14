@@ -1,0 +1,69 @@
+/* Block Skin: menu/tabs — 서브페이지 가로 탭 내비 */
+
+.block-menu--tabs .bmt-nav {
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.block-menu--tabs .bmt-row {
+    display: flex;
+    gap: 4px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+}
+
+.block-menu--tabs .bmt-row::-webkit-scrollbar {
+    display: none;
+}
+
+.block-menu--tabs .bmt-link {
+    display: inline-block;
+    padding: 13px 18px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #64748b;
+    text-decoration: none;
+    white-space: nowrap;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color .15s, border-color .15s;
+}
+
+.block-menu--tabs .bmt-link:hover {
+    color: #0f172a;
+}
+
+/* 링크 없는 항목 — 클릭 불가 라벨 */
+.block-menu--tabs .bmt-link--nolink,
+.block-menu--tabs .bmt-link--nolink:hover {
+    cursor: default;
+    color: #64748b;
+}
+
+.block-menu--tabs .bmt-link.is-active {
+    color: #0f172a;
+    font-weight: 700;
+    border-bottom-color: currentColor;
+}
+
+.block-menu--tabs .bmt-row--sub {
+    background: #f8fafc;
+    border-top: 1px solid #eef2f7;
+    padding: 0 8px;
+}
+
+.block-menu--tabs .bmt-link--sub {
+    padding: 10px 14px;
+    font-size: 13.5px;
+    border-bottom-width: 2px;
+}
+
+@media (max-width: 640px) {
+    .block-menu--tabs .bmt-link {
+        padding: 12px 13px;
+        font-size: 14px;
+    }
+}

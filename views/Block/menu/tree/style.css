@@ -1,0 +1,85 @@
+/* Block Skin: menu/tree — 좌측 LNB 트리 내비 */
+
+.block-menu--tree .bmtr-nav {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+}
+
+.block-menu--tree .bmtr-head {
+    padding: 16px 18px;
+    background: #0f172a;
+}
+
+.block-menu--tree .bmtr-head a,
+.block-menu--tree .bmtr-head span {
+    color: #fff;
+    font-size: 17px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.block-menu--tree .bmtr-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.block-menu--tree .bmtr-link {
+    display: block;
+    padding: 12px 18px;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #334155;
+    text-decoration: none;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background .15s, color .15s;
+}
+
+.block-menu--tree .bmtr-item:last-child > .bmtr-link {
+    border-bottom: 0;
+}
+
+.block-menu--tree .bmtr-link:hover {
+    background: #f8fafc;
+    color: #0f172a;
+}
+
+/* 링크 없는 항목 — 클릭 불가 라벨 (하위만 여는 가지) */
+.block-menu--tree .bmtr-link--nolink,
+.block-menu--tree .bmtr-link--nolink:hover {
+    cursor: default;
+    background: transparent;
+    color: #334155;
+}
+
+.block-menu--tree .bmtr-link.is-active {
+    color: #0f172a;
+    font-weight: 800;
+    background: #f1f5f9;
+    box-shadow: inset 3px 0 0 #0f172a;
+}
+
+/* 하위 가지: 현재 트레일만 펼침 */
+.block-menu--tree .bmtr-item--branch > .bmtr-list {
+    display: none;
+    background: #fbfcfe;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.block-menu--tree .bmtr-item--branch.is-open > .bmtr-list {
+    display: block;
+}
+
+.block-menu--tree .bmtr-list--depth2 .bmtr-link {
+    padding: 10px 18px 10px 30px;
+    font-size: 13.5px;
+    font-weight: 500;
+    border-bottom: 0;
+}
+
+.block-menu--tree .bmtr-list--depth3 .bmtr-link {
+    padding-left: 42px;
+    font-size: 13px;
+}

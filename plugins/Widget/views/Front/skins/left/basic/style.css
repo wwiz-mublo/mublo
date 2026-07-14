@@ -1,0 +1,37 @@
+/* Widget Left Skin - basic
+ * 아이템 크기는 --widget-item-size (뷰가 config 값으로 주입) */
+#mublo-widget-left {
+    position: fixed;
+    left: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+#mublo-widget-left .widget-item {
+    width: var(--widget-item-size, 50px);
+    height: var(--widget-item-size, 50px);
+    transition: transform 0.2s;
+}
+#mublo-widget-left .widget-item:hover {
+    transform: scale(1.1);
+}
+#mublo-widget-left .widget-item a {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+#mublo-widget-left .widget-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+@media (max-width: 768px) {
+    #mublo-widget-left {
+        display: none !important;
+    }
+}

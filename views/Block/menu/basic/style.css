@@ -1,0 +1,75 @@
+/**
+ * Block Skin: menu/basic
+ * 메뉴 기본 스킨 스타일
+ */
+
+.block-menu-basic {
+    width: 100%;
+}
+
+.block-menu-basic .block-header {
+    margin-bottom: 15px;
+}
+
+.block-menu-basic .block-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.block-menu-basic .block-empty {
+    text-align: center;
+    color: #6c757d;
+    padding: 20px 0;
+}
+
+.block-menu-basic .block-nav {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.block-menu-basic .nav-item {
+    border-bottom: 1px solid #e9ecef;
+}
+
+.block-menu-basic .nav-item:last-child {
+    border-bottom: none;
+}
+
+.block-menu-basic .nav-item > a {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    color: #212529;
+    text-decoration: none;
+    transition: color 0.15s ease;
+}
+
+.block-menu-basic .nav-item > a:hover {
+    color: var(--bs-primary, #0d6efd);
+}
+
+.block-menu-basic .nav-item > a i {
+    margin-right: 8px;
+    width: 20px;
+    text-align: center;
+}
+
+.block-menu-basic .nav-children {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 10px 20px;
+}
+
+.block-menu-basic .nav-child a {
+    display: block;
+    padding: 6px 0;
+    font-size: 0.875rem;
+    color: #6c757d;
+    text-decoration: none;
+}
+
+.block-menu-basic .nav-child a:hover {
+    color: var(--bs-primary, #0d6efd);
+}

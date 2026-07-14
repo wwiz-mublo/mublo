@@ -1,0 +1,191 @@
+/* 주문 상세 (Order/View) 스타일 */
+
+/* ── 주문 상세 컨테이너 ── */
+.shop-order-view { max-width: 960px; margin: 0 auto; }
+
+/* ── 헤더 ── */
+.shop-order-view__header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+.shop-order-view__header-back { color: var(--primary); text-decoration: none; font-size: 0.9rem; font-weight: 500; }
+.shop-order-view__header-back:hover { text-decoration: underline; }
+.shop-order-view__header-info { text-align: left; }
+.shop-order-view__order-no { display: block; font-weight: 700; font-size: 1rem; color: var(--foreground); }
+.shop-order-view__order-date { font-size: 0.85rem; color: var(--muted-foreground); }
+
+/* ── 상태 타임라인 ── */
+.shop-order-view__timeline { display: flex; align-items: flex-start; justify-content: center; padding: 24px 20px; margin-bottom: 20px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.shop-order-view__timeline::-webkit-scrollbar { display: none; }
+.shop-order-view__timeline-step { display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 64px; }
+.shop-order-view__timeline-dot { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); background: var(--card); flex-shrink: 0; transition: all 0.2s; }
+.shop-order-view__timeline-step--active .shop-order-view__timeline-dot { border-color: var(--primary); background: var(--primary); }
+.shop-order-view__timeline-step--current .shop-order-view__timeline-dot { border-color: var(--primary); background: var(--card); box-shadow: 0 0 0 4px rgba(102,126,234,0.2); }
+.shop-order-view__timeline-label { font-size: 0.75rem; color: var(--muted-foreground); white-space: nowrap; }
+.shop-order-view__timeline-step--active .shop-order-view__timeline-label { color: var(--primary); font-weight: 600; }
+.shop-order-view__timeline-step--current .shop-order-view__timeline-label { color: var(--primary); font-weight: 700; }
+.shop-order-view__timeline-line { flex: 1; height: 2px; background: var(--border); margin: 7px 6px 0; min-width: 20px; }
+.shop-order-view__timeline-line--active { background: var(--primary); }
+/* 취소/반품 타임라인(로그 기반): 종료=빨강, 요청=앰버 */
+.shop-order-view__timeline-step--cancelled .shop-order-view__timeline-dot { border-color: var(--destructive); background: var(--destructive); }
+.shop-order-view__timeline-step--cancelled .shop-order-view__timeline-label { color: var(--destructive); font-weight: 700; }
+.shop-order-view__timeline-step--requested .shop-order-view__timeline-dot { border-color: var(--warning); background: var(--warning); }
+.shop-order-view__timeline-step--requested .shop-order-view__timeline-label { color: var(--warning); font-weight: 700; }
+
+/* ── 상태 배지 (취소/반품) ── */
+.shop-order-view__status-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-size: 0.9rem; font-weight: 600; margin-bottom: 20px; }
+.shop-order-view__status-badge--danger { background: var(--danger-subtle); color: var(--destructive); border: 1px solid var(--danger-subtle-border); }
+.shop-order-view__status-badge--warning { background: var(--warning-subtle); color: var(--warning); border: 1px solid var(--warning-subtle-border); }
+
+/* ── 2컬럼 레이아웃 ── */
+.shop-order-view__layout { display: flex; gap: 24px; align-items: flex-start; }
+.shop-order-view__main { flex: 1; min-width: 0; }
+.shop-order-view__sidebar { width: 320px; flex-shrink: 0; position: sticky; top: calc(var(--header-height, 80px) + 20px); }
+
+/* ── 섹션 카드 ── */
+.shop-order-view__section { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+.shop-order-view__section-header { padding: 16px 20px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 1rem; }
+.shop-order-view__section-body { padding: 20px; }
+
+/* ── 상품 아이템 ── */
+.shop-order-view__item { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+.shop-order-view__item + .shop-order-view__item { border-top: 1px solid var(--border-subtle); }
+.shop-order-view__item:first-child { padding-top: 0; }
+.shop-order-view__item:last-child { padding-bottom: 0; }
+.shop-order-view__item-image { width: 56px; height: 56px; border-radius: 8px; overflow: hidden; background: var(--muted); flex-shrink: 0; }
+.shop-order-view__item-image img { width: 100%; height: 100%; object-fit: cover; }
+.shop-order-view__item-image--empty { display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); font-size: 1.2rem; width: 56px; height: 56px; background: var(--muted); border-radius: 8px; }
+.shop-order-view__item-info { flex: 1; min-width: 0; }
+.shop-order-view__item-name { display: block; font-weight: 600; font-size: 0.9rem; margin-bottom: 2px; color: inherit; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+a.shop-order-view__item-name:hover { text-decoration: underline; }
+.shop-order-view__item-image a { display: block; width: 100%; height: 100%; }
+.shop-order-view__item-option { font-size: 0.8rem; color: var(--muted-foreground); }
+.shop-order-view__item-unit { font-size: 0.8rem; color: var(--muted-foreground); margin-top: 2px; }
+.shop-order-view__item-tag { display: inline-block; font-size: 0.7rem; font-weight: 600; color: var(--primary); background: var(--accent); border-radius: 4px; padding: 1px 6px; margin-right: 4px; vertical-align: middle; }
+.shop-order-view__item-divider { margin: 0 8px; color: var(--border); }
+.shop-order-view__item-qtysep { color: var(--muted-foreground); }
+.shop-order-view__item-price { font-weight: 600; font-size: 0.95rem; text-align: right; flex: 0 0 96px; white-space: nowrap; }
+.shop-order-view__item-review { flex: 0 0 96px; text-align: center; }
+
+/* ── 정보 행 ── */
+.shop-order-view__info-row { display: flex; align-items: baseline; margin-bottom: 12px; }
+.shop-order-view__info-row:last-child { margin-bottom: 0; }
+.shop-order-view__info-label { width: 80px; flex-shrink: 0; font-size: 0.85rem; color: var(--muted-foreground); font-weight: 500; }
+.shop-order-view__info-value { flex: 1; font-size: 0.9rem; color: var(--foreground); word-break: break-all; }
+
+/* ── 결제 요약 ── */
+.shop-order-view__summary-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.9rem; color: var(--muted-foreground); }
+.shop-order-view__summary-row:last-child { margin-bottom: 0; }
+.shop-order-view__summary-divider { height: 1px; background: var(--border); margin: 14px 0; }
+.shop-order-view__summary-total { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.1rem; }
+.shop-order-view__summary-total-price { color: var(--primary); }
+
+/* ── 하단 버튼 ── */
+.shop-order-view__footer { display: flex; justify-content: center; gap: 12px; margin-top: 8px; padding: 24px 0; }
+.shop-order-view__btn { display: inline-block; padding: 12px 28px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; border: none; }
+.shop-order-view__btn--outline { background: var(--card); color: var(--primary); border: 1px solid var(--primary); }
+.shop-order-view__btn--outline:hover { background: var(--accent); }
+.shop-order-view__btn--primary { background: var(--primary); color: var(--primary-foreground); }
+.shop-order-view__btn--primary:hover { background: var(--primary); }
+.shop-order-view__btn--danger { background: var(--card); color: var(--destructive); border: 1px solid var(--destructive); }
+.shop-order-view__btn--danger:hover { background: var(--destructive); color: var(--destructive-foreground); }
+/* 결제 정보 섹션 아래(사이드바) 배치 시 전체 너비 */
+.shop-order-view__cancel-side { display: block; width: 100%; margin-top: 12px; box-sizing: border-box; }
+
+/* 주문 취소 모달 */
+.spv-cancel-hint { font-size: 0.85rem; line-height: 1.5; color: var(--muted-foreground); margin: 0 0 16px; }
+.spv-cancel-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--foreground); margin-bottom: 6px; }
+.spv-cancel-select {
+    width: 100%; padding: 10px 38px 10px 12px; font-size: 0.9rem; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; margin-bottom: 10px;
+    appearance: none; -webkit-appearance: none; -moz-appearance: none;
+    background: var(--card) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%236b7280' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E") no-repeat right 14px center;
+}
+
+/* ── 반응형 ── */
+@media (max-width: 768px) {
+    .shop-order-view__layout { flex-direction: column; }
+    .shop-order-view__sidebar { width: 100%; position: static; }
+    .shop-order-view__timeline { justify-content: flex-start; padding: 16px 12px; gap: 0; }
+    .shop-order-view__timeline-step { min-width: 52px; }
+    .shop-order-view__timeline-label { font-size: 0.68rem; }
+    .shop-order-view__header { flex-direction: column; align-items: flex-start; gap: 8px; }
+    .shop-order-view__header-info { text-align: left; }
+    .shop-order-view__info-row { flex-direction: column; gap: 2px; }
+    .shop-order-view__info-label { width: auto; }
+    .shop-order-view__item { gap: 8px 12px; flex-wrap: wrap; align-items: flex-start; }
+    .shop-order-view__item-info { flex: 1 1 calc(100% - 70px); }
+    .shop-order-view__item-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; }
+    .shop-order-view__item-price { flex: 0 1 auto; text-align: left; align-self: center; }
+    .shop-order-view__item-review { flex: 0 0 auto; margin-left: auto; align-self: center; }
+    .shop-order-view__footer { flex-direction: column; }
+    .shop-order-view__btn { width: 100%; }
+}
+
+/* ── 후기 작성 ── */
+.shop-order-view__review-btn {
+    padding: 5px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    color: var(--primary); background: var(--card); border: 1px solid var(--primary); border-radius: 8px; white-space: nowrap;
+}
+.shop-order-view__review-btn:hover { background: var(--primary); color: var(--primary-foreground); }
+.shop-order-view__review-btn--view { color: var(--muted-foreground); border-color: var(--border); }
+.shop-order-view__review-btn--view:hover { background: var(--muted-foreground); color: var(--card); border-color: var(--muted-foreground); }
+.shop-order-view__review-btn--disabled { color: var(--muted-foreground); background: transparent; border-style: dashed; border-color: var(--border); cursor: not-allowed; }
+.shop-order-view__review-btn--disabled:hover { background: transparent; color: var(--muted-foreground); border-color: var(--border); }
+/* 구매확정: 주요 액션이라 filled 로 강조 (배송중/배송완료 슬롯). 확정하면 후기 버튼으로 전환됨 */
+.shop-order-view__confirm-btn { color: var(--primary-foreground); background: var(--primary); border-color: var(--primary); }
+.shop-order-view__confirm-btn:hover { opacity: 0.9; color: var(--primary-foreground); background: var(--primary); }
+
+/* 후기 보기 모달 내용 */
+.spv-rv-view__stars { font-size: 1.3rem; color: var(--warning); letter-spacing: 2px; }
+.spv-rv-view__date { font-size: 0.8rem; color: var(--muted-foreground); margin: 4px 0 14px; }
+.spv-rv-view__content { font-size: 0.9rem; line-height: 1.7; color: var(--foreground); white-space: pre-line; }
+.spv-rv-view__images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.spv-rv-view__images img { width: 84px; height: 84px; object-fit: cover; border: 1px solid var(--border); border-radius: 6px; }
+.spv-rv-view__reply { margin-top: 14px; padding: 12px 14px; background: var(--muted); border-radius: 8px; border-left: 3px solid var(--primary); }
+.spv-rv-view__reply-label { font-size: 0.78rem; font-weight: 700; color: var(--primary); margin-bottom: 4px; }
+.spv-rv-view__reply-text { font-size: 0.85rem; line-height: 1.6; color: var(--foreground); white-space: pre-line; }
+.spv-rv-delete { background: var(--card); color: var(--destructive); border: 1px solid var(--destructive); }
+.spv-rv-delete:hover { background: var(--destructive); color: var(--destructive-foreground); }
+
+.spv-rv-overlay {
+    display: none; position: fixed; inset: 0; z-index: 10000;
+    background: rgba(0,0,0,0.45); align-items: center; justify-content: center; padding: 16px;
+}
+.spv-rv-overlay.is-open { display: flex; }
+.spv-rv-modal { background: var(--card); border-radius: 16px; width: 100%; max-width: 480px; padding: 24px; }
+.spv-rv-modal h3 { font-size: 1.1rem; font-weight: 700; margin: 0 0 4px; }
+.spv-rv-modal__product { font-size: 0.85rem; color: var(--primary); margin-bottom: 18px; word-break: break-all; }
+.spv-rv-stars { display: flex; gap: 4px; margin-bottom: 16px; }
+.spv-rv-star { font-size: 1.9rem; color: var(--border); cursor: pointer; line-height: 1; }
+.spv-rv-star.on { color: var(--warning); }
+.spv-rv-modal textarea {
+    width: 100%; min-height: 110px; padding: 12px; font-size: 0.9rem; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 8px; resize: vertical; box-sizing: border-box;
+}
+.spv-rv-files { display: flex; gap: 8px; margin: 12px 0; }
+.spv-rv-slot {
+    width: 76px; height: 76px; border: 2px dashed var(--border); border-radius: 8px; position: relative;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden; background: var(--muted);
+}
+.spv-rv-slot img { width: 100%; height: 100%; object-fit: cover; }
+.spv-rv-slot input { display: none; }
+.spv-rv-actions { display: flex; gap: 8px; margin-top: 18px; }
+.spv-rv-actions button { flex: 1; padding: 11px; font-size: 0.9rem; font-weight: 600; border-radius: 8px; cursor: pointer; }
+.spv-rv-cancel { background: var(--muted); color: var(--muted-foreground); border: none; }
+.spv-rv-submit { background: var(--primary); color: var(--primary-foreground); border: none; }
+
+/* 무통장입금 계좌 안내 박스 (사이드바) */
+.shop-order-view__bank-box { margin-top: 14px; padding: 12px 14px; background: var(--accent); border: 1px solid var(--color-indigo-200); border-radius: 8px; }
+/* 입금 완료 시: 회색 + 연하게 표시(입금처 확인용 유지), hover로 선명 */
+.shop-order-view__bank-box--paid {
+    opacity: 0.4;
+    background: var(--muted);
+    border-color: var(--border);
+    filter: grayscale(1); /* 파란 톤(제목·계좌)까지 회색으로 */
+    transition: opacity 0.2s;
+}
+.shop-order-view__bank-box--paid .shop-order-view__bank-title { color: var(--muted-foreground); }
+.shop-order-view__bank-box--paid:hover { opacity: 1; }
+.shop-order-view__bank-title { font-size: 0.85rem; font-weight: 700; color: var(--primary); margin-bottom: 8px; }
+.shop-order-view__bank-row { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: var(--foreground); margin-bottom: 4px; }
+.shop-order-view__bank-row:last-child { margin-bottom: 0; }
+.shop-order-view__bank-label { color: var(--muted-foreground); }
+.shop-order-view__bank-account { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.85rem; letter-spacing: 0.3px; }

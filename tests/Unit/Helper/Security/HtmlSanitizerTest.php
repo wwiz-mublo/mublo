@@ -1,0 +1,312 @@
+<?php
+
+namespace Tests\Unit\Helper\Security;
+
+use Mublo\Helper\Security\HtmlSanitizer;
+use PHPUnit\Framework\TestCase;
+
+class HtmlSanitizerTest extends TestCase
+{
+    public function testEditorContentKeepsFormattingImagesAndTrustedVideo(): void
+    {
+        $html = '<p><span style="font-size: 18px; color: #ff0000; position: fixed;">Hello</span></p>'
+            . '<img src="/storage/D1/editor/temp/a.jpg" alt="A" loading="lazy">'
+            . '<iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" allowfullscreen></iframe>';
+
+        $result = HtmlSanitizer::sanitizeEditorContent($html);
+
+        // 값 보존 (엔진별 공백/정규화 차이에 독립적으로 검증)
+        $this->assertMatchesRegularExpression('/font-size\s*:\s*18px/', $result);
+        $this->assertMatchesRegularExpression('/color\s*:\s*#ff0000/', $result);
+        $this->assertStringNotContainsString('position', $result);
+        $this->assertStringContainsString('<img', $result);
+        $this->assertStringContainsString('youtube.com/embed/dQw4w9WgXcQ', $result);
+    }
+
+    public function testEditorContentRemovesEventHandlersAndUntrustedIframeSrc(): void
+    {
+        $html = '<p onclick="alert(1)">Text</p>'
+            . '<iframe src="https://evil.example/embed/1"></iframe>'
+            . '<a href="javascript:alert(1)">bad</a>';
+
+        $result = HtmlSanitizer::sanitizeEditorContent($html);
+
+        $this->assertStringNotContainsString('onclick', $result);
+        $this->assertStringNotContainsString('evil.example', $result);
+        $this->assertStringNotContainsString('javascript:', $result);
+        $this->assertStringContainsString('Text', $result);
+    }
+
+    public function testEditorContentKeepsImageCaptionAndSafeLinkRel(): void
+    {
+        $html = '<figure class="mublo-image">'
+            . '<img src="/storage/D1/editor/temp/a.jpg" alt="A">'
+            . '<figcaption class="mublo-image-caption">Caption</figcaption>'
+            . '</figure>'
+            . '<a href="https://example.com" target="_blank" rel="noopener noreferrer">link</a>';
+
+        $result = HtmlSanitizer::sanitizeEditorContent($html);
+
+        $this->assertStringContainsString('<figcaption', $result);
+        $this->assertStringContainsString('Caption', $result);
+        // _blank 링크에 noopener/noreferrer 부착 (토큰 순서 무관)
+        $this->assertStringContainsString('noopener', $result);
+        $this->assertStringContainsString('noreferrer', $result);
+    }
+
+    public function testStripsScriptAndActiveContentTags(): void
+    {
+        $html = '<p>safe</p>'
+            . '<script>alert(1)</script>'
+            . '<object data="x.swf"></object>'
+            . '<embed src="x.swf">'
+            . '<form action="/steal"><input name="pw"></form>'
+            . '<style>body{background:url(javascript:alert(1))}</style>';
+
+        $result = HtmlSanitizer::sanitize($html);
+
+        $this->assertStringContainsString('safe', $result);
+        foreach (['<script', '<object', '<embed', '<form', '<input', '<style'] as $tag) {
+            $this->assertStringNotContainsStringIgnoringCase($tag, $result);
+        }
+    }
+
+    public function testStripsDataUriHtmlAndSvg(): void
+    {
+        $html = '<a href="data:text/html,<script>alert(1)</script>">x</a>'
+            . '<img src="data:image/svg+xml;base64,PHN2Zz48c2NyaXB0Pg==">';
+
+        $result = HtmlSanitizer::sanitize($html);
+
+        $this->assertStringNotContainsStringIgnoringCase('data:text/html', $result);
+        $this->assertStringNotContainsStringIgnoringCase('data:image/svg', $result);
+    }
+
+    public function testStripsObfuscatedJavascriptProtocol(): void
+    {
+        // 엔티티/제어문자로 난독화한 javascript: 스킴도 차단되어야 한다
+        $html = '<a href="java&#9;script:alert(1)">a</a>'
+            . '<a href="javascript&#58;alert(1)">b</a>'
+            . '<a href="  JaVaScRiPt:alert(1)">c</a>';
+
+        $result = HtmlSanitizer::sanitize($html);
+
+        // 실행 가능한 스킴이 남지 않아야 한다 (href 제거 또는 콜론 인코딩으로 중화)
+        $this->assertStringNotContainsStringIgnoringCase('javascript:', $result);
+        $this->assertDoesNotMatchRegularExpression('/href\s*=\s*["\']?\s*[a-z]*script\s*:/i', $result);
+    }
+
+    public function testBasicProfileStripsAllIframes(): void
+    {
+        // 폼 필드(basic)는 신뢰 iframe도 허용하지 않는다
+        $html = '<p>text</p><iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ"></iframe>';
+
+        $result = HtmlSanitizer::sanitizeBasic($html);
+
+        $this->assertStringContainsString('text', $result);
+        $this->assertStringNotContainsStringIgnoringCase('<iframe', $result);
+    }
+
+    public function testRichProfileRejectsUntrustedIframeButKeepsYoutube(): void
+    {
+        $html = '<iframe src="https://evil.example/embed/x"></iframe>'
+            . '<iframe src="https://player.vimeo.com/video/12345"></iframe>';
+
+        $result = HtmlSanitizer::sanitize($html);
+
+        $this->assertStringNotContainsStringIgnoringCase('evil.example', $result);
+        $this->assertStringContainsString('player.vimeo.com/video/12345', $result);
+    }
+
+    public function testEmptyInputReturnsEmpty(): void
+    {
+        $this->assertSame('', HtmlSanitizer::sanitize(''));
+        $this->assertSame('', HtmlSanitizer::sanitizeEditorContent('   '));
+        $this->assertSame('', HtmlSanitizer::sanitizeBasic(''));
+        $this->assertSame('', HtmlSanitizer::sanitizeForBlock(''));
+    }
+
+    // =========================================================================
+    // block 프로파일 — 레이아웃 CSS 허용, 스크립트는 여전히 차단
+    // =========================================================================
+
+    /**
+     * 블록은 관리자가 조판하는 채널이라 레이아웃 CSS 를 살려야 한다.
+     * 시더가 만든 기본 화면의 line-height 가 블록 킷 왕복에서 사라지던 문제의 뿌리다.
+     *
+     * @param string $style 인라인 style 선언
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('blockAllowedStyles')]
+    public function testBlockProfileKeepsLayoutCss(string $style, string $expectFragment): void
+    {
+        $result = HtmlSanitizer::sanitizeForBlock('<div style="' . $style . '">x</div>');
+
+        $this->assertStringContainsString($expectFragment, $result, "block 프로파일이 '{$style}' 를 지웠다");
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function blockAllowedStyles(): array
+    {
+        return [
+            'line-height' => ['line-height:1.6', 'line-height:1.6'],
+            'letter-spacing' => ['letter-spacing:1px', 'letter-spacing:1px'],
+            'display flex' => ['display:flex', 'display:flex'],
+            'display grid' => ['display:grid', 'display:grid'],
+            'gap' => ['gap:8px 16px', 'gap:8px 16px'],
+            'justify-content' => ['justify-content:space-between', 'justify-content:space-between'],
+            'align-items' => ['align-items:center', 'align-items:center'],
+            'flex shorthand' => ['flex:1 1 200px', 'flex:1 1 200px'],
+            'border-radius' => ['border-radius:8px', 'border-radius:8px'],
+            'border-radius percent' => ['border-radius:50%', 'border-radius:50%'],
+            'box-shadow rgba' => ['box-shadow:0 2px 8px rgba(0,0,0,0.1)', 'box-shadow:0 2px 8px'],
+            'box-shadow inset' => ['box-shadow:inset 0 -2px 4px red', 'inset'],
+            'overflow' => ['overflow:hidden', 'overflow:hidden'],
+            'opacity' => ['opacity:0.9', 'opacity:0.9'],
+            'word-break' => ['word-break:keep-all', 'word-break:keep-all'],
+        ];
+    }
+
+    /**
+     * CSS 를 넓혀도 스크립트 채널은 세 프로파일 모두 똑같이 막힌다.
+     *
+     * @param string $html 공격 입력
+     * @param string $mustNotContain 결과에 있어서는 안 되는 조각
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('blockXssVectors')]
+    public function testBlockProfileStillBlocksScriptChannels(string $html, string $mustNotContain): void
+    {
+        $result = HtmlSanitizer::sanitizeForBlock($html);
+
+        $this->assertStringNotContainsStringIgnoringCase($mustNotContain, $result);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function blockXssVectors(): array
+    {
+        return [
+            'onerror' => ['<img src=x onerror="alert(document.cookie)">', 'onerror'],
+            'onclick with flex' => ['<div style="display:flex" onclick="steal()">x</div>', 'onclick'],
+            'javascript url' => ['<a href="javascript:alert(1)">x</a>', 'javascript:'],
+            'script tag' => ['<script>alert(1)</script>', '<script'],
+            'svg' => ['<svg onload="alert(1)"></svg>', 'onload'],
+        ];
+    }
+
+    /**
+     * 레이아웃 탈출·외부 리소스 CSS 는 block 에서도 막는다.
+     * position:fixed 는 클릭재킹, background:url() 은 방문자 IP 유출 경로다.
+     *
+     * @param string $style
+     * @param string $dangerousToken
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('blockRejectedStyles')]
+    public function testBlockProfileRejectsDangerousCss(string $style, string $dangerousToken): void
+    {
+        $result = HtmlSanitizer::sanitizeForBlock('<div style="' . $style . '">x</div>');
+
+        $this->assertStringNotContainsStringIgnoringCase($dangerousToken, $result);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function blockRejectedStyles(): array
+    {
+        return [
+            'position fixed' => ['position:fixed', 'fixed'],
+            'z-index' => ['z-index:9999', 'z-index'],
+            'background url' => ['background:url(//evil/track.png)', 'url'],
+            'display with bad keyword' => ['display:absolute', 'absolute'],
+            'expression' => ['width:expression(alert(1))', 'expression'],
+        ];
+    }
+
+    /**
+     * CSS 를 넓힌 뒤에도 **외부** 리소스 로딩·스크립트 벡터가 새지 않아야 한다.
+     *
+     * 불변식(#55에서 개정): url() 자체는 同출처 상대 경로에 한해 background 계열에서
+     * 허용된다 — 하지만 스킴(javascript:/https:/data:)·프로토콜 상대(//)·비-background
+     * 속성의 url() 은 여전히 전부 죽어야 한다. 외부 요청/실행 경로는 절대 열리지 않는다.
+     *
+     * @param string $html
+     * @param string $dangerousToken
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('blockCssResourceVectors')]
+    public function testBlockProfileNeverLoadsExternalResourcesViaCss(string $html, string $dangerousToken): void
+    {
+        $result = HtmlSanitizer::sanitizeForBlock($html);
+
+        $this->assertStringNotContainsStringIgnoringCase(
+            $dangerousToken,
+            $result,
+            "리소스 로딩 벡터가 새어 나왔다: {$html}"
+        );
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function blockCssResourceVectors(): array
+    {
+        return [
+            'bg-image js url' => ['<div style="background-image:url(javascript:alert(1))">x</div>', 'javascript'],
+            'bg-image scheme url' => ['<div style="background-image:url(https://evil/track.png)">x</div>', 'evil'],
+            'bg-image protocol-relative' => ['<div style="background-image:url(//evil/track.png)">x</div>', 'evil'],
+            'bg-image data uri' => ['<div style="background-image:url(data:image/svg+xml,x)">x</div>', 'data:'],
+            'bg-image quoted url' => ['<div style="background-image:url(&quot;/storage/x.png&quot;)">x</div>', 'url'],
+            'bg-image dotdot' => ['<div style="background-image:url(/storage/../config/app.php)">x</div>', 'url'],
+            'gradient smuggled url' => ['<div style="background:linear-gradient(url(/x), red)">x</div>', 'url'],
+            'moz-binding' => ['<div style="-moz-binding:url(//evil/x.xml)">x</div>', 'evil'],
+            'behavior' => ['<div style="behavior:url(#default#time2)">x</div>', 'behavior'],
+            'content url' => ['<div style="content:url(//evil/track)">x</div>', 'evil'],
+            'list-style-image' => ['<div style="list-style-image:url(//evil)">x</div>', 'evil'],
+            'background shorthand external' => ['<div style="background:#fff url(//evil/track.png) no-repeat">x</div>', 'evil'],
+            'filter url' => ['<div style="filter:url(//evil)">x</div>', 'evil'],
+            'style import' => ['<style>@import url(//evil)</style>', 'evil'],
+        ];
+    }
+
+    /**
+     * 同출처 상대 경로 url() 은 block 프로파일의 background 계열에서 허용된다(#55).
+     *
+     * 사진 히어로·사진 밴드 같은 표현 섹션을 HTML 블록으로 만들기 위한 완화 —
+     * 문자셋에서 `:` 를 배제해 스킴이 구조적으로 불가능하므로 외부 요청은 열리지 않는다.
+     */
+    public function testBlockProfileAllowsSameOriginBackgroundUrl(): void
+    {
+        $plain = HtmlSanitizer::sanitizeForBlock(
+            '<div style="background-image:url(/serve/plugin/Sample/assets/img/hero-city.svg)">x</div>'
+        );
+        $this->assertStringContainsString('url(/serve/plugin/Sample/assets/img/hero-city.svg)', $plain);
+
+        // 오버레이 그라디언트 + 사진의 다중 레이어 (사진 히어로의 표준 문법)
+        $layered = HtmlSanitizer::sanitizeForBlock(
+            '<div style="background:linear-gradient(rgba(8,15,28,0.6), rgba(8,15,28,0.2)), url(/storage/D1/hero.jpg)">x</div>'
+        );
+        $this->assertStringContainsString('url(/storage/D1/hero.jpg)', $layered);
+        $this->assertStringContainsString('linear-gradient', $layered);
+    }
+
+    /**
+     * 완화는 block 프로파일 한정 — 게시판(rich)·폼(basic)에서는 background 계열
+     * 자체가 화이트리스트에 없어 同출처 url 도 함께 사라진다.
+     */
+    public function testSameOriginUrlStaysBlockedInRichAndBasic(): void
+    {
+        $html = '<div style="background-image:url(/storage/D1/x.png)">x</div>';
+
+        $this->assertStringNotContainsString('url(', HtmlSanitizer::sanitize($html));
+        $this->assertStringNotContainsString('url(', HtmlSanitizer::sanitizeBasic($html));
+    }
+
+    /**
+     * 게시판(rich)·폼(basic)은 넓히지 않는다. 레이아웃 CSS 는 거기서 여전히 사라진다.
+     * 일반 회원 채널까지 함께 열리면 안 된다.
+     */
+    public function testRichAndBasicProfilesStayNarrow(): void
+    {
+        $style = '<div style="display:flex; line-height:1.6; color:red;">x</div>';
+
+        foreach ([HtmlSanitizer::sanitize($style), HtmlSanitizer::sanitizeBasic($style)] as $result) {
+            $this->assertStringNotContainsString('display:flex', $result, '게시판/폼에 flex 가 새면 안 된다');
+            $this->assertStringNotContainsString('line-height', $result);
+            $this->assertStringContainsString('color:', $result, '기존 서식은 유지되어야 한다');
+        }
+    }
+}

@@ -1,0 +1,41 @@
+/* 후기 목록 (Review/List) 스타일 */
+
+.shop-review-list { max-width: 960px; margin: 0 auto; }
+
+/* 페이지 타이틀 (찜한상품/할인쿠폰 등 쇼핑몰 게시판형 페이지와 통일된 컨벤션) */
+.shop-review-list__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 16px; color: var(--foreground); }
+
+.shop-review-list__summary { display: flex; align-items: center; gap: 16px; padding: 20px; background: var(--muted); border-radius: 12px; margin-bottom: 20px; }
+.shop-review-list__score { display: flex; flex-direction: column; gap: 4px; }
+.shop-review-list__avg { font-size: 2.5rem; font-weight: 800; color: var(--foreground); line-height: 1; }
+.shop-review-list__stars { color: var(--color-amber-500); font-size: 1.2rem; }
+.shop-review-list__star-empty { color: var(--color-gray-300); }
+.shop-review-list__count { font-size: 0.9rem; color: var(--muted-foreground); margin-left: auto; }
+
+/* 개별 후기 카드 */
+.shop-review-list__items { display: flex; flex-direction: column; gap: 12px; }
+.shop-review-item { border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; background: var(--card); transition: box-shadow 0.15s ease; }
+.shop-review-item:hover { box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06); }
+.shop-review-item__product { display: flex; align-items: center; gap: 10px; padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--border-subtle); text-decoration: none; color: var(--foreground); }
+.shop-review-item__product-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); flex-shrink: 0; }
+.shop-review-item__product-info { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.shop-review-item__product-name { font-size: 0.85rem; font-weight: 500; color: var(--muted-foreground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color 0.15s ease; }
+.shop-review-item__product:hover .shop-review-item__product-name { color: var(--foreground); }
+.shop-review-item__product-price { font-size: 0.85rem; font-weight: 600; color: var(--muted-foreground); transition: color 0.15s ease; }
+.shop-review-item__product:hover .shop-review-item__product-price { color: var(--foreground); }
+.shop-review-item__product-arrow { margin-left: auto; color: var(--color-gray-300); font-size: 0.8rem; transition: transform 0.15s ease, color 0.15s ease; }
+.shop-review-item__product:hover .shop-review-item__product-arrow { transform: translateX(3px); color: var(--muted-foreground); }
+.shop-review-item__header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.shop-review-item__rating { color: var(--color-amber-500); }
+.shop-review-item__author { font-size: 0.85rem; color: var(--muted-foreground); }
+.shop-review-item__date { font-size: 0.8rem; color: var(--muted-foreground); margin-left: auto; }
+.shop-review-item__badge { display: inline-block; padding: 2px 8px; background: var(--primary); color: var(--primary-foreground); border-radius: 4px; font-size: 0.75rem; }
+.shop-review-item__content { font-size: 0.9rem; color: var(--foreground); line-height: 1.6; white-space: pre-line; }
+.shop-review-item__images { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.shop-review-item__img { width: 80px; height: 80px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); cursor: pointer; }
+.shop-review-item__reply { margin-top: 12px; padding: 12px 16px; background: var(--muted); border-radius: 8px; border-left: 3px solid var(--primary); }
+.shop-review-item__reply-label { font-size: 0.8rem; font-weight: 600; color: var(--primary); margin-bottom: 4px; }
+.shop-review-item__reply-text { font-size: 0.85rem; color: var(--muted-foreground); white-space: pre-line; }
+
+.shop-review-list__empty { text-align: center; padding: 48px 40px; color: var(--muted-foreground); }
+.shop-review-list__empty i { font-size: 2rem; color: var(--border); display: block; margin-bottom: 8px; }

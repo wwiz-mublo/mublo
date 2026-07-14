@@ -1,0 +1,185 @@
+/**
+ * Block Skin: boardgroup/gallery-tab  (게시판 그룹 — 탭별 카드)
+ *
+ * 스코프 규칙: 모든 선택자를 스킨 고유 루트 `.block-boardgroup--board-gallery-tab` 로 시작.
+ * 로드: gallery-tab.php 에서 addCss(style.css) + addJs(script.js, 탭 전환)
+ * 탭 헤더 + 패널별 썸네일 카드. 카드 룩은 board/gallery 와 동일.
+ * 카드 열 수/간격/모드는 코어 MubloItemLayout이 칸 설정값에 따라 처리.
+ */
+
+/* ── 탭 헤더 ──────────────────────────── */
+.block-boardgroup--board-gallery-tab .block-boardgroup__tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--foreground);
+    margin-bottom: 15px;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__tab {
+    padding: 0.5em 1em;
+    border: none;
+    background: var(--muted);
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.2s;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__tab:hover {
+    background-color: var(--accent);
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__tab.active {
+    background-color: var(--foreground);
+    color: var(--card);
+}
+
+/* ── 패널 ─────────────────────────────── */
+.block-boardgroup--board-gallery-tab .block-boardgroup__panel {
+    display: none;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__panel.active {
+    display: block;
+}
+
+/* 빈 상태 — 점선 박스 (board/basic 과 동일 톤, 패널 안이라 min-height) */
+.block-boardgroup--board-gallery-tab .block-boardgroup__empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 120px;
+    margin: 0;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__empty-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+/* ── 카드 ─────────────────────────────── */
+.block-boardgroup--board-gallery-tab .block-boardgroup__card-link {
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* ── 썸네일 ───────────────────────────── */
+.block-boardgroup--board-gallery-tab .block-boardgroup__thumb {
+    position: relative;
+    display: block;
+    aspect-ratio: 4 / 3;
+    overflow: hidden;
+    border-radius: 8px;
+    background: var(--muted);
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__thumb-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    color: var(--muted-foreground);
+}
+
+/* N 뱃지 (썸네일 위 오버레이) */
+.block-boardgroup--board-gallery-tab .block-boardgroup__badge-new {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.4;
+}
+
+/* ── 카드 본문 ────────────────────────── */
+.block-boardgroup--board-gallery-tab .block-boardgroup__card-body {
+    padding-top: 8px;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__title {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.875rem;
+    line-height: 1.35;
+    color: var(--foreground);
+}
+
+/* 카드 hover — 제목 색만 진하게 */
+.block-boardgroup--board-gallery-tab .block-boardgroup__card-link:hover .block-boardgroup__title {
+    color: var(--muted-foreground);
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__meta {
+    display: flex;
+    align-items: center;
+    line-height: 1.25;
+    margin-top: 4px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+}
+
+.block-boardgroup--board-gallery-tab .block-boardgroup__sep {
+    margin: 0 6px;
+    color: var(--border);
+}
+
+/* ════════════════════════════════════════
+   "자동(auto)" 해석 — 갤러리 스킨 고유 (코어 기본값 오버라이드)
+   ════════════════════════════════════════ */
+.block-boardgroup--board-gallery-tab .mublo-item-layout:not(.is-slide)[data-pc-cols="auto"] > ul {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 769px) {
+    .block-boardgroup--board-gallery-tab .mublo-item-layout.is-slide[data-pc-cols="auto"] .block-boardgroup__card {
+        width: 200px;
+    }
+}
+
+/* ── 모바일: 탭 가로 스크롤 + 자동 ─────── */
+@media (max-width: 768px) {
+    .block-boardgroup--board-gallery-tab .block-boardgroup__tabs {
+        overflow-x: auto;
+        scrollbar-width: none;          /* Firefox: 스크롤바 숨김(스크롤은 유지) */
+        -ms-overflow-style: none;       /* 구 Edge/IE */
+    }
+    .block-boardgroup--board-gallery-tab .block-boardgroup__tabs::-webkit-scrollbar {
+        display: none;                  /* Chrome/Safari */
+    }
+    .block-boardgroup--board-gallery-tab .block-boardgroup__tab {
+        flex: 0 0 auto;
+        white-space: nowrap;
+    }
+    .block-boardgroup--board-gallery-tab .mublo-item-layout:not(.is-slide)[data-mo-cols="auto"] > ul {
+        grid-template-columns: none;
+        grid-auto-flow: column;
+        grid-auto-columns: minmax(0, 1fr);
+    }
+    .block-boardgroup--board-gallery-tab .mublo-item-layout.is-slide[data-mo-cols="auto"] .block-boardgroup__card {
+        width: 150px;
+    }
+}

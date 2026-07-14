@@ -1,0 +1,31 @@
+/* 주문 완료 (Order/Complete) 스타일 */
+
+.shop-complete { max-width: 640px; margin: 0 auto; }
+.shop-complete__icon { font-size: 4rem; color: var(--success); display: block; text-align: center; }
+.shop-complete__title { font-size: 1.5rem; font-weight: 700; margin: 12px 0 4px; text-align: center; }
+.shop-complete__orderno { color: var(--muted-foreground); font-size: 0.95rem; margin-bottom: 32px; text-align: center; }
+.shop-complete__card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+.shop-complete__card-title { font-weight: 700; font-size: 1rem; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border-subtle); }
+.shop-complete__row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 0.9rem; }
+.shop-complete__row:last-child { margin-bottom: 0; }
+.shop-complete__row--total { font-size: 1rem; font-weight: 700; padding-top: 10px; border-top: 1px solid var(--border); margin-top: 6px; }
+.shop-complete__label { color: var(--muted-foreground); }
+.shop-complete__item { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
+.shop-complete__item + .shop-complete__item { border-top: 1px solid var(--border-subtle); }
+.shop-complete__item-img { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--muted); flex-shrink: 0; }
+.shop-complete__item-img--empty { display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); font-size: 1.2rem; }
+.shop-complete__item-info { flex: 1; min-width: 0; }
+.shop-complete__item-name { font-size: 0.9rem; font-weight: 600; line-height: 1.3; }
+.shop-complete__item-option { font-size: 0.8rem; color: var(--muted-foreground); }
+.shop-complete__item-price { font-size: 0.9rem; font-weight: 600; text-align: right; min-width: 80px; }
+.shop-complete__actions { display: flex; gap: 12px; margin-top: 8px; margin-bottom: 40px; }
+.shop-complete__btn { flex: 1; padding: 12px 24px; border-radius: 8px; font-size: 0.95rem; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer; transition: opacity 0.15s, background 0.15s, color 0.15s; display: inline-flex; align-items: center; justify-content: center; }
+.shop-complete__btn--primary { background: var(--primary); color: var(--primary-foreground); border: 1px solid var(--primary); }
+.shop-complete__btn--primary:hover { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); opacity: 0.88; }
+.shop-complete__btn--outline { background: var(--card); color: var(--primary); border: 1px solid var(--primary); }
+.shop-complete__btn--outline:hover { background: var(--accent); color: var(--primary); }
+
+/* 무통장입금 계좌 안내 박스 */
+.shop-complete__card--bank { background: var(--muted); border-color: var(--color-indigo-200); }
+.shop-complete__bank-account { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.95rem; letter-spacing: 0.3px; }
+.shop-complete__bank-notice { font-size: 0.8rem; color: var(--muted-foreground); margin: 10px 0 0; padding-top: 10px; border-top: 1px dashed var(--border); line-height: 1.5; }
