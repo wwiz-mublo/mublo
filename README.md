@@ -1,5 +1,7 @@
 # Mublo(머블로) Framework
 
+[English](README.en.md) | **한국어**
+
 **Core는 가볍게, 확장은 자유롭게.**
 
 **Mublo의 공식 한글 표기는 "머블로"입니다.** Mublo(머블로)는 Multi와 Block에서 온 이름으로, 하나의 Core에서 여러 서비스를 운영하고 Block과 Block Item으로 화면과 데이터를 자유롭게 조합한다는 의미를 담고 있습니다.

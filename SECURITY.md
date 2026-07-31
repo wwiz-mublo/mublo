@@ -1,5 +1,7 @@
 # Security Policy
 
+[English](SECURITY.en.md) | **한국어**
+
 보안 취약점은 공개 이슈로 올리지 않는 것을 권장합니다.
 
 ## 신고 방법

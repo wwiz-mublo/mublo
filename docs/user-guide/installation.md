@@ -1,5 +1,7 @@
 # 설치 가이드
 
+[English](installation.en.md) | **한국어**
+
 ## 요구사항
 
 ### 서버 환경
