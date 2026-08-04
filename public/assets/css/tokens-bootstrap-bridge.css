@@ -1,0 +1,228 @@
+@charset "utf-8";
+
+/**
+ * ============================================================
+ * Mublo Design Tokens → Bootstrap 5.3 브리지
+ * ============================================================
+ *
+ * tokens.css 의 Tier 2 semantic 을 Bootstrap 의 --bs-* 변수에 rebind 한다.
+ * 색의 단일 출처를 tokens.css 로 만든다.
+ *
+ * ------------------------------------------------------------
+ * [범위 — 의도적 한정]
+ * ------------------------------------------------------------
+ * 색만 다룬다.
+ *
+ */
+
+/* ============================================================
+ * 1. var() 로 끝나는 매핑
+ * ============================================================ */
+
+:root {
+
+    /* -------- 표면 / 텍스트 -------- */
+    --bs-body-bg:              var(--background);
+    --bs-body-color:           var(--foreground);
+    --bs-emphasis-color:       var(--foreground);
+    --bs-heading-color:        var(--foreground);
+    --bs-secondary-bg:         var(--secondary);
+    --bs-tertiary-bg:          var(--muted);
+
+    /* -------- 경계 -------- */
+    --bs-border-color:             var(--border);
+    --bs-border-color-translucent: var(--border);
+
+    /* -------- 상태색 -------- */
+    --bs-success: var(--success);
+    --bs-danger:  var(--destructive);
+    --bs-warning: var(--warning);
+    --bs-info:    var(--info);
+    --bs-secondary: var(--muted-foreground);
+
+    /* light / dark 테마 컬러는 Bootstrap 규약대로 반전하지 않는다 */
+    --bs-light: var(--color-zinc-100);
+    --bs-dark:  var(--color-zinc-900);
+
+    /* -------- 상태색 subtle -------- */
+    --bs-success-bg-subtle:     var(--success-subtle);
+    --bs-success-text-emphasis: var(--success-subtle-foreground);
+    --bs-success-border-subtle: var(--success-subtle-border);
+
+    --bs-danger-bg-subtle:      var(--danger-subtle);
+    --bs-danger-text-emphasis:  var(--danger-subtle-foreground);
+    --bs-danger-border-subtle:  var(--danger-subtle-border);
+
+    --bs-warning-bg-subtle:     var(--warning-subtle);
+    --bs-warning-text-emphasis: var(--warning-subtle-foreground);
+    --bs-warning-border-subtle: var(--warning-subtle-border);
+
+    --bs-info-bg-subtle:        var(--info-subtle);
+    --bs-info-text-emphasis:    var(--info-subtle-foreground);
+    --bs-info-border-subtle:    var(--info-subtle-border);
+
+    /* -------- <mark> 하이라이트 -------- */
+    --bs-highlight-bg:    var(--warning-subtle);
+    --bs-highlight-color: var(--warning-subtle-foreground);
+}
+
+
+/* ============================================================
+ * 2. 액센트 + sRGB 삼중값
+ * ============================================================ */
+
+:root {
+    --bs-primary:               var(--color-blue-600);
+    --bs-primary-bg-subtle:     var(--color-blue-50);
+    --bs-primary-text-emphasis: var(--color-blue-700);
+    --bs-primary-border-subtle: var(--color-blue-200);
+
+    --bs-primary-contrast: var(--color-white);
+    --bs-danger-contrast:  var(--destructive-foreground);
+
+    --bs-secondary-color: var(--color-zinc-600);
+    --bs-tertiary-color:  var(--color-zinc-500);
+
+    --bs-primary-rgb:         21,  93, 252;   /* blue-600       */
+    --bs-secondary-rgb:      113, 113, 123;   /* zinc-500       */
+    --bs-success-rgb:          0, 166,  62;   /* green-600      */
+    --bs-danger-rgb:         231,   0,  11;   /* red-600        */
+    --bs-warning-rgb:        254, 154,   0;   /* amber-500      */
+    --bs-info-rgb:            21,  93, 252;   /* blue-600       */
+    --bs-body-color-rgb:       9,   9,  11;   /* zinc-950 = --foreground */
+    --bs-body-bg-rgb:        255, 255, 255;   /* white    = --background */
+    --bs-emphasis-color-rgb:   9,   9,  11;   /* zinc-950 = --foreground */
+
+    /* 반전하지 않는 삼중값 (light/dark 테마 컬러) */
+    --bs-light-rgb:          244, 244, 245;   /* zinc-100       */
+    --bs-dark-rgb:            24,  24,  27;   /* zinc-900       */
+}
+
+[data-bs-theme="dark"] {
+    /* 액센트 (dark) */
+    --bs-primary:               var(--color-blue-400);
+    --bs-primary-bg-subtle:     var(--color-blue-950);
+    --bs-primary-text-emphasis: var(--color-blue-200);
+    --bs-primary-border-subtle: var(--color-blue-800);
+
+    --bs-primary-contrast: var(--color-zinc-950);
+    --bs-danger-contrast:  var(--color-zinc-950);
+
+    --bs-secondary-color: var(--color-zinc-400);
+    --bs-tertiary-color:  color-mix(in oklab, var(--color-zinc-400) 40%, var(--color-zinc-500));
+
+    /* sRGB 삼중값 (dark) */
+    --bs-primary-rgb:         81, 162, 255;   /* blue-400       */
+    --bs-secondary-rgb:      159, 159, 169;   /* zinc-400       */
+    --bs-success-rgb:          0, 201,  80;   /* green-500      */
+    --bs-danger-rgb:         251,  44,  54;   /* red-500        */
+    --bs-warning-rgb:        255, 185,   0;   /* amber-400      */
+    --bs-info-rgb:            43, 127, 255;   /* blue-500       */
+    --bs-body-color-rgb:     250, 250, 250;   /* zinc-50  = --foreground */
+    --bs-body-bg-rgb:          9,   9,  11;   /* zinc-950 = --background */
+    --bs-emphasis-color-rgb: 250, 250, 250;   /* zinc-50  = --foreground */
+}
+
+
+/* ============================================================
+ * 3. 버튼 변형
+ * ============================================================ */
+
+/* 변형별 기준색 2개만 선언하고, 아래 공통 레시피가 나머지를 만든다. */
+.btn-primary,   .btn-outline-primary   { --btn-accent: var(--bs-primary);        --btn-on-accent: var(--bs-primary-contrast); }
+.btn-success,   .btn-outline-success   { --btn-accent: var(--success);           --btn-on-accent: var(--success-foreground); }
+.btn-danger,    .btn-outline-danger    { --btn-accent: var(--destructive);       --btn-on-accent: var(--bs-danger-contrast); }
+.btn-warning,   .btn-outline-warning   { --btn-accent: var(--warning);           --btn-on-accent: var(--warning-foreground); }
+.btn-info,      .btn-outline-info      { --btn-accent: var(--info);              --btn-on-accent: var(--info-foreground); }
+
+/* -------- 솔리드 -------- */
+.btn-primary,
+.btn-success,
+.btn-danger,
+.btn-warning,
+.btn-info {
+    --bs-btn-color: var(--btn-on-accent);
+    --bs-btn-bg: var(--btn-accent);
+    --bs-btn-border-color: var(--btn-accent);
+    --bs-btn-hover-color: var(--btn-on-accent);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--btn-accent) 85%, var(--foreground));
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--btn-accent) 85%, var(--foreground));
+    --bs-btn-active-color: var(--btn-on-accent);
+    --bs-btn-active-bg: color-mix(in srgb, var(--btn-accent) 78%, var(--foreground));
+    --bs-btn-active-border-color: color-mix(in srgb, var(--btn-accent) 78%, var(--foreground));
+    --bs-btn-disabled-color: var(--btn-on-accent);
+    --bs-btn-disabled-bg: var(--btn-accent);
+    --bs-btn-disabled-border-color: var(--btn-accent);
+}
+
+/* -------- 아웃라인 -------- */
+.btn-outline-primary,
+.btn-outline-success,
+.btn-outline-danger,
+.btn-outline-warning,
+.btn-outline-info {
+    --bs-btn-color: var(--btn-accent);
+    --bs-btn-border-color: var(--btn-accent);
+    --bs-btn-hover-color: var(--btn-on-accent);
+    --bs-btn-hover-bg: var(--btn-accent);
+    --bs-btn-hover-border-color: var(--btn-accent);
+    --bs-btn-active-color: var(--btn-on-accent);
+    --bs-btn-active-bg: color-mix(in srgb, var(--btn-accent) 85%, var(--foreground));
+    --bs-btn-active-border-color: color-mix(in srgb, var(--btn-accent) 85%, var(--foreground));
+    --bs-btn-disabled-color: var(--btn-accent);
+    --bs-btn-disabled-border-color: var(--btn-accent);
+}
+
+/* -------- secondary — shadcn 규약(옅은 표면 + 진한 글자) -------- */
+.btn-secondary {
+    --bs-btn-color: var(--secondary-foreground);
+    --bs-btn-bg: var(--secondary);
+    --bs-btn-border-color: var(--border);
+    --bs-btn-hover-color: var(--accent-foreground);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--secondary) 92%, var(--foreground));
+    --bs-btn-hover-border-color: var(--border);
+    --bs-btn-active-color: var(--accent-foreground);
+    --bs-btn-active-bg: color-mix(in srgb, var(--secondary) 86%, var(--foreground));
+    --bs-btn-active-border-color: var(--border);
+    --bs-btn-disabled-color: var(--muted-foreground);
+    --bs-btn-disabled-bg: var(--secondary);
+    --bs-btn-disabled-border-color: var(--border);
+}
+
+.btn-outline-secondary {
+    --bs-btn-color: var(--foreground);
+    --bs-btn-border-color: var(--border);
+    --bs-btn-hover-color: var(--accent-foreground);
+    --bs-btn-hover-bg: var(--accent);
+    --bs-btn-hover-border-color: var(--border);
+    --bs-btn-active-color: var(--accent-foreground);
+    --bs-btn-active-bg: color-mix(in srgb, var(--accent) 90%, var(--foreground));
+    --bs-btn-active-border-color: var(--border);
+    --bs-btn-disabled-color: var(--muted-foreground);
+    --bs-btn-disabled-border-color: var(--border);
+}
+
+/* -------- light / dark 변형 -------- */
+.btn-light {
+    --bs-btn-color: var(--color-zinc-900);
+    --bs-btn-bg: var(--color-zinc-100);
+    --bs-btn-border-color: var(--color-zinc-200);
+    --bs-btn-hover-color: var(--color-zinc-900);
+    --bs-btn-hover-bg: var(--color-zinc-200);
+    --bs-btn-hover-border-color: var(--color-zinc-300);
+    --bs-btn-active-color: var(--color-zinc-900);
+    --bs-btn-active-bg: var(--color-zinc-300);
+    --bs-btn-active-border-color: var(--color-zinc-300);
+}
+
+.btn-dark {
+    --bs-btn-color: var(--color-zinc-50);
+    --bs-btn-bg: var(--color-zinc-900);
+    --bs-btn-border-color: var(--color-zinc-900);
+    --bs-btn-hover-color: var(--color-zinc-50);
+    --bs-btn-hover-bg: var(--color-zinc-800);
+    --bs-btn-hover-border-color: var(--color-zinc-800);
+    --bs-btn-active-color: var(--color-zinc-50);
+    --bs-btn-active-bg: var(--color-zinc-700);
+    --bs-btn-active-border-color: var(--color-zinc-700);
+}

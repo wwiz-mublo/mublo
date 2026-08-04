@@ -41,6 +41,8 @@ $skin = $adminFrameSkin ?? 'basic';
 <link rel="stylesheet" href="/assets/lib/bootstrap/5.3.8/css/bootstrap.min.css">
 <link rel="stylesheet" href="/assets/lib/bootstrap-icons/1.13.1/font/bootstrap-icons.min.css">
 <link rel="stylesheet" href="/assets/lib/flatpickr/4.6.13/dist/flatpickr.min.css">
+<link rel="stylesheet" href="<?= asset('/assets/css/tokens.css') ?>">
+<link rel="stylesheet" href="<?= asset('/assets/css/tokens-bootstrap-bridge.css') ?>">
 <link rel="stylesheet" href="<?= asset('/assets/css/theme.css') ?>">
 <link rel="stylesheet" href="<?= asset('/assets/css/components/mublo-request.css') ?>">
 <link rel="stylesheet" href="<?= asset('/assets/css/components/mublo-modal.css') ?>">

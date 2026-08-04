@@ -1,59 +1,38 @@
 @charset "utf-8";
 
 :root {
-    color-scheme: light;
-    --bs-font-sans-serif: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
-    --bs-font-serif: 'Noto Serif KR', serif;
-    --bs-font-monospace: 'JetBrains Mono', 'Noto Sans KR', monospace;
     --bs-body-font-family: var(--bs-font-monospace);
-    --bs-link-decoration: none;
-}
-:root[data-bs-theme="dark"] {
-    color-scheme: dark;
-    --bs-body-color: var(--bs-zinc-100);
-    --bs-body-color-rgb: var(--bs-zinc-100-rgb);
-    --bs-body-bg: var(--bs-zinc-900);
-    --bs-body-bg-rgb: var(--bs-zinc-900-rgb);
 }
 
 :root {
-    /* --bs-border-color: #e5e7eb; */
-
     --sidebar-width: 250px;
     --sidebar-collapsed-width: 68px;
     --header-height: 56px;
     --sidebar-toggle-width: 24px;
     --sidebar-toggle-height: 32px;
-
-    --sidebar-bg: #ffffff;
-    --sidebar-border: #e5e7eb;
-    --sidebar-color: #111827;
-    --sidebar-color-muted: #4b5563;
-    --sidebar-hover-bg: #f3f4f6;
-    --sidebar-hover-color: #111827;
-    --sidebar-active-bg: #f0f4ff;
-    --sidebar-active-color: #3b82f6;
-
-    --color-accent: #3b82f6;
-    --surface-bg: #fff;
-    --bs-body-bg: #fafbfd;
-    --bs-body-bg-rgb: 250, 251, 253;
 }
 
+:root {
+    --sidebar-bg: var(--card);
+    --sidebar-border: var(--border);
+    --sidebar-color: var(--foreground);
+    --sidebar-color-muted: var(--muted-foreground);
+    --sidebar-hover-bg: var(--accent);
+    --sidebar-hover-color: var(--accent-foreground);
+    --sidebar-active-bg: var(--bs-primary-bg-subtle);
+    --sidebar-active-color: var(--bs-primary);
+
+    --color-accent: var(--bs-primary);
+    --surface-bg: var(--card);
+}
+
+:root {
+    --bs-body-bg: var(--color-zinc-50);
+    --bs-body-bg-rgb: 250, 250, 250;
+}
 :root[data-bs-theme="dark"] {
-    /* --bs-border-color: #3f3f46; */
-
-    --sidebar-bg: #111113;
-    --sidebar-border: #27272a;
-    --sidebar-color: #d1d5db;
-    --sidebar-color-muted: #9ca3af;
-    --sidebar-hover-bg: #1c1c1f;
-    --sidebar-hover-color: #fafafa;
-    --sidebar-active-bg: #1e293b;
-    --sidebar-active-color: #60a5fa;
-
-    --color-accent: #60a5fa;
-    --surface-bg: #27272a;
+    --bs-body-bg: var(--background);
+    --bs-body-bg-rgb: 9, 9, 11;
 }
 
 html {
@@ -105,13 +84,8 @@ input[type="number"] {
 /* Card */
 .card {
     --bs-card-bg: var(--surface-bg);
-    --bs-card-border-color: #e5e7eb;
-    --bs-card-cap-bg: #f9fafb;
-}
-[data-bs-theme="dark"] .card {
-    --bs-card-bg: var(--surface-bg);
-    --bs-card-border-color: #3f3f46;
-    --bs-card-cap-bg: #27272a;
+    --bs-card-border-color: var(--border);
+    --bs-card-cap-bg: var(--muted);
 }
 
 /* Form Control / Select */
@@ -121,11 +95,7 @@ input[type="number"] {
 }
 .form-control:focus,
 .form-select:focus {
-    border-color: #93c5fd;
-}
-[data-bs-theme="dark"] .form-control:focus,
-[data-bs-theme="dark"] .form-select:focus {
-    border-color: #60a5fa;
+    border-color: var(--bs-primary);
 }
 
 /* Form Text (help text): common.css의 .text-muted와 동일 톤 */
@@ -135,10 +105,7 @@ input[type="number"] {
 
 /* Table */
 .table {
-    --bs-table-border-color: #e5e7eb;
-}
-[data-bs-theme="dark"] .table {
-    --bs-table-border-color: #3f3f46;
+    --bs-table-border-color: var(--border);
 }
 .table th, 
 .table td {
@@ -150,31 +117,7 @@ input[type="number"] {
     font-weight: 600;
     font-size: 0.875rem;
     text-transform: uppercase;
-    color: #6b7280;
-}
-[data-bs-theme="dark"] .table thead th {
-    color: #a1a1aa;
-}
-
-/* Badge: 라이트 모드 명도 보정 */
-.badge.bg-primary { background-color: #3b82f6 !important; }
-.badge.bg-success { background-color: #10b981 !important; }
-
-/* Alert: 다크 모드 톤다운 */
-[data-bs-theme="dark"] .alert-warning {
-    background-color: rgba(251, 191, 36, 0.1);
-    border-color: rgba(251, 191, 36, 0.2);
-    color: #fbbf24;
-}
-[data-bs-theme="dark"] .alert-success {
-    background-color: rgba(16, 185, 129, 0.1);
-    border-color: rgba(16, 185, 129, 0.2);
-    color: #34d399;
-}
-[data-bs-theme="dark"] .alert-danger {
-    background-color: rgba(239, 68, 68, 0.1);
-    border-color: rgba(239, 68, 68, 0.2);
-    color: #f87171;
+    color: var(--muted-foreground);
 }
 
 /* ============================================================
@@ -216,7 +159,7 @@ input[type="number"] {
 .sidebar-brand-icon {
     width: 32px;
     height: 32px;
-    background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, var(--color-blue-500) 0%, var(--color-violet-500) 100%);
     border-radius: 8px;
     display: flex;
     align-items: center;
@@ -488,7 +431,7 @@ input[type="number"] {
         line-height: 1;
         border-radius: 50%;
         background-color: var(--bs-secondary-bg);
-        background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        background: linear-gradient(135deg, var(--color-blue-500) 0%, var(--color-violet-500) 100%);
         color: white;
         display: flex;
         align-items: center;
@@ -541,7 +484,7 @@ input[type="number"] {
     border: 1px solid var(--bs-border-color);
     background: none;
     text-decoration: none;
-    color: #9ca3af;
+    color: var(--muted-foreground);
     transition: all 0.15s;
 }
 .header-icon-link:hover {
@@ -588,10 +531,10 @@ input[type="number"] {
     font-size: 0.85rem;
 }
 .top-header .breadcrumb-item {
-    color: #9ca3af;
+    color: var(--muted-foreground);
 }
 .top-header .breadcrumb-item a {
-    color: #9ca3af;
+    color: var(--muted-foreground);
     text-decoration: none;
 }
 .top-header .breadcrumb-item a:hover {
@@ -809,16 +752,11 @@ input[type="number"] {
     display: inline-block;
     padding: 0.25rem 0.75rem;
     font-size: 0.8rem;
-    color: #856404;
-    background-color: #fff3cd;
-    border: 1px solid #ffc107;
+    color: var(--warning-subtle-foreground);
+    background-color: var(--warning-subtle);
+    border: 1px solid var(--warning-subtle-border);
     border-radius: 0.375rem;
     white-space: nowrap;
-}
-[data-bs-theme="dark"] .proxy-login-badge {
-    color: #ffc107;
-    background-color: rgba(255, 193, 7, 0.15);
-    border-color: rgba(255, 193, 7, 0.4);
 }
 
 /* List: 현황 카운터 .ov */
