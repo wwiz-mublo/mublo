@@ -27,6 +27,15 @@ class MenuService
     /** 사이드바 너비 오버라이드 상한(px) — 초과값은 상속(NULL)으로 떨군다. */
     private const SIDEBAR_WIDTH_MAX = 2000;
 
+    /**
+     * 메뉴 트리 최대 깊이.
+     *
+     * path_code 는 VARCHAR(255) 이고 코드를 '>' 로 잇는다. menu_code 가 컬럼 상한인
+     * 20자여도 20 + 21*9 = 209 바이트라 10단계까지는 안전하게 들어간다.
+     * 실무에서 네비게이션이 5단계를 넘는 경우도 없으므로 여유 있는 상한이다.
+     */
+    private const MAX_TREE_DEPTH = 10;
+
     private MenuItemRepository $itemRepository;
     private MenuTreeRepository $treeRepository;
     private CodeGenerator $codeGenerator;
@@ -298,12 +307,19 @@ class MenuService
             return Result::failure('수정할 데이터가 없습니다.');
         }
 
-        $this->itemRepository->update($itemId, $updateData);
+        $labelChanged = isset($data['label']) && $data['label'] !== $item->getLabel();
 
-        // 트리의 path_name 업데이트 (라벨이 변경된 경우)
-        if (isset($data['label']) && $data['label'] !== $item->getLabel()) {
-            $this->updateTreePathNames($item->getDomainId(), $item->getMenuCode(), $data['label']);
-        }
+        // 라벨 변경은 menu_items 한 행과 menu_tree 여러 행을 함께 바꾼다. 중간에
+        // 실패하면 경로명이 옛 이름으로 남아 브레드크럼이 어긋난다 — 한 단위로 묶는다.
+        // Database::transaction() 은 중첩 시 SAVEPOINT 를 쓰므로 호출자가 이미
+        // 트랜잭션을 열어둔 경우에도 안전하다.
+        $this->itemRepository->getDb()->transaction(function () use ($itemId, $updateData, $item, $labelChanged): void {
+            $this->itemRepository->update($itemId, $updateData);
+
+            if ($labelChanged) {
+                $this->rebuildTreePathNames($item->getDomainId(), $item->getMenuCode());
+            }
+        });
 
         $this->invalidateUrlMapCache($item->getDomainId());
 
@@ -491,7 +507,21 @@ class MenuService
             if (!$parent) {
                 return Result::failure('부모 메뉴를 찾을 수 없습니다.');
             }
+
+            // 자기 자신을 조상으로 두면 path_code 에 같은 코드가 두 번 들어간다.
+            // 그러면 라벨을 바꿀 때 어느 자리를 고쳐야 하는지 결정할 수 없다.
+            if (in_array($menuCode, explode('>', $parentCode), true)) {
+                return Result::failure('같은 메뉴를 자기 하위에 넣을 수 없습니다.');
+            }
+
             $depth = $parent['depth'] + 1;
+
+            if ($depth > self::MAX_TREE_DEPTH) {
+                return Result::failure(
+                    sprintf('메뉴 깊이는 최대 %d단계까지 가능합니다.', self::MAX_TREE_DEPTH)
+                );
+            }
+
             $pathCode = $parentCode . '>' . $menuCode;
             $pathName = $parent['path_name'] . '>' . $item['label'];
         }
@@ -729,13 +759,27 @@ class MenuService
      */
     public function saveTree(int $domainId, array $treeData): Result
     {
+        // 트리는 관리자 드래그앤드롭 UI가 만들지만 서버는 그 UI를 신뢰하지 않는다.
+        // 저장을 시작하기 전에 거부한다 — 기존 트리를 지운 뒤에 실패하면 롤백이
+        // 되더라도 운영자에게는 "왜 안 됐는지"가 남지 않는다.
+        $violation = $this->findTreeStructureViolation($treeData);
+        if ($violation !== null) {
+            return Result::failure($violation);
+        }
+
+        // 노드마다 아이템을 다시 조회하지 않도록 한 번에 읽어 코드로 색인한다.
+        $itemsByCode = [];
+        foreach ($this->itemRepository->findByDomain($domainId) as $row) {
+            $itemsByCode[(string) $row['menu_code']] = $row;
+        }
+
         try {
-            $this->treeRepository->getDb()->transaction(function () use ($domainId, $treeData) {
+            $this->treeRepository->getDb()->transaction(function () use ($domainId, $treeData, $itemsByCode) {
                 // 기존 트리 삭제
                 $this->treeRepository->deleteByDomain($domainId);
 
                 // 새 트리 구성
-                $this->insertTreeNodes($domainId, $treeData, null, 1);
+                $this->insertTreeNodes($domainId, $treeData, null, 1, '', $itemsByCode);
             });
 
             return Result::success('메뉴 트리가 저장되었습니다.');
@@ -745,30 +789,89 @@ class MenuService
     }
 
     /**
-     * 트리 노드 재귀 삽입
+     * saveTree 페이로드의 구조 위반을 찾는다 (저장 전 검증).
+     *
+     * 두 가지를 본다.
+     *
+     * - **순환**: 같은 menu_code 가 자기 조상에 있으면 path_code 에 코드가 두 번
+     *   들어간다. 그러면 라벨 변경 시 어느 자리를 고쳐야 할지 결정할 수 없다.
+     * - **깊이**: path_code 는 VARCHAR(255) 다. 넘기면 저장이 실패한다.
+     *
+     * @param array<int, mixed> $nodes
+     * @param list<string> $ancestors 현재 경로의 상위 menu_code 목록
+     * @return string|null 첫 위반 메시지. 위반이 없으면 null
      */
-    private function insertTreeNodes(int $domainId, array $nodes, ?string $parentCode, int $depth): void
+    private function findTreeStructureViolation(array $nodes, array $ancestors = []): ?string
     {
+        if ($nodes === []) {
+            return null;
+        }
+
+        if (count($ancestors) + 1 > self::MAX_TREE_DEPTH) {
+            return sprintf('메뉴 깊이는 최대 %d단계까지 가능합니다.', self::MAX_TREE_DEPTH);
+        }
+
+        foreach ($nodes as $node) {
+            if (!is_array($node) || !isset($node['menu_code'])) {
+                continue;
+            }
+
+            $menuCode = (string) $node['menu_code'];
+
+            if (in_array($menuCode, $ancestors, true)) {
+                return '같은 메뉴를 자기 하위에 넣을 수 없습니다.';
+            }
+
+            if (!empty($node['children']) && is_array($node['children'])) {
+                $violation = $this->findTreeStructureViolation(
+                    $node['children'],
+                    [...$ancestors, $menuCode]
+                );
+
+                if ($violation !== null) {
+                    return $violation;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 트리 노드 재귀 삽입
+     *
+     * 부모의 경로명과 아이템 색인을 인자로 받는다 — 노드마다 방금 INSERT 한 부모를
+     * 다시 SELECT 하거나 아이템을 재조회하지 않기 위해서다.
+     *
+     * @param array<int, mixed> $nodes
+     * @param array<string, array<string, mixed>> $itemsByCode menu_code => 메뉴 아이템
+     */
+    private function insertTreeNodes(
+        int $domainId,
+        array $nodes,
+        ?string $parentCode,
+        int $depth,
+        string $parentPathName,
+        array $itemsByCode
+    ): void {
         $sortOrder = 1;
 
         foreach ($nodes as $node) {
-            $menuCode = $node['menu_code'];
-            $item = $this->itemRepository->findByMenuCode($domainId, $menuCode);
+            if (!is_array($node) || !isset($node['menu_code'])) {
+                continue;
+            }
+
+            $menuCode = (string) $node['menu_code'];
+            $item = $itemsByCode[$menuCode] ?? null;
 
             if (!$item) {
                 continue;
             }
 
-            $pathCode = $parentCode ? $parentCode . '>' . $menuCode : $menuCode;
-
-            // 부모의 path_name 조회
-            $pathName = $item['label'];
-            if ($parentCode !== null) {
-                $parentNode = $this->treeRepository->findByPathCode($domainId, $parentCode);
-                if ($parentNode) {
-                    $pathName = $parentNode['path_name'] . '>' . $item['label'];
-                }
-            }
+            $pathCode = $parentCode !== null ? $parentCode . '>' . $menuCode : $menuCode;
+            $pathName = $parentCode !== null
+                ? $parentPathName . '>' . $item['label']
+                : (string) $item['label'];
 
             $nodeData = [
                 'domain_id' => $domainId,
@@ -783,8 +886,15 @@ class MenuService
             $this->treeRepository->create($nodeData);
 
             // 자식 노드 처리
-            if (!empty($node['children'])) {
-                $this->insertTreeNodes($domainId, $node['children'], $pathCode, $depth + 1);
+            if (!empty($node['children']) && is_array($node['children'])) {
+                $this->insertTreeNodes(
+                    $domainId,
+                    $node['children'],
+                    $pathCode,
+                    $depth + 1,
+                    $pathName,
+                    $itemsByCode
+                );
             }
 
             $sortOrder++;
@@ -792,51 +902,52 @@ class MenuService
     }
 
     /**
-     * 트리 path_name 업데이트 (메뉴 라벨 변경 시)
+     * 라벨이 바뀐 메뉴가 들어간 모든 경로의 path_name 을 다시 만든다.
+     *
+     * path_name 은 path_code 에서 파생되는 비정규화 캐시다. 그래서 조각 하나를
+     * 찾아 갈아끼우지 않고 path_code 를 라벨로 다시 번역한다.
+     *
+     * 예전 방식은 array_search 로 바뀐 코드의 **첫** 위치만 고쳤다. 같은 메뉴가
+     * 한 경로에 두 번 들어간 트리에서는 뒤쪽이 옛 이름으로 남았다. 지금은 순환을
+     * 저장 단계에서 막지만(findTreeStructureViolation), 이미 그렇게 저장된 트리도
+     * 이 방식이면 한 번에 정리된다.
+     *
+     * 질의는 두 번이다 — 노드 전체와 아이템 전체. 예전에는 노드마다 자식을 다시
+     * 조회하며 트리를 걸어 내려갔다.
      */
-    private function updateTreePathNames(int $domainId, string $menuCode, string $newLabel): void
+    private function rebuildTreePathNames(int $domainId, string $changedMenuCode): void
     {
-        $nodes = $this->treeRepository->findByMenuCode($domainId, $menuCode);
+        $nodes = $this->treeRepository->findByDomain($domainId);
+        if ($nodes === []) {
+            return;
+        }
+
+        $labels = [];
+        foreach ($this->itemRepository->findByDomain($domainId) as $row) {
+            $labels[(string) $row['menu_code']] = (string) $row['label'];
+        }
 
         foreach ($nodes as $node) {
-            // 해당 노드의 path_name에서 이 메뉴의 라벨만 변경
-            $pathParts = explode('>', $node['path_name']);
-            $codeParts = explode('>', $node['path_code']);
+            $codes = explode('>', (string) $node['path_code']);
 
-            $index = array_search($menuCode, $codeParts);
-            if ($index !== false && isset($pathParts[$index])) {
-                $pathParts[$index] = $newLabel;
-                $newPathName = implode('>', $pathParts);
-
-                $this->treeRepository->update($node['node_id'], ['path_name' => $newPathName]);
+            // 바뀐 메뉴가 경로에 없으면 이 노드의 경로명은 그대로다.
+            if (!in_array($changedMenuCode, $codes, true)) {
+                continue;
             }
 
-            // 자식 노드들의 path_name도 업데이트
-            $this->updateChildrenPathNames($domainId, $node['path_code'], $menuCode, $newLabel);
-        }
-    }
+            $current = explode('>', (string) $node['path_name']);
 
-    /**
-     * 자식 노드들의 path_name 업데이트
-     */
-    private function updateChildrenPathNames(int $domainId, string $parentPathCode, string $menuCode, string $newLabel): void
-    {
-        $children = $this->treeRepository->findChildren($domainId, $parentPathCode);
-
-        foreach ($children as $child) {
-            $pathParts = explode('>', $child['path_name']);
-            $codeParts = explode('>', $child['path_code']);
-
-            $index = array_search($menuCode, $codeParts);
-            if ($index !== false && isset($pathParts[$index])) {
-                $pathParts[$index] = $newLabel;
-                $newPathName = implode('>', $pathParts);
-
-                $this->treeRepository->update($child['node_id'], ['path_name' => $newPathName]);
+            $names = [];
+            foreach ($codes as $index => $code) {
+                // 라벨을 못 찾으면(아이템이 지워진 잔여 노드 등) 기존 조각을 유지한다.
+                // 이름을 비우는 것보다 옛 이름이 남는 편이 낫다.
+                $names[] = $labels[$code] ?? ($current[$index] ?? '');
             }
 
-            // 재귀 호출
-            $this->updateChildrenPathNames($domainId, $child['path_code'], $menuCode, $newLabel);
+            $rebuilt = implode('>', $names);
+            if ($rebuilt !== (string) $node['path_name']) {
+                $this->treeRepository->update((int) $node['node_id'], ['path_name' => $rebuilt]);
+            }
         }
     }
 
