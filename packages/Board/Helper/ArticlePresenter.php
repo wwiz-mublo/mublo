@@ -459,11 +459,20 @@ class ArticlePresenter
         return $attachments;
     }
 
-    /** @return list<array<string, mixed>> */
+    /**
+     * 스킨에 넘길 첨부 필드를 고정한다.
+     *
+     * public_id 는 다운로드 링크의 재료다 — 스킨이
+     * `/board/{board_id}/file/download/{public_id}` 를 만든다. 이 목록에서 빠지면
+     * 링크의 마지막 조각이 빈 문자열이 되고, 라우트가 hex 22자를 요구하므로
+     * 패턴에 매칭조차 되지 않아 첨부를 아무도 못 받는다.
+     *
+     * @return list<array<string, mixed>>
+     */
     private function publicAttachments(array $attachments): array
     {
         $allowed = array_flip([
-            'attachment_id', 'original_name', 'file_size', 'file_extension', 'mime_type',
+            'attachment_id', 'public_id', 'original_name', 'file_size', 'file_extension', 'mime_type',
             'is_image', 'image_width', 'image_height', 'thumbnail_path',
             'download_count', 'created_at',
             'thumb_url', 'url', 'file_type',
