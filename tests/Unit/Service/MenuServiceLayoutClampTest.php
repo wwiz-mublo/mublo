@@ -239,7 +239,13 @@ class MenuServiceLayoutClampTest extends TestCase
     {
         $captured = [];
 
+        // updateItem 은 menu_items 수정과 menu_tree 경로명 재작성을 한 트랜잭션으로 묶는다.
+        // 더블도 그 경계를 흉내내야 콜백 안의 update() 가 실제로 실행된다.
+        $db = $this->createMock(Database::class);
+        $db->method('transaction')->willReturnCallback(fn (callable $cb) => $cb());
+
         $itemRepo = $this->createMock(MenuItemRepository::class);
+        $itemRepo->method('getDb')->willReturn($db);
         $itemRepo->method('find')->willReturn(
             MenuItem::fromArray(['item_id' => 1, 'domain_id' => 1, 'label' => '기존'])
         );
