@@ -83,6 +83,30 @@ class ExampleSubscriber implements EventSubscriberInterface
 }
 ```
 
+### 상속 계층 구독
+
+구독 이름은 발행된 이벤트의 클래스명뿐 아니라 **부모 클래스명과 인터페이스명**도
+받는다. 발행부가 세분화된 서브클래스를 던져도, 구독부는 원하는 넓이만큼 잡으면 된다.
+
+```php
+// 발행: MemberService 는 MemberRegisteredByUserEvent,
+//       MemberAdminService 는 MemberRegisteredByAdminEvent 를 던진다.
+
+MemberRegisteredEvent::class       => 'onAnyRegistration',   // 모든 가입 경로
+MemberRegisteredByUserEvent::class => 'onUserRegistration',  // 사용자 직접 가입만
+```
+
+규칙:
+- 우선순위는 계층 전체에서 하나로 병합된다. 부모에 건 `priority 100` 이 자식에 건
+  `priority 0` 보다 먼저 실행된다. 이름이 더 구체적이라고 앞서지 않는다.
+- 우선순위가 같으면 더 구체적인 이름(구상 클래스)에 걸린 쪽이 먼저다.
+- 부모와 자식에 같은 리스너를 동시에 걸면 한 번만 실행된다.
+- `stopPropagation()` 은 계층을 가로질러 적용된다 — 자식 이름에 걸린 리스너가 멈추면
+  부모 이름에 걸린 리스너도 실행되지 않는다.
+
+`getListeners()` / `hasListeners()` 는 계층을 펼치지 않고 해당 이름에 직접 등록된
+리스너만 본다.
+
 ## 전수조사 요약
 
 코어에서 실제 발행되는 이벤트는 크게 다음 10개 축으로 나뉜다.
