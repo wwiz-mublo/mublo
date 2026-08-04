@@ -1,0 +1,95 @@
+.faq-page { max-width: 960px; margin: 0 auto; }
+
+/* 헤더 */
+.faq-page__header { text-align: center; margin-bottom: 20px; }
+@media (min-width: 768px) { .faq-page__header { margin-bottom: 28px; } }
+.faq-page__title-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px; }
+.faq-page__icon { font-size: 28px; line-height: 1; color: var(--primary); }
+@media (min-width: 768px) { .faq-page__icon { font-size: 36px; } }
+.faq-page__title { font-size: 22px; font-weight: 700; color: var(--foreground); margin: 0; }
+@media (min-width: 768px) { .faq-page__title { font-size: 32px; } }
+.faq-page__subtitle { font-size: 13px; color: var(--muted-foreground); margin: 0; }
+@media (min-width: 768px) { .faq-page__subtitle { font-size: 16px; } }
+
+/* 카테고리 필터 */
+.faq-filter { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 24px; }
+@media (min-width: 768px) { .faq-filter { gap: 10px; margin-bottom: 32px; } }
+.faq-filter__btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    border: 0; padding: 6px 12px; border-radius: 8px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    transition: all 0.2s; text-decoration: none;
+    background: var(--muted); color: var(--muted-foreground);
+}
+@media (min-width: 768px) {
+    .faq-filter__btn {
+        padding: 8px 16px;
+        font-size: 14px;
+    }
+}
+.faq-filter__btn:hover { background: var(--accent); color: var(--foreground); text-decoration: none; }
+.faq-filter__btn--active { background: var(--primary) !important; color: var(--primary-foreground) !important; }
+.faq-filter__btn--active:hover { background: var(--primary) !important; opacity: 0.9; }
+
+/* 카테고리 헤더 */
+.faq-category-title {
+    font-size: 16px; font-weight: 700; color: var(--foreground);
+    margin: 32px 0 16px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--primary); display: inline-block;
+}
+@media (min-width: 768px) { .faq-category-title { font-size: 18px; margin: 40px 0 20px; } }
+
+/* FAQ 아이템 */
+.faq-items { display: flex; flex-direction: column; gap: 12px; }
+@media (min-width: 768px) { .faq-items { gap: 16px; } }
+.faq-item {
+    border: 1px solid var(--border-subtle); border-radius: 12px;
+    overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s;
+}
+@media (min-width: 768px) { .faq-item { border-radius: 16px; } }
+.faq-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+
+.faq-item__question {
+    width: 100%; padding: 12px 16px; display: flex; align-items: center;
+    justify-content: space-between; background: var(--card); border: 0;
+    cursor: pointer; transition: background 0.15s; text-align: left;
+}
+@media (min-width: 768px) { .faq-item__question { padding: 14px 24px; } }
+.faq-item__question:hover { background: var(--muted); }
+/* 포커스 링은 아이템에(둥근 모서리 따라감) — 버튼 아웃라인은 overflow:hidden에 잘리므로 제거 */
+.faq-item__question:focus-visible { outline: none; }
+.faq-item:focus-within { outline: 2px solid var(--ring); outline-offset: 2px; }
+.faq-item__question-inner { display: flex; align-items: flex-start; gap: 10px; flex: 1; }
+@media (min-width: 768px) { .faq-item__question-inner { gap: 14px; } }
+.faq-item__q-mark { font-size: 14px; font-weight: 700; color: var(--primary); flex-shrink: 0; }
+@media (min-width: 768px) { .faq-item__q-mark { font-size: 16px; } }
+.faq-item__q-text { font-size: 13px; font-weight: 600; color: var(--foreground); }
+@media (min-width: 768px) { .faq-item__q-text { font-size: 15px; } }
+
+.faq-item__chevron {
+    width: 18px; height: 18px; color: var(--muted-foreground); flex-shrink: 0;
+    margin-left: 12px; transition: transform 0.3s;
+}
+@media (min-width: 768px) { .faq-item__chevron { width: 22px; height: 22px; } }
+.faq-item--open .faq-item__chevron { transform: rotate(180deg); }
+
+.faq-item__answer {
+    max-height: 0; overflow: hidden;
+    transition: max-height 0.3s ease-out;
+}
+.faq-item--open .faq-item__answer { max-height: 500px; transition: max-height 0.4s ease-in; }
+
+.faq-item__answer-inner { padding: 12px 16px 16px; background: var(--muted); }
+@media (min-width: 768px) { .faq-item__answer-inner { padding: 14px 24px 20px; } }
+.faq-item__answer-content { display: flex; align-items: flex-start; gap: 10px; }
+@media (min-width: 768px) { .faq-item__answer-content { gap: 14px; } }
+.faq-item__a-mark { font-size: 14px; font-weight: 700; color: var(--muted-foreground); flex-shrink: 0; }
+@media (min-width: 768px) { .faq-item__a-mark { font-size: 16px; } }
+.faq-item__a-text { font-size: 12px; color: var(--muted-foreground); line-height: 1.8; }
+.faq-item__a-text p { margin: 0; }
+.faq-item__a-text img { max-width: 100%; height: auto; border-radius: 8px; margin: 8px 0; }
+@media (min-width: 768px) { .faq-item__a-text { font-size: 14px; } }
+
+/* 빈 상태 */
+.faq-empty { text-align: center; padding: 60px 20px; color: var(--muted-foreground); font-size: 15px; }

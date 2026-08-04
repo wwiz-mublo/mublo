@@ -1,0 +1,40 @@
+/* 마이쇼핑 허브 (/mypage/shop) — 타이틀은 코어 .mypage-header 사용 */
+.myshop__stats { display: flex; gap: .75rem; margin-bottom: 1.5rem; }
+.myshop__stat {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: .25rem;
+    padding: 1rem .5rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration: none; color: inherit;
+    transition: background .15s;
+}
+.myshop__stat:hover { background: var(--muted); }
+.myshop__stat-num { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.myshop__stat-label { font-size: .85rem; color: var(--muted-foreground); }
+
+.myshop__section { margin-top: 1.5rem; }
+.myshop__section-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+.myshop__section-title { font-size: 1rem; font-weight: 600; margin: 0; }
+.myshop__more { font-size: .85rem; color: var(--primary); text-decoration: none; }
+.myshop__more:hover { text-decoration: underline; }
+.myshop__count { font-size: .85rem; color: var(--muted-foreground); }
+
+.myshop__empty {
+    font-size: .8rem; color: var(--muted-foreground); text-align: center;
+    padding: 1.25rem 0;
+    background: rgba(0, 0, 0, .02);
+    border-radius: 8px;
+}
+
+.myshop__list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
+.myshop__row {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .65rem .25rem;
+    border-bottom: 1px solid var(--border);
+    text-decoration: none; color: inherit;
+}
+.myshop__row:hover { background: var(--muted); }
+.myshop__row-date { font-size: .8rem; color: var(--muted-foreground); min-width: 5.5rem; }
+.myshop__row-main { flex: 1; font-size: .9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.myshop__row-meta { font-size: .8rem; color: var(--muted-foreground); white-space: nowrap; }

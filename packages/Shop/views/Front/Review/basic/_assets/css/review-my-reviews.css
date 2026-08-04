@@ -1,0 +1,16 @@
+/* 내 후기 (Review/MyReviews) 스타일 */
+
+.my-review-list { max-width: 720px; margin: 0 auto; }
+.my-review-list__title { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+.my-review-list__count { font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 20px; }
+.my-review-item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; margin-bottom: 12px; }
+.my-review-item__product { font-size: 0.85rem; color: var(--primary); font-weight: 500; margin-bottom: 8px; }
+.my-review-item__rating { color: var(--color-amber-400); margin-bottom: 6px; }
+.my-review-item__content { font-size: 0.9rem; color: var(--foreground); white-space: pre-line; }
+.my-review-item__images { display: flex; gap: 6px; margin-top: 8px; }
+.my-review-item__img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+.my-review-item__footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
+.my-review-item__date { font-size: 0.8rem; color: var(--muted-foreground); }
+.my-review-item__delete { font-size: 0.8rem; color: var(--destructive); cursor: pointer; background: none; border: none; }
+.my-review-list__empty { text-align: center; padding: 60px 16px; }
+.my-review-list__empty p { color: var(--muted-foreground); margin-bottom: 16px; }

@@ -1,0 +1,59 @@
+/**
+ * Block Skin: image/basic (CLS SAFE)
+ * 이미지 기본 스킨 스타일
+ */
+
+.block-image-basic {
+    width: 100%;
+}
+
+.block-image-basic .block-header {
+    margin-bottom: 15px;
+}
+
+.block-image-basic .block-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.block-image-basic .block-content {
+    width: 100%;
+}
+
+/* 이미지 영역 높이 선점 */
+.block-image-basic .image-link {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2; /* 기본 비율 (예: 1200x800) */
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+/* 이미지가 영역을 정확히 채우도록 */
+.block-image-basic .block-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* 이미지가 없을 때 */
+.block-image-basic .block-empty {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    color: #6c757d;
+}
+
+.block-image-basic .block-empty i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.block-image-basic .block-empty p {
+    margin: 0;
+    font-size: 0.875rem;
+}

@@ -1,0 +1,111 @@
+/**
+ * Policy 기본 스킨 CSS
+ */
+
+.policy-view-wrapper {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px;
+    background: var(--card);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.policy-view-wrapper .policy-title {
+    margin-bottom: 15px;
+    font-size: 24px;
+    color: var(--foreground);
+    text-align: center;
+}
+
+.policy-view-wrapper .policy-meta {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted-foreground);
+}
+
+.policy-view-wrapper .policy-meta span {
+    margin: 0 8px;
+}
+
+.policy-view-wrapper .policy-body {
+    font-size: 15px;
+    line-height: 1.8;
+    color: var(--foreground);
+    word-break: keep-all;
+}
+
+.policy-view-wrapper .policy-body h1,
+.policy-view-wrapper .policy-body h2,
+.policy-view-wrapper .policy-body h3,
+.policy-view-wrapper .policy-body h4 {
+    margin-top: 30px;
+    margin-bottom: 15px;
+    color: var(--foreground);
+}
+
+.policy-view-wrapper .policy-body h2 {
+    font-size: 20px;
+}
+
+.policy-view-wrapper .policy-body h3 {
+    font-size: 17px;
+}
+
+.policy-view-wrapper .policy-body p {
+    margin-bottom: 12px;
+}
+
+.policy-view-wrapper .policy-body ul,
+.policy-view-wrapper .policy-body ol {
+    margin-bottom: 12px;
+    padding-left: 25px;
+}
+
+.policy-view-wrapper .policy-body li {
+    margin-bottom: 6px;
+}
+
+.policy-view-wrapper .policy-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 15px;
+}
+
+.policy-view-wrapper .policy-body table th,
+.policy-view-wrapper .policy-body table td {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    font-size: 14px;
+}
+
+.policy-view-wrapper .policy-body table th {
+    background: var(--muted);
+    font-weight: 600;
+}
+
+.policy-view-wrapper .policy-footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    text-align: center;
+}
+
+.policy-view-wrapper .policy-footer .btn-back {
+    display: inline-block;
+    padding: 10px 30px;
+    font-size: 14px;
+    color: var(--muted-foreground);
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.policy-view-wrapper .policy-footer .btn-back:hover {
+    background: var(--accent);
+}

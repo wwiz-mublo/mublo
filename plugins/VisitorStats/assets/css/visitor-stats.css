@@ -1,0 +1,15 @@
+/* 방문자 통계 관리자 화면 스타일 */
+.vs-metric { border: 1px solid var(--bs-border-color, var(--border)); }
+.vs-metric-val { font-size: 1.5rem; font-weight: 700; line-height: 1.3; }
+.vs-metric-change { margin-top: 2px; }
+.vs-metric-change .up { color: var(--color-emerald-500); }
+.vs-metric-change .down { color: var(--color-rose-500); }
+.vs-metric-change .flat { color: var(--color-slate-400); }
+.vs-table td, .vs-table th { padding: .65rem .75rem; }
+.vs-table th { color: var(--muted-foreground); font-weight: 500; font-size: .8rem; }
+
+/* 다크모드 */
+[data-bs-theme="dark"] .vs-metric { border-color: var(--border); background-color: var(--card); }
+[data-bs-theme="dark"] .vs-metric-change .up { color: var(--color-emerald-400); }
+[data-bs-theme="dark"] .vs-metric-change .down { color: var(--color-rose-400); }
+[data-bs-theme="dark"] .vs-table th { color: var(--muted-foreground); }

@@ -1,0 +1,218 @@
+/* ============================================================
+ * MubloModal - 커스텀 모달 스타일
+ * ============================================================ */
+
+/* 오버레이 */
+.customModal {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+/* 다이얼로그 */
+.customModal-dialog {
+    width: 100%;
+    max-width: 600px;
+    max-height: calc(100vh - 2rem);
+    margin: 0 auto;
+}
+
+/* 컨텐츠 래퍼 */
+.customModal-content {
+    background: var(--card, var(--bs-tertiary-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #111827));
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    display: flex;
+    flex-direction: column;
+    max-height: calc(100vh - 2rem);
+    overflow: hidden;
+    opacity: 0;
+    transform: translateY(20px) scale(0.97);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.customModal-content.open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+}
+
+/* 헤더 */
+.customModal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.25rem;
+    border-bottom: 1px solid var(--border, var(--bs-border-color, #e5e7eb));
+    flex-shrink: 0;
+}
+
+.customModal-header .header-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--foreground, var(--bs-body-color, #111827));
+    margin: 0;
+    line-height: 1.4;
+}
+
+/* 닫기 버튼 */
+.customModal-header .closex {
+    appearance: none;
+    border: none;
+    background: none;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 6px;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6b7280));
+    font-size: 1.05rem;     /* bi-x-lg 아이콘 크기 */
+    line-height: 1;
+    padding: 0;
+    flex-shrink: 0;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.customModal-header .closex:hover {
+    background-color: var(--muted, var(--bs-secondary-bg, #f3f4f6));
+    color: var(--foreground, var(--bs-body-color, #111827));
+}
+
+/* 바디 */
+.customModal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* 푸터 */
+.customModal-footer {
+    padding: 0.625rem 1.25rem;
+    border-top: 1px solid var(--border, var(--bs-border-color, #e5e7eb));
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* 액션 버튼 — 부트스트랩 .btn 비의존(프론트엔 부트스트랩 미로드).
+ * 토큰 → 부트스트랩 --bs-* → 라이트 hex 폴백으로 프론트·관리자·다크 모두 커버.
+ * (MubloRequest .mublo-alert__btn 과 동일 철학) */
+.customModal-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.5rem 1.1rem;
+    border: 1px solid transparent;
+    border-radius: 0.375rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.4;
+    cursor: pointer;
+    transition: opacity 0.15s, background-color 0.15s;
+}
+
+.customModal-btn:hover { opacity: 0.88; }
+.customModal-btn:focus { outline: none; }
+
+.customModal-btn:focus-visible {
+    outline: none;
+    box-shadow:
+        0 0 0 2px var(--card, var(--bs-tertiary-bg, #fff)),
+        0 0 0 4px color-mix(in srgb, var(--ring, var(--bs-primary, #0d6efd)) 45%, transparent);
+}
+
+.customModal-btn--primary {
+    background: var(--primary, var(--bs-primary, #2563eb));
+    color: var(--primary-foreground, #fff);
+}
+
+.customModal-btn--secondary {
+    background: var(--secondary, var(--bs-secondary-bg, #f1f3f5));
+    color: var(--secondary-foreground, var(--bs-body-color, #111827));
+    border-color: var(--border, var(--bs-border-color, #e5e7eb));
+}
+
+.customModal-btn--danger {
+    background: var(--destructive, var(--bs-danger, #dc3545));
+    color: var(--destructive-foreground, #fff);
+}
+
+/* prompt 입력창 */
+.customModal-input {
+    display: block;
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9375rem;
+    color: var(--foreground, var(--bs-body-color, #111827));
+    background: var(--background, var(--bs-body-bg, #ffffff));
+    border: 1px solid var(--border, var(--bs-border-color, #e5e7eb));
+    border-radius: 0.375rem;
+    box-sizing: border-box;
+}
+
+.customModal-input:focus {
+    outline: none;
+    border-color: var(--primary, var(--bs-primary, #2563eb));
+    box-shadow: 0 0 0 2px var(--primary-soft, rgba(var(--bs-primary-rgb, 37, 99, 235), 0.25));
+}
+
+/* 로딩 상태 */
+.customModal-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #9ca3af));
+}
+
+.customModal-loading::after {
+    content: '';
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--border, var(--bs-border-color, #e5e7eb));
+    border-top-color: var(--muted-foreground, var(--bs-secondary-color, #6b7280));
+    border-radius: 50%;
+    animation: mubloModalSpin 0.7s linear infinite;
+}
+
+@keyframes mubloModalSpin {
+    to { transform: rotate(360deg); }
+}
+
+/* 배경 스크롤 잠금은 JS(MubloModal._lockScroll)가 body overflow:hidden + 스크롤바 폭
+ * 보정으로 처리한다 — MubloRequest 와 동일 기법. (구 html.noscroll 방식 폐기) */
+
+/* 사이즈 변형 */
+.customModal.modal-sm .customModal-dialog { max-width: 400px; }
+.customModal.modal-lg .customModal-dialog { max-width: 800px; }
+.customModal.modal-xl .customModal-dialog { max-width: 1100px; }
+.customModal.modal-full .customModal-dialog { max-width: calc(100vw - 2rem); }
+
+/* 위치 변형 (기본: 중앙) — className 으로 지정, 사이즈 변형과 조합 가능 */
+.customModal.modal-top { align-items: flex-start; }
+
+/* 반응형 */
+@media (max-width: 576px) {
+    .customModal { padding: 0.5rem; }
+    .customModal-dialog { max-width: 100%; }
+    .customModal-content { border-radius: 8px; }
+    .customModal-header { padding: 0.75rem 1rem; }
+    .customModal-body { padding: 1rem; }
+    .customModal-footer { padding: 0.5rem 1rem; }
+}

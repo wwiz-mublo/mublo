@@ -1,0 +1,298 @@
+/**
+ * Search 기본 스킨 CSS
+ */
+
+/* ─── 검색 페이지 ─── */
+.search-page {
+    max-width: 720px;
+    margin: 0 auto;
+}
+
+/* ─── 검색 폼 ─── */
+.search-form {
+    max-width: 420px;
+    margin: 0 auto 2rem;
+}
+.search-form__inner {
+    display: flex;
+    align-items: center;
+    background: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 3px 3px 3px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.search-form__inner:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
+    background: var(--card);
+}
+.search-form__icon {
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+.search-form__input {
+    flex: 1;
+    padding: 6px 8px;
+    font-size: 0.875rem;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--foreground);
+    min-width: 0;
+}
+.search-form__input::placeholder {
+    color: var(--muted-foreground);
+}
+/* 검색어가 있을 때만 표시 (input 비면 placeholder 노출 → 숨김). JS 불필요 */
+.search-form__clear {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: none;
+    color: var(--muted-foreground);
+    cursor: pointer;
+    font-size: 0.875rem;
+    flex-shrink: 0;
+    margin-right: 5px;
+    transition: color 0.15s;
+}
+.search-form__clear:hover {
+    color: var(--foreground);
+}
+/* input에 값이 있으면(placeholder 미노출) 표시 — 뒤따르는 형제 선택자 */
+.search-form__input:not(:placeholder-shown) ~ .search-form__clear {
+    display: flex;
+}
+.search-form__btn {
+    padding: 6px 16px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border: none;
+    border-radius: 17px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    flex-shrink: 0;
+    transition: background 0.2s;
+}
+.search-form__btn:hover {
+    background: var(--primary);
+    opacity: 0.9;
+}
+
+/* ─── 빈 상태 ─── */
+.search-empty {
+    text-align: center;
+    padding: 3rem 0;
+}
+.search-empty__icon {
+    display: block;
+    font-size: 2rem;
+    color: var(--muted-foreground);
+    margin-bottom: 0.75rem;
+}
+.search-empty__text {
+    color: var(--muted-foreground);
+    font-size: 0.9rem;
+    margin-bottom: 0.25rem;
+}
+.search-empty__hint {
+    color: var(--muted-foreground);
+    font-size: 0.8rem;
+}
+
+/* ─── 결과 요약 ─── */
+.search-summary {
+    text-align: center;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
+    background: var(--muted);
+    border-radius: 10px;
+}
+.search-summary__count {
+    display: inline-block;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 0.7rem;
+    padding: 2px 9px;
+    border-radius: 10px;
+    margin-left: 4px;
+    font-weight: 500;
+}
+
+/* ─── 검색 그룹 ─── */
+.search-group {
+    margin-bottom: 2rem;
+}
+.search-group__title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--foreground);
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--foreground);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.search-group__count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    background: var(--border);
+    color: var(--muted-foreground);
+    font-size: 0.7rem;
+    font-weight: 500;
+    border-radius: 10px;
+    padding: 0 6px;
+}
+
+/* ─── 게시판 검색 결과 ─── */
+.search-result-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.search-result-item {
+    display: flex;
+    gap: 12px;
+    padding: 12px 10px;
+    border-radius: 6px;
+    transition: background 0.15s;
+}
+.search-result-item:hover {
+    background: var(--muted);
+}
+.search-result-item + .search-result-item {
+    border-top: 1px solid var(--border-subtle);
+}
+.search-result-item__thumb-link {
+    flex-shrink: 0;
+}
+.search-result-item__thumb {
+    width: 72px;
+    height: 72px;
+    object-fit: cover;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+}
+.search-result-item__body {
+    flex: 1;
+    min-width: 0;
+}
+.search-result-item__title {
+    display: block;
+    font-weight: 600;
+    font-size: 0.875rem;
+    color: var(--foreground);
+    text-decoration: none;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.4;
+    margin-bottom: 3px;
+}
+.search-result-item__title:hover {
+    color: var(--primary);
+}
+.search-result-item__summary {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+    line-height: 1.5;
+    margin: 0 0 5px;
+}
+.search-result-item__meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.725rem;
+    color: var(--muted-foreground);
+}
+.search-result-item__badge {
+    display: inline-block;
+    background: var(--border-subtle);
+    color: var(--muted-foreground);
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+}
+.search-result-item__date {
+    color: var(--muted-foreground);
+}
+
+.search-result-item__thumb--placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--muted);
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    color: var(--muted-foreground);
+}
+
+/* ─── 상품 가격 ─── */
+.search-result-item__price {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin: 2px 0 4px;
+}
+
+/* ─── 리뷰 별점 ─── */
+.search-result-item__star {
+    color: var(--color-amber-500);
+}
+
+/* ─── 더보기 링크 ─── */
+.search-group__more {
+    text-align: right;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-subtle);
+}
+.search-group__more a {
+    font-size: 0.8rem;
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 500;
+}
+.search-group__more a:hover {
+    text-decoration: underline;
+}
+
+/* ─── 반응형 ─── */
+@media (max-width: 575px) {
+    .search-page {
+        padding-top: 2rem;
+    }
+    .search-form {
+        max-width: 100%;
+    }
+    .search-result-item {
+        gap: 10px;
+        padding: 10px 6px;
+    }
+    .search-result-item__thumb {
+        width: 64px;
+        height: 64px;
+    }
+    .search-result-item__title {
+        font-size: 0.85rem;
+    }
+    .search-result-item__summary {
+        -webkit-line-clamp: 1;
+    }
+}

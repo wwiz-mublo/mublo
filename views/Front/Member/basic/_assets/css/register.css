@@ -1,0 +1,671 @@
+/**
+ * 회원가입 흐름 스킨 CSS (shadcn login-03 톤)
+ *
+ * 대상: Agree(약관동의), Register(정보입력), RegisterComplete(완료), RegisterPending(승인대기)
+ * — header/footer 없는 독립 중앙 카드 페이지.
+ *
+ * 마이페이지(Profile/Withdraw)는 member.css를 그대로 쓰며 이 파일과 무관하다.
+ *
+ * ⚠ 디자인 토큰 --auth-* 와 .auth-* 클래스 어휘는 인증 스킨
+ *   (views/Front/Auth/basic/_assets/css/auth.css)과 동일한 "auth 개념"을 공유한다.
+ *   단 파일 자체를 공유하진 않는다(뷰 그룹이 달라 import 불가) → 같은 이름·값을 회원가입
+ *   전용으로 복제해 둔 것이므로, 로그인 톤을 바꾸면 이 블록도 같은 값으로 직접 동기화할 것.
+ *   .dark/[data-theme=dark] 블록은 다크모드 대비용(현재 미활성·무해).
+ */
+
+/* =========================================================
+ * 디자인 토큰
+ * ========================================================= */
+
+/**
+ * ⚠ 코어 토큰(public/assets/css/tokens.css) alias 계층. hex 복제 종료.
+ *   auth.css와 동일 어휘를 공유하되, 이제 둘 다 코어 토큰을 가리키므로
+ *   "로그인 톤 바꾸면 수동 동기화" 문제가 사라졌다(단일 진실 = tokens.css).
+ *   값은 종전과 픽셀 동일. radius(0.875)만 회원가입 고유로 유지.
+ */
+:root {
+    --auth-radius: 0.875rem;
+    --auth-radius-sm: var(--radius-lg);   /* 0.5rem */
+    --auth-control-h: 2.5rem;
+    --auth-control-pad-y: 9px;    /* 컨트롤 상하 패딩 — 입력/버튼 공통(텍스트 세로 중앙) */
+    --auth-control-pad-x: 12px;   /* 컨트롤 좌우 패딩 */
+
+    --auth-bg: var(--color-zinc-100);     /* 페이지 배경(회색) — auth 고유 */
+    --auth-card: var(--card);
+    --auth-card-shadow: var(--shadow-sm);
+
+    --auth-fg: var(--foreground);
+    --auth-muted-fg: var(--muted-foreground);
+
+    --auth-border: var(--border);
+    --auth-input: var(--input);
+    --auth-input-bg: var(--card);
+    --auth-ring: var(--color-zinc-900);   /* near-black 포커스 링 — auth 고유 */
+
+    --auth-primary: var(--primary);
+    --auth-primary-fg: var(--primary-foreground);
+    --auth-primary-hover: var(--color-zinc-800);
+    --auth-primary-disabled: var(--color-zinc-400);
+
+    --auth-danger-bg: var(--color-red-50);
+    --auth-danger-fg: var(--color-red-700);
+    --auth-danger-border: var(--color-red-200);
+    --auth-success-bg: var(--color-green-50);
+    --auth-success-fg: var(--color-green-700);
+    --auth-success-border: var(--color-green-200);
+    --auth-info-bg: var(--color-blue-50);
+    --auth-info-fg: var(--color-blue-700);
+    --auth-info-border: var(--color-blue-200);
+}
+
+/* 다크모드 — auth 고유분만 덮는다(semantic 참조분은 tokens.css가 자동 반전) */
+.dark,
+[data-theme="dark"] {
+    --auth-bg: var(--color-zinc-950);
+    --auth-card-shadow: 0 1px 3px rgb(0 0 0 / 0.4), 0 1px 2px rgb(0 0 0 / 0.3);
+    --auth-ring: var(--color-zinc-300);
+    --auth-primary-hover: var(--color-zinc-200);
+    --auth-primary-disabled: var(--color-zinc-600);
+
+    --auth-danger-bg: var(--color-red-950);
+    --auth-danger-fg: var(--color-red-300);
+    --auth-danger-border: var(--color-red-900);
+    --auth-success-bg: var(--color-green-950);
+    --auth-success-fg: var(--color-green-300);
+    --auth-success-border: var(--color-green-800);
+    --auth-info-bg: var(--color-blue-950);
+    --auth-info-fg: var(--color-blue-300);
+    --auth-info-border: var(--color-blue-800);
+}
+
+/* =========================================================
+ * 레이아웃 — 화면 정중앙 배치
+ * ========================================================= */
+
+/* 페이지 배경 — body에 걸어 오버스크롤/여백까지 덮음(html 캔버스로 전파) */
+body:has(.auth-shell) {
+    background: var(--auth-bg);
+}
+
+.mublo-main:has(.auth-shell) {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 16px;
+}
+
+.mublo-main:has(.auth-shell) .mublo-content,
+.mublo-main:has(.auth-shell) .mublo-layout,
+.mublo-main:has(.auth-shell) .mublo-layout__content {
+    display: contents;
+}
+
+/* =========================================================
+ * 셸 (브랜드 · 카드 세로 묶음)
+ * ========================================================= */
+
+.auth-shell {
+    width: 100%;
+    max-width: 400px;
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.auth-shell--wide { max-width: 460px; }
+
+/* =========================================================
+ * 카드
+ * ========================================================= */
+
+.member-agree-wrapper,
+.member-register-wrapper,
+.member-complete-wrapper {
+    padding: 32px;
+    background: var(--auth-card);
+    color: var(--auth-fg);
+    border: 1px solid var(--auth-border);
+    border-radius: var(--auth-radius);
+    box-shadow: var(--auth-card-shadow);
+    box-sizing: border-box;
+}
+
+.member-complete-wrapper { text-align: center; }
+
+/* =========================================================
+ * 상단 브랜드 (ico + 사이트명) — 카드 바깥
+ * ========================================================= */
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-decoration: none;
+    color: var(--auth-fg);
+}
+
+.auth-brand__ico {
+    width: 22px;
+    height: 22px;
+    object-fit: contain;
+}
+
+.auth-brand__name {
+    font-size: 20px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+    line-height: 1;
+}
+
+/* =========================================================
+ * 헤더 (제목 + 설명)
+ * ========================================================= */
+
+.auth-card__header {
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.auth-card__title {
+    margin: 0 0 2px;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.4px;
+    color: var(--auth-fg);
+}
+
+.auth-card__desc {
+    margin: 0;
+    font-size: 14px;
+    color: var(--auth-muted-fg);
+    line-height: 1.6;
+}
+
+/* =========================================================
+ * 스텝 인디케이터
+ * ========================================================= */
+
+.step-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 28px;
+}
+
+.step-indicator__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--auth-muted-fg);
+}
+
+.step-indicator__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid var(--auth-border);
+    background: var(--auth-card);
+    color: var(--auth-muted-fg);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.step-indicator__sep {
+    width: 24px;
+    height: 1px;
+    margin: 0 10px;
+    background: var(--auth-border);
+}
+
+/* 완료 단계 */
+.step-indicator__item.is-done {
+    color: var(--auth-fg);
+}
+
+.step-indicator__item.is-done .step-indicator__num {
+    background: var(--auth-primary);
+    border-color: var(--auth-primary);
+    color: var(--auth-primary-fg);
+}
+
+.step-indicator__num .bi {
+    font-size: 15px;
+    line-height: 1;
+}
+
+.step-indicator__item.is-done + .step-indicator__sep {
+    background: var(--auth-primary);
+}
+
+/* 현재 단계 */
+.step-indicator__item.is-current {
+    color: var(--auth-fg);
+    font-weight: 600;
+}
+
+.step-indicator__item.is-current .step-indicator__num {
+    background: var(--auth-primary);
+    border-color: var(--auth-primary);
+    color: var(--auth-primary-fg);
+}
+
+/* =========================================================
+ * 폼
+ * ========================================================= */
+
+.member-register-wrapper .form-group {
+    margin-bottom: 18px;
+}
+
+.member-register-wrapper .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--auth-fg);
+}
+
+.member-register-wrapper .form-group label .required {
+    color: var(--auth-danger-fg);
+}
+
+.member-register-wrapper .form-control {
+    width: 100%;
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--auth-fg);
+    background: var(--auth-input-bg);
+    border: 1px solid var(--auth-input);
+    border-radius: var(--auth-radius-sm);
+    box-sizing: border-box;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.member-register-wrapper textarea.form-control {
+    height: auto;
+    min-height: var(--auth-control-h);
+    padding: 10px 12px;
+}
+
+.member-register-wrapper .form-control::placeholder {
+    color: var(--auth-muted-fg);
+}
+
+.member-register-wrapper .form-control:focus {
+    outline: none;
+    border-color: var(--auth-ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--auth-ring) 18%, transparent);
+}
+
+/* 셀렉트(드롭다운) 전용 — 네이티브 캐럿 제거 후 뉴트럴 셰브론.
+ * appearance/배경이미지를 공용 .form-control에 넣으면 text/textarea에도 새므로 select만 따로. */
+.member-register-wrapper select.form-control,
+.member-register-wrapper .form-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 34px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='none' stroke='%2371717a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    cursor: pointer;
+}
+
+.member-register-wrapper .form-help {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--auth-muted-fg);
+}
+
+/* 입력 + 중복확인 버튼 */
+.member-register-wrapper .input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.member-register-wrapper .input-group .form-control {
+    flex: 1;
+}
+
+/* 커스텀 필드(라디오·체크박스·위젯 일체)는 전역 컴포넌트(mublo-custom-field.css)가
+ * 자기완결로 스타일 — 스킨 오버라이드 제거(브랜드 일관성). */
+
+/* =========================================================
+ * 버튼
+ * ========================================================= */
+
+.member-agree-wrapper .btn,
+.member-register-wrapper .btn,
+.member-complete-actions .btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    color: var(--auth-primary-fg);
+    background: var(--auth-primary);
+    border: 1px solid transparent;
+    border-radius: var(--auth-radius-sm);
+    box-sizing: border-box;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background-color 0.15s;
+}
+
+.member-agree-wrapper .btn:hover,
+.member-register-wrapper .btn:hover,
+.member-complete-actions .btn:hover {
+    background: var(--auth-primary-hover);
+    color: var(--auth-primary-fg);
+    text-decoration: none;
+}
+
+.member-agree-wrapper .btn:disabled,
+.member-register-wrapper .btn:disabled {
+    background: var(--auth-primary-disabled);
+    cursor: not-allowed;
+}
+
+/* '다음 단계' 버튼 — 약관 목록과 살짝 간격 */
+.member-agree-wrapper .btn {
+    margin-top: 12px;
+}
+
+/* SNS 로그인 버튼(플러그인 주입)을 로그인 페이지와 동일 스타일로 */
+.member-agree-wrapper .btn-sns {
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    box-sizing: border-box;
+    border-radius: var(--auth-radius-sm);
+}
+
+/* 중복확인 / 주소검색 (둘 다 .btn-check) — 색/호버는 .btn(primary) 그대로 쓰고
+ * 너비만 콤팩트하게(.btn의 width:100% 무력화) */
+.member-register-wrapper .btn-check {
+    width: auto;
+    flex: none;
+    padding: var(--auth-control-pad-y) var(--auth-control-pad-x);
+    white-space: nowrap;
+}
+
+.member-complete-actions {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+}
+
+.member-complete-actions .btn {
+    width: auto;
+    min-width: 120px;
+    padding-inline: 28px;
+}
+
+.member-complete-actions .btn-outline {
+    color: var(--auth-fg);
+    background: var(--auth-card);
+    border-color: var(--auth-border);
+}
+
+.member-complete-actions .btn-outline:hover {
+    background: var(--auth-bg);
+    color: var(--auth-fg);
+}
+
+/* =========================================================
+ * 알림
+ * ========================================================= */
+
+.member-register-wrapper .alert {
+    padding: 10px 12px;
+    margin-bottom: 18px;
+    border-radius: var(--auth-radius-sm);
+    font-size: 13px;
+}
+
+.member-register-wrapper .alert-danger {
+    background: var(--auth-danger-bg);
+    color: var(--auth-danger-fg);
+    border: 1px solid var(--auth-danger-border);
+}
+
+.member-register-wrapper .alert-success {
+    background: var(--auth-success-bg);
+    color: var(--auth-success-fg);
+    border: 1px solid var(--auth-success-border);
+}
+
+/* =========================================================
+ * 하단 링크 (이미 회원이신가요?)
+ * ========================================================= */
+
+.auth-card__footer {
+    margin-top: 22px;
+    text-align: center;
+    font-size: 14px;
+    color: var(--auth-muted-fg);
+}
+
+.auth-card__footer a {
+    color: var(--auth-fg);
+    font-weight: 500;
+    text-decoration: none;
+}
+
+.auth-card__footer a:hover {
+    text-decoration: underline;
+}
+
+/* =========================================================
+ * Agree 전용 — 전체동의 / 약관 아코디언
+ * ========================================================= */
+
+/* 체크박스 — 작고 깔끔하게(브랜드 컬러). 존재감은 행 패딩이 담당 */
+.member-agree-wrapper input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--auth-primary);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.member-agree-wrapper .agree-all {
+    padding: 10px 16px;
+    margin-bottom: 12px;
+    background: var(--auth-bg);
+    border: 1px solid var(--auth-border);
+    border-radius: var(--auth-radius-sm);
+}
+
+.member-agree-wrapper .agree-all label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--auth-fg);
+    cursor: pointer;
+}
+
+.member-agree-wrapper .policy-item {
+    border: 1px solid var(--auth-border);
+    border-radius: var(--auth-radius-sm);
+    overflow: hidden;
+}
+.member-agree-wrapper .policy-item + .policy-item {
+    margin-top: 8px;
+}
+
+.member-agree-wrapper .policy-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--auth-card);
+    cursor: pointer;
+}
+
+.member-agree-wrapper .policy-header label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    font-size: 14px;
+    color: var(--auth-fg);
+    cursor: pointer;
+}
+
+.member-agree-wrapper .policy-header .badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    font-weight: 400;
+    line-height: 1.25;
+}
+
+.member-agree-wrapper .badge.badge-required {
+    background: var(--auth-danger-bg);
+    color: var(--auth-danger-fg);
+    border-color: var(--auth-danger-border);
+}
+
+.member-agree-wrapper .badge-optional {
+    background: var(--auth-bg);
+    color: var(--auth-muted-fg);
+}
+
+.member-agree-wrapper .policy-toggle {
+    background: none;
+    border: none;
+    font-size: 12px;
+    color: var(--auth-muted-fg);
+    cursor: pointer;
+    padding: 0;
+    white-space: nowrap;
+}
+
+.member-agree-wrapper .policy-toggle:hover {
+    color: var(--auth-fg);
+}
+
+.member-agree-wrapper .policy-content {
+    display: none;
+    max-height: 220px;
+    overflow-y: auto;
+    padding: 16px;
+    border-top: 1px solid var(--auth-border);
+    background: var(--auth-bg);
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--auth-fg);
+}
+
+.member-agree-wrapper .policy-content.show {
+    display: block;
+}
+
+/* 약관 본문(주입 HTML) 타이포그래피 — 박스 안에서 컴팩트하게 정규화 */
+.member-agree-wrapper .policy-content > :first-child { margin-top: 0; }
+.member-agree-wrapper .policy-content > :last-child { margin-bottom: 0; }
+
+.member-agree-wrapper .policy-content h1,
+.member-agree-wrapper .policy-content h2,
+.member-agree-wrapper .policy-content h3,
+.member-agree-wrapper .policy-content h4,
+.member-agree-wrapper .policy-content h5 {
+    margin: 16px 0 6px;
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 1.4;
+    color: var(--auth-fg);
+}
+
+.member-agree-wrapper .policy-content p {
+    margin: 0 0 8px;
+}
+
+.member-agree-wrapper .policy-content ul,
+.member-agree-wrapper .policy-content ol {
+    margin: 0 0 8px;
+    padding-left: 20px;
+}
+
+.member-agree-wrapper .policy-content li {
+    margin: 2px 0;
+}
+
+.member-agree-wrapper .policy-content li::marker {
+    color: var(--auth-muted-fg);
+}
+
+.member-agree-wrapper .policy-content strong,
+.member-agree-wrapper .policy-content b {
+    font-weight: 700;
+    color: var(--auth-fg);
+}
+
+.member-agree-wrapper .policy-content a {
+    color: var(--auth-fg);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.member-agree-wrapper .policy-content hr {
+    margin: 12px 0;
+    border: none;
+    border-top: 1px solid var(--auth-border);
+}
+
+.member-agree-wrapper .policy-content table {
+    width: 100%;
+    margin: 0 0 8px;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.member-agree-wrapper .policy-content th,
+.member-agree-wrapper .policy-content td {
+    padding: 6px 8px;
+    border: 1px solid var(--auth-border);
+    text-align: left;
+}
+
+.member-agree-wrapper .policy-content th {
+    background: var(--auth-card);
+    font-weight: 600;
+}
+
+/* =========================================================
+ * Complete / Pending 전용
+ * ========================================================= */
+
+.member-complete-wrapper .complete-icon {
+    font-size: 52px;
+    line-height: 1;
+    margin-bottom: 16px;
+    color: var(--auth-muted-fg);
+}
+
+.member-complete-wrapper .complete-icon--success {
+    color: var(--auth-success-fg);
+}
+
+.member-complete-wrapper .complete-message {
+    font-size: 14px;
+    color: var(--auth-muted-fg);
+    line-height: 1.5;
+    margin-bottom: 28px;
+}

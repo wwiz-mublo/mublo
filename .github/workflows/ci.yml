@@ -1,0 +1,237 @@
+name: CI
+
+# 문서·이미지만 바뀐 변경은 건너뛴다. PHP 3종 × DB 4종 매트릭스가 5분씩 도는데
+# 마크다운은 어떤 테스트도 깨뜨릴 수 없다. 코드가 한 줄이라도 섞이면 paths-ignore
+# 는 적용되지 않으므로 평소대로 전부 돈다.
+#
+# 제외 목록은 "실행에 영향이 없는 것" 만 담는다. 예를 들어 .github/workflows 는
+# 넣지 않는다 — CI 자신을 고치는 변경이야말로 검증이 필요하다.
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.svg'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
+      - 'NOTICE'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.svg'
+  # 임의 브랜치/커밋을 수동으로 검증할 때 사용한다. paths-ignore 와 무관하게 돈다.
+  #   gh workflow run ci.yml --ref <브랜치>
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: [ '8.2', '8.3', '8.4' ]
+
+    # 통합 테스트용 DB. 없으면 tests/Integration 은 스킵되므로,
+    # 리포지토리 계층의 SQL 이 검증되지 않은 채 통과한다.
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mublo_integration_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo, pdo_mysql, mysqli, mbstring, openssl, json, curl, fileinfo, gd, zip, xml, intl
+          coverage: none
+
+      # v4 는 Node.js 20 을 타깃해 러너가 24 로 강제 실행하며 폐기 경고를 낸다.
+      # v5 부터 node24 다. path/key/restore-keys 는 그대로다.
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: composer-${{ matrix.php }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ matrix.php }}-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # 배포되는 운영 의존성의 알려진 취약점을 차단(dev 도구 CVE는 사용자 배포물에 없으므로 제외).
+      - name: Security audit (production deps)
+        run: composer audit --no-dev
+
+      - name: Run DI check
+        run: composer check-di
+
+      # 확장이 안정 API 밖의 코어 심볼에 새로 의존하는 것을 막는다.
+      # 기존 의존은 tools/extension-api-baseline.json 에 동결되어 있다.
+      - name: Run extension API check
+        run: composer check-extension-api
+
+      # 런타임 파일이 declare(strict_types=1) 을 빠뜨리지 않게 한다.
+      # strict_types 는 "선언한 파일에서 나가는 호출"에만 적용되므로,
+      # 한 파일이라도 빠지면 그 파일의 호출은 다시 조용히 형변환된다.
+      - name: Run strict types check
+        run: composer check-strict-types
+
+      # 정적분석 level 0 — "부르는데 없는" 클래스·인터페이스·메서드를 잡는다.
+      # 오탐 0건이라 베이스라인 없이 게이트로 쓴다. 설정은 phpstan.neon.dist.
+      - name: Run static analysis
+        run: composer analyse
+
+      # 정리가 끝난 범위(코어·Board·Shop·플러그인, 뷰 제외)만 level 3 으로 본다.
+      # level 2 부터 "아무 객체에나 없는 메서드 호출"을 잡는다.
+      - name: Run static analysis (strict scope)
+        run: composer analyse-strict
+
+      # DB_TEST_* 가 있으면 tests/Integration 이 실 DB 를 태운다(없으면 스킵).
+      # 리포지토리·QueryBuilder 의 SQL 은 mock 으로는 검증되지 않는다.
+      - name: Run tests
+        run: composer test
+        env:
+          DB_TEST_HOST: 127.0.0.1
+          DB_TEST_PORT: 3306
+          DB_TEST_USER: root
+          DB_TEST_PASS: root
+          DB_TEST_NAME: mublo_integration_test
+
+  # 이미 실행된 마이그레이션 파일을 고치면, 그 파일을 이미 돌린 설치본에서
+  # checksum 드리프트가 나고 해당 확장의 활성화가 막힌다. 실제로 주석 한 줄을
+  # 지운 문구 정리 커밋 때문에 Shop 활성화가 조용히 실패한 적이 있다.
+  # SQL 이 안 바뀌어도 파일이 바뀌면 해시가 달라진다 — 주석도 파일 내용이다.
+  migration-immutability:
+    name: Migration immutability
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout (비교를 위해 전체 이력)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: 기존 마이그레이션 파일 수정 검사
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          # 신규 추가(A)는 통과, 기존 파일 수정(M)만 잡는다.
+          MODIFIED=$(git diff --diff-filter=M --name-only "$BASE" "$HEAD" \
+            -- '*database/migrations/*.sql' || true)
+
+          if [ -z "$MODIFIED" ]; then
+            echo "✓ 수정된 마이그레이션 파일 없음"
+            exit 0
+          fi
+
+          # 드리프트 복구처럼 파일을 되돌리는 것이 정답인 경우가 있다.
+          # 그때는 커밋 메시지에 [migration-edit] 를 남겨 의도를 밝힌다.
+          if git log --format=%B "$BASE..$HEAD" | grep -qF '[migration-edit]'; then
+            echo "⚠ 마이그레이션 파일이 수정되었으나 [migration-edit] 로 승인됨:"
+            echo "$MODIFIED"
+            exit 0
+          fi
+
+          echo "✗ 이미 배포된 마이그레이션 파일이 수정되었습니다."
+          echo ""
+          echo "$MODIFIED"
+          echo ""
+          echo "이 파일을 이미 실행한 설치본에서는 checksum 이 어긋나 확장 활성화가 막힙니다."
+          echo "SQL 을 바꾸지 않았더라도(주석·공백 포함) 파일이 바뀌면 해시가 달라집니다."
+          echo ""
+          echo "해결:"
+          echo "  - 스키마를 바꾸려면 → 이 파일을 되돌리고 새 번호 마이그레이션을 추가하세요."
+          echo "  - 문구만 고치려면 → 되돌리세요. 배포된 마이그레이션의 주석은 고치지 않습니다."
+          echo "  - 드리프트 복구처럼 수정이 정답이면 → 커밋 메시지에 [migration-edit] 를 넣으세요."
+          echo ""
+          echo "규정: docs/dev-guide/extension-requirements.md §2"
+          exit 1
+
+  database-compatibility:
+    name: DB compatibility (${{ matrix.name }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: MySQL 5.7
+            image: mysql:5.7
+          - name: MySQL 8.4 LTS
+            image: mysql:8.4
+          - name: MariaDB 10.3
+            image: mariadb:10.3
+          - name: MariaDB 10.11 LTS
+            image: mariadb:10.11
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        env:
+          # 두 이미지 계열이 이해하는 이름을 함께 주되 값은 동일하게 유지한다.
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: mublo_compatibility_test
+          MARIADB_ROOT_PASSWORD: root
+          MARIADB_DATABASE: mublo_compatibility_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # DB 하한 호환성은 지원 PHP 하한에서 검증해 불필요한 교차 매트릭스를 피한다.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mysqli, mbstring, openssl, json, curl, fileinfo, gd, zip, xml, intl
+          coverage: none
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: composer-db-compat-${{ hashFiles('composer.lock') }}
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      # 연결 실패/지원 버전 미달/마이그레이션 오류는 skip이 아니라 즉시 실패한다.
+      - name: Run fresh-install and upgrade migration smoke test
+        run: composer check-db-compat
+        env:
+          DB_TEST_HOST: 127.0.0.1
+          DB_TEST_PORT: 3306
+          DB_TEST_USER: root
+          DB_TEST_PASS: root
+          DB_TEST_NAME: mublo_compatibility_test

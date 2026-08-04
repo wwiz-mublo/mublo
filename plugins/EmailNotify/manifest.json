@@ -1,0 +1,15 @@
+{
+    "name": "EmailNotify",
+    "label": "이메일 알림",
+    "description": "서버 메일(코어 Mailer) 기반 이메일 알림 발송 — 도메인별 템플릿 관리",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "messaging",
+    "icon": "bi-envelope-paper-heart",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

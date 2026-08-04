@@ -1,0 +1,223 @@
+/**
+ * Board 마이페이지 CSS
+ *
+ * 마이보드 허브(/mypage/board) 대시보드 + 내가 쓴 글/댓글(Articles/Comments) 스타일.
+ * (글/댓글 스타일은 코어 mypage.css에서 이관 — Board가 코어이던 시절 잔재 정리)
+ */
+
+/* =========================================================
+ * 마이보드 허브 (/mypage/board) — 커뮤니티 활동 대시보드
+ * 타이틀은 코어 .mypage-header 사용
+ * ========================================================= */
+
+.myboard__stats { display: flex; gap: .75rem; margin-bottom: 1.5rem; }
+.myboard__stat {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; gap: .25rem;
+    padding: 1rem .5rem;
+    border: 1px solid var(--border); border-radius: 8px;
+}
+.myboard__stat-num { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.myboard__stat-label { font-size: .85rem; color: var(--muted-foreground); }
+
+.myboard__caption { font-size: .8rem; color: var(--muted-foreground); margin: 0 0 .5rem; }
+
+.myboard__charts { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.myboard__chart--bar { flex: 2 1 320px; min-width: 280px; height: 260px; }
+.myboard__chart--donut { flex: 1 1 200px; min-width: 200px; height: 260px; }
+
+.myboard__subtitle { font-size: .95rem; font-weight: 600; margin: 0 0 .5rem; }
+.myboard__chart--trend { height: 240px; margin-bottom: 1.5rem; }
+
+/* =========================================================
+ * Articles / Comments 공용
+ * ========================================================= */
+
+.mypage-list-summary {
+    font-size: 13px;
+    color: var(--muted-foreground);
+    margin-bottom: 10px;
+}
+
+.nav-page {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted-foreground);
+    font-size: 14px;
+}
+
+/* ─── Articles (내가 쓴 글) ─── */
+
+.mypage-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.mypage-list-table th {
+    padding: 10px 12px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-weight: 600;
+    border-bottom: 2px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+}
+
+.mypage-list-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-subtle);
+    color: var(--foreground);
+    vertical-align: middle;
+}
+
+.mypage-list-table .board-name {
+    font-size: 11px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+}
+
+.mypage-list-table .article-title a {
+    color: var(--foreground);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.mypage-list-table .article-title a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
+.mypage-list-table .meta {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+}
+
+.mypage-list-table .empty-row td {
+    text-align: center;
+    padding: 30px;
+    color: var(--muted-foreground);
+}
+
+/* ─── Comments (내가 쓴 댓글) ─── */
+
+.mypage-comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.comment-item {
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 14px 16px;
+    background: var(--muted);
+}
+
+.comment-item .comment-article {
+    font-size: 12px;
+    color: var(--muted-foreground);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.comment-item .comment-article a {
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.comment-item .comment-article a:hover {
+    text-decoration: underline;
+}
+
+.comment-item .comment-article .board-badge {
+    background: var(--color-indigo-100);
+    color: var(--color-indigo-600);
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 8px;
+}
+
+.comment-item .comment-content {
+    font-size: 14px;
+    color: var(--foreground);
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.comment-item .comment-date {
+    font-size: 11px;
+    color: var(--muted-foreground);
+    margin-top: 6px;
+}
+
+/* =========================================================
+ * 모바일: 내가 쓴 글 테이블 → 카드 (board basic 스킨과 동일 기법)
+ *   제목 풀폭 1줄 + (게시판·조회·댓글·작성일) 메타줄
+ * ========================================================= */
+@media (max-width: 768px) {
+    .mypage-list-table,
+    .mypage-list-table tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .mypage-list-table thead {
+        display: none;
+    }
+
+    .mypage-list-table tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        column-gap: 10px;
+        row-gap: 4px;
+        padding: 12px 4px;
+        border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .mypage-list-table td {
+        display: block;
+        padding: 0;
+        border: none;
+        font-size: 12px;
+        color: var(--muted-foreground);
+    }
+
+    /* 1줄: 제목 (전체 폭) */
+    .mypage-list-table td.article-title {
+        flex: 0 0 100%;
+        order: 0;
+        font-size: 14px;
+    }
+
+    /* 2줄: 게시판 · 조회 · 댓글 · 작성일 */
+    .mypage-list-table td.board-name { order: 1; }
+    .mypage-list-table td.meta { order: 2; }
+
+    /* 헤더가 사라지므로 숫자 메타에 라벨 부착(조회/댓글) */
+    .mypage-list-table td.meta[data-label]::before {
+        content: attr(data-label) ' ';
+    }
+
+    /* 빈 상태 */
+    .mypage-list-table .empty-row {
+        display: block;
+    }
+
+    .mypage-list-table .empty-row td {
+        text-align: center;
+        padding: 30px 0;
+        font-size: 14px;
+    }
+}

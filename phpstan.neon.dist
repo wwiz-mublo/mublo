@@ -1,0 +1,28 @@
+parameters:
+    # 전 범위를 얕게 보는 게이트. "부르는데 없는" 클래스·인터페이스·메서드를
+    # 잡고 오탐이 0 건이다. 뷰와 아직 정리되지 않은 패키지까지 포함한다.
+    #
+    # 깊게 보는 두 번째 게이트는 phpstan-strict.neon.dist 에 있다(level 3,
+    # 코어·Board·Shop·플러그인). 범위를 넓힐 때는 그쪽 paths 를 늘린다.
+    #
+    # 뷰는 extract() 로 변수를 주입받아 level 1 이상에서 대량 오탐을 낸다.
+    # 다만 뷰에도 실제 호출이 있으므로 이 게이트에서는 빼지 않는다.
+    level: 0
+
+    paths:
+        - src
+        - packages
+        - plugins
+
+    # 경로 상수는 bootstrap.php 가 런타임에 define() 한다. 분석은 그 실행을 보지
+    # 못하므로 이름과 타입만 선언한 스텁을 읽힌다(실행되지 않는다).
+    scanFiles:
+        - tools/phpstan/constants.php
+
+    # 패턴은 디렉토리가 아니라 파일에 매칭된다. 끝에 /* 가 없으면 하위 파일이
+    # 걸러지지 않는다 — 실제로 packages/*/tests 는 아무것도 제외하지 못했고,
+    # level 2 기준 671건 중 581건이 테스트의 mock ->method() 호출이었다.
+    excludePaths:
+        analyseAndScan:
+            - packages/*/tests/*
+            - plugins/*/tests/*

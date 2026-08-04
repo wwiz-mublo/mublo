@@ -1,0 +1,64 @@
+/**
+ * Block Skin: movie/basic
+ * 동영상 기본 스킨 스타일
+ */
+
+.block-movie-basic {
+    width: 100%;
+}
+
+.block-movie-basic .block-header {
+    margin-bottom: 15px;
+}
+
+.block-movie-basic .block-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.block-movie-basic .block-content {
+    width: 100%;
+}
+
+/* 16:9 비율 유지하는 비디오 래퍼 */
+.block-movie-basic .video-wrapper {
+    position: relative;
+    width: 100%;
+    padding-bottom: 56.25%; /* 16:9 */
+    height: 0;
+    overflow: hidden;
+}
+
+.block-movie-basic .video-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.block-movie-basic .block-video {
+    max-width: 100%;
+    height: auto;
+    display: block;
+}
+
+.block-movie-basic .block-empty {
+    text-align: center;
+    padding: 40px 20px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    color: #6c757d;
+}
+
+.block-movie-basic .block-empty i {
+    font-size: 3rem;
+    margin-bottom: 10px;
+    display: block;
+}
+
+.block-movie-basic .block-empty p {
+    margin: 0;
+    font-size: 0.875rem;
+}

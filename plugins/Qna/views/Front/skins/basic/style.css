@@ -1,0 +1,220 @@
+/* ============================================================
+   QnA basic 스킨 — 프론트(문의자)
+   사이트 테마 디자인 토큰(var(--primary) 등)을 그대로 쓰고,
+   모바일 우선 + @media(min-width:768px) 로 확장한다. (FAQ 스킨 컨벤션)
+   ============================================================ */
+.qna-page { max-width: 960px; margin: 0 auto; }
+
+/* 헤더 (FAQ 스킨과 동일한 중앙 정렬) */
+.qna-page__header { text-align: center; margin-bottom: 20px; }
+@media (min-width: 768px) { .qna-page__header { margin-bottom: 28px; } }
+.qna-page__title-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; margin-bottom: 4px; }
+.qna-page__icon { font-size: 26px; line-height: 1; color: var(--primary); }
+@media (min-width: 768px) { .qna-page__icon { font-size: 34px; } }
+.qna-page__title { font-size: 22px; font-weight: 700; color: var(--foreground); margin: 0; }
+@media (min-width: 768px) { .qna-page__title { font-size: 30px; } }
+.qna-page__subtitle { font-size: 13px; color: var(--muted-foreground); margin: 0; }
+@media (min-width: 768px) { .qna-page__subtitle { font-size: 15px; } }
+
+/* 액션 버튼 행 (FAQ 카테고리 필터 자리) */
+.qna-actions { display: flex; justify-content: center; margin-bottom: 24px; }
+@media (min-width: 768px) { .qna-actions { margin-bottom: 32px; } }
+
+/* 버튼 (FAQ 카테고리 필터와 동일 지오메트리) */
+.qna-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    padding: 6px 12px; border: 1px solid transparent; border-radius: 8px;
+    font-size: 12px; font-weight: 500; cursor: pointer;
+    text-decoration: none; white-space: nowrap; transition: all 0.2s;
+}
+@media (min-width: 768px) { .qna-btn { padding: 8px 16px; font-size: 14px; } }
+.qna-btn--primary { background: var(--primary); color: var(--primary-foreground); }
+.qna-btn--primary:hover { opacity: 0.9; color: var(--primary-foreground); text-decoration: none; }
+.qna-btn--ghost { background: transparent; color: var(--muted-foreground); border-color: var(--border); }
+.qna-btn--ghost:hover { background: var(--muted); color: var(--foreground); text-decoration: none; }
+.qna-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* 카드 */
+.qna-card {
+    background: var(--card); border: 1px solid var(--border-subtle);
+    border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+@media (min-width: 768px) { .qna-card { border-radius: 16px; } }
+
+/* 상태 배지 */
+.qna-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: var(--radius-full);
+    font-size: 11px; font-weight: 700; line-height: 1.5; white-space: nowrap;
+}
+@media (min-width: 768px) { .qna-badge { font-size: 12px; } }
+.qna-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.qna-badge--warning   { background: var(--warning-subtle); color: var(--warning-subtle-foreground); }
+.qna-badge--success   { background: var(--success-subtle); color: var(--success-subtle-foreground); }
+.qna-badge--secondary { background: var(--muted); color: var(--muted-foreground); }
+.qna-badge--info      { background: var(--info-subtle); color: var(--info-subtle-foreground); }
+
+/* ============================================================
+   목록 (List) — div 기반 테이블형(게시판식)
+   ============================================================ */
+.qna-table {
+    background: var(--card); border: 1px solid var(--border-subtle);
+    border-radius: 12px; overflow: hidden;
+}
+@media (min-width: 768px) { .qna-table { border-radius: 16px; } }
+
+.qna-table__head, .qna-table__row {
+    display: grid;
+    grid-template-columns: 78px minmax(0, 1fr) 92px;
+    align-items: center; gap: 12px; padding: 11px 14px;
+}
+@media (min-width: 768px) {
+    .qna-table__head, .qna-table__row { grid-template-columns: 96px minmax(0, 1fr) 110px; padding: 13px 20px; }
+}
+.qna-table__head {
+    background: var(--muted); border-bottom: 1px solid var(--border-subtle);
+    font-size: 12px; font-weight: 700; color: var(--muted-foreground);
+}
+.qna-table__head .qna-table__col-date { text-align: right; }
+
+.qna-table__row {
+    border-bottom: 1px solid var(--border-subtle);
+    text-decoration: none; color: var(--foreground); transition: background 0.15s;
+}
+.qna-table__row:last-child { border-bottom: 0; }
+.qna-table__row:hover { background: var(--muted); text-decoration: none; }
+
+.qna-table__status { display: flex; }
+.qna-table__title { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: 14px; font-weight: 600; }
+@media (min-width: 768px) { .qna-table__title { font-size: 15px; } }
+.qna-table__lock { color: var(--muted-foreground); font-size: 0.9em; flex: none; }
+.qna-table__subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qna-table__count {
+    flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0 6px;
+    border-radius: var(--radius-full); background: var(--primary);
+    color: var(--primary-foreground); font-size: 11px; font-weight: 700;
+}
+.qna-table__date { font-size: 12px; color: var(--muted-foreground); text-align: right; white-space: nowrap; }
+@media (min-width: 768px) { .qna-table__date { font-size: 13px; } }
+
+/* 빈 상태 */
+.qna-empty { text-align: center; padding: 60px 20px; color: var(--muted-foreground); font-size: 15px; }
+
+/* 페이지네이션 */
+.qna-pager { display: flex; justify-content: center; gap: 6px; margin-top: 24px; }
+.qna-pager a {
+    min-width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+    padding: 0 8px; border-radius: 10px; font-size: 13px; font-weight: 600;
+    color: var(--muted-foreground); border: 1px solid var(--border);
+    background: var(--card); text-decoration: none; transition: all 0.15s;
+}
+.qna-pager a:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
+.qna-pager .is-active { background: var(--primary); border-color: var(--primary); color: var(--primary-foreground); }
+.qna-pager .is-disabled { opacity: 0.4; pointer-events: none; }
+
+/* ============================================================
+   작성 (Write)
+   ============================================================ */
+.qna-form { padding: 20px; }
+@media (min-width: 768px) { .qna-form { padding: 28px; } }
+.qna-field { margin-bottom: 20px; }
+.qna-field:last-of-type { margin-bottom: 0; }
+.qna-field__label { display: block; margin-bottom: 8px; font-size: 13px; font-weight: 700; color: var(--foreground); }
+.qna-field__hint { margin-left: 6px; font-weight: 500; color: var(--muted-foreground); font-size: 12px; }
+
+.qna-input, .qna-textarea {
+    width: 100%; padding: 11px 14px; border: 1px solid var(--input);
+    border-radius: var(--radius); background: var(--background); color: var(--foreground);
+    font: inherit; font-size: 14px; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.qna-input::placeholder, .qna-textarea::placeholder { color: var(--muted-foreground); }
+.qna-input:focus, .qna-textarea:focus { outline: none; border-color: var(--ring); }
+.qna-textarea { resize: vertical; min-height: 160px; line-height: 1.6; }
+
+/* 파일 첨부 */
+.qna-uploader input[type="file"] { display: none; }
+.qna-uploader__btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px;
+    border: 1px dashed var(--border); border-radius: var(--radius);
+    background: var(--muted); color: var(--muted-foreground);
+    font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+}
+.qna-uploader__btn:hover { border-color: var(--primary); color: var(--primary); }
+
+.qna-chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 0; padding: 0; list-style: none; }
+.qna-chips:empty { margin: 0; }
+.qna-chip {
+    display: inline-flex; align-items: center; gap: 7px; max-width: 100%;
+    padding: 5px 6px 5px 12px; border-radius: var(--radius-full);
+    background: var(--muted); color: var(--foreground); font-size: 12px; font-weight: 600;
+}
+.qna-chip__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qna-chip__x {
+    display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px;
+    border: 0; border-radius: 50%; background: var(--border); color: var(--muted-foreground);
+    font-size: 13px; line-height: 1; cursor: pointer; transition: all 0.15s;
+}
+.qna-chip__x:hover { background: var(--destructive); color: var(--destructive-foreground); }
+
+.qna-form__actions { display: flex; gap: 8px; justify-content: center; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-subtle); }
+
+/* ============================================================
+   상세 & 스레드 (Show)
+   ============================================================ */
+.qna-back { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 14px; color: var(--muted-foreground); font-size: 13px; font-weight: 600; text-decoration: none; }
+.qna-back:hover { color: var(--primary); text-decoration: none; }
+
+.qna-detail { padding: 20px; margin-bottom: 20px; }
+@media (min-width: 768px) { .qna-detail { padding: 28px; } }
+.qna-detail__top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.qna-detail__delete {
+    margin-left: auto; padding: 0; border: 0; background: none; cursor: pointer;
+    color: var(--muted-foreground); font-size: 13px; text-decoration: underline; text-underline-offset: 3px;
+}
+.qna-detail__delete:hover { color: var(--destructive); }
+.qna-detail__delete:disabled { opacity: 0.55; cursor: not-allowed; }
+.qna-detail__title { margin: 12px 0 6px; font-size: 19px; font-weight: 700; color: var(--foreground); }
+@media (min-width: 768px) { .qna-detail__title { font-size: 22px; } }
+.qna-detail__meta { display: inline-flex; align-items: center; gap: 5px; color: var(--muted-foreground); font-size: 13px; }
+.qna-content { margin-top: 16px; color: var(--foreground); font-size: 14px; line-height: 1.75; word-break: break-word; }
+@media (min-width: 768px) { .qna-content { font-size: 15px; } }
+.qna-content img { max-width: 100%; height: auto; border-radius: 8px; }
+.qna-content p { margin: 0 0 12px; }
+
+/* 스레드(답변) 타임라인 */
+.qna-thread-title { display: flex; align-items: center; gap: 6px; margin: 0 4px 14px; font-size: 14px; font-weight: 700; color: var(--muted-foreground); }
+.qna-thread-title__count { color: var(--primary); }
+.qna-thread { display: flex; flex-direction: column; gap: 14px; }
+.qna-msg { display: flex; gap: 12px; align-items: flex-start; }
+.qna-msg__avatar { flex: none; width: 38px; height: 38px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 16px; background: var(--muted); color: var(--muted-foreground); }
+.qna-msg__body { flex: 1; min-width: 0; }
+.qna-msg__head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.qna-msg__author { font-size: 13px; font-weight: 700; color: var(--foreground); }
+.qna-msg__date { font-size: 12px; color: var(--muted-foreground); }
+.qna-msg__bubble { padding: 14px 16px; border-radius: 4px 14px 14px 14px; background: var(--card); border: 1px solid var(--border-subtle); }
+.qna-msg__bubble .qna-content { margin-top: 0; }
+
+/* 운영자 답변 강조 */
+.qna-msg--admin .qna-msg__avatar { background: var(--primary); color: var(--primary-foreground); }
+.qna-msg--admin .qna-msg__author { color: var(--primary); }
+.qna-msg--admin .qna-msg__bubble { background: var(--accent); border-color: var(--border); }
+
+/* 첨부 다운로드 목록 */
+.qna-files { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.qna-files li { max-width: 100%; }
+.qna-files a { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; padding: 7px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); color: var(--foreground); font-size: 12px; font-weight: 600; text-decoration: none; transition: all 0.15s; }
+.qna-files a:hover { border-color: var(--primary); color: var(--primary); text-decoration: none; }
+.qna-files__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 답변 작성 폼 */
+.qna-composer { padding: 18px 20px 20px; }
+@media (min-width: 768px) { .qna-composer { padding: 20px 28px 24px; } }
+.qna-composer__title { margin: 0 0 12px; font-size: 14px; font-weight: 700; color: var(--foreground); }
+.qna-composer .qna-textarea { min-height: 110px; }
+.qna-composer__bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; }
+
+/* 반응형 */
+@media (max-width: 520px) {
+    .qna-form__actions { flex-direction: column-reverse; }
+    .qna-form__actions .qna-btn { width: 100%; }
+}

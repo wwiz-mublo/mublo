@@ -1,0 +1,139 @@
+/**
+ * Block Skin: outlogin/basic
+ * 디자인 토큰 소비(폴백 포함) — 라이트/다크 자동 대응.
+ */
+
+.block-outlogin--basic .block-outlogin__content {
+    padding: 16px;
+    background: var(--muted, #f8f9fa);
+    border-radius: 10px;
+}
+
+/* 로그인 상태 */
+.block-outlogin--basic .block-outlogin__info {
+    text-align: center;
+    margin-bottom: 14px;
+    font-size: 0.875rem;
+    color: var(--muted-foreground, #495057);
+}
+
+.block-outlogin--basic .block-outlogin__name {
+    font-weight: 600;
+    color: var(--foreground, #212529);
+}
+
+.block-outlogin--basic .block-outlogin__level {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 2px 8px;
+    font-size: 0.7rem;
+    background: var(--secondary, #e9ecef);
+    border-radius: 10px;
+    color: var(--secondary-foreground, #6c757d);
+    vertical-align: middle;
+}
+
+.block-outlogin--basic .block-outlogin__buttons {
+    display: flex;
+    gap: 8px;
+}
+
+/* 공용 버튼 */
+.block-outlogin--basic .block-outlogin__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    text-align: center;
+    transition: background-color 0.2s, border-color 0.2s, color 0.2s, opacity 0.2s, transform 0.2s;
+}
+
+.block-outlogin--basic .block-outlogin__btn--profile {
+    background: var(--primary, #0d6efd);
+    color: var(--primary-foreground, #fff);
+}
+.block-outlogin--basic .block-outlogin__btn--profile:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+.block-outlogin--basic .block-outlogin__btn--logout {
+    background: var(--card, #fff);
+    color: var(--foreground, #495057);
+    border-color: var(--border, #dee2e6);
+}
+.block-outlogin--basic .block-outlogin__btn--logout:hover {
+    background: var(--muted, #f8f9fa);
+    transform: translateY(-1px);
+}
+
+/* 로그인 폼 */
+.block-outlogin--basic .block-outlogin__field {
+    margin-bottom: 8px;
+}
+
+.block-outlogin--basic .block-outlogin__input {
+    width: 100%;
+    padding: 9px 12px;
+    font-size: 0.8125rem;
+    color: var(--foreground, #212529);
+    border: 1px solid var(--input, #dee2e6);
+    border-radius: 8px;
+    background: var(--card, #fff);
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+.block-outlogin--basic .block-outlogin__input::placeholder {
+    color: var(--muted-foreground, #6c757d);
+}
+.block-outlogin--basic .block-outlogin__input:focus {
+    border-color: var(--ring, #86b7fe);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring, #0d6efd) 18%, transparent);
+}
+
+.block-outlogin--basic .block-outlogin__btn--login {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 4px;
+    background: var(--primary, #0d6efd);
+    color: var(--primary-foreground, #fff);
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+.block-outlogin--basic .block-outlogin__btn--login:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+}
+
+/* 주입된 소셜 로그인 버튼(.btn-sns)을 위젯 로그인 버튼과 동일 라운딩·크기로 정렬
+   (전역 .btn-sns는 auth 페이지 등 공용이라 위젯 스코프에서만 오버라이드) */
+.block-outlogin--basic .btn-sns {
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+}
+
+.block-outlogin--basic .block-outlogin__links {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 0.75rem;
+}
+
+.block-outlogin--basic .block-outlogin__link {
+    color: var(--muted-foreground, #6c757d);
+    text-decoration: none;
+    transition: color 0.15s;
+}
+.block-outlogin--basic .block-outlogin__link:hover {
+    color: var(--primary, #0d6efd);
+}

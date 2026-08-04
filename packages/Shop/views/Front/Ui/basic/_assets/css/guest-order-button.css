@@ -1,0 +1,34 @@
+/* 비회원 주문 버튼 (Ui/GuestOrderButton) 스타일 */
+
+    .guest-checkout-section {
+        margin-top: 20px;
+        text-align: center;
+    }
+
+    .guest-checkout-desc {
+        margin-bottom: 12px;
+        font-size: 14px;
+        color: var(--muted-foreground);
+    }
+
+    .guest-checkout-btn {
+        display: block;
+        width: 100%;
+        padding: 9px 12px;
+        font-size: 14px;
+        font-weight: 500;
+        line-height: 1.5;
+        color: var(--primary);
+        background: var(--card);
+        border: 1px solid var(--primary);
+        border-radius: var(--radius-lg);
+        text-decoration: none;
+        box-sizing: border-box;
+        text-align: center;
+        transition: background-color 0.15s, color 0.15s;
+    }
+
+    .guest-checkout-btn:hover {
+        background: var(--primary);
+        color: var(--primary-foreground);
+    }

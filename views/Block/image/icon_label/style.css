@@ -1,0 +1,105 @@
+/*
+ * Block Skin: image/icon_label — 아이콘 + 제목
+ *
+ * 열 배치는 mublo-item-layout(block.css)이 이미 하고 있다. 여기서는
+ * 한 칸 안의 모양 — 원형 썸네일과 그 아래 글자 — 만 책임진다.
+ * 색 리터럴 없이 상속과 투명도만 쓴다.
+ */
+
+.icon-label {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.icon-label__item {
+    text-align: center;
+}
+
+.icon-label__link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 원본이 세로로 길든 가로로 넓든 정사각으로 잘라 원형으로 깎는다.
+   여러 개가 한 줄에 설 때 크기가 제각각이면 목록이 아니라 흩어진
+   그림처럼 보인다. max-width 는 열이 적을 때 원이 과하게 커지는 걸 막는다. */
+.icon-label__thumb {
+    display: block;
+    width: 100%;
+    max-width: 120px;
+    margin: 0 auto;
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    border-radius: 50%;
+}
+
+.icon-label__thumb picture,
+.icon-label__thumb img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.icon-label__text {
+    display: block;
+    margin-top: 12px;
+}
+
+.icon-label__title {
+    display: block;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    line-height: 1.35;
+    word-break: keep-all;
+}
+
+.icon-label__desc {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+    opacity: 0.65;
+    word-break: keep-all;
+}
+
+/* 누를 수 있는 자리라는 걸 손이 먼저 알게 한다. */
+@media (hover: hover) {
+    .icon-label__link:hover .icon-label__thumb {
+        transform: translateY(-2px);
+    }
+
+    .icon-label__thumb {
+        transition: transform 0.18s ease;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .icon-label__thumb {
+        transition: none;
+    }
+
+    .icon-label__link:hover .icon-label__thumb {
+        transform: none;
+    }
+}
+
+@media (max-width: 767.98px) {
+    .icon-label__thumb {
+        max-width: 84px;
+    }
+
+    .icon-label__text {
+        margin-top: 8px;
+    }
+
+    .icon-label__title {
+        font-size: 0.8125rem;
+    }
+
+    .icon-label__desc {
+        font-size: 0.75rem;
+    }
+}

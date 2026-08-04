@@ -1,0 +1,144 @@
+@charset "utf-8";
+
+/* Theme Select */
+.theme-select {}
+
+/* Theme Switch */
+.theme-switch {
+  --ts-switch-border-color: var(--bs-border-color);
+  --ts-switch-padding: 3px;
+  --ts-switch-button-size: 32px;
+  --ts-switch-button-svg-size: 50%;
+  --ts-switch-button-color: var(--bs-tertiary-color);
+  --ts-switch-button-hover-color: var(--bs-emphasis-color);
+  --ts-switch-button-hover-bg: transparent;
+  --ts-switch-button-active-color: var(--bs-emphasis-color);
+  --ts-switch-button-active-bg: var(--bs-secondary-bg);
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--ts-switch-padding);
+  border-radius: 50rem;
+  background: none;
+  border: 1px solid var(--ts-switch-border-color);
+}
+.theme-switch-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  width: var(--ts-switch-button-size);
+  height: var(--ts-switch-button-size);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 0;
+  background: none;
+  line-height: 1;
+  color: var(--ts-switch-button-color);
+}
+.theme-switch-button:hover {
+  color: var(--ts-switch-button-hover-color);
+  background-color: var(--ts-switch-button-hover-bg);
+}
+.theme-switch-button.active {
+  color: var(--ts-switch-button-active-color);
+  background-color: var(--ts-switch-button-active-bg);
+}
+.theme-switch-button svg {
+  width: var(--ts-switch-button-svg-size);
+  height: var(--ts-switch-button-svg-size);
+  aspect-ratio: 1 / 1;
+}
+.theme-switch.theme-switch-small {
+  --ts-switch-padding: 2px;
+  --ts-switch-button-size: 24px;
+}
+.theme-switch.theme-switch-large {
+  --ts-switch-padding: 4px;
+  --ts-switch-button-size: 48px;
+}
+.theme-switch.theme-switch-white {
+  --ts-switch-border-color: rgba(0, 0, 0, 0.375);
+  --ts-switch-button-color: rgba(0, 0, 0, 0.5);
+  --ts-switch-button-hover-color: rgba(0, 0, 0, 0.75);
+  --ts-switch-button-active-color: rgba(255, 255, 255, 1);
+  --ts-switch-button-active-bg: rgba(0, 0, 0, 0.375);
+}
+.theme-switch.theme-switch-black {
+  --ts-switch-border-color: rgba(255, 255, 255, 0.125);
+  --ts-switch-button-color: rgba(255, 255, 255, 0.5);
+  --ts-switch-button-hover-color: rgba(255, 255, 255, 0.75);
+  --ts-switch-button-active-color: rgba(255, 255, 255, 1);
+  --ts-switch-button-active-bg: rgba(0, 0, 0, 0.375);
+}
+
+/* Theme Toggle */
+.theme-toggle {
+  --ts-toggle-border-color: var(--bs-border-color);
+  --ts-toggle-padding: 3px;
+  --ts-toggle-button-size: 32px;
+  --ts-toggle-button-svg-size: 50%;
+  --ts-toggle-button-color: var(--bs-tertiary-color);
+  --ts-toggle-button-hover-color: var(--bs-emphasis-color);
+  --ts-toggle-button-hover-bg: transparent;
+  --ts-toggle-button-active-color: var(--bs-emphasis-color);
+  --ts-toggle-button-active-bg: var(--bs-secondary-bg);
+  position: relative;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--ts-toggle-padding);
+  border-radius: 50rem;
+  background: none;
+  border: 1px solid var(--ts-toggle-border-color);
+}
+.theme-toggle-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+  width: var(--ts-toggle-button-size);
+  height: var(--ts-toggle-button-size);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  border: 0;
+  background: none;
+  line-height: 1;
+  color: var(--ts-toggle-button-color);
+}
+.theme-toggle-button:hover {
+  color: var(--ts-toggle-button-hover-color);
+  background-color: var(--ts-toggle-button-hover-bg);
+}
+.theme-toggle-button.active {
+  color: var(--ts-toggle-button-active-color);
+  background-color: var(--ts-toggle-button-active-bg);
+}
+.theme-toggle-button svg {
+  width: var(--ts-toggle-button-svg-size);
+  height: var(--ts-toggle-button-svg-size);
+  aspect-ratio: 1 / 1;
+}
+.theme-toggle.theme-toggle-small {
+  --ts-toggle-padding: 2px;
+  --ts-toggle-button-size: 24px;
+}
+.theme-toggle.theme-toggle-large {
+  --ts-toggle-padding: 4px;
+  --ts-toggle-button-size: 48px;
+}
+.theme-toggle.theme-toggle-white {
+  --ts-toggle-border-color: rgba(0, 0, 0, 0.375);
+  --ts-toggle-button-color: rgba(0, 0, 0, 0.5);
+  --ts-toggle-button-hover-color: rgba(0, 0, 0, 0.75);
+  --ts-toggle-button-active-color: rgba(255, 255, 255, 1);
+  --ts-toggle-button-active-bg: rgba(0, 0, 0, 0.375);
+}
+.theme-toggle.theme-toggle-black {
+  --ts-toggle-border-color: rgba(255, 255, 255, 0.125);
+  --ts-toggle-button-color: rgba(255, 255, 255, 0.5);
+  --ts-toggle-button-hover-color: rgba(255, 255, 255, 0.75);
+  --ts-toggle-button-active-color: rgba(255, 255, 255, 1);
+  --ts-toggle-button-active-bg: rgba(0, 0, 0, 0.375);
+}

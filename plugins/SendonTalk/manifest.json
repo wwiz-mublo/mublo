@@ -1,0 +1,15 @@
+{
+    "name": "SendonTalk",
+    "label": "센드온 알림톡",
+    "description": "센드온 API를 통한 카카오 알림톡 발송 플러그인",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "messaging",
+    "icon": "bi-chat-dots",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

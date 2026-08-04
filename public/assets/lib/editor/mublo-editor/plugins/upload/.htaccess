@@ -1,0 +1,7 @@
+# 업로드된 파일에 대한 PHP 실행 방지
+<FilesMatch "\.(php|phtml|php3|php4|php5|phps)$">
+    Deny from all
+</FilesMatch>
+
+# uploads 디렉토리에서 디렉토리 목록 비활성화
+Options -Indexes

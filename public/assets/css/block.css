@@ -1,0 +1,642 @@
+/**
+ * Block System CSS
+ *
+ * 블록 렌더링 기본 스타일
+ */
+
+/* ===================================
+   Block Section (행)
+   =================================== */
+.block-section {
+    position: relative;
+}
+
+.block-section--wide {
+    /* 와이드: 전체 너비 */
+}
+
+/* ===================================
+   Block Container
+   =================================== */
+.block-container {
+    /* 기본은 '최대넓이(contained)' — 프레임과 동일 토큰 공유로 헤더/푸터/본문/블록 정렬 단일화.
+       코어 전역 스타일이라 스킨 변수 부재 시(에디터/미리보기) 폴백 제공.
+       블록 레벨 div 라 width 기본값 auto 가 부모 폭을 채운다(명시 불필요).
+       좌우 거터는 컨테이너가 갖지 않는다 — 일반 경로는 프레임(.mublo-content)이 전담하고,
+       프레임이 거터를 포기하는 풀블리드(.mublo-content--wide) 경로에서만 프레임 CSS가 스코프로 부여한다. */
+    max-width: var(--content-max-width, 1200px);
+    margin: 0 auto;
+}
+
+.block-container--wide {
+    max-width: none;
+}
+
+/* ===================================
+   Block Row (칸들의 래퍼)
+   =================================== */
+.block-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+}
+
+/* ===================================
+   Block Column (칸)
+   =================================== */
+.block-column {
+    box-sizing: border-box;
+    min-height: 1px;
+    min-width: 0; /* flex item 축소 허용 (Swiper 등 내부 콘텐츠 폭 제한) */
+}
+
+/* 미설치 확장·미지정 콘텐츠의 구조적 빈 슬롯 */
+.block-column--empty {
+    min-height: 48px;
+}
+
+/* 스택 항목 단위 빈 슬롯 — 정상 콘텐츠 사이에 낀 미설치·빈 항목도 접히지 않게
+   (칸 전체가 비지 않으면 block-column--empty 가 적용되지 않는다) */
+.block-content-item--empty {
+    min-height: 48px;
+}
+
+@media (max-width: 767.98px) {
+    .block-column--empty {
+        min-height: 32px;
+    }
+
+    .block-content-item--empty {
+        min-height: 32px;
+    }
+}
+
+/* ===================================
+   Block Title (제목 영역)
+   =================================== */
+.block-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 15px;
+    column-gap: 10px;
+    row-gap: 2px;
+}
+
+.block-title--left {
+    justify-content: flex-start;
+}
+
+.block-title--center {
+    justify-content: center;
+    text-align: center;
+}
+
+.block-title--right {
+    justify-content: flex-end;
+    text-align: right;
+}
+
+/* 색상·크기는 CSS 변수로 받는다.
+   스킨은 `--title-color` / `--title-size-pc` 를 재정의해 기본값을 바꾸고,
+   관리자 설정값은 인라인 변수로 들어와 스킨 기본값을 이긴다. */
+.block-title__text {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin: 0;
+    font-size: var(--title-size-pc, 18px);
+    font-weight: 600;
+    color: var(--title-color, inherit);
+}
+
+/* 더보기 — 제목줄 오른쪽 끝 고정, 제목보다 작은 글자 */
+.block-title__more {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: #666;
+    font-size: 12px;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.block-title__more:hover {
+    color: #333;
+    text-decoration: underline;
+}
+
+.block-title__copytext {
+    width: 100%;
+    margin: 0;
+    font-size: var(--copytext-size-pc, 14px);
+    color: var(--copytext-color, #666);
+}
+
+/* 문구 위치 개별 오버라이드 (미지정 시 제목 정렬 상속) */
+.block-title__copytext--left {
+    text-align: left;
+}
+
+.block-title__copytext--center {
+    text-align: center;
+}
+
+.block-title__copytext--right {
+    text-align: right;
+}
+
+.block-title__image {
+    line-height: 0;
+}
+
+.block-title__img {
+    max-width: 100%;
+    height: auto;
+}
+
+.block-title__img--mo {
+    display: none;
+}
+
+/* ===================================
+   Block Content (콘텐츠 영역)
+   =================================== */
+.block-content {
+    /* 개별 콘텐츠 타입별 스타일 적용 */
+}
+
+/* ===================================
+   Block Body (본문 영역)
+   ───────────────────────────────────
+   칸(column)의 내부 여백은 제목 영역을 제외한 본문 영역에만 적용된다.
+   각 스킨은 본문 div 에 .block-body 클래스를 부여하고, padding 자체는
+   BlockRenderService 가 칸별로 동적 <style> 블록을 출력해서 적용한다.
+   (selector 형식: #bc-{columnId} .block-body { padding: ... })
+   따라서 본문 div 에 인라인 style 도 없고, column inline style 에도
+   padding 관련 정보가 들어가지 않는다.
+   =================================== */
+
+/* ===================================
+   Board Block (게시판 최신글)
+   → 게시판이 패키지(Board)로 분리되며 스타일은 스킨 css로 이관 완료:
+     packages/Board/views/Block/board/{skin}/style.css (스킨 루트로 스코프)
+   게시판이 코어이던 시절의 잔재라 여기서 제거함.
+   =================================== */
+
+/* ===================================
+   BoardGroup Block (게시판 그룹)
+   → 게시판이 패키지(Board)로 분리되며 스타일은 스킨 css로 이관 완료:
+     packages/Board/views/Block/boardgroup/{skin}/style.css (스킨 루트로 스코프)
+   게시판이 코어이던 시절의 잔재라 여기서 제거함.
+   =================================== */
+
+/* ===================================
+   Image Block
+   =================================== */
+.block-image {
+    display: block;
+    width: 100%;
+}
+
+.block-image__img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.block-image__link {
+    display: block;
+}
+
+/* 이미지 캡션 — 운영자가 제목·설명을 넣었을 때만 마크업이 생긴다.
+   둘 다 비면 이 규칙이 걸릴 요소 자체가 없어 기존 화면은 그대로다. */
+.block-image__caption {
+    display: block;
+    margin-top: 10px;
+}
+
+.block-image__title {
+    display: block;
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.block-image__desc {
+    display: block;
+    margin-top: 4px;
+    font-size: 0.875em;
+    line-height: 1.5;
+    opacity: 0.72;
+}
+
+/* 링크가 캡션까지 감쌀 때 글자에 밑줄·파란색이 오는 걸 막는다.
+   눌리는 건 카드 전체지만 보이는 건 그냥 사진과 글자여야 한다. */
+.block-image__link .block-image__caption {
+    color: inherit;
+    text-decoration: none;
+}
+
+/* 슬라이드 고정 높이 + 캡션: 이미지가 남는 높이를 먹고 글자는 아래에 남는다.
+   (:has 미지원 브라우저는 캡션이 잘릴 뿐 레이아웃이 깨지지는 않는다) */
+.mublo-item-layout.has-fixed-height .block-image__link:has(> .block-image__caption) {
+    display: flex;
+    flex-direction: column;
+}
+
+.mublo-item-layout.has-fixed-height .block-image__link:has(> .block-image__caption) .block-image__img,
+.mublo-item-layout.has-fixed-height .block-image__link:has(> .block-image__caption) .block-image__picture {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+/* ===================================
+   MubloItemLayout — 공용 아이템 레이아웃
+   (블록 공통 List 그리드 / Slide 컨테이너. 프레임 무관 컴포넌트라
+    front.css(테마)에서 이관. 테마 변수 의존 없음.)
+   =================================== */
+.mublo-item-layout > ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* JS 초기화 전에도 운영자가 선택한 PC/MO 숨김을 즉시 적용한다. */
+@media (min-width: 768px) {
+    .mublo-item-layout[data-pc-style="none"] { display: none; }
+}
+@media (max-width: 767.98px) {
+    .mublo-item-layout[data-mo-style="none"] { display: none; }
+}
+.mublo-item-layout.is-hidden { display: none !important; }
+.mublo-item-layout.is-list,
+.mublo-item-layout.is-slide { display: block; }
+
+/* List 모드: CSS Grid
+   매칭을 .is-list(JS가 초기화 시 부여) 대신 :not(.is-slide) 로 한다.
+   → JS 초기화 전(클래스 미부여 상태)에도 그리드가 즉시 적용되어,
+     이미지가 전폭으로 떴다가 나중에 정렬되는 FOUC 깜빡임이 없다.
+   → 슬라이드는 .is-slide 가 부여되는 순간 제외되어 Swiper 로 전환된다. */
+.mublo-item-layout:not(.is-slide) > ul {
+    display: grid;
+    gap: 1rem;
+}
+
+/* PC 열 수 (관리자 UI: 1~12 + 자동) */
+.mublo-item-layout:not(.is-slide)[data-pc-cols="1"] > ul { grid-template-columns: 1fr; }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="2"] > ul { grid-template-columns: repeat(2, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="3"] > ul { grid-template-columns: repeat(3, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="4"] > ul { grid-template-columns: repeat(4, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="5"] > ul { grid-template-columns: repeat(5, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="6"] > ul { grid-template-columns: repeat(6, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="7"] > ul { grid-template-columns: repeat(7, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="8"] > ul { grid-template-columns: repeat(8, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="9"] > ul { grid-template-columns: repeat(9, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="10"] > ul { grid-template-columns: repeat(10, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="11"] > ul { grid-template-columns: repeat(11, 1fr); }
+.mublo-item-layout:not(.is-slide)[data-pc-cols="12"] > ul { grid-template-columns: repeat(12, 1fr); }
+/* 자동: 칸 폭에 맞춰 채울 수 있는 만큼 자동 배치 */
+.mublo-item-layout:not(.is-slide)[data-pc-cols="auto"] > ul { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+
+/* Mobile 열 수 (관리자 UI: 1~12 + 자동) */
+@media (max-width: 767.98px) {
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="1"] > ul { grid-template-columns: 1fr; }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="2"] > ul { grid-template-columns: repeat(2, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="3"] > ul { grid-template-columns: repeat(3, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="4"] > ul { grid-template-columns: repeat(4, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="5"] > ul { grid-template-columns: repeat(5, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="6"] > ul { grid-template-columns: repeat(6, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="7"] > ul { grid-template-columns: repeat(7, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="8"] > ul { grid-template-columns: repeat(8, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="9"] > ul { grid-template-columns: repeat(9, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="10"] > ul { grid-template-columns: repeat(10, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="11"] > ul { grid-template-columns: repeat(11, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="12"] > ul { grid-template-columns: repeat(12, 1fr); }
+    .mublo-item-layout:not(.is-slide)[data-mo-cols="auto"] > ul { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+}
+
+/* data-breakpoint를 768 이외로 쓰는 고급 스킨은 JS 모드 클래스가 열 수를 보정한다. */
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="1"] > ul { grid-template-columns: 1fr; }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="2"] > ul { grid-template-columns: repeat(2, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="3"] > ul { grid-template-columns: repeat(3, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="4"] > ul { grid-template-columns: repeat(4, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="5"] > ul { grid-template-columns: repeat(5, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="6"] > ul { grid-template-columns: repeat(6, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="7"] > ul { grid-template-columns: repeat(7, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="8"] > ul { grid-template-columns: repeat(8, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="9"] > ul { grid-template-columns: repeat(9, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="10"] > ul { grid-template-columns: repeat(10, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="11"] > ul { grid-template-columns: repeat(11, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="12"] > ul { grid-template-columns: repeat(12, 1fr); }
+.mublo-item-layout.is-pc-layout:not(.is-slide)[data-pc-cols="auto"] > ul { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="1"] > ul { grid-template-columns: 1fr; }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="2"] > ul { grid-template-columns: repeat(2, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="3"] > ul { grid-template-columns: repeat(3, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="4"] > ul { grid-template-columns: repeat(4, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="5"] > ul { grid-template-columns: repeat(5, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="6"] > ul { grid-template-columns: repeat(6, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="7"] > ul { grid-template-columns: repeat(7, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="8"] > ul { grid-template-columns: repeat(8, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="9"] > ul { grid-template-columns: repeat(9, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="10"] > ul { grid-template-columns: repeat(10, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="11"] > ul { grid-template-columns: repeat(11, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="12"] > ul { grid-template-columns: repeat(12, 1fr); }
+.mublo-item-layout.is-mobile-layout:not(.is-slide)[data-mo-cols="auto"] > ul { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+
+/* Slide 모드: 컨테이너에 overflow 제어 (Swiper CDN CSS 로드 전 보호) */
+.mublo-item-layout.is-slide {
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+}
+
+/* 슬라이드 고정 높이 모드: 세로 고정 + 가로 cover 크롭 */
+.mublo-item-layout.has-fixed-height .swiper-slide {
+    height: var(--slide-height);
+    overflow: hidden;
+}
+
+.mublo-item-layout.has-fixed-height .block-image__img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.mublo-item-layout.has-fixed-height .block-image__picture {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.mublo-item-layout.has-fixed-height .block-image__link {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* ===================================
+   Movie Block (동영상)
+   =================================== */
+.block-movie {
+    width: 100%;
+}
+
+.block-movie__content {
+    position: relative;
+    width: 100%;
+    overflow: hidden;
+}
+
+.block-movie__iframe,
+.block-movie__video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}
+
+.block-movie__video {
+    object-fit: cover;
+}
+
+/* ===================================
+   Outlogin Block (로그인 위젯)
+   → 스킨 css로 이관 완료: views/Block/outlogin/{skin}/style.css (스킨 루트로 스코프, 토큰 소비).
+   코어 block.css의 하드코딩 잔재(바깥 카드+옛 클래스)는 스킨과 이중 래핑을
+   일으켜 제거함 (Board/BoardGroup 선례 동일).
+   =================================== */
+
+/* ===================================
+   Menu Block
+   =================================== */
+.block-menu__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.block-menu--horizontal .block-menu__list--depth1 {
+    display: flex;
+    gap: 5px;
+}
+
+.block-menu--vertical .block-menu__list--depth1 {
+    flex-direction: column;
+}
+
+.block-menu__item {
+    position: relative;
+}
+
+.block-menu__link {
+    display: block;
+    padding: 10px 15px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.block-menu__link:hover {
+    background-color: #f5f5f5;
+}
+
+.block-menu__item--has-children > .block-menu__list {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 150px;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.block-menu--vertical .block-menu__item--has-children > .block-menu__list {
+    position: static;
+    box-shadow: none;
+    padding-left: 15px;
+}
+
+.block-menu__item--has-children:hover > .block-menu__list {
+    display: block;
+}
+
+/* ===================================
+   Responsive (Mobile)
+   =================================== */
+@media (max-width: 767.98px) {
+    .block-row {
+        flex-direction: column;
+    }
+
+    .block-column {
+        width: 100% !important;
+        flex: none !important;
+    }
+
+    .block-title__text {
+        font-size: var(--title-size-mo, 16px);
+    }
+
+    .block-title__copytext {
+        font-size: var(--copytext-size-mo, 12px);
+    }
+
+    .block-title__img--pc {
+        display: none;
+    }
+
+    .block-title__img--mo {
+        display: inline;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    [data-aos] {
+        opacity: 1 !important;
+        transform: none !important;
+        transition: none !important;
+    }
+}
+
+/* ===================================
+   Preview (미리보기)
+   =================================== */
+.block-preview {
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    background: #fafafa;
+    min-height: 100px;
+}
+
+.block-preview--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    color: #999;
+}
+
+.block-preview__placeholder {
+    background: linear-gradient(135deg, #f5f5f5 0%, #e5e5e5 100%);
+    border: 1px dashed #ccc;
+    border-radius: 4px;
+    padding: 20px;
+    text-align: center;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+}
+
+.block-preview__type {
+    font-weight: 600;
+    font-size: 14px;
+    color: #333;
+    text-transform: uppercase;
+}
+
+.block-preview__meta {
+    display: flex;
+    gap: 10px;
+    font-size: 12px;
+    color: #666;
+}
+
+.block-preview__kind {
+    padding: 2px 6px;
+    background: #e5e5e5;
+    border-radius: 3px;
+}
+
+.block-preview__count {
+    color: #999;
+}
+
+/* Preview Frame in Modal */
+.preview-frame {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    min-height: 200px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+/* ── 블록 상태 플레이스홀더 (코어) ─────────────────────────
+   콘텐츠를 못 그리는 칸의 안내 박스.
+   - 스킨 없음: SkinRendererTrait::renderSkinNotFound()
+   - 콘텐츠 타입 미지정: BlockRenderService::renderTypePlaceholder()
+   board 블록 빈 상태와 동일 톤(점선 박스 + 아이콘 + 연한 글자).
+   칸(.block-column)이 행 높이만큼 늘어나므로 height:100% 로 칸 영역을 채운다. */
+.block-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    height: 100%;
+    min-height: 100px;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.block-placeholder__icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}
+
+/* 오류 톤 (스킨 없음 등) */
+.block-placeholder--error {
+    color: color-mix(in srgb, var(--destructive, #e8552d) 75%, transparent);
+    border-color: color-mix(in srgb, var(--destructive, #e8552d) 40%, transparent);
+}
+
+/* ── 빈 콘텐츠 (renderEmptyContent) ─────────────────────────
+   SkinRendererTrait::renderEmptyContent() 가 출력하는 .block-empty 의 글로벌 fallback.
+   지금까지 스킨별 정의만 있어서, 그 셋에 속하지 않는 렌더러(BoardRenderer 등)가
+   renderEmptyContent() 를 반환하면 스타일 없이 노출됐다.
+   스킨은 .block-{type}-{skin} .block-empty 로 재정의할 수 있다. */
+.block-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 80px;
+    padding: 20px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+    text-align: center;
+}
+
+.block-empty p {
+    margin: 0;
+}
+
+/* ── 에디터 생성 콘텐츠 (MubloEditor / BlockHtmlEditor) ─────────
+   에디터의 동영상 삽입은 클래스만 붙은 래퍼를 저장한다 — 인라인 스타일로는
+   반응형 16:9 를 만들 수 없기 때문(새니타이저가 position 을 모든 프로파일에서
+   차단). 에디터 안에서는 MubloEditor.css 가 스타일하지만 프론트에는 그 파일이
+   없으므로, 저장된 콘텐츠가 렌더되는 모든 프론트 화면(HTML 블록·게시판 본문)을
+   위해 같은 규칙을 여기에 둔다. */
+.mublo-editor-video-wrapper {
+    position: relative;
+    padding-bottom: 56.25%;
+    height: 0;
+    overflow: hidden;
+    max-width: 100%;
+    margin: 1rem 0;
+}
+
+.mublo-editor-video-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+}

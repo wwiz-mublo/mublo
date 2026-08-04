@@ -1,0 +1,29 @@
+# 좁은 범위에 높은 레벨을 얹는 두 번째 게이트.
+#
+# phpstan.neon.dist 의 level 0 은 전 범위를 얕게 본다. 이 파일은 반대로,
+# 정리가 끝난 범위만 깊게 본다. level 2 부터 "아무 객체에나 없는 메서드 호출"을
+# 잡는데, 실제로 그 종류의 fatal 이 여럿 있었다.
+#
+# 범위를 넓히는 방법: 아래 paths 에 디렉토리를 추가하고 0건이 될 때까지 고친다.
+# 베이스라인은 두지 않는다 — 오탐 창고가 되면 아무도 보지 않는다.
+
+parameters:
+    level: 3
+
+    paths:
+        - src
+        - packages/Board
+        - packages/Shop
+        - plugins
+
+    scanFiles:
+        - tools/phpstan/constants.php
+
+    excludePaths:
+        analyseAndScan:
+            # 뷰는 extract() 로 변수를 주입받아 level 1 이상에서 대량 오탐을 낸다.
+            - views/*
+            - packages/*/views/*
+            - plugins/*/views/*
+            - packages/*/tests/*
+            - plugins/*/tests/*

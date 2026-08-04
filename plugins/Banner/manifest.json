@@ -1,0 +1,15 @@
+{
+    "name": "Banner",
+    "label": "배너",
+    "description": "배너 관리 플러그인",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "content",
+    "icon": "bi-images",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

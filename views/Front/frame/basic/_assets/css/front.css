@@ -1,0 +1,1304 @@
+/**
+ * Mublo Front High-end Skin - CSS
+ * 기존 레이아웃 시스템 스타일 통합 버전
+ */
+
+/* ========================================
+   CSS Variables
+   ======================================== */
+/* 프레임 로컬 변수 = 코어 토큰(tokens.css) semantic 에 rebind.
+   → 이 파일의 모든 셀렉터가 자동으로 토큰 기반 + 다크 대응이 된다.
+   값 하드코딩 금지: 색은 semantic, 레이아웃 폭/거터만 프레임 구조 기본값. */
+:root {
+    color-scheme: light;
+    --color-primary:       var(--primary);
+    --color-primary-hover: var(--primary);          /* hover는 .btn--primary:hover 에서 opacity 처리 */
+    --color-secondary:     var(--secondary-foreground);
+    --color-text:          var(--foreground);
+    --color-text-muted:    var(--muted-foreground);
+    --color-bg:            var(--background);
+    --color-bg-secondary:  var(--muted);
+    --color-border:        var(--border);
+
+    /* 레이아웃 — 프레임 구조 기본값(도메인 설정이 Head.php에서 override) */
+    --site-max-width: none;
+    --content-max-width: var(--site-max-width);
+    --header-height: 64px;
+    --sidebar-left-width: 250px;
+    --sidebar-right-width: 250px;
+    /* 콘텐츠 거터(상하/좌우) — .mublo-content 가 단일 책임자.
+       가장자리 안전 여백(범퍼) 역할의 대칭 고정값. 화면 크기에 따라 줄이지 않음.
+       페이지 단위에서 줄이려면 이 변수만 덮어쓰면 된다. */
+    --content-gutter-x: 16px;
+    --content-gutter-y: 16px;
+}
+
+/* 다크모드: 네이티브 컨트롤/스크롤바도 다크로 (semantic 색은 tokens.css가 반전) */
+.dark,
+[data-theme="dark"] {
+    color-scheme: dark;
+}
+
+/* ========================================
+   Reset & Base
+   ======================================== */
+*, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+html {
+    font-size: 16px;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-sans);
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    line-height: 1.5;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+input, textarea, select, button, optgroup {
+    font-family: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+img {
+    max-width: 100%;
+    height: auto;
+}
+
+/* 스크린리더 전용 (visually hidden) */
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* ========================================================================
+   Components (구 components.css 흡수 — 프레임스킨 소유 디자인 프리미티브)
+
+   디자인 토큰(tokens.css·코어) 위에 얹는 폼/버튼/알림 기본 컴포넌트.
+   부트스트랩 의존/호환 클래스는 폐기하고 자체 어휘(BEM 모디파이어)를 쓴다.
+
+   ★ 스킨 소유 (frame/basic 의 _assets). 새 스킨은 basic 복사로 이 파일까지
+     복제 → 스킨마다 자유 수정. 코어로 올리지 말 것(값/팔레트 tokens.css만 코어 공유).
+   Head 로드: tokens(코어) → front.css(스킨, 이 컴포넌트 포함). 토큰이 항상 먼저.
+
+   [어휘]
+     버튼  : .btn  + .btn--primary/secondary/outline/ghost/danger  + .btn--sm/lg/block
+     폼    : .field(.field__label/__help/__error)
+             .input · .select · .textarea · .checkbox · .radio · .input-group
+     알림  : .alert + .alert--success/danger/warning/info
+
+   [규율] 색·반경 등은 토큰만 소비 → semantic 토큰 위에서 동작 → 다크 자동.
+   ======================================================================== */
+
+/* ========================================
+   Button
+   ======================================== */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+.btn:disabled,
+.btn.is-disabled {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.btn--primary {
+    background: var(--primary);
+    color: var(--primary-foreground);
+}
+.btn--primary:hover { opacity: 0.9; }
+
+.btn--secondary {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+}
+/* secondary 는 자체가 옅은 표면 → hover 는 foreground 쪽으로 살짝 (다크/라이트 양방향) */
+.btn--secondary:hover {
+    background: color-mix(in srgb, var(--secondary) 90%, var(--foreground));
+}
+
+.btn--outline {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--foreground);
+}
+.btn--outline:hover { background: var(--muted); }
+
+.btn--ghost {
+    background: transparent;
+    color: var(--foreground);
+}
+.btn--ghost:hover { background: var(--muted); }
+
+.btn--danger {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+}
+.btn--danger:hover { opacity: 0.9; }
+
+.btn--sm { padding: 0.3rem 0.75rem; font-size: 0.8125rem; }
+.btn--lg { padding: 0.65rem 1.5rem; font-size: 1rem; }
+.btn--block { display: flex; width: 100%; }
+
+/* ========================================
+   Form — field & controls
+   ======================================== */
+.field { margin-bottom: 1rem; }
+.field__label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--foreground);
+}
+.field__help {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+}
+.field__error {
+    margin-top: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--destructive);
+}
+
+.input,
+.select,
+.textarea {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+.input::placeholder,
+.textarea::placeholder { color: var(--muted-foreground); }
+
+.input:focus,
+.select:focus,
+.textarea:focus {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+.input:disabled,
+.select:disabled,
+.textarea:disabled {
+    background: var(--muted);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.textarea { min-height: 80px; resize: vertical; }
+
+/* select — 네이티브 화살표 제거 + 자체 chevron */
+.select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 2rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    background-size: 1rem;
+}
+
+/* checkbox / radio — 인라인 라벨 래퍼 */
+.checkbox,
+.radio {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--foreground);
+    cursor: pointer;
+}
+.checkbox input,
+.radio input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* input-group — 붙은 컨트롤 + 버튼 */
+.input-group { display: flex; align-items: stretch; }
+.input-group > .input {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+.input-group > .btn {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+/* ========================================
+   Alert
+   ======================================== */
+.alert {
+    padding: 0.75rem 1rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+}
+.alert--success {
+    background: var(--success-subtle);
+    color: var(--success-subtle-foreground);
+    border-color: var(--success-subtle-border);
+}
+.alert--danger {
+    background: var(--danger-subtle);
+    color: var(--danger-subtle-foreground);
+    border-color: var(--danger-subtle-border);
+}
+.alert--warning {
+    background: var(--warning-subtle);
+    color: var(--warning-subtle-foreground);
+    border-color: var(--warning-subtle-border);
+}
+.alert--info {
+    background: var(--info-subtle);
+    color: var(--info-subtle-foreground);
+    border-color: var(--info-subtle-border);
+}
+
+
+/* ========================================
+   Layout
+   ======================================== */
+.mublo-container {
+    max-width: var(--site-max-width);
+    margin: 0 auto;
+    /* 좌우 거터는 .mublo-content 와 동일 토큰 공유 — 헤더/푸터/본문 정렬 단일화 */
+    padding: 0 var(--content-gutter-x);
+    width: 100%;
+}
+
+.mublo-content {
+    max-width: var(--content-max-width);
+    margin: 0 auto;
+    padding: var(--content-gutter-y) var(--content-gutter-x);
+    width: 100%;
+}
+
+/* 거터 escape hatch */
+.mublo-content--wide { max-width: none; padding: 0; }
+
+/* 풀블리드 문맥에선 프레임이 거터를 포기(padding:0)하므로, 안쪽 블록 컨테이너가 좌우 거터를 책임진다.
+   → 섹션 배경은 여전히 edge-to-edge, 최대넓이(contained) 행 콘텐츠만 안전 여백 안으로 인셋.
+   일반 .mublo-content 경로에선 프레임이 거터 전담이라 이 규칙이 안 걸림 → 이중패딩 없음.
+   와이드 행(.block-container--wide)은 의도적 edge-to-edge 이므로 제외한다. */
+.mublo-content--wide .block-container:not(.block-container--wide) {
+    padding-inline: var(--content-gutter-x);
+}
+.mublo-content--flush { padding: 0; }
+.mublo-content--flush-y { padding-block: 0; }
+.mublo-content--flush-x { padding-inline: 0; }
+
+.mublo-main {
+    flex: 1;
+    position: relative;
+    /* 푸터(.mublo-footer, z-index:1)보다 위. 둘 다 1 이면 문서 순서상 뒤인 푸터가
+       이겨서, 본문 안의 position:fixed 요소(상세 하단 구매/계산 바 등)가 페이지
+       맨 아래에서 푸터에 가려진다. 본문과 푸터는 흐름상 겹치지 않으므로
+       올려도 레이아웃 변화는 없다. */
+    z-index: 2;
+}
+
+.mublo-layout {
+    display: flex;
+    gap: 2rem;
+}
+
+.mublo-layout__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.mublo-layout__sidebar--left {
+    width: var(--sidebar-left-width);
+    flex-shrink: 0;
+}
+
+.mublo-layout__sidebar--right {
+    width: var(--sidebar-right-width);
+    flex-shrink: 0;
+}
+
+/* ========================================
+   Header
+   ======================================== */
+.mublo-header {
+    height: var(--header-height);
+    background: color-mix(in srgb, var(--background) 92%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--color-border);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+}
+
+.mublo-header__inner {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    width: 100%;
+}
+
+/* 로고 */
+.mublo-header__logo {
+    flex-shrink: 0;
+}
+.mublo-header__logo .logo-link {
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    text-transform: uppercase;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+}
+.mublo-header__logo .logo-img {
+    max-height: 40px;
+    width: auto;
+    display: block;
+}
+.mublo-header__logo .logo-pc { display: block; }
+.mublo-header__logo .logo-mobile { display: none; }
+
+/* GNB */
+.mublo-header__nav {
+    flex: 1;
+    min-width: 0;
+}
+.mublo-header__nav .mublo-menu__list--depth-1 {
+    display: flex;
+    list-style: none;
+    gap: 0.25rem;
+}
+
+/* 검색 */
+.mublo-header__search {
+    flex-shrink: 0;
+}
+.header-search-form {
+    display: flex;
+    align-items: center;
+    padding: 0 0.375rem;            /* pill 양끝 안쪽 여백 */
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    overflow: hidden;
+    background: transparent;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+.header-search-form:focus-within {
+    border-color: var(--color-primary);
+    background: var(--color-bg-secondary);   /* 포커스 시 보더 강조에 맞춰 옅은 배경 */
+}
+.header-search-input {
+    border: none;
+    background: transparent;
+    padding: 0.35rem 0.75rem;
+    font-size: 0.85rem;
+    width: 140px;
+    outline: none;
+    color: var(--color-text);
+}
+.header-search-btn {
+    border: none;
+    background: transparent;
+    padding: 0.35rem 0.65rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+}
+.header-search-btn:hover {
+    color: var(--color-primary);
+}
+
+/* 유틸리티 메뉴 (PC) */
+.mublo-header__utility {
+    display: flex;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+.mublo-header__utility li a {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    white-space: nowrap;
+    color: var(--color-text);
+    transition: color 0.15s;
+}
+.mublo-header__utility li a:hover {
+    color: var(--color-primary);
+}
+.mublo-header__utility li a i {
+    font-size: 1rem;
+}
+
+.mublo-header__notifications {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    flex-shrink: 0;
+    color: var(--color-text);
+    border-radius: 50%;
+}
+.mublo-header__notifications:hover { background: var(--color-bg-secondary); color: var(--color-primary); }
+.mublo-header__notifications i { font-size: 1.05rem; }
+.mublo-header__notification-badge {
+    position: absolute;
+    top: -0.15rem;
+    right: -0.25rem;
+    min-width: 1.1rem;
+    height: 1.1rem;
+    padding: 0 0.25rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid var(--background);
+    border-radius: 999px;
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+    font-size: 0.625rem;
+    font-weight: 700;
+    line-height: 1;
+}
+
+/* 모바일 토글 */
+.mublo-header__toggle {
+    display: none;
+    flex-direction: column;
+    gap: 5px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    flex-shrink: 0;
+}
+.mublo-header__toggle .line {
+    width: 22px;
+    height: 2px;
+    background: var(--color-text);
+    border-radius: 1px;
+}
+
+/* ========================================
+   모바일 패널 (Offcanvas)
+   ======================================== */
+/* 래퍼(aside): 열림 상태만 관리 — 실제 표시는 자식(dialog/backdrop)이 담당.
+   자식이 position:fixed 라 래퍼 자체는 레이아웃에 영향 없음. */
+.mublo-panel {
+    display: contents;
+}
+/* 슬라이드 드로어 */
+.mublo-panel__dialog {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 300px;
+    height: 100%;
+    background: var(--color-bg, #fff);
+    z-index: 2000;
+    transform: translateX(-100%);
+    transition: transform 0.3s ease;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+.mublo-panel.is-open .mublo-panel__dialog {
+    transform: translateX(0);
+}
+.mublo-panel__backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    z-index: 1999;
+}
+.mublo-panel.is-open .mublo-panel__backdrop {
+    display: block;
+}
+.mublo-panel__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: var(--header-height);
+    flex-shrink: 0;
+    padding: 0 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+}
+.mublo-panel__title {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+.mublo-panel__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    color: var(--color-text);
+    padding: 0;
+}
+.mublo-panel__body {
+    padding: 1rem 1.25rem;
+}
+
+/* 패널 검색 */
+.mublo-panel__search {
+    margin-bottom: 1.25rem;
+}
+.panel-search-form {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--color-bg-secondary, #f5f5f5);
+}
+.panel-search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    outline: none;
+    color: var(--color-text);
+}
+.panel-search-btn {
+    border: none;
+    background: transparent;
+    padding: 0.5rem 0.75rem;
+    cursor: pointer;
+    color: var(--color-text-muted);
+    display: flex;
+    align-items: center;
+}
+
+/* 패널 GNB (세로) */
+.mublo-panel__nav {
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.5rem;
+}
+.mublo-panel__nav .mublo-menu__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.mublo-panel__nav .mublo-menu__list--depth-1 {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+}
+.mublo-panel__nav .mublo-menu__link {
+    display: block;
+    text-decoration: none;
+    transition: color 0.15s, background-color 0.15s;
+    /* 패널은 폭이 좁으므로 긴 라벨은 줄바꿈 (가로 튀어나감 방지) */
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+/* depth-1은 flex(라벨+화살표) — 라벨이 줄어들며 줄바꿈되도록 */
+.mublo-panel__nav .mublo-menu__link--depth-1 .mublo-menu__label {
+    min-width: 0;
+}
+.mublo-panel__nav .mublo-menu__link--depth-1 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--color-text);
+    border-radius: 0.375rem;
+}
+.mublo-panel__nav .mublo-menu__link--depth-1:hover {
+    background: var(--color-bg-secondary, #f5f5f5);
+    color: var(--color-primary);
+}
+.mublo-panel__nav .mublo-menu__item--active > .mublo-menu__link--depth-1 {
+    color: var(--color-primary);
+    background: var(--color-bg-secondary, #f5f5f5);
+}
+/* 패널: 하위메뉴 화살표 → 아래 방향, 우측 중앙 */
+.mublo-panel__nav .mublo-menu__item--has-children > .mublo-menu__link--depth-1::after {
+    content: '';
+    display: inline-block;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-right: 1.5px solid var(--color-text-muted);
+    border-bottom: 1.5px solid var(--color-text-muted);
+    transform: rotate(45deg);
+    margin-top: -0.125rem;
+    flex-shrink: 0;
+}
+.mublo-panel__nav .mublo-menu__list--depth-2 {
+    position: static;
+    display: block;
+    box-shadow: none;
+    border: none;
+    background: none;
+    padding: 0 0 0.25rem 1rem;
+    min-width: auto;
+}
+.mublo-panel__nav .mublo-menu__link--depth-2 {
+    font-size: 0.875rem;
+    font-weight: 400;
+    padding: 0.4rem 0.75rem;
+    color: var(--color-text-muted);
+    border-radius: 0.25rem;
+}
+.mublo-panel__nav .mublo-menu__link--depth-2:hover {
+    color: var(--color-primary);
+    background: var(--color-bg-secondary, #f5f5f5);
+}
+.mublo-panel__nav .mublo-menu__item--active > .mublo-menu__link--depth-2 {
+    color: var(--color-primary);
+}
+.mublo-panel__nav .mublo-menu__list--depth-3 {
+    position: static;
+    display: block;
+    box-shadow: none;
+    border: none;
+    background: none;
+    padding: 0 0 0 1.5rem;
+    min-width: auto;
+}
+.mublo-panel__nav .mublo-menu__link--depth-3 {
+    font-size: 0.8125rem;
+    padding: 0.35rem 0.75rem;
+    color: var(--color-text-muted);
+}
+.mublo-panel__nav .mublo-menu__link--depth-3:hover {
+    color: var(--color-primary);
+}
+
+/* 패널 유틸리티 */
+.mublo-panel__utility {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+.mublo-panel__utility-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    border-radius: 0.375rem;
+    transition: color 0.15s, background-color 0.15s;
+}
+.mublo-panel__utility-link:hover {
+    color: var(--color-primary);
+    background: var(--color-bg-secondary, #f5f5f5);
+}
+.mublo-panel__utility-link i {
+    font-size: 1rem;
+    width: 1.25rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+
+
+/* ========================================
+   Mublo Menu (Header Nav)
+   ======================================== */
+.mublo-menu__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+/* Depth 1: 가로 배열 */
+.mublo-menu__list--depth-1 {
+    display: flex;
+    align-items: center;
+    gap: 0.125rem;
+}
+
+.mublo-menu__link {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    color: var(--color-text);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.mublo-menu__link:hover {
+    text-decoration: none;
+}
+
+/* 링크 없는 메뉴(하위만 여는 부모 라벨) — 클릭 불가 */
+.mublo-menu__link--nolink {
+    cursor: default;
+}
+
+/* Depth 1 링크 */
+.mublo-menu__link--depth-1 {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    border-radius: 0.375rem;
+}
+
+.mublo-menu__link--depth-1:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-primary);
+}
+
+.mublo-menu__item--active > .mublo-menu__link--depth-1,
+.mublo-menu__item--ancestor > .mublo-menu__link--depth-1 {
+    color: var(--color-primary);
+    background-color: var(--color-bg-secondary);
+}
+
+/* 하위 메뉴 화살표 (depth 1) */
+.mublo-menu__item--has-children > .mublo-menu__link--depth-1::after {
+    content: '';
+    display: inline-block;
+    width: 0.375rem;
+    height: 0.375rem;
+    border-right: 1.5px solid var(--color-text-muted);
+    border-bottom: 1.5px solid var(--color-text-muted);
+    transform: rotate(45deg);
+    margin-top: -0.125rem;
+    margin-left: 0.125rem;
+}
+
+/* Depth 2: 드롭다운 */
+.mublo-menu__item--depth-1 {
+    position: relative;
+}
+
+.mublo-menu__list--depth-2 {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 180px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    box-shadow: var(--shadow-lg);
+    padding: 0.375rem;
+    z-index: 110;
+}
+
+.mublo-menu__item--depth-1:hover > .mublo-menu__list--depth-2 {
+    display: block;
+}
+
+/* 드롭다운 아이템 간 살짝 갭 — 활성/호버 pill이 겹쳐보이지 않게 */
+.mublo-menu__list--depth-2 > li + li,
+.mublo-menu__list--depth-3 > li + li {
+    margin-top: 2px;
+}
+
+.mublo-menu__link--depth-2 {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    display: flex;
+    justify-content: space-between;
+    border-radius: var(--radius-md);
+}
+
+.mublo-menu__link--depth-2:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-primary);
+}
+
+.mublo-menu__item--active > .mublo-menu__link--depth-2,
+.mublo-menu__item--ancestor > .mublo-menu__link--depth-2 {
+    color: var(--color-primary);
+    background-color: var(--color-bg-secondary);
+}
+
+/* 하위 메뉴 화살표 (depth 2) */
+.mublo-menu__item--has-children > .mublo-menu__link--depth-2::after {
+    content: '';
+    display: inline-block;
+    width: 0.3125rem;
+    height: 0.3125rem;
+    border-right: 1.5px solid var(--color-text-muted);
+    border-bottom: 1.5px solid var(--color-text-muted);
+    transform: rotate(-45deg);
+    flex-shrink: 0;
+    margin-left: 0.5rem;
+}
+
+/* Depth 3: 플라이아웃 (오른쪽) */
+.mublo-menu__item--depth-2 {
+    position: relative;
+}
+
+.mublo-menu__list--depth-3 {
+    display: none;
+    position: absolute;
+    top: -0.375rem;
+    left: 100%;
+    min-width: 160px;
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 0.5rem;
+    box-shadow: var(--shadow-lg);
+    padding: 0.375rem;
+    z-index: 120;
+}
+
+.mublo-menu__item--depth-2:hover > .mublo-menu__list--depth-3 {
+    display: block;
+}
+
+.mublo-menu__link--depth-3 {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    border-radius: var(--radius-md);
+}
+
+.mublo-menu__link--depth-3:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-primary);
+}
+
+.mublo-menu__item--active > .mublo-menu__link--depth-3,
+.mublo-menu__item--ancestor > .mublo-menu__link--depth-3 {
+    color: var(--color-primary);
+    background-color: var(--color-bg-secondary);
+}
+
+/* ========================================
+   Footer
+   ======================================== */
+/* 푸터 = 밝은 표면(semantic) → 다크모드 자동 반전.
+   내부 디바이더 라인 없이 그룹·여백·위계로만 구분(오밀조밀).
+   페이지↔푸터 풀폭 경계선(border-top)만 유지. */
+.mublo-footer {
+    position: relative;
+    z-index: 1;
+    background: var(--background);
+    color: var(--muted-foreground);
+    /* 헤더의 full-width border-bottom 과 대칭 — 페이지↔푸터 경계선(뷰포트 꽉참) */
+    border-top: 1px solid var(--border);
+    padding: 20px 0;
+    margin-top: auto;
+}
+.mublo-footer .mublo-container {
+    max-width: var(--content-max-width);
+    /* 섹션 간격은 여기서 일괄 관리 — 각 섹션의 margin 대신 grid gap.
+       footer-top이 조건부 미렌더여도 존재하는 자식 사이에만 간격이 적용된다. */
+    display: grid;
+    gap: 12px;
+}
+
+/* 상단 유틸바: 푸터 메뉴(좌) + SNS(우) 한 줄 */
+.footer-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px 24px;
+}
+.footer-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 16px;
+}
+.footer-nav a {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--foreground);          /* 메뉴는 또렷하게 — 라인 없이도 그룹 구분 */
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s;
+}
+.footer-nav a:hover { color: var(--primary); }
+
+/* SNS 아이콘 (상단 우측) */
+.footer-sns {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.footer-sns-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.footer-sns-btn svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+}
+/* 호버: 백엔드에서 내려오는 채널 색(--sns-color)을 아이콘 색으로 */
+.footer-sns-btn:hover {
+    color: var(--sns-color, var(--primary));
+}
+
+/* 본문: 브랜드+회사정보(좌) / 고객센터(우) — 촘촘하게 */
+.footer-body {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 32px;
+}
+.footer-company { flex: 1; min-width: 0; }
+.footer-support {
+    flex-shrink: 0;
+    text-align: right;
+}
+
+/* 브랜드 행 = 로고/사이트명 + SNS(우측). 고객센터 번호와 여백(4px) 통일 */
+.footer-brand-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 4px;
+}
+/* 로고/브랜드 — 고객센터 번호(.footer-cs-tel)와 크기 통일 */
+.footer-brand { margin-bottom: 0; }
+.footer-logo { display: inline-block; }
+.footer-logo img { max-height: 24px; max-width: 160px; }
+.footer-logo-text {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--foreground);
+    text-decoration: none;
+}
+
+/* 회사 정보 (왼쪽) — 줄단위 그룹, 촘촘하게 */
+/* 회사 정보 — 전 항목 단일 flex 흐름(라벨이 구분자), 폭에 맞춰 자동 줄바꿈(모바일 안전) */
+.footer-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 14px;
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+}
+.footer-info em {
+    font-style: normal;
+    color: var(--muted-foreground);
+    opacity: 0.7;
+    margin-right: 3px;
+}
+.footer-info span { white-space: nowrap; }
+.footer-info a {
+    color: var(--muted-foreground);
+    text-decoration: none;
+}
+.footer-info a:hover { color: var(--foreground); }
+
+/* 고객센터 (오른쪽) */
+.footer-cs-tel {
+    display: block;
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--foreground);
+    text-decoration: none;
+    text-align: right;
+    letter-spacing: -0.02em;
+    margin-bottom: 4px;
+}
+.footer-cs-tel:hover { color: var(--foreground); }
+.footer-cs-time {
+    font-size: 0.8rem;
+    color: var(--muted-foreground);
+    line-height: 1.55;
+    text-align: right;
+}
+.footer-ict-mark { margin-top: 8px; }
+
+/* 하단 바 — 카피라이트(좌) + 테마 스위치(우). 라인 없이 여백으로만 구분 */
+.footer-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.footer-copy {
+    font-size: 0.775rem;
+    color: var(--muted-foreground);
+    opacity: 0.85;
+    margin: 0;
+    margin-top: 4px; /* .footer-info 아이템 세로 간격(row-gap)과 동일 */
+}
+
+/* 반응형 */
+@media (max-width: 767.98px) {
+    .mublo-footer { text-align: center; }
+
+    /* 상단: 메뉴 중앙 */
+    .footer-top { justify-content: center; }
+    .footer-nav { justify-content: center; }
+
+    /* 본문: 세로 스택 + 중앙. 세로 갭 축소 */
+    .footer-body {
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+    }
+    /* 브랜드 행: SNS를 로고/사이트명 아래로 떨어뜨림(세로 중앙), 갭 축소 */
+    .footer-brand-row {
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+    .footer-sns { justify-content: center; }
+    .footer-company,
+    .footer-support { text-align: center; }
+    /* 회사정보는 브랜드/SNS 묶음과 좀 더 간격 */
+    .footer-info { justify-content: center; margin-top: 10px; }
+    .footer-cs-tel,
+    .footer-cs-time { text-align: center; }
+
+    /* 하단: 카피 + 테마 중앙 */
+    .footer-bar {
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+}
+
+/* ========================================
+   Page
+   ======================================== */
+.page-index__empty,
+.page-view__empty {
+    padding: 3rem 0;
+    text-align: center;
+    color: var(--color-text-muted);
+}
+
+/* ========================================
+   Block Section
+   ======================================== */
+.block-section {
+    padding: 0;
+}
+
+/* ========================================
+   Buttons → 위 Components 섹션(.btn / .btn--*). 스킨 오버라이드 필요 시에만 여기.
+   ======================================== */
+
+/* ========================================
+   Responsive
+   ======================================== */
+@media (max-width: 768px) {
+    .mublo-header__nav,
+    .mublo-header__search,
+    .mublo-header__utility {
+        display: none;
+    }
+
+    .mublo-header__toggle {
+        display: flex;
+    }
+
+    .mublo-header__inner {
+        justify-content: space-between;
+    }
+
+    .mublo-header__logo .logo-pc { display: none; }
+    .mublo-header__logo .logo-mobile { display: block; }
+
+    .mublo-layout {
+        flex-direction: column;
+    }
+
+    .mublo-layout__sidebar--left,
+    .mublo-layout__sidebar--right {
+        width: 100%;
+    }
+
+    .mublo-layout__sidebar--mobile-hidden {
+        display: none;
+    }
+}
+
+/* 모바일 토큰 일괄 조정 — 헤더 높이 (페이지에서 덮어쓰기 가능)
+   거터는 범퍼 고정값(16px)이라 화면 크기와 무관하게 동일 → 분기 불필요 */
+@media (max-width: 768px) {
+    :root {
+        --header-height: 56px;
+    }
+}
+
+/* ========================================
+   SNS 로그인 버튼 (SnsLogin 플러그인)
+   ======================================== */
+.sns-login-section { margin-top: 20px; }
+.sns-login-divider {
+    position: relative; text-align: center;
+    margin: 16px 0; color: var(--muted-foreground); font-size: 0.8rem;
+}
+.sns-login-divider::before, .sns-login-divider::after {
+    content: ''; position: absolute; top: 50%;
+    width: calc(50% - 24px); height: 1px; background: var(--border);
+}
+.sns-login-divider::before { left: 0; }
+.sns-login-divider::after  { right: 0; }
+.sns-login-buttons { display: flex; flex-direction: column; gap: 10px; }
+.btn-sns {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 10px 16px; border-radius: 6px;
+    font-size: 0.9rem; font-weight: 500; text-decoration: none;
+    border: 1px solid transparent; cursor: pointer; transition: opacity 0.15s;
+}
+.btn-sns:hover { opacity: 0.88; text-decoration: none; }
+.btn-sns--naver  { background: #03C75A; color: #fff; border-color: #03C75A; }
+.btn-sns--kakao  { background: #FEE500; color: #191919; border-color: #FEE500; }
+.btn-sns--google { background: #fff; color: #3c4043; border-color: #dadce0; }
+
+/* ========================================
+   테마 모드 컨트롤 (스킨 자체 소유)
+   우리 토큰·.dark 시스템에 바인딩 — theme.css/theme.js 의존 없음.
+   세그먼트형(.mublo-theme-switch)·단일토글형(.mublo-theme-toggle) 공용 룩,
+   마크업만 갈아끼우면 JS(Footer.php)는 공통 동작.
+
+   [사용법] 값: light | auto(시스템) | dark. 버튼 훅: data-theme-value.
+   아이콘 SVG는 자유(예: 해/모니터/달). 둘 중 하나를 배치:
+
+   · 세그먼트형(3버튼, 선택 모드 활성표시):
+       <div class="mublo-theme-switch is-small">
+         <button class="mublo-theme-switch__btn" data-theme-value="light"><svg…/></button>
+         <button class="mublo-theme-switch__btn" data-theme-value="auto"><svg…/></button>
+         <button class="mublo-theme-switch__btn" data-theme-value="dark"><svg…/></button>
+       </div>
+
+   · 단일토글형(light↔dark, 전환대상만 노출):
+       <div class="mublo-theme-toggle is-small">
+         <button class="mublo-theme-toggle__btn" data-theme-value="light"><svg…/></button>
+         <button class="mublo-theme-toggle__btn" data-theme-value="dark"><svg…/></button>
+       </div>
+
+   크기 변형: is-small / (기본) / is-large
+   ======================================== */
+.mublo-theme-switch,
+.mublo-theme-toggle {
+    --mts-border-color: var(--border);
+    --mts-padding: 3px;
+    --mts-button-size: 28px;
+    --mts-button-color: var(--muted-foreground);
+    --mts-button-hover-color: var(--foreground);
+    --mts-button-hover-bg: transparent;
+    --mts-button-active-color: var(--foreground);
+    --mts-button-active-bg: var(--muted);
+    position: relative;
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    padding: var(--mts-padding);
+    border: 1px solid var(--mts-border-color);
+    border-radius: 50rem;
+    background: none;
+    flex-shrink: 0;
+}
+.mublo-theme-switch__btn,
+.mublo-theme-toggle__btn {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    width: var(--mts-button-size);
+    aspect-ratio: 1 / 1;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: none;
+    line-height: 1;
+    color: var(--mts-button-color);
+    cursor: pointer;
+    transition: color 0.15s, background-color 0.15s;
+}
+.mublo-theme-switch__btn:hover,
+.mublo-theme-toggle__btn:hover {
+    color: var(--mts-button-hover-color);
+    background-color: var(--mts-button-hover-bg);
+}
+.mublo-theme-switch__btn.is-active,
+.mublo-theme-toggle__btn.is-active {
+    color: var(--mts-button-active-color);
+    background-color: var(--mts-button-active-bg);
+}
+.mublo-theme-switch__btn svg,
+.mublo-theme-toggle__btn svg {
+    width: 50%;
+    height: 50%;
+    aspect-ratio: 1 / 1;
+}
+/* 단일 토글: 전환대상 외 버튼 숨김 (세그먼트형에선 미사용) */
+.mublo-theme-switch__btn.is-hidden,
+.mublo-theme-toggle__btn.is-hidden { display: none; }
+
+/* 크기 변형 (관리자 컨벤션 동일) */
+.mublo-theme-switch.is-small,  .mublo-theme-toggle.is-small  { --mts-padding: 2px; --mts-button-size: 24px; }
+.mublo-theme-switch.is-large,  .mublo-theme-toggle.is-large  { --mts-padding: 4px; --mts-button-size: 48px; }

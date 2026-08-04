@@ -1,0 +1,15 @@
+{
+    "name": "TestPay",
+    "label": "테스트 결제",
+    "description": "개발/테스트용 가상 결제 플러그인. 모든 결제가 즉시 성공합니다.",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "payment",
+    "icon": "bi-credit-card",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

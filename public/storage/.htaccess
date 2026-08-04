@@ -1,0 +1,35 @@
+# public/storage — 업로드된 파일 전용. 절대 실행하거나 액티브 콘텐츠로 서빙하지 않는다.
+# 방어-심층화(defense-in-depth): 코어 업로드 정책을 우회해 위험 파일이 이곳에 편입되더라도
+# 스크립트 실행/인라인 HTML·SVG 실행이 일어나지 않도록 웹서버 레벨에서 한 번 더 막는다.
+
+# 1) 스크립트 엔진/핸들러 비활성화 (mod_php 계열)
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
+</IfModule>
+
+Options -ExecCGI -Indexes
+RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar .cgi .pl .py .jsp .asp .aspx .sh
+RemoveType .php .phtml .php3 .php4 .php5 .php7 .php8 .pht .phar
+
+# 2) MIME 스니핑 방지
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>
+
+# 3) 최종 안전장치: 실행/액티브 콘텐츠 확장자에 대한 직접 요청 차단
+#    (FPM/FastCGI 환경에서 RemoveHandler가 안 먹을 때도 확실히 막는 계층)
+<FilesMatch "\.(php[0-9]?|phtml|pht|phar|cgi|pl|py|jsp|asp|aspx|sh|htaccess|htpasswd|html?|xhtml|svg|xml)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

@@ -1,0 +1,230 @@
+/**
+ * 매뉴얼 공통 스타일
+ * - Core / Mshop / Front 매뉴얼에서 공용 사용
+ * - Bootstrap 5 CSS 변수 기반 (라이트/다크 모드 자동 대응)
+ */
+
+/* ==============================
+   TOC (Table of Contents)
+   ============================== */
+#manual-toc {
+    top: 80px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+}
+
+#manual-toc .toc-group-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--bs-secondary-color);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.5rem 1rem 0.25rem;
+    margin-top: 0.5rem;
+}
+
+#manual-toc .list-group-item {
+    padding: 0.35rem 1rem 0.35rem 1.5rem;
+    font-size: 0.85rem;
+    border: none;
+    background: transparent;
+    color: var(--bs-body-color);
+}
+
+#manual-toc .list-group-item:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+#manual-toc .list-group-item.active {
+    background-color: rgba(var(--bs-primary-rgb), 0.1);
+    color: var(--bs-primary);
+    font-weight: 600;
+    border-left: 3px solid var(--bs-primary);
+}
+
+/* ==============================
+   Section
+   ============================== */
+.manual-section {
+    padding-top: 1.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.manual-section:last-child {
+    border-bottom: none;
+}
+
+.manual-section h4 {
+    color: var(--bs-body-color);
+    margin-bottom: 1rem;
+}
+
+.manual-section h4 .badge {
+    font-size: 0.65rem;
+    vertical-align: middle;
+}
+
+/* ==============================
+   Field Table
+   ============================== */
+.field-table th {
+    width: 200px;
+    background: var(--bs-tertiary-bg);
+}
+
+.field-table td,
+.field-table th {
+    font-size: 0.875rem;
+    vertical-align: top;
+}
+
+/* ==============================
+   TIP / WARN Alert
+   ============================== */
+.manual-tip {
+    font-size: 0.875rem;
+    border-left: 4px solid var(--bs-info);
+    background: rgba(var(--bs-info-rgb), 0.1);
+    padding: 0.75rem 1rem;
+    margin-top: 1rem;
+    border-radius: 0.25rem;
+}
+
+.manual-warn {
+    font-size: 0.875rem;
+    border-left: 4px solid var(--bs-warning);
+    background: rgba(var(--bs-warning-rgb), 0.1);
+    padding: 0.75rem 1rem;
+    margin-top: 1rem;
+    border-radius: 0.25rem;
+}
+
+/* ==============================
+   Responsive
+   ============================== */
+
+/* 태블릿 이하: TOC 숨기고 콘텐츠 전체 폭 */
+@media (max-width: 991.98px) {
+    #manual-toc {
+        position: static !important;
+        max-height: none;
+        margin-bottom: 1.5rem;
+        border-bottom: 1px solid var(--bs-border-color);
+        padding-bottom: 1rem;
+    }
+
+    .field-table th {
+        width: 140px;
+    }
+}
+
+/* 모바일: 테이블 가독성 개선 */
+@media (max-width: 575.98px) {
+    .field-table th {
+        width: 100px;
+        font-size: 0.8rem;
+    }
+
+    .field-table td {
+        font-size: 0.8rem;
+    }
+
+    .manual-section h4 {
+        font-size: 1.1rem;
+    }
+
+    #manual-toc .list-group-item {
+        padding: 0.3rem 0.75rem 0.3rem 1rem;
+        font-size: 0.8rem;
+    }
+}
+
+/* ── 블록 구조도 (Core/Block 매뉴얼 페이지 전용) ───────────────── */
+.field-table th { width: 220px; }
+
+.zone-chip {
+    display: inline-block;
+    padding: 0.25rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+.zone-sub { background: rgba(var(--bs-primary-rgb), 0.15); color: var(--bs-primary); }
+.zone-side { background: rgba(var(--bs-warning-rgb), 0.15); color: var(--bs-warning-text-emphasis); }
+.zone-main { background: rgba(var(--bs-success-rgb), 0.15); color: var(--bs-success-text-emphasis); }
+.zone-content { background: var(--bs-tertiary-bg); }
+.zone-content-head { background: var(--bs-tertiary-bg); border: 1px dashed var(--bs-border-color); }
+.zone-content-body { background: var(--bs-body-bg); border: 1px solid var(--bs-border-color); }
+.zone-content-foot { background: var(--bs-tertiary-bg); border: 1px dashed var(--bs-border-color); }
+.zone-map { min-width: 300px; }
+.zone-map-box {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.5rem;
+    background: var(--bs-body-bg);
+    padding: 0.5rem;
+}
+.zone-map-row {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.4rem;
+    padding: 0.35rem 0.5rem;
+    margin-bottom: 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+.zone-map-grid {
+    display: grid;
+    grid-template-columns: 78px 1fr 78px;
+    gap: 0.35rem;
+    margin-bottom: 0.35rem;
+}
+.zone-map-side {
+    border: 1px solid rgba(var(--bs-warning-rgb), 0.4);
+    background: rgba(var(--bs-warning-rgb), 0.1);
+    border-radius: 0.4rem;
+    padding: 0.4rem 0.2rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.zone-map-center {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.4rem;
+    padding: 0.35rem;
+    background: var(--bs-tertiary-bg);
+}
+.zone-map-center .c-head {
+    border: 1px dashed var(--bs-border-color);
+    background: var(--bs-tertiary-bg);
+    border-radius: 0.35rem;
+    padding: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+.zone-map-center .c-body {
+    border: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+    border-radius: 0.35rem;
+    padding: 1.8rem 0.3rem;
+    min-height: 120px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+.zone-map-center .c-foot {
+    border: 1px dashed var(--bs-border-color);
+    background: var(--bs-tertiary-bg);
+    border-radius: 0.35rem;
+    padding: 0.3rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+@media (max-width: 991.98px) {
+    .zone-map { min-width: auto; }
+    .zone-map-grid { grid-template-columns: 60px 1fr 60px; }
+}
+@media (max-width: 575.98px) {
+    .zone-map-grid { grid-template-columns: 1fr; }
+    .zone-map-side { display: none; }
+}

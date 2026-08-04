@@ -1,0 +1,23 @@
+/* 내 문의 (Inquiry/MyInquiries) 스타일 */
+
+.my-inquiry-list { max-width: 720px; margin: 0 auto; }
+.my-inquiry-list__title { font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; }
+.my-inquiry-list__count { font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 20px; }
+.my-inquiry-item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+.my-inquiry-item__header { padding: 14px 20px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.my-inquiry-item__type { padding: 2px 8px; background: var(--muted); border-radius: 4px; font-size: 0.75rem; color: var(--muted-foreground); }
+.my-inquiry-item__title { flex: 1; font-size: 0.9rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-inquiry-item__badge-replied { padding: 2px 8px; background: var(--success-subtle); color: var(--success); border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.my-inquiry-item__badge-waiting { padding: 2px 8px; background: var(--warning-subtle); color: var(--warning); border-radius: 4px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+.my-inquiry-item__date { font-size: 0.8rem; color: var(--muted-foreground); white-space: nowrap; }
+.my-inquiry-item__body { display: none; padding: 16px 20px; border-top: 1px solid var(--border); background: var(--muted); }
+.my-inquiry-item__body.is-open { display: block; }
+.my-inquiry-item__product { font-size: 0.8rem; color: var(--primary); margin-bottom: 8px; }
+.my-inquiry-item__content { font-size: 0.9rem; color: var(--foreground); white-space: pre-line; }
+.my-inquiry-item__reply { margin-top: 12px; padding: 12px; background: var(--success-subtle); border-radius: 8px; border-left: 3px solid var(--success); }
+.my-inquiry-item__reply-label { font-size: 0.8rem; font-weight: 600; color: var(--success); margin-bottom: 4px; }
+.my-inquiry-item__reply-text { font-size: 0.85rem; color: var(--foreground); white-space: pre-line; }
+.my-inquiry-item__actions { margin-top: 10px; text-align: right; }
+.my-inquiry-item__delete { font-size: 0.8rem; color: var(--destructive); background: none; border: none; cursor: pointer; }
+.my-inquiry-list__empty { text-align: center; padding: 60px 16px; }
+.my-inquiry-list__empty p { color: var(--muted-foreground); }

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/Bootstrap.php"
+         colors="true"
+         stopOnFailure="false">
+
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+        <testsuite name="Integration">
+            <directory>tests/Integration</directory>
+        </testsuite>
+        <!--
+            기본 패키지 Board·Shop 을 기본 실행에 넣는다. 배선 스모크와
+            PHPStan strict 게이트도 같은 기준이다.
+
+            여기 없는 패키지는 경로를 직접 지정해 돌린다.
+                php vendor/bin/phpunit packages/<이름>/tests
+        -->
+        <testsuite name="Packages">
+            <directory>packages/Board/tests/Unit</directory>
+            <directory>packages/Board/tests/Integration</directory>
+            <directory>packages/Shop/tests/Unit</directory>
+            <directory>packages/Shop/tests/Feature</directory>
+            <directory>packages/Shop/tests/Integration</directory>
+        </testsuite>
+        <!--
+            플러그인은 와일드카드로 수집한다. 신규 플러그인을 추가할 때
+            여기에 항목을 더하지 않아도 된다.
+            (composer.json 의 autoload-dev PSR-4 항목만 추가하면 된다)
+        -->
+        <testsuite name="Plugins">
+            <directory>plugins/*/tests/Unit</directory>
+            <directory>plugins/*/tests/Feature</directory>
+            <directory>plugins/*/tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+
+    <php>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_DEBUG" value="true"/>
+    </php>
+
+    <!--
+        커버리지 측정 대상. 실제 리포트 생성은 xdebug/pcov 확장과 coverage 옵션이 필요하다.
+        예) vendor/bin/phpunit (커버리지) : coverage-text / coverage-html coverage/
+        뷰(로직 없는 PHP 템플릿), 마이그레이션/인스톨러, 테스트 코드는 제외한다.
+    -->
+    <source>
+        <include>
+            <directory suffix=".php">src</directory>
+            <directory suffix=".php">packages</directory>
+            <directory suffix=".php">plugins</directory>
+        </include>
+        <exclude>
+            <directory suffix=".php">src/Core/Install</directory>
+            <directory suffix=".php">database</directory>
+            <directory>views</directory>
+            <directory>packages/**/views</directory>
+            <directory>plugins/**/views</directory>
+            <directory>packages/**/tests</directory>
+            <directory>plugins/**/tests</directory>
+        </exclude>
+    </source>
+
+</phpunit>

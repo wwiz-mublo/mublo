@@ -1,0 +1,46 @@
+/* 쿠폰 목록 (Coupon/Index) 스타일 */
+
+.shop-coupon { max-width: 720px; margin: 0 auto; }
+.shop-coupon__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 20px; color: var(--foreground); }
+
+/* 프로모션 코드 */
+.shop-coupon__promo { display: flex; gap: 8px; margin-bottom: 24px; }
+.shop-coupon__promo-input { flex: 1; padding: 10px 14px; border: 1px solid var(--input); border-radius: 8px; font-size: 0.9rem; text-transform: uppercase; outline: none; }
+.shop-coupon__promo-input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(102,126,234,0.15); }
+.shop-coupon__promo-btn { padding: 10px 20px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.shop-coupon__promo-btn:hover { opacity: 0.9; }
+
+/* 탭 */
+.shop-coupon__tabs { display: flex; gap: 0; border-bottom: 2px solid var(--border); margin-bottom: 20px; }
+.shop-coupon__tab { padding: 10px 20px; font-size: 0.9rem; font-weight: 600; color: var(--muted-foreground); border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+.shop-coupon__tab--active { color: var(--primary); border-bottom-color: var(--primary); }
+
+/* 쿠폰 카드 */
+.shop-coupon__card { display: flex; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; background: var(--card); transition: box-shadow 0.15s; }
+.shop-coupon__card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.shop-coupon__card-left { flex: 1; padding: 16px 20px; min-width: 0; }
+.shop-coupon__card-name { font-weight: 700; font-size: 0.95rem; color: var(--foreground); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.shop-coupon__card-discount { font-size: 1.2rem; font-weight: 700; color: var(--primary); margin-bottom: 6px; }
+.shop-coupon__card-info { font-size: 0.8rem; color: var(--muted-foreground); line-height: 1.5; }
+.shop-coupon__card-info span { display: inline-block; margin-right: 12px; }
+.shop-coupon__card-right { display: flex; align-items: center; justify-content: center; width: 90px; border-left: 1px dashed var(--border); flex-shrink: 0; }
+.shop-coupon__card-btn { padding: 8px 14px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 6px; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+.shop-coupon__card-btn:hover { opacity: 0.9; }
+.shop-coupon__card-btn:disabled { background: var(--input); cursor: not-allowed; }
+.shop-coupon__card-status { font-size: 0.8rem; font-weight: 600; color: var(--muted-foreground); text-align: center; }
+
+/* 사용완료/기간만료 — 비활성 카드 */
+.shop-coupon__card--inactive { background: var(--muted); }
+.shop-coupon__card--inactive .shop-coupon__card-discount { color: var(--muted-foreground); }
+.shop-coupon__card--inactive .shop-coupon__card-name { color: var(--muted-foreground); }
+
+/* 빈 상태 */
+.shop-coupon__empty { text-align: center; padding: 40px 16px; color: var(--muted-foreground); font-size: 0.9rem; }
+.shop-coupon__loading { text-align: center; padding: 40px 16px; color: var(--muted-foreground); font-size: 0.9rem; }
+
+/* 반응형 */
+@media (max-width: 640px) {
+    .shop-coupon__card-right { width: 70px; }
+    .shop-coupon__card-discount { font-size: 1rem; }
+    .shop-coupon__promo { flex-direction: column; }
+}

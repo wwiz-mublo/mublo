@@ -1,0 +1,28 @@
+/* 위시리스트 (Wishlist/Index) 스타일 */
+
+.shop-wishlist { max-width: 960px; margin: 0 auto; }
+.shop-wishlist__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; color: var(--foreground); }
+.shop-wishlist__count { font-size: 0.9rem; color: var(--muted-foreground); margin-bottom: 20px; }
+.shop-wishlist__grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px 16px; }
+.shop-wishlist__item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; transition: box-shadow 0.15s; }
+.shop-wishlist__item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.shop-wishlist__thumb { display: block; position: relative; aspect-ratio: 1; overflow: hidden; background: var(--muted); }
+.shop-wishlist__thumb img { width: 100%; height: 100%; object-fit: cover; }
+.shop-wishlist__thumb--empty { display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); font-size: 2rem; width: 100%; height: 100%; aspect-ratio: 1; }
+.shop-wishlist__remove { position: absolute; top: 8px; right: 8px; width: 28px; height: 28px; background: rgba(255,255,255,0.9); border: none; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--destructive); }
+.shop-wishlist__info { padding: 12px; }
+.shop-wishlist__name { font-size: 0.9rem; font-weight: 500; color: var(--foreground); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shop-wishlist__price { font-size: 1rem; font-weight: 700; color: var(--foreground); }
+.shop-wishlist__soldout { font-size: 0.75rem; color: var(--destructive); margin-top: 4px; }
+.shop-wishlist__cart { display: block; margin: 8px 12px 12px; padding: 8px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
+.shop-wishlist__empty { text-align: center; padding: 60px 16px; }
+.shop-wishlist__empty p { color: var(--muted-foreground); margin-bottom: 16px; }
+.shop-wishlist__empty-btn { display: inline-block; padding: 10px 24px; background: var(--primary); color: var(--primary-foreground); border-radius: 8px; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+
+/* 반응형 그리드 (상품 목록 컨벤션: PC 4 → 태블릿 3 → 모바일 2) */
+@media (max-width: 991.98px) {
+    .shop-wishlist__grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 768px) {
+    .shop-wishlist__grid { grid-template-columns: repeat(2, 1fr); }
+}

@@ -1,0 +1,67 @@
+/* ========================================
+ * Board Package - Admin 전용 스타일
+ *
+ * 로드: <link rel="stylesheet" href="/serve/package/Board/assets/css/admin.css">
+ * ======================================== */
+
+/* 게시글 본문 (에디터 HTML) — 프론트(.board-view__content) 타이포와 동일하게 보정 */
+.article-content {
+    word-break: break-word;
+    border-top: 1px solid var(--bs-border-color);
+    padding-top: 1rem;
+}
+.article-content img {
+    max-width: 100%;
+    height: auto;
+}
+.article-content.board-view__content pre {
+    color: var(--bs-body-color);
+    background: var(--bs-tertiary-bg);
+    border-color: var(--bs-border-color);
+    box-shadow: none;
+}
+
+/* 대시보드 메트릭 (Dashboard) */
+.board-metric-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 18px;
+}
+.board-rank-badge {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+.board-top-item {
+    background: rgba(var(--bs-body-color-rgb), 0.04);
+}
+[data-bs-theme="dark"] .board-top-item {
+    background: rgba(var(--bs-body-color-rgb), 0.06);
+}
+a.board-top-item:hover {
+    background: rgba(var(--bs-body-color-rgb), 0.08);
+}
+
+/* 관리자 메인 대시보드 최근 공지 */
+.board-recent-notice {
+    transition: background-color 0.15s ease;
+}
+.board-recent-notice.list-group-item-action:hover,
+.board-recent-notice.list-group-item-action:focus {
+    background: rgba(var(--bs-body-color-rgb), 0.04);
+}
+[data-bs-theme="dark"] .board-recent-notice.list-group-item-action:hover,
+[data-bs-theme="dark"] .board-recent-notice.list-group-item-action:focus {
+    background: rgba(var(--bs-body-color-rgb), 0.06);
+}

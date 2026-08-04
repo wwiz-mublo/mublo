@@ -1,0 +1,15 @@
+{
+    "name": "Popup",
+    "label": "팝업",
+    "description": "레이어 팝업 관리 플러그인 (이미지/HTML, 반응형, 디바이스별 표시)",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "content",
+    "icon": "bi-window-stack",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}

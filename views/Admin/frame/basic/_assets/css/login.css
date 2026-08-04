@@ -1,0 +1,69 @@
+@charset "utf-8";
+
+/*
+ * Admin Login — 커스텀 보강
+ *
+ * 마크업은 부트스트랩 표준(views/Admin/Auth/Login.php). 모든 규칙은
+ * 최상위 스코프 `.admin-login` 아래로 한정한다.
+ *
+ * 규칙
+ * - 색/배경/보더는 하드코딩 금지. 테마변수를 쓴다:
+ *     var(--bs-default-bg) / var(--bs-default-text)   ← 프레임스킨 색상테마
+ *     var(--bs-zinc-50) / var(--bs-zinc-950) / var(--bs-body-color)
+ *   → 다크모드(data-bs-theme)·스킨테마 변경을 자동으로 따라간다.
+ * - 부트스트랩 유틸리티로 되는 건 Login.php의 클래스로 처리.
+ */
+
+/*
+ * body 배경 재정의 — 로그인은 admin 프레임 셸 없이 단독 렌더되는 전체화면
+ * 페이지라, body에 직접 배경을 걸어 오버스크롤 영역·여백까지 테마색으로 덮는다.
+ * (front auth.css의 body:has(.auth-shell) 패턴과 동일)
+ * 카드가 뷰포트보다 길어질 때를 대비해 세로 스크롤은 auto.
+ * zinc 팔레트는 고정값이라 테마별로 직접 분기(common.css의 dark 블록과 동일 패턴).
+ */
+body:has(.admin-login) {
+    background: var(--bs-white);
+    overflow-y: auto;
+}
+
+:root[data-bs-theme="dark"] body:has(.admin-login) {
+    background: var(--bs-zinc-950);
+}
+
+/*
+ * 카드 — 속성 직접 덮어쓰기 대신 부트스트랩 카드 토큰을 재정의한다.
+ * spacer 토큰이 .card-body 패딩을 그대로 구동하므로 별도 규칙 불필요.
+ */
+.admin-login .card {
+    --bs-card-bg: var(--bs-white);
+    --bs-card-border-radius: 1.25rem;       /* 기본보다 더 둥글게 */
+    --bs-card-spacer-x: 2.5rem;             /* 더 넉넉한 여백 */
+    --bs-card-spacer-y: 2.5rem;
+}
+
+/* 다크: 기본 --bs-card-bg는 body-bg(zinc-950)와 같아 카드가 묻힌다 → 한 단계 밝게 */
+:root[data-bs-theme="dark"] .admin-login .card {
+    --bs-card-bg: var(--bs-zinc-900);
+}
+
+/*
+ * 컨트롤 높이 — 글자 크기는 그대로 두고 패딩만 키운다(-lg는 폰트까지 커짐).
+ * 버튼: --bs-btn-padding-y 토큰 재정의(폰트 토큰은 건드리지 않음).
+ * 입력: .form-control은 패딩 토큰이 없어(부트스트랩 미제공) 속성으로 직접 지정.
+ */
+.admin-login .btn {
+    --bs-btn-padding-y: 0.625rem;
+    --bs-btn-padding-x: 1rem;
+}
+
+.admin-login .form-select,
+.admin-login .form-control {
+    padding-block: 0.625rem;
+    padding-inline: 1rem;
+}
+
+.admin-login .form-select,
+.admin-login .form-control,
+.admin-login .btn {
+    --bs-border-radius: 0.5rem;
+}

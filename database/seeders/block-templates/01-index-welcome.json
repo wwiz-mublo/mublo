@@ -1,0 +1,143 @@
+{
+  "version": "1.0",
+  "type": "seeder",
+  "name": "메인화면 환영 블록",
+  "description": "설치 시 메인화면(index)에 자동 생성되는 기본 블록",
+  "position": "index",
+  "page": null,
+  "rows": [
+    {
+      "admin_title": "환영 메시지",
+      "section_id": "welcome-hero",
+      "width_type": 1,
+      "column_count": 1,
+      "column_margin": 0,
+      "column_width_unit": 1,
+      "pc_height": "",
+      "mobile_height": "",
+      "pc_margin": "20px 0",
+      "mobile_margin": "20px 0",
+      "pc_padding": "",
+      "mobile_padding": "",
+      "background_config": [],
+      "is_active": true,
+      "columns": [
+        {
+          "column_index": 0,
+          "width": "100%",
+          "pc_padding": "0",
+          "mobile_padding": "0",
+          "background_config": [],
+          "border_config": [],
+          "title_config": {
+            "show": false
+          },
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<div style=\"min-height:250px; display:flex; flex-direction:column; justify-content:center; text-align:center; padding:30px; border:1px solid rgba(255,255,255,0.14); border-radius:8px; background:radial-gradient(circle at 15% 20%, #4f46e5 0%, rgba(79,70,229,0) 45%), radial-gradient(circle at 85% 15%, #2563eb 0%, rgba(37,99,235,0) 45%), radial-gradient(circle at 10% 85%, #0ea5e9 0%, rgba(14,165,233,0) 45%), radial-gradient(circle at 90% 80%, #6366f1 0%, rgba(99,102,241,0) 50%), radial-gradient(circle at 50% 55%, #3b82f6 0%, rgba(59,130,246,0) 38%), linear-gradient(135deg, #0a0f2c 0%, #172554 55%, #1e1b4b 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,0.16), 0 28px 70px -24px rgba(37,99,235,0.65);\">\n<h2 style=\"font-size:34px; font-weight:800; line-height:1.25; color:#ffffff; margin:0 0 16px; text-shadow:0 2px 20px rgba(0,0,0,0.5);\">사이트에 오신 것을 환영합니다</h2>\n<p style=\"font-size:16px; color:rgba(255,255,255,0.94); line-height:1.5; margin:0; text-shadow:0 1px 10px rgba(0,0,0,0.45);\">이 영역은 관리자 페이지의 블록 관리에서 자유롭게 수정할 수 있습니다.<br>이미지, 동영상, 게시판, 메뉴 등 다양한 블록을 배치해 보세요.</p>\n</div>"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    },
+    {
+      "admin_title": "안내 카드 영역",
+      "section_id": "info-cards",
+      "width_type": 1,
+      "column_count": 3,
+      "column_margin": 20,
+      "column_width_unit": 1,
+      "pc_height": "",
+      "mobile_height": "",
+      "pc_margin": "20px 0",
+      "mobile_margin": "20px 0",
+      "pc_padding": "",
+      "mobile_padding": "",
+      "background_config": [],
+      "is_active": true,
+      "columns": [
+        {
+          "column_index": 0,
+          "width": "33.33%",
+          "pc_padding": "20px",
+          "mobile_padding": "15px",
+          "background_config": {
+            "color": "#ffffff"
+          },
+          "border_config": {
+            "width": "1px",
+            "color": "#e9ecef",
+            "radius": "8px",
+            "style": "solid"
+          },
+          "title_config": {
+            "show": false
+          },
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<h3 style=\"text-align:center; font-size:18px; font-weight:600; color:#1a1a2e; margin:0 0 15px;\">블록 시스템</h3><p style=\"text-align:center; color:#6c757d; font-size:14px; line-height:1.6; margin:0;\">코드 수정 없이 관리자 화면에서 페이지를 구성할 수 있습니다. 드래그 앤 드롭으로 블록을 배치하세요.</p>"
+          },
+          "content_items": null,
+          "is_active": true
+        },
+        {
+          "column_index": 1,
+          "width": "33.33%",
+          "pc_padding": "20px",
+          "mobile_padding": "15px",
+          "background_config": {
+            "color": "#ffffff"
+          },
+          "border_config": {
+            "width": "1px",
+            "color": "#e9ecef",
+            "radius": "8px",
+            "style": "solid"
+          },
+          "title_config": {
+            "show": false
+          },
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<h3 style=\"text-align:center; font-size:18px; font-weight:600; color:#1a1a2e; margin:0 0 15px;\">멀티 도메인</h3><p style=\"text-align:center; color:#6c757d; font-size:14px; line-height:1.6; margin:0;\">하나의 설치로 여러 도메인을 운영하세요. 도메인별로 독립된 설정과 회원을 관리합니다.</p>"
+          },
+          "content_items": null,
+          "is_active": true
+        },
+        {
+          "column_index": 2,
+          "width": "33.33%",
+          "pc_padding": "20px",
+          "mobile_padding": "15px",
+          "background_config": {
+            "color": "#ffffff"
+          },
+          "border_config": {
+            "width": "1px",
+            "color": "#e9ecef",
+            "radius": "8px",
+            "style": "solid"
+          },
+          "title_config": {
+            "show": false
+          },
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<h3 style=\"text-align:center; font-size:18px; font-weight:600; color:#1a1a2e; margin:0 0 15px;\">확장 시스템</h3><p style=\"text-align:center; color:#6c757d; font-size:14px; line-height:1.6; margin:0;\">플러그인과 패키지로 기능을 확장하세요. 쇼핑몰, 예약, 구인구직 등 다양한 패키지를 제공합니다.</p>"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    }
+  ]
+}

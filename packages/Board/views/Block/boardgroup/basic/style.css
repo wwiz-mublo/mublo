@@ -1,0 +1,126 @@
+/**
+ * Block Skin: boardgroup/basic  (게시판 그룹 — 기본: 합친 목록)
+ *
+ * 스코프 규칙: 모든 선택자를 스킨 고유 루트 `.block-boardgroup--board-basic` 로 시작.
+ * 로드: basic.php 에서 $assets->addCss('/serve/package/Board/views/Block/boardgroup/basic/style.css')
+ * 룩은 board/basic 과 동일(2줄 목록).
+ */
+
+/* ── 목록 ─────────────────────────────── */
+.block-boardgroup--board-basic .block-boardgroup__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── 아이템(행) ───────────────────────── */
+.block-boardgroup--board-basic .block-boardgroup__item {
+    border-bottom: 1px solid var(--border);
+}
+
+.block-boardgroup--board-basic .block-boardgroup__item:last-child {
+    border-bottom: none;
+}
+
+/* 아이템당 2줄 스택 */
+.block-boardgroup--board-basic .block-boardgroup__link {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    color: inherit;
+    text-decoration: none;
+    text-align: left;
+}
+
+/* 1줄: 제목 + 뱃지 */
+.block-boardgroup--board-basic .block-boardgroup__head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.block-boardgroup--board-basic .block-boardgroup__title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--foreground);
+}
+
+/* 행 hover — 제목만 살짝 연하게 */
+.block-boardgroup--board-basic .block-boardgroup__link:hover .block-boardgroup__title {
+    color: var(--muted-foreground);
+}
+
+/* N 뱃지 — 알약형 블루 */
+.block-boardgroup--board-basic .block-boardgroup__badge-new {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 4px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--primary);
+    color: var(--primary-foreground);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 1.5;
+}
+
+/* 2줄: 작성자 · 작성일 ····· 댓글수(끝) */
+.block-boardgroup--board-basic .block-boardgroup__meta {
+    display: flex;
+    align-items: center;
+    line-height: 1.25;
+    margin-top: 2px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+}
+
+.block-boardgroup--board-basic .block-boardgroup__sep {
+    margin: 0 6px;
+    color: var(--border);
+}
+
+.block-boardgroup--board-basic .block-boardgroup__comment {
+    flex: 0 0 auto;
+    margin-left: auto;
+    color: #e8552d;
+    font-size: 12px;
+}
+
+/* ── 빈 상태 (board/basic 과 동일 패턴: 칸을 세로로 꽉 채우는 점선 박스) ── */
+.block-boardgroup--board-basic {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.block-boardgroup--board-basic .block-boardgroup__content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+}
+
+.block-boardgroup--board-basic .block-boardgroup__empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+}
+
+.block-boardgroup--board-basic .block-boardgroup__empty-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}

@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MubloEditor - 이미지 업로드 플러그인 테스트</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- MubloEditor CSS -->
+    <link href="../../MubloEditor.css" rel="stylesheet">
+    <style>
+        body { padding: 2rem; max-width: 1000px; margin: 0 auto; }
+        .upload-log {
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 0.25rem;
+            font-family: monospace;
+            font-size: 0.875rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .log-success { color: #198754; }
+        .log-error { color: #dc3545; }
+        .log-info { color: #0d6efd; }
+        .uploaded-images {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .uploaded-images img {
+            max-width: 150px;
+            max-height: 150px;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="mb-4">MubloEditor - 이미지 업로드 플러그인</h1>
+
+    <div class="alert alert-info">
+        <strong>테스트 방법:</strong>
+        <ol class="mb-0">
+            <li>PHP 서버 실행 (프로젝트 루트): <code>php -S localhost:8000</code></li>
+            <li>브라우저 접속: <code>http://localhost:8000/plugins/upload/upload.html</code></li>
+            <li>이미지 파일을 에디터에 드래그앤드롭, 붙여넣기, 또는 이미지 버튼 클릭</li>
+        </ol>
+    </div>
+
+    <!-- 방법 1: uploadUrl 사용 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">방법 1: uploadUrl 옵션 사용</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">가장 간단한 방법 - uploadUrl만 설정하면 자동으로 업로드됩니다.</p>
+            <textarea id="editor1"></textarea>
+            <div id="log1" class="upload-log">업로드 로그가 여기에 표시됩니다...</div>
+        </div>
+    </div>
+
+    <!-- 방법 2: 커스텀 핸들러 (플러그인) -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">방법 2: 커스텀 업로드 핸들러 (플러그인)</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">setImageUploadHandler()로 업로드 로직을 직접 구현합니다.</p>
+            <textarea id="editor2"></textarea>
+            <div id="log2" class="upload-log">업로드 로그가 여기에 표시됩니다...</div>
+        </div>
+    </div>
+
+    <!-- 방법 3: 레거시 스타일 핸들러 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">방법 3: 레거시 스타일 핸들러</h5>
+        </div>
+        <div class="card-body">
+            <p class="text-muted">images_upload_handler 옵션으로 resolve/reject 콜백 방식 사용</p>
+            <textarea id="editor3"></textarea>
+            <div id="log3" class="upload-log">업로드 로그가 여기에 표시됩니다...</div>
+        </div>
+    </div>
+
+    <!-- 업로드된 이미지 목록 -->
+    <div class="card">
+        <div class="card-header">
+            <h5 class="mb-0">업로드된 이미지</h5>
+        </div>
+        <div class="card-body">
+            <div id="uploadedImages" class="uploaded-images">
+                <span class="text-muted">아직 업로드된 이미지가 없습니다.</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="../../MubloEditor.js"></script>
+    <script>
+        // 로그 함수
+        function log(logId, message, type = 'info') {
+            const logEl = document.getElementById(logId);
+            const time = new Date().toLocaleTimeString();
+            const className = `log-${type}`;
+            logEl.innerHTML = `<div class="${className}">[${time}] ${message}</div>` + logEl.innerHTML;
+        }
+
+        // 업로드된 이미지 표시
+        function showUploadedImage(url) {
+            const container = document.getElementById('uploadedImages');
+            if (container.querySelector('.text-muted')) {
+                container.innerHTML = '';
+            }
+            const img = document.createElement('img');
+            img.src = url;
+            img.onclick = () => window.open(url, '_blank');
+            img.style.cursor = 'pointer';
+            img.title = '클릭하면 원본 보기';
+            container.appendChild(img);
+        }
+
+        // ========================================
+        // 방법 1: uploadUrl 사용
+        // ========================================
+        const editor1 = MubloEditor.create('#editor1', {
+            toolbar: 'basic',
+            height: 200,
+            placeholder: '이미지를 드래그앤드롭 하거나 붙여넣기 해보세요...',
+            uploadUrl: 'upload.php?folder=temp',  // PHP 업로드 핸들러 (상대 경로)
+            showWordCount: true
+        });
+
+        // 이벤트 리스너로 로그 출력
+        editor1.on('uploadStart', (e) => {
+            log('log1', `업로드 시작: ${e.blobInfo.filename()}`, 'info');
+        });
+        editor1.on('uploadProgress', (e) => {
+            log('log1', `진행률: ${e.percent}%`, 'info');
+        });
+        editor1.on('uploadSuccess', (e) => {
+            log('log1', `업로드 성공: ${e.url}`, 'success');
+            showUploadedImage(e.url);
+        });
+        editor1.on('uploadError', (e) => {
+            log('log1', `업로드 실패: ${e.error}`, 'error');
+        });
+
+        // ========================================
+        // 방법 2: 커스텀 핸들러 (플러그인)
+        // ========================================
+        const editor2 = MubloEditor.create('#editor2', {
+            toolbar: 'basic',
+            height: 200,
+            placeholder: '커스텀 핸들러로 업로드...',
+            showWordCount: true
+        });
+
+        // 커스텀 업로드 핸들러 설정
+        editor2.setImageUploadHandler(async (blobInfo, progress) => {
+            log('log2', `커스텀 핸들러 시작: ${blobInfo.filename()}`, 'info');
+
+            const formData = new FormData();
+            formData.append('file', blobInfo.blob(), blobInfo.filename());
+
+            return new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progress(percent);
+                        log('log2', `진행률: ${percent}%`, 'info');
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            log('log2', `업로드 성공: ${response.url}`, 'success');
+                            showUploadedImage(response.url);
+                            resolve(response.url);
+                        } catch (e) {
+                            log('log2', '응답 파싱 실패', 'error');
+                            reject(new Error('Invalid response'));
+                        }
+                    } else {
+                        log('log2', `서버 오류: ${xhr.status}`, 'error');
+                        reject(new Error(`HTTP ${xhr.status}`));
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    log('log2', '네트워크 오류', 'error');
+                    reject(new Error('Network error'));
+                });
+
+                xhr.open('POST', 'upload.php'); // 상대 경로
+                xhr.send(formData);
+            });
+        });
+
+        // ========================================
+        // 방법 3: 레거시 스타일 핸들러
+        // ========================================
+        const editor3 = MubloEditor.create('#editor3', {
+            toolbar: 'basic',
+            height: 200,
+            placeholder: '레거시 스타일 핸들러...',
+            showWordCount: true,
+
+            // 레거시 핸들러 (resolve/reject 콜백 방식)
+            images_upload_handler: function(blobInfo, success, failure, progress) {
+                log('log3', `레거시 핸들러 시작: ${blobInfo.filename()}`, 'info');
+
+                const formData = new FormData();
+                formData.append('file', blobInfo.blob(), blobInfo.filename());
+
+                const xhr = new XMLHttpRequest();
+
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        progress(percent);
+                        log('log3', `진행률: ${percent}%`, 'info');
+                    }
+                });
+
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            log('log3', `업로드 성공: ${response.url}`, 'success');
+                            showUploadedImage(response.url);
+                            success(response.url);
+                        } catch (e) {
+                            log('log3', '응답 파싱 실패', 'error');
+                            failure('Invalid response');
+                        }
+                    } else {
+                        log('log3', `서버 오류: ${xhr.status}`, 'error');
+                        failure(`HTTP ${xhr.status}`);
+                    }
+                });
+
+                xhr.addEventListener('error', () => {
+                    log('log3', '네트워크 오류', 'error');
+                    failure('Network error');
+                });
+
+                xhr.open('POST', 'upload.php'); // 상대 경로
+                xhr.send(formData);
+            }
+        });
+
+        console.log('MubloEditor Version:', MubloEditor.VERSION);
+    </script>
+</body>
+</html>

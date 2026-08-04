@@ -1,0 +1,90 @@
+/**
+ * Error 기본 스킨 CSS
+ *
+ * 404 Not Found, 403 Forbidden 공용 스타일
+ */
+
+.error-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.error-page__content {
+    text-align: center;
+    max-width: 500px;
+}
+
+.error-page__icon {
+    width: 100px;
+    height: 100px;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary) 100%);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 32px;
+    color: var(--primary-foreground);
+    font-weight: bold;
+}
+
+.error-page__icon--warning {
+    background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
+}
+
+.error-page__title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--foreground);
+    margin-bottom: 16px;
+}
+
+.error-page__message {
+    font-size: 16px;
+    color: var(--muted-foreground);
+    line-height: 1.6;
+    margin-bottom: 32px;
+}
+
+.error-page__actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.error-page .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    border: none;
+}
+
+.error-page .btn--primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary) 100%);
+    color: var(--primary-foreground);
+}
+
+.error-page .btn--primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.error-page .btn--secondary {
+    background: var(--muted);
+    color: var(--secondary-foreground);
+    border: 1px solid var(--border);
+}
+
+.error-page .btn--secondary:hover {
+    background: var(--accent);
+}

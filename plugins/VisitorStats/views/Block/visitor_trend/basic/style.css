@@ -1,0 +1,119 @@
+/**
+ * Block Skin: visitor_trend/basic (방문자 추이 — 최근 7일, 카드)
+ * 스코프 루트: .block-vtrend--basic
+ * 순수 CSS 막대 그래프(외부 라이브러리 없음).
+ * 카드 스타일은 __card 래퍼에만 준다(.block-body 의 동적 padding 과 충돌 방지).
+ */
+.block-vtrend--basic .block-vtrend__card {
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card, var(--background));
+}
+
+.block-vtrend--basic .block-vtrend__caption {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+
+.block-vtrend--basic .block-vtrend__caption-label {
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+}
+
+.block-vtrend--basic .block-vtrend__caption-total {
+    font-size: 2rem;        /* 방문자 통계 숫자와 동일 */
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--foreground);
+}
+
+/* 전체(누적) 방문자 — 7일 합계 옆, 오른쪽 끝 (방문자 통계 sub 와 동일 크기·굵기) */
+.block-vtrend--basic .block-vtrend__caption-sub {
+    margin-left: auto;
+    color: var(--muted-foreground);
+    font-size: 0.8125rem;
+}
+
+.block-vtrend--basic .block-vtrend__caption-sub b {
+    color: var(--foreground);
+    font-weight: 600;
+}
+
+/* 막대 영역 — 고정 높이(바 height:% 계산 기준) */
+.block-vtrend--basic .block-vtrend__chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 140px;
+}
+
+.block-vtrend--basic .block-vtrend__bar-col {
+    flex: 1 1 0;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.block-vtrend--basic .block-vtrend__bar-track {
+    flex: 1 1 auto;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    padding-top: 18px;   /* 가장 높은 바 위 값 표시 공간 */
+}
+
+.block-vtrend--basic .block-vtrend__bar {
+    position: relative;
+    width: 100%;
+    min-height: 3px;
+    border-radius: 4px 4px 0 0;
+    /* dimming을 opacity 대신 색으로 → 바 위 숫자는 안 흐려짐 */
+    background: color-mix(in srgb, var(--primary) 55%, transparent);
+    transition: height .3s ease;
+}
+
+/* 값 — 해당 바 top 바로 위 */
+.block-vtrend--basic .block-vtrend__bar-val {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    margin-bottom: 3px;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--muted-foreground);
+    white-space: nowrap;
+}
+
+.block-vtrend--basic .block-vtrend__bar-label {
+    margin-top: 6px;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--muted-foreground);
+}
+
+/* 오늘 강조 */
+.block-vtrend--basic .block-vtrend__bar-col.is-today .block-vtrend__bar {
+    background: var(--primary);
+}
+
+.block-vtrend--basic .block-vtrend__bar-col.is-today .block-vtrend__bar-label {
+    color: var(--foreground);
+    font-weight: 700;
+}
+
+.block-vtrend--basic .block-vtrend__empty {
+    margin: 0;
+    padding: 24px 0;
+    text-align: center;
+    color: var(--muted-foreground);
+    font-size: 0.875rem;
+}

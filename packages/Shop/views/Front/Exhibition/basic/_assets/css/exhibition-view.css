@@ -1,0 +1,27 @@
+/* 기획전 상세 (Exhibition/View) 스타일 */
+
+/* ── 레이아웃 (섹션 단위 간격) ───────────────────────────── */
+.shop-exhibition-view__header   { margin-bottom: 40px; }
+.shop-exhibition-view__products { margin-bottom: 40px; }
+
+/* ── 헤더: 배너 · 제목 · 기간 · 설명 ─────────────────────── */
+.shop-exhibition-view__banner { width: 100%; border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+.shop-exhibition-view__banner img { width: 100%; height: auto; display: block; }
+
+.shop-exhibition-view__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; }
+
+.shop-exhibition-view__desc { color: var(--muted-foreground); line-height: 1.25; white-space: pre-line; margin-bottom: 8px; }
+
+.shop-exhibition-view__period { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; color: var(--muted-foreground); }
+
+/* ── 상품 영역 (카드는 상품 목록 스킨 .spl-card 재사용) ──── */
+.shop-exhibition-view__empty { text-align: center; padding: 40px; color: var(--muted-foreground); background: var(--muted); border-radius: 8px; }
+.shop-exhibition-view__empty i { font-size: 1.5rem; display: block; margin-bottom: 8px; }
+.shop-exhibition-view__empty p { margin: 0; }
+
+/* ── 푸터: '기획전 목록' 버튼 ────────────────────────────── */
+.shop-exhibition-view__footer { text-align: center; margin-bottom: 40px; }
+.shop-exhibition-view__back { display: inline-flex; align-items: center; gap: 8px; padding: 11px 24px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--foreground); font-size: 0.9rem; font-weight: 600; text-decoration: none; transition: background 0.2s, border-color 0.2s, color 0.2s; }
+.shop-exhibition-view__back:hover { background: var(--accent); border-color: var(--primary); color: var(--primary); }
+.shop-exhibition-view__back i { font-size: 0.95rem; transition: transform 0.2s; }
+.shop-exhibition-view__back:hover i { transform: translateX(-3px); }

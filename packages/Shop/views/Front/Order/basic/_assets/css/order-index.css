@@ -1,0 +1,51 @@
+/* 주문 목록 (Order/Index) 스타일 */
+
+/* ── 주문 목록 컨테이너 ── */
+.shop-order-list { max-width: 960px; margin: 0 auto; }
+.shop-order-list__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 20px; color: var(--foreground); }
+
+/* ── 검색 폼 (단일 라운딩 박스) ── */
+.shop-order-list__search { display: flex; align-items: center; gap: 6px; width: 100%; margin-bottom: 16px; padding: 4px 8px 4px 16px; background: var(--card); border: 1px solid var(--border); border-radius: 12px; transition: border-color 0.15s, box-shadow 0.15s; }
+.shop-order-list__search:focus-within { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(102,126,234,0.15); }
+.shop-order-list__search-input { flex: 1; min-width: 0; border: none; outline: none; background: transparent; padding: 8px 0; font-size: 0.9rem; color: var(--foreground); }
+.shop-order-list__search-btn { padding: 6px 14px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 12px; cursor: pointer; font-size: 0.85rem; font-weight: 600; white-space: nowrap; }
+.shop-order-list__search-btn:hover { background: var(--primary); }
+.shop-order-list__search-clear { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; color: var(--muted-foreground); text-decoration: none; font-size: 0.95rem; background: transparent; border: none; cursor: pointer; }
+.shop-order-list__search-clear:hover { background: var(--muted); color: var(--muted-foreground); }
+
+/* ── 주문 카드 (단일 바디) ── */
+.shop-order-list__card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; padding: 14px 20px; transition: box-shadow 0.15s; }
+.shop-order-list__card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+/* 상단: 주문번호 + 상태 (아래 본문과 살짝 간격) */
+.shop-order-list__card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.shop-order-list__card-no { font-size: 0.9rem; color: var(--foreground); font-weight: 600; }
+.shop-order-list__card-badge { margin-left: auto; flex-shrink: 0; display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; }
+/* 본문: 이미지(좌, 3줄 차지) + 날짜/상품명/가격(우) */
+.shop-order-list__card-main { display: flex; align-items: flex-start; gap: 12px; }
+.shop-order-list__card-thumb { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; background: var(--muted); flex-shrink: 0; }
+.shop-order-list__card-thumb--empty { width: 80px; height: 80px; border-radius: 8px; background: var(--muted); display: flex; align-items: center; justify-content: center; color: var(--muted-foreground); font-size: 1.3rem; flex-shrink: 0; }
+.shop-order-list__card-info { flex: 1; min-width: 0; line-height: 1.25; display: flex; flex-direction: column; gap: 4px; align-self: stretch; }
+.shop-order-list__card-date { font-size: 0.875rem; color: var(--muted-foreground); }
+.shop-order-list__card-name { font-size: 0.875rem; color: var(--foreground); word-break: break-word; }
+.shop-order-list__card-extra { color: var(--muted-foreground); font-weight: 400; }
+.shop-order-list__card-price { font-weight: 700; font-size: 1rem; color: var(--foreground); margin-top: auto; }
+/* 우측: 상세보기 버튼만 (가격은 card-info로 이동) — 카드 우하단 정렬 */
+.shop-order-list__card-aside { margin-left: auto; flex-shrink: 0; align-self: flex-end; }
+/* (아래 액션행 규칙은 잔존·미사용 — 버튼은 우측 aside로 이전) */
+.shop-order-list__card-actions { display: flex; justify-content: flex-start; gap: 8px; margin-top: 5px; }
+.shop-order-list__card-btn { display: inline-block; min-width: 80px; padding: 5px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.85rem; font-weight: 600; color: var(--muted-foreground); text-align: center; text-decoration: none; background: var(--card); transition: border-color 0.15s, color 0.15s; }
+.shop-order-list__card-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ── 빈 상태 ── */
+.shop-order-list__empty { text-align: center; padding: 60px 16px; }
+.shop-order-list__empty p { font-size: 1rem; color: var(--muted-foreground); margin-bottom: 16px; }
+.shop-order-list__empty-btn { display: inline-block; padding: 10px 24px; background: var(--primary); color: var(--primary-foreground); border-radius: 8px; text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+.shop-order-list__empty-btn:hover { background: var(--primary); }
+
+/* ── 반응형 ── */
+@media (max-width: 768px) {
+    .shop-order-list__card { padding: 14px; }
+    /* 좁은 화면: 상세보기 버튼을 본문 아래 우측 한 줄로 */
+    .shop-order-list__card-main { flex-wrap: wrap; }
+    .shop-order-list__card-aside { width: 100%; align-self: auto; margin-top: 10px; display: flex; justify-content: flex-end; }
+}

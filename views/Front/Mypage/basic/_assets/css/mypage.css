@@ -1,0 +1,676 @@
+/**
+ * Mypage 기본 스킨 CSS
+ *
+ * _layout, Profile, Withdraw, Balance 공용 스타일.
+ * 코어 디자인 토큰(tokens.css)의 Tier2 semantic 만 소비 → 프레임/로그인과 톤 통일,
+ * 다크모드 자동 대응. 값 하드코딩 금지(SNS/브랜드색 제외).
+ */
+
+/* =========================================================
+ * 레이아웃 (_layout.php)
+ * ========================================================= */
+
+.mypage-wrapper {
+    max-width: 960px;
+    margin: 0 auto 3rem;
+    display: flex;
+    gap: 32px;
+    align-items: flex-start;
+}
+
+/* 사이드바 = 보더 카드. PC에서는 스티키(sticky header 아래로 떨어뜨림) */
+.mypage-sidebar {
+    width: 240px;
+    flex-shrink: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    position: sticky;
+    top: calc(var(--header-height, 64px) + 16px);
+}
+
+/* 유저 헤더 — 중립 톤(아바타 이니셜 + 이름 + 서브라벨) */
+.mypage-user-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 10px 14px;
+    margin-bottom: 8px;
+}
+
+.mypage-user-card__avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: var(--muted);
+    color: var(--foreground);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.mypage-user-card__avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* 아바타 미설정 시 기본 실루엣 (닉네임 이니셜 대체) */
+.mypage-user-card__avatar svg {
+    width: 62%;
+    height: 62%;
+    color: var(--muted-foreground);
+}
+
+.mypage-user-card__info {
+    min-width: 0;
+}
+
+.mypage-user-card .user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--foreground);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.mypage-user-card .user-level {
+    font-size: 12px;
+    color: var(--muted-foreground);
+}
+
+/* 네비 — 라운드 아이템, 서브틸 active(좌측 보더 액센트 제거) */
+.mypage-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mypage-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 12px;
+    font-size: 14px;
+    color: var(--muted-foreground);
+    text-decoration: none;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    transition: background 0.15s, color 0.15s;
+}
+
+.mypage-nav-item .bi {
+    font-size: 15px;
+    width: 18px;
+    flex-shrink: 0;
+    text-align: center;
+}
+
+.mypage-nav-item:hover {
+    background: var(--muted);
+    color: var(--foreground);
+}
+
+.mypage-nav-item.active {
+    background: var(--accent);
+    color: var(--foreground);
+}
+
+.mypage-nav-divider {
+    height: 1px;
+    background: var(--border-subtle);
+    margin: 6px 0;
+}
+
+/* 모바일 드롭다운 트리거 — 데스크탑은 숨김(네비 항상 노출) */
+.mypage-nav-toggle {
+    display: none;
+}
+
+/* 콘텐츠 = 보더 없음(투명) — 스크롤 시 푸터와 어긋나던 박스 보더 제거 */
+.mypage-content {
+    flex: 1;
+    min-width: 0;
+}
+
+/* 페이지 헤더 — 제목 + 설명 + 풀폭 디바이더 */
+.mypage-header {
+    margin-bottom: 24px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.mypage-header__title {
+    font-size: 1.375rem;
+    font-weight: 700;
+    color: var(--foreground);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.mypage-header__desc {
+    font-size: 0.875rem;
+    color: var(--muted-foreground);
+    margin: 4px 0 0;
+}
+
+/* 레이아웃 반응형 */
+@media (max-width: 768px) {
+    .mypage-wrapper {
+        flex-direction: column;
+        gap: 32px;
+    }
+
+    .mypage-sidebar,
+    .mypage-content {
+        width: 100%;
+    }
+
+    /* 모바일에선 스티키 해제(드롭다운이라 불필요) */
+    .mypage-sidebar {
+        position: static;
+    }
+
+    /* 메뉴를 드롭다운으로 — 트리거(현재 메뉴)만 노출, 목록은 접힘 */
+    .mypage-nav-toggle {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 6px 12px;
+        font-size: 14px;
+        color: var(--foreground);
+        background: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-md);
+        cursor: pointer;
+    }
+
+    .mypage-nav-toggle__label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+    }
+
+    .mypage-nav-toggle__label .bi {
+        flex-shrink: 0;
+        color: var(--muted-foreground);
+    }
+
+    .mypage-nav-toggle__chevron {
+        color: var(--muted-foreground);
+        transition: transform 0.2s;
+    }
+
+    .mypage-nav-toggle.is-open .mypage-nav-toggle__chevron {
+        transform: rotate(180deg);
+    }
+
+    .mypage-nav {
+        display: none;
+        margin-top: 6px;
+    }
+
+    .mypage-nav.is-open {
+        display: flex;
+    }
+
+    /* 하단 버튼 풀폭 (flex) — 회원정보 저장 / 회원탈퇴 취소·탈퇴 */
+    .mypage-profile__actions {
+        display: flex;
+    }
+
+    .mypage-profile__actions .btn-primary {
+        flex: 1;
+    }
+
+    .mypage-withdraw .btn {
+        flex: 1;
+    }
+}
+
+/* =========================================================
+ * 공용 폼 컨트롤 (Profile·Withdraw 공통)
+ * 프레임스킨 폼 컴포넌트(front.css Components 섹션 .field/.input/.select/.textarea)의
+ * 모양을 코어 토큰으로 그대로 재현 — 컴포넌트 클래스는 쓰지 않되 룩 동기화.
+ * 동기화 시 front.css Components 값과 함께 갱신할 것.
+ * ========================================================= */
+
+/* 폼 스캐폴딩 — 제네릭 form-group/form-control 대신 페이지 로컬 클래스 사용.
+   .mypage-content 안에 렌더되는 패키지가 제네릭 폼클래스를 상속/참조하지 않도록.
+   Profile=profile-*, Withdraw=withdraw-*. 공유 스타일은 그룹 셀렉터로 묶음. */
+.mypage-content .profile-form-group,
+.mypage-content .withdraw-form-group {
+    margin-bottom: 1rem;
+}
+
+.mypage-content .profile-form-group label,
+.mypage-content .withdraw-form-group label {
+    display: block;
+    margin-bottom: 0.375rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--foreground);
+}
+
+.mypage-content .profile-form-control,
+.mypage-content .withdraw-form-control {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    box-sizing: border-box;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.mypage-content textarea.profile-form-control,
+.mypage-content textarea.withdraw-form-control {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.mypage-content .profile-form-control::placeholder,
+.mypage-content .withdraw-form-control::placeholder {
+    color: var(--muted-foreground);
+}
+
+.mypage-content .profile-form-control:focus,
+.mypage-content .withdraw-form-control:focus {
+    outline: none;
+    border-color: var(--ring);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 25%, transparent);
+}
+
+.mypage-content .profile-form-control:disabled,
+.mypage-content .withdraw-form-control:disabled {
+    background: var(--muted);
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.mypage-content .profile-form-help {
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+}
+
+/* 입력 + 액션 버튼(중복확인 등) 가로 배치 */
+.mypage-content .profile-input-group {
+    display: flex;
+    gap: 8px;
+}
+
+.mypage-content .profile-input-group > .profile-form-control {
+    flex: 1;
+    min-width: 0;
+}
+
+.mypage-content .profile-input-group > .btn-check {
+    flex: 0 0 auto;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    color: var(--foreground);
+    background: var(--card);
+    border: 1px solid var(--input);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s, border-color 0.15s;
+}
+
+.mypage-content .profile-input-group > .btn-check:hover {
+    background: var(--muted);
+    border-color: var(--ring);
+}
+
+/* 2필드 가로 배치 — 데스크탑 1행, 모바일 2행(세로) */
+.mypage-content .profile-form-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 1rem;
+}
+
+.mypage-content .profile-form-row > .profile-form-group {
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    .mypage-content .profile-form-row {
+        flex-direction: column;
+        gap: 0;
+        margin-bottom: 0;
+    }
+
+    .mypage-content .profile-form-row > .profile-form-group {
+        margin-bottom: 1rem;
+    }
+}
+
+/* =========================================================
+ * Profile (회원정보수정)
+ * ========================================================= */
+
+.mypage-profile .section-title {
+    font-size: 15px;
+    color: var(--foreground);
+    margin: 28px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+    font-weight: 600;
+}
+
+.mypage-profile .section-title:first-child {
+    margin-top: 0;
+}
+
+.mypage-profile .profile-info {
+    padding: 16px;
+    background: var(--muted);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+}
+
+.mypage-profile .profile-info p {
+    margin: 8px 0;
+    color: var(--muted-foreground);
+    font-size: 14px;
+}
+
+.mypage-profile .profile-info strong {
+    display: inline-block;
+    width: 90px;
+    color: var(--foreground);
+    font-weight: 500;
+}
+
+/* 버튼 — 컴포넌트(.btn / .btn--primary) 모양 재현 */
+.mypage-profile .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    color: var(--primary-foreground);
+    background: var(--primary);
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.mypage-profile .btn-primary:hover {
+    opacity: 0.9;
+}
+
+.mypage-profile__actions {
+    margin-top: 24px;
+}
+
+.mypage-profile .alert {
+    padding: 12px 15px;
+    margin-bottom: 16px;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+}
+
+.mypage-profile .alert-success {
+    background: var(--success-subtle);
+    color: var(--success-subtle-foreground);
+    border: 1px solid var(--success-subtle-border);
+}
+
+.mypage-profile .alert-danger {
+    background: var(--danger-subtle);
+    color: var(--danger-subtle-foreground);
+    border: 1px solid var(--danger-subtle-border);
+}
+
+/* 커스텀 필드 위젯(파일/아바타/주소)은 전역 컴포넌트(mublo-custom-field.css)가
+ * 자기완결로 스타일 — 스킨 오버라이드 없음(브랜드 일관성). */
+
+/* =========================================================
+ * Withdraw (회원탈퇴)
+ * ========================================================= */
+
+.mypage-withdraw .warning-box {
+    padding: 18px;
+    background: var(--warning-subtle);
+    border: 1px solid var(--warning-subtle-border);
+    border-radius: var(--radius);
+    margin-bottom: 24px;
+}
+
+.mypage-withdraw .warning-box h4 {
+    color: var(--warning-subtle-foreground);
+    margin: 0 0 12px;
+    font-size: 15px;
+}
+
+.mypage-withdraw .warning-box ul {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--warning-subtle-foreground);
+    font-size: 13px;
+}
+
+.mypage-withdraw .warning-box li {
+    margin: 6px 0;
+}
+
+/* 탈퇴 페이지 — 위험 신호로 포커스를 데스트럭티브 톤으로(공용 링 위 오버라이드) */
+.mypage-withdraw .withdraw-form-control:focus {
+    border-color: var(--destructive);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--destructive) 25%, transparent);
+}
+
+/* 체크박스 — 컴포넌트(.checkbox) 모양 재현 */
+.mypage-withdraw .checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 20px;
+    font-size: 0.875rem;
+    color: var(--foreground);
+    cursor: pointer;
+}
+
+.mypage-withdraw .checkbox-group input {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+.mypage-withdraw .btn-group {
+    display: flex;
+    gap: 10px;
+}
+
+/* 버튼 — 컴포넌트(.btn / .btn--secondary/--danger) 모양 재현 */
+.mypage-withdraw .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.25rem;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.mypage-withdraw .btn-secondary {
+    background: var(--secondary);
+    color: var(--secondary-foreground);
+}
+
+.mypage-withdraw .btn-secondary:hover {
+    background: color-mix(in srgb, var(--secondary) 90%, var(--foreground));
+}
+
+.mypage-withdraw .btn-danger {
+    background: var(--destructive);
+    color: var(--destructive-foreground);
+}
+
+.mypage-withdraw .btn-danger:hover {
+    opacity: 0.9;
+}
+
+.mypage-withdraw .alert-danger {
+    padding: 12px 15px;
+    margin-bottom: 16px;
+    border-radius: var(--radius-md);
+    background: var(--danger-subtle);
+    color: var(--danger-subtle-foreground);
+    border: 1px solid var(--danger-subtle-border);
+    font-size: 14px;
+}
+
+/* =========================================================
+ * Balance (포인트 내역)
+ * ========================================================= */
+
+.balance-card {
+    background: var(--primary);
+    color: var(--primary-foreground);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.balance-card .label {
+    font-size: 13px;
+    opacity: 0.85;
+    margin-bottom: 6px;
+}
+
+.balance-card .amount {
+    font-size: 28px;
+    font-weight: 700;
+}
+
+.balance-card .amount small {
+    font-size: 15px;
+    font-weight: 400;
+    margin-left: 4px;
+}
+
+/* 포인트 내역 = 카드 리스트 (코어 — 데스크탑/모바일 동일) */
+.balance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.balance-item {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px 16px;
+}
+
+.balance-item__main {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.balance-item__title {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--foreground);
+    word-break: break-word;
+}
+
+.balance-item__amount {
+    flex-shrink: 0;
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.balance-item__amount.amount-plus  { color: var(--success); }
+.balance-item__amount.amount-minus { color: var(--destructive); }
+
+.balance-item__meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--muted-foreground);
+}
+
+.balance-item__balance {
+    flex-shrink: 0;
+    white-space: nowrap;
+}
+
+.balance-empty {
+    text-align: center;
+    padding: 40px 16px;
+    color: var(--muted-foreground);
+}
+
+/* 페이지네이션은 코어 컴포넌트(mublo-pagination.css) 사용 — 자체 스타일 불필요 */
+
+/* 회원 알림 센터 */
+.notification-page-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.notification-list { display: flex; flex-direction: column; gap: 0.625rem; }
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--card);
+}
+.notification-item.is-unread { border-color: color-mix(in srgb, var(--primary) 35%, var(--border)); background: color-mix(in srgb, var(--primary) 5%, var(--card)); }
+.notification-item__dot { width: 0.5rem; height: 0.5rem; margin-top: 0.45rem; flex: 0 0 auto; border-radius: 50%; background: var(--muted-foreground); }
+.notification-item.is-unread .notification-item__dot { background: var(--primary); }
+.notification-item__content { min-width: 0; flex: 1; }
+.notification-item__title { display: block; color: var(--foreground); font-size: 0.925rem; }
+.notification-item__body { margin: 0.35rem 0 0; color: var(--muted-foreground); font-size: 0.85rem; line-height: 1.55; word-break: break-word; }
+.notification-item__time { display: block; margin-top: 0.45rem; color: var(--muted-foreground); font-size: 0.75rem; }
+.notification-empty { padding: 3rem 1rem; text-align: center; color: var(--muted-foreground); }
+.notification-empty i { display: block; margin-bottom: 0.5rem; font-size: 1.75rem; }
+.notification-empty p { margin: 0; }
+@media (max-width: 575.98px) {
+    .notification-page-header { align-items: stretch; flex-direction: column; }
+    .notification-item { flex-wrap: wrap; }
+    .notification-item form { width: 100%; }
+    .notification-item form .btn { width: 100%; }
+}

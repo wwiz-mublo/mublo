@@ -1,0 +1,83 @@
+{
+    "name": "mublo/framework",
+    "description": "Mublo Framework - Lightweight PHP application platform with plugins, packages, events, contracts, and block editing",
+    "license": "MIT",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Mublo\\": "src/",
+            "Mublo\\Plugin\\": "plugins/",
+            "Mublo\\Packages\\": "packages/"
+        },
+        "files": [
+            "src/Helper/EnvHelpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/",
+            "Tests\\Board\\": "packages/Board/tests/",
+            "Tests\\Shop\\": "packages/Shop/tests/",
+            "Tests\\Banner\\": "plugins/Banner/tests/",
+            "Tests\\EmailNotify\\": "plugins/EmailNotify/tests/",
+            "Tests\\Faq\\": "plugins/Faq/tests/",
+            "Tests\\Manual\\": "plugins/Manual/tests/",
+            "Tests\\MemberPoint\\": "plugins/MemberPoint/tests/",
+            "Tests\\Popup\\": "plugins/Popup/tests/",
+            "Tests\\Qna\\": "plugins/Qna/tests/",
+            "Tests\\SendonSms\\": "plugins/SendonSms/tests/",
+            "Tests\\SendonTalk\\": "plugins/SendonTalk/tests/",
+            "Tests\\SnsLogin\\": "plugins/SnsLogin/tests/",
+            "Tests\\Survey\\": "plugins/Survey/tests/",
+            "Tests\\VisitorStats\\": "plugins/VisitorStats/tests/",
+            "Tests\\Widget\\": "plugins/Widget/tests/"
+        }
+    },
+    "require": {
+        "php": ">=8.2",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-mysqli": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-json": "*",
+        "ext-curl": "*",
+        "ext-fileinfo": "*",
+        "ext-gd": "*",
+        "vlucas/phpdotenv": "^5.6",
+        "nikic/fast-route": "^1.3",
+        "ezyang/htmlpurifier": "^4.18",
+        "psr/container": "^2.0",
+        "phpoffice/phpspreadsheet": "^5.4",
+        "dompdf/dompdf": "^3.1",
+        "psr/log": "^3.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5.50",
+        "phpstan/phpstan": "^2.2"
+    },
+    "scripts": {
+        "check-security": "composer audit --no-dev",
+        "check-di": "php tools/check-di-violations.php",
+        "check-extension-api": "php tools/check-extension-api.php",
+        "check-strict-types": "php tools/check-strict-types.php",
+        "check-db-compat": "php tools/check-database-compatibility.php",
+        "analyse": "phpstan analyse --no-progress --memory-limit=1G",
+        "analyse-strict": "phpstan analyse -c phpstan-strict.neon.dist --no-progress --memory-limit=2G",
+        "test": "phpunit",
+        "check": [
+            "@check-security",
+            "@check-di",
+            "@check-extension-api",
+            "@check-strict-types",
+            "@analyse",
+            "@analyse-strict",
+            "@test"
+        ]
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.0"
+        }
+    }
+}

@@ -1,0 +1,120 @@
+/**
+ * Block Skin: boardcomment/basic  (게시판 최신댓글 — 기본 스킨)
+ *
+ * 스코프 규칙(패키지 블록 스킨 공통):
+ *   모든 선택자를 스킨 고유 루트 `.block-{type}--{package}-{skin}` 로 시작한다.
+ *   → 여기서는 `.block-boardcomment--board-basic`
+ *
+ * 로드: basic.php 에서 $assets->addCss('/serve/package/Board/views/Block/boardcomment/basic/style.css')
+ * 본문 padding 은 BlockRenderService 가 칸별 동적 <style>(#bc-{id} .block-body)로 처리 → 여기서 건드리지 않음.
+ * 공용 프리미티브(.block-title/.block-body/.block-empty)는 코어(block.css) 소유.
+ *
+ * 레이아웃: 아이템당 2줄
+ *   1줄(.block-boardcomment__body) : 댓글 내용(1줄 말줄임)
+ *   2줄(.block-boardcomment__meta) : 작성자 · 작성일  ······  게시판명
+ */
+
+/* ── 목록 ─────────────────────────────── */
+.block-boardcomment--board-basic .block-boardcomment__list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+
+/* ── 아이템(행) ───────────────────────── */
+.block-boardcomment--board-basic .block-boardcomment__item {
+    border-bottom: 1px solid var(--border);
+}
+
+.block-boardcomment--board-basic .block-boardcomment__item:last-child {
+    border-bottom: none;
+}
+
+/* 아이템당 2줄 스택 */
+.block-boardcomment--board-basic .block-boardcomment__link {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    color: inherit;
+    text-decoration: none;
+    text-align: left;
+}
+
+/* ── 1줄: 댓글 내용 ───────────────────── */
+.block-boardcomment--board-basic .block-boardcomment__body {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--foreground);
+}
+
+/* 행 hover — 댓글 내용만 살짝 연하게 */
+.block-boardcomment--board-basic .block-boardcomment__link:hover .block-boardcomment__body {
+    color: var(--muted-foreground);
+}
+
+/* ── 2줄: 작성자 · 작성일 ····· 게시판명 ── */
+.block-boardcomment--board-basic .block-boardcomment__meta {
+    display: flex;
+    align-items: center;
+    line-height: 1.25;
+    margin-top: 2px;
+    color: var(--muted-foreground);
+    font-size: 12px;
+}
+
+.block-boardcomment--board-basic .block-boardcomment__author {}
+
+/* 작성자 · 작성일 사이 가운뎃점 */
+.block-boardcomment--board-basic .block-boardcomment__sep {
+    margin: 0 6px;
+    color: var(--border);
+}
+
+/* 게시판명 — 행 끝(오른쪽)으로 */
+.block-boardcomment--board-basic .block-boardcomment__board {
+    flex: 0 0 auto;
+    margin-left: auto;
+    padding-left: 8px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--muted-foreground);
+}
+
+/* ── 빈 상태 (board/basic 과 동일 패턴: 칸을 세로로 꽉 채우는 점선 박스) ── */
+.block-boardcomment--board-basic {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+}
+
+.block-boardcomment--board-basic .block-boardcomment__content {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+}
+
+.block-boardcomment--board-basic .block-boardcomment__empty {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 0;
+    padding: 16px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    color: color-mix(in srgb, var(--muted-foreground) 55%, transparent);
+    font-size: 0.875rem;
+}
+
+.block-boardcomment--board-basic .block-boardcomment__empty-icon {
+    font-size: 1.75rem;
+    line-height: 1;
+}

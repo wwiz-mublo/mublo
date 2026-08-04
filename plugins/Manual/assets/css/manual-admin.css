@@ -1,0 +1,91 @@
+/**
+ * 매뉴얼 플러그인 관리자 스타일 — 목차 트리 전용
+ * Bootstrap 5 CSS 변수 기반 (라이트/다크 자동 대응)
+ *
+ * 책 목록(Book/List)·폼 화면은 부트스트랩 유틸만 사용하므로 이 파일이 필요 없다.
+ * Page/List(목차 트리)만 로드한다.
+ */
+
+/* ── 목차 트리 ─────────────────────────── */
+/* 리스트·아이템 모두 flex 컬럼 + 동일 gap → 부모/리프 구분 없이 행 간 세로 간격이 균일 */
+.manual-tree__list {
+    list-style: none;
+    margin: 0;
+    padding-left: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.manual-tree > .manual-tree__list {
+    padding-left: 0;
+}
+
+.manual-tree__item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.manual-tree__row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.4rem;
+    background: var(--bs-body-bg);
+}
+
+.manual-tree__row:hover {
+    background: var(--bs-tertiary-bg);
+}
+
+.manual-tree__handle {
+    cursor: grab;
+    color: var(--bs-secondary-color);
+    flex: 0 0 auto;
+}
+
+.manual-tree__handle:active {
+    cursor: grabbing;
+}
+
+.manual-tree__title {
+    font-weight: 600;
+    color: var(--bs-body-color);
+}
+
+.manual-tree__slug {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+}
+
+.manual-tree__actions {
+    margin-left: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+}
+
+/* 리프의 빈 자식 목록은 평소엔 접어 세로 간격을 균일하게 유지하고,
+   드래그 중(.is-dragging)에만 드롭존으로 노출한다 */
+.manual-tree__item > .manual-tree__list:empty {
+    display: none;
+}
+
+.manual-tree.is-dragging .manual-tree__item > .manual-tree__list:empty {
+    display: block;
+    min-height: 0.75rem;
+    border: 1px dashed var(--bs-border-color);
+    border-radius: 0.35rem;
+}
+
+/* SortableJS 드래그 상태 */
+.sortable-ghost .manual-tree__row {
+    opacity: 0.5;
+    border-style: dashed;
+}
+
+.sortable-chosen > .manual-tree__row {
+    box-shadow: 0 0 0 2px rgba(var(--bs-primary-rgb), 0.35);
+}
