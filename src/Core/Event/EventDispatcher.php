@@ -46,6 +46,15 @@ class EventDispatcher
     private array $sortedListeners = [];
 
     /**
+     * 상속 체인까지 펼쳐 병합한 리스너 캐시
+     * [cacheKey => [callable, ...]]
+     *
+     * 한 이벤트의 결과가 조상 이름에 걸린 리스너에도 의존하므로,
+     * 리스너가 하나라도 바뀌면 통째로 버린다.
+     */
+    private array $resolvedListeners = [];
+
+    /**
      * 리스너 등록
      *
      * @param string $eventName 이벤트명 (클래스명)
@@ -56,6 +65,7 @@ class EventDispatcher
     {
         $this->listeners[$eventName][$priority][] = $listener;
         unset($this->sortedListeners[$eventName]);
+        $this->resolvedListeners = [];
 
         if (ExtensionRegistrationScope::currentOwner() !== null) {
             ExtensionRegistrationScope::recordUndo(
@@ -134,6 +144,7 @@ class EventDispatcher
         }
 
         unset($this->sortedListeners[$eventName]);
+        $this->resolvedListeners = [];
     }
 
     /**
@@ -142,6 +153,10 @@ class EventDispatcher
      * 넣은 이벤트를 그대로 돌려준다. 반환 타입이 EventInterface 면 리스너가 채운
      * 값을 읽는 호출부에서 구체 타입이 사라지므로, 제네릭으로 살린다.
      *
+     * 이벤트명뿐 아니라 부모 클래스명·인터페이스명에 걸린 리스너도 함께 실행한다.
+     * 발행부는 세분화된 서브클래스를 던지고(MemberRegisteredByUserEvent),
+     * 구독부는 원하는 만큼만 넓게 잡는다(MemberRegisteredEvent = 모든 가입 경로).
+     *
      * @template T of EventInterface
      * @param T $event 이벤트 객체
      * @return T 처리된 이벤트 객체 (인자와 동일 인스턴스)
@@ -149,7 +164,7 @@ class EventDispatcher
     public function dispatch(EventInterface $event): EventInterface
     {
         $eventName = $event->getName();
-        $listeners = $this->getListeners($eventName);
+        $listeners = $this->resolveListenersFor($event);
 
         foreach ($listeners as $listener) {
             if ($event->isPropagationStopped()) {
@@ -178,7 +193,93 @@ class EventDispatcher
     }
 
     /**
-     * 특정 이벤트의 리스너 목록 반환
+     * 이벤트 인스턴스가 실제로 실행할 리스너 목록
+     *
+     * 이벤트명 → 부모 클래스들 → 인터페이스들 순으로 이름을 펼친 뒤,
+     * 각 이름에 걸린 리스너를 우선순위 하나로 병합한다.
+     * 우선순위가 같으면 더 구체적인 이름(구상 클래스)에 걸린 쪽이 먼저다.
+     *
+     * @return list<callable>
+     */
+    private function resolveListenersFor(EventInterface $event): array
+    {
+        $eventName = $event->getName();
+        // getName() 을 재정의해 클래스명과 다른 이름을 쓰는 이벤트가 있으므로,
+        // 클래스만으로도 이름만으로도 캐시 키가 될 수 없다.
+        $cacheKey = $eventName . "\0" . $event::class;
+
+        if (isset($this->resolvedListeners[$cacheKey])) {
+            return $this->resolvedListeners[$cacheKey];
+        }
+
+        $names = $this->resolveEventNames($event);
+
+        /** @var array<int, list<array{0: callable, 1: string}>> $byPriority */
+        $byPriority = [];
+        foreach ($names as $name) {
+            foreach ($this->listeners[$name] ?? [] as $priority => $listeners) {
+                foreach ($listeners as $listener) {
+                    $byPriority[$priority][] = [$listener, $name];
+                }
+            }
+        }
+
+        if ($byPriority === []) {
+            return $this->resolvedListeners[$cacheKey] = [];
+        }
+
+        krsort($byPriority);
+
+        $resolved = [];
+        $sources = [];
+        foreach (array_merge(...$byPriority) as [$listener, $name]) {
+            // 부모와 자식에 같은 리스너를 동시에 건 경우 한 번만 실행한다.
+            // (가입 포인트가 두 번 지급되는 식의 사고를 막는다.)
+            // 같은 이름에 중복 등록한 경우는 기존 동작대로 등록 횟수만큼 실행한다.
+            $duplicate = false;
+            foreach ($resolved as $index => $existing) {
+                if ($existing === $listener && $sources[$index] !== $name) {
+                    $duplicate = true;
+                    break;
+                }
+            }
+
+            if ($duplicate) {
+                continue;
+            }
+
+            $resolved[] = $listener;
+            $sources[] = $name;
+        }
+
+        return $this->resolvedListeners[$cacheKey] = $resolved;
+    }
+
+    /**
+     * 이벤트가 응답할 이름 목록 (구체적인 것부터)
+     *
+     * @return list<string>
+     */
+    private function resolveEventNames(EventInterface $event): array
+    {
+        $class = $event::class;
+
+        $names = [$event->getName(), $class];
+        foreach (class_parents($class) ?: [] as $parent) {
+            $names[] = $parent;
+        }
+        foreach (class_implements($class) ?: [] as $interface) {
+            $names[] = $interface;
+        }
+
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * 특정 이벤트명에 직접 등록된 리스너 목록 반환
+     *
+     * 이름 하나만 본다 — 상속 체인은 펼치지 않는다.
+     * 실제 발송에 쓰이는 목록은 resolveListenersFor() 가 만든다.
      */
     public function getListeners(string $eventName): array
     {
@@ -194,7 +295,9 @@ class EventDispatcher
     }
 
     /**
-     * 리스너가 있는지 확인
+     * 해당 이름에 직접 등록된 리스너가 있는지 확인
+     *
+     * getListeners() 와 마찬가지로 상속 체인은 보지 않는다.
      */
     public function hasListeners(string $eventName): bool
     {

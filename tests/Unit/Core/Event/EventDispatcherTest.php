@@ -150,6 +150,127 @@ class EventDispatcherTest extends TestCase
 
         $this->assertFalse($secondCalled);
     }
+
+    public function testParentEventListenerReceivesChildEvent(): void
+    {
+        $received = [];
+
+        $this->dispatcher->addListener(
+            TestEvent::class,
+            function (TestEvent $event) use (&$received) {
+                $received[] = 'parent:' . $event->data;
+            }
+        );
+        $this->dispatcher->addListener(
+            ChildTestEvent::class,
+            function (ChildTestEvent $event) use (&$received) {
+                $received[] = 'child:' . $event->data;
+            }
+        );
+
+        $this->dispatcher->dispatch(new ChildTestEvent('c'));
+        $this->dispatcher->dispatch(new TestEvent('p'));
+
+        // 자식 발송은 양쪽 모두, 부모 발송은 부모 리스너만 탄다.
+        $this->assertSame(['child:c', 'parent:c', 'parent:p'], $received);
+    }
+
+    public function testInterfaceListenerReceivesImplementingEvent(): void
+    {
+        $called = false;
+
+        $this->dispatcher->addListener(
+            AbstractEvent::class,
+            function () use (&$called) {
+                $called = true;
+            }
+        );
+
+        $this->dispatcher->dispatch(new ChildTestEvent('x'));
+
+        $this->assertTrue($called);
+    }
+
+    public function testPriorityIsMergedAcrossTheInheritanceChain(): void
+    {
+        $order = [];
+
+        $this->dispatcher->addListener(
+            ChildTestEvent::class,
+            function () use (&$order) {
+                $order[] = 'child-default';
+            }
+        );
+        $this->dispatcher->addListener(
+            TestEvent::class,
+            function () use (&$order) {
+                $order[] = 'parent-high';
+            },
+            100
+        );
+
+        $this->dispatcher->dispatch(new ChildTestEvent('x'));
+
+        // 이름이 더 구체적이라고 앞서지 않는다 — 우선순위가 먼저다.
+        $this->assertSame(['parent-high', 'child-default'], $order);
+    }
+
+    public function testSameListenerOnParentAndChildRunsOnce(): void
+    {
+        $calls = 0;
+        $listener = function () use (&$calls) {
+            $calls++;
+        };
+
+        $this->dispatcher->addListener(TestEvent::class, $listener);
+        $this->dispatcher->addListener(ChildTestEvent::class, $listener);
+
+        $this->dispatcher->dispatch(new ChildTestEvent('x'));
+
+        $this->assertSame(1, $calls);
+    }
+
+    public function testStopPropagationAppliesAcrossTheInheritanceChain(): void
+    {
+        $parentCalled = false;
+
+        $this->dispatcher->addListener(
+            ChildTestEvent::class,
+            function (ChildTestEvent $event) {
+                $event->stopPropagation();
+            },
+            10
+        );
+        $this->dispatcher->addListener(
+            TestEvent::class,
+            function () use (&$parentCalled) {
+                $parentCalled = true;
+            }
+        );
+
+        $this->dispatcher->dispatch(new ChildTestEvent('x'));
+
+        $this->assertFalse($parentCalled);
+    }
+
+    public function testListenerAddedToParentAfterDispatchIsPickedUp(): void
+    {
+        $called = false;
+
+        // 자식 이벤트를 먼저 흘려 리스너 목록을 캐시시킨다.
+        $this->dispatcher->dispatch(new ChildTestEvent('warmup'));
+
+        $this->dispatcher->addListener(
+            TestEvent::class,
+            function () use (&$called) {
+                $called = true;
+            }
+        );
+
+        $this->dispatcher->dispatch(new ChildTestEvent('x'));
+
+        $this->assertTrue($called);
+    }
 }
 
 /**
@@ -160,6 +281,13 @@ class TestEvent extends AbstractEvent
     public function __construct(
         public readonly string $data
     ) {}
+}
+
+/**
+ * 테스트용 하위 이벤트
+ */
+class ChildTestEvent extends TestEvent
+{
 }
 
 /**
