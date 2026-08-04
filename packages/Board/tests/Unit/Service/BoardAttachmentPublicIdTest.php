@@ -10,6 +10,7 @@ use Mublo\Entity\Domain\Domain;
 use Mublo\Infrastructure\Image\ImageProcessor;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Packages\Board\Entity\BoardAttachment;
+use Mublo\Packages\Board\Helper\ArticlePresenter;
 use Mublo\Packages\Board\Repository\BoardAttachmentRepository;
 use Mublo\Packages\Board\Repository\BoardArticleRepository;
 use Mublo\Packages\Board\Repository\BoardConfigRepository;
@@ -89,6 +90,71 @@ final class BoardAttachmentPublicIdTest extends TestCase
         ]);
 
         $this->assertSame(self::PUBLIC_ID, $entity->toArray()['public_id']);
+    }
+
+    /**
+     * 프론트 컨트롤러의 조립 경로 전체를 태운다.
+     *
+     * Service 와 Presenter 는 각각 필드 allowlist 를 갖고 있고 둘 다 개별 테스트가
+     * 있었지만, 이어붙인 지점은 아무도 보지 않았다. Presenter 쪽 목록에서
+     * public_id 가 빠져 있어 다운로드 링크가 `/board/{slug}/file/download/` 로
+     * 렌더됐고, 라우트가 hex 22자를 요구하므로 매칭조차 되지 않았다.
+     *
+     * BoardController::view() 가 하는 것과 같은 순서로 호출한다.
+     */
+    public function testAssembledSkinArrayKeepsPublicIdForDownloadLink(): void
+    {
+        $attachments = $this->createMock(BoardAttachmentRepository::class);
+        $attachments->method('findByArticle')->willReturn([$this->attachment()]);
+
+        $assembled = (new ArticlePresenter())->decorateAttachments(
+            $this->service($attachments)->getAttachmentsByArticle(10)
+        );
+
+        $this->assertSame(self::PUBLIC_ID, $assembled[0]['public_id'] ?? null);
+    }
+
+    /**
+     * 조립 후에도 비노출 계약은 그대로여야 한다 — public_id 를 살리려고
+     * allowlist 를 넓힌 것이 아님을 함께 고정한다.
+     */
+    public function testAssembledSkinArrayStillHidesStoredNameAndPath(): void
+    {
+        $attachments = $this->createMock(BoardAttachmentRepository::class);
+        $attachments->method('findByArticle')->willReturn([$this->attachment()]);
+
+        $assembled = (new ArticlePresenter())->decorateAttachments(
+            $this->service($attachments)->getAttachmentsByArticle(10)
+        );
+
+        $this->assertArrayNotHasKey('stored_name', $assembled[0]);
+        $this->assertArrayNotHasKey('file_path', $assembled[0]);
+        $this->assertArrayNotHasKey('domain_id', $assembled[0]);
+    }
+
+    /**
+     * 다운로드 횟수는 스킨이 "다운로드 N" 라벨을 그릴 때 쓴다. 조립 과정에서
+     * 사라지면 라벨이 통째로 안 나온다(뷰가 > 0 조건으로 감싼다).
+     */
+    public function testAssembledSkinArrayKeepsDownloadCount(): void
+    {
+        $attachment = BoardAttachment::fromArray([
+            'attachment_id' => 50,
+            'public_id' => self::PUBLIC_ID,
+            'article_id' => 10,
+            'original_name' => 'test.pdf',
+            'file_extension' => 'pdf',
+            'download_count' => 7,
+        ]);
+
+        $attachments = $this->createMock(BoardAttachmentRepository::class);
+        $attachments->method('findByArticle')->willReturn([$attachment]);
+
+        $assembled = (new ArticlePresenter())->decorateAttachments(
+            $this->service($attachments)->getAttachmentsByArticle(10)
+        );
+
+        $this->assertSame(7, $assembled[0]['download_count'] ?? null);
     }
 
     private function attachment(): BoardAttachment
