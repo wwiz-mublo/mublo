@@ -125,19 +125,27 @@ $this->assets->addJs('/serve/package/Board/assets/js/code-block.js');
         <ul class="board-view__attachment-list">
             <?php foreach ($attachments as $att): ?>
             <li class="board-view__attachment-item">
-                <?php if ($canDownload): ?>
-                <a href="/board/<?= $boardSlug ?>/file/download/<?= htmlspecialchars($att['public_id'] ?? '') ?>" class="board-view__attachment-link">
+                <?php if ($canDownload && !empty($att['download_url'])): ?>
+                <a href="<?= htmlspecialchars($att['download_url'], ENT_QUOTES) ?>" class="board-view__attachment-link">
                     <span class="board-view__attachment-icon"><i class="bi <?= $attachmentIcons[$att['file_type'] ?? 'file'] ?? 'bi-file-earmark' ?>"></i></span>
                     <span class="board-view__attachment-name"><?= htmlspecialchars($att['original_name']) ?></span>
                     <span class="board-view__attachment-size">(<?= number_format($att['file_size'] / 1024, 1) ?>KB)</span>
                 </a>
-                <?php else: ?>
+                <?php elseif (!$canDownload): ?>
                 <button type="button" class="board-view__attachment-link board-view__attachment-link--locked" data-attachment-locked>
                     <span class="board-view__attachment-icon"><i class="bi <?= $attachmentIcons[$att['file_type'] ?? 'file'] ?? 'bi-file-earmark' ?>"></i></span>
                     <span class="board-view__attachment-name"><?= htmlspecialchars($att['original_name']) ?></span>
                     <span class="board-view__attachment-size">(<?= number_format($att['file_size'] / 1024, 1) ?>KB)</span>
                     <span class="board-view__attachment-lock" aria-hidden="true"><i class="bi bi-lock"></i></span>
                 </button>
+                <?php else: ?>
+                <?php /* 권한은 있는데 주소를 만들 수 없다 = 첨부 데이터 이상. 깨진 링크로 404 를
+                         내보내는 대신 받을 수 없음을 그대로 보여준다. */ ?>
+                <span class="board-view__attachment-link board-view__attachment-link--broken">
+                    <span class="board-view__attachment-icon"><i class="bi <?= $attachmentIcons[$att['file_type'] ?? 'file'] ?? 'bi-file-earmark' ?>"></i></span>
+                    <span class="board-view__attachment-name"><?= htmlspecialchars($att['original_name']) ?></span>
+                    <span class="board-view__attachment-note">(받을 수 없는 첨부입니다)</span>
+                </span>
                 <?php endif; ?>
                 <?php if ($att['download_count'] > 0): ?>
                 <span class="board-view__attachment-downloads">다운로드 <?= $att['download_count'] ?></span>

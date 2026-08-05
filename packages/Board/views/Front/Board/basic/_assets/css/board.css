@@ -1388,6 +1388,19 @@ input.board-write__input--title {
     font-size: 12px;
 }
 
+/* 주소를 만들 수 없는 첨부 (데이터 이상) */
+.board-view__attachment-link--broken {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--board-text-muted);
+    font-size: 14px;
+}
+
+.board-view__attachment-note {
+    font-size: 12px;
+}
+
 .board-view__attachment-size {
     color: var(--board-text-muted);
     font-size: 12px;
