@@ -75,6 +75,10 @@ class SnsAccountRepository
         $data = [
             'access_token'     => $this->encryption->encrypt($accessToken),
             'token_expires_at' => $expiresAt,
+            // 새 토큰을 받았다는 건 연결이 다시 살아났다는 뜻이다.
+            // 과거 폐기 실패 표시를 남겨두면 관리자 화면에 유령 항목이 쌓인다.
+            'revoke_failed_at'      => null,
+            'revoke_failure_reason' => null,
         ];
 
         // Google 등은 재로그인 때 refresh_token을 다시 주지 않을 수 있으므로
@@ -94,11 +98,19 @@ class SnsAccountRepository
             ->delete() > 0;
     }
 
-    public function deleteByMember(int $memberId): int
+    /**
+     * 제공자 폐기 실패를 행에 기록한다 (행은 지우지 않는다).
+     *
+     * 재시도에 쓸 토큰이 이 행에 있으므로 보존이 목적이다.
+     */
+    public function markRevokeFailed(int $id, string $reason): void
     {
-        return $this->db->table($this->table)
-            ->where('member_id', '=', $memberId)
-            ->delete();
+        $this->db->table($this->table)
+            ->where('id', '=', $id)
+            ->update([
+                'revoke_failed_at'      => date('Y-m-d H:i:s'),
+                'revoke_failure_reason' => mb_substr($reason, 0, 255),
+            ]);
     }
 
     /** @param array<string, mixed> $row */
@@ -119,7 +131,7 @@ class SnsAccountRepository
     /**
      * 관리자 목록: members JOIN, 페이지네이션
      */
-    public function listPaginated(int $domainId, ?string $provider, int $perPage, int $offset): array
+    public function listPaginated(int $domainId, ?string $provider, int $perPage, int $offset, bool $revokeFailedOnly = false): array
     {
         $pdo      = $this->db->getPdo();
         $saTable  = 'plugin_sns_login_accounts';
@@ -137,6 +149,10 @@ class SnsAccountRepository
             $params[] = $provider;
         }
 
+        if ($revokeFailedOnly) {
+            $sql .= ' AND sa.revoke_failed_at IS NOT NULL';
+        }
+
         $sql .= ' ORDER BY sa.linked_at DESC LIMIT ? OFFSET ?';
         $params[] = $perPage;
         $params[] = $offset;
@@ -146,7 +162,7 @@ class SnsAccountRepository
         return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 
-    public function countFiltered(int $domainId, ?string $provider): int
+    public function countFiltered(int $domainId, ?string $provider, bool $revokeFailedOnly = false): int
     {
         $qb = $this->db->table($this->table)
             ->where('domain_id', '=', $domainId);
@@ -155,7 +171,20 @@ class SnsAccountRepository
             $qb->where('provider', '=', $provider);
         }
 
+        if ($revokeFailedOnly) {
+            $qb->whereNotNull('revoke_failed_at');
+        }
+
         return $qb->count();
+    }
+
+    /** 폐기 실패로 남은 연결 수 — 관리자에게 상시 노출할 경고 배지용 */
+    public function countRevokeFailed(int $domainId): int
+    {
+        return $this->db->table($this->table)
+            ->where('domain_id', '=', $domainId)
+            ->whereNotNull('revoke_failed_at')
+            ->count();
     }
 
     public function deleteById(int $id, int $domainId): bool

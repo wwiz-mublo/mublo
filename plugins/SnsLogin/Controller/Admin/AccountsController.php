@@ -24,11 +24,13 @@ class AccountsController
         $domainId = $context->getDomainId() ?? 1;
 
         $provider    = $request->get('provider', '');
+        // 폐기 실패로 남은 연결만 모아 보는 뷰 — 재시도 대상 목록이다.
+        $failedOnly  = $request->get('failed', '') === '1';
         $currentPage = max(1, (int)$request->get('page', 1));
         $offset      = ($currentPage - 1) * self::PER_PAGE;
 
-        $totalItems = $this->accountRepository->countFiltered($domainId, $provider ?: null);
-        $accounts   = $this->accountRepository->listPaginated($domainId, $provider ?: null, self::PER_PAGE, $offset);
+        $totalItems = $this->accountRepository->countFiltered($domainId, $provider ?: null, $failedOnly);
+        $accounts   = $this->accountRepository->listPaginated($domainId, $provider ?: null, self::PER_PAGE, $offset, $failedOnly);
 
         $totalPages = max(1, (int)ceil($totalItems / self::PER_PAGE));
 
@@ -37,6 +39,8 @@ class AccountsController
                 'pageTitle'   => 'SNS 연동 내역',
                 'accounts'    => $accounts,
                 'provider'    => $provider,
+                'failedOnly'  => $failedOnly,
+                'failedCount' => $this->accountRepository->countRevokeFailed($domainId),
                 'pagination'  => [
                     'totalItems'  => $totalItems,
                     'perPage'     => self::PER_PAGE,

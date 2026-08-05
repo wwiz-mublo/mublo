@@ -29,7 +29,7 @@ use Mublo\Plugin\SnsLogin\Service\SnsLoginService;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginDataResetter;
 use Mublo\Plugin\SnsLogin\Service\SnsConnectionManager;
 use Mublo\Plugin\SnsLogin\Subscriber\LoginFormSubscriber;
-use Mublo\Plugin\SnsLogin\Subscriber\MemberWithdrawalSubscriber;
+use Mublo\Plugin\SnsLogin\Subscriber\MemberLifecycleSubscriber;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Contract\Auth\AuthContextInterface;
@@ -149,7 +149,7 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
         // 구독자 등록은 항상 먼저 (DB 접근 전) — 설치 전에도 관리자 메뉴가 보여야 함
         $eventDispatcher->addSubscriber(new AdminMenuSubscriber());
         $eventDispatcher->addSubscriber(new LoginFormSubscriber($registry));
-        $eventDispatcher->addSubscriber(new MemberWithdrawalSubscriber(
+        $eventDispatcher->addSubscriber(new MemberLifecycleSubscriber(
             $container->get(SnsConnectionManager::class),
             $container->get(Logger::class)->channel('sns-login'),
         ));
