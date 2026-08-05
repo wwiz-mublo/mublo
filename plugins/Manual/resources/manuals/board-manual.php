@@ -8,7 +8,7 @@ declare(strict_types=1);
  * 기준으로 작성했다. 가져온 뒤에는 도메인 관리자가 일반 매뉴얼처럼 편집할 수 있다.
  */
 return [
-    'version' => 2,
+    'version' => 3,
     'book' => [
         'title' => 'Mublo 게시판 매뉴얼',
         'slug' => 'board-manual',
@@ -23,7 +23,7 @@ return [
             'slug' => 'start',
             'sort_order' => 10,
             'content' => <<<'HTML'
-<!-- mublo-bundle:board:v2 -->
+<!-- mublo-bundle:board:v3 -->
 <p>Board 패키지는 게시판 그룹, 게시판, 공용 카테고리, 게시글·댓글·첨부파일·반응, 포인트 정책, 커뮤니티와 블록 연동을 제공합니다.</p>
 <h3>권장 개설 순서</h3>
 <ol>
@@ -204,8 +204,8 @@ HTML,
 <li>목록·상세·작성·수정·비회원 비밀번호 화면을 모두 확인합니다.</li>
 </ol>
 <blockquote>
-<p>Board의 프론트 콘텐츠 스킨은 Controller가 선택한 스킨 파일을 직접 지정합니다.</p>
-<p>선택한 폴더에 필요한 PHP 파일을 모두 두십시오.<br>Mublo Shop과 달리 누락된 파일을 <code>basic</code>으로 자동 폴백하지 않습니다.</p>
+<p>선택한 스킨 폴더에 파일이 없으면 <code>basic</code>의 같은 파일이 대신 사용됩니다. Mublo Shop과 같은 파일 단위 폴백입니다.</p>
+<p>다만 이것은 화면이 깨지는 것을 막는 안전망이지 파일을 생략해도 된다는 뜻이 아닙니다.<br>폴백이 걸린 화면만 <code>basic</code> 디자인으로 나와 스킨의 톤이 어긋나므로, 네 파일을 모두 두는 것을 권장합니다.</p>
 </blockquote>
 HTML,
         ],

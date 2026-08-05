@@ -111,11 +111,17 @@ class ManualService implements ManualQueryInterface
 
     /**
      * 번들 스킨 제작 가이드를 현재 도메인의 편집 가능한 일반 매뉴얼로 복사한다.
-     * 같은 슬러그가 있으면 사용자가 수정한 내용을 보호하기 위해 덮어쓰지 않는다.
+     *
+     * 게시판·쇼핑몰 매뉴얼과 달리 이 책은 운영자가 직접 선택해 가져오는 것이므로
+     * ensureDefaultManuals 의 자동 경로에 넣지 않는다. 대신 가져오기를 다시 실행하면
+     * 버전이 오른 개정본을 반영한다 — 그렇지 않으면 이미 가져간 도메인이 번들 수정을
+     * 영원히 받지 못한다.
      */
     public function importSkinDevelopmentTutorial(int $domainId): Result
     {
-        return $this->importBundledManual($domainId, 'skin-development');
+        $result = $this->importBundledManual($domainId, 'skin-development');
+
+        return $this->refreshOutdatedBundle($domainId, 'skin-development', $result);
     }
 
     public function importBoardManual(int $domainId): Result
