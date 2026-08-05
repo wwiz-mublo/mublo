@@ -831,6 +831,10 @@ class BoardArticleRepository extends BaseRepository
                 'a.*',
                 'b.board_name',
                 'b.board_slug',
+                // 관리자 목록이 "이 글의 개별 레벨이 게시판 정책보다 낮다"를 표시하려면
+                // 둘을 나란히 놓고 비교해야 한다. 글 값만으로는 어긋났는지 알 수 없다.
+                'b.read_level AS board_read_level',
+                'b.download_level AS board_download_level',
                 'm.user_id AS author_userid',
             ])
             ->leftJoin('board_configs AS b', 'a.board_id', '=', 'b.board_id')

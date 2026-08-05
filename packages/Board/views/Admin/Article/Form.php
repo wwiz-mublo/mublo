@@ -272,28 +272,50 @@ $fileExtAllowed = $selectedBoard ? $selectedBoard->getFileExtensionAllowed() : '
                     <span>권한 설정</span>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label small">읽기 레벨</label>
-                        <select class="form-select" name="formData[read_level]">
-                            <option value="">게시판 설정 사용</option>
+                    <?php
+                    /*
+                     * "게시판 설정 사용"과 "Lv.0 (전체)"이 화면에서 구분되지 않아, 게시판
+                     * 정책을 덮는 개별 설정이 실수로 걸리는 일이 있었다. 옵션 라벨에
+                     * 게시판의 현재값을 박아 둘을 구분하고, 이미 어긋난 글은 경고로 알린다.
+                     */
+                    $levelText = static fn(int $level): string => 'Lv.' . $level . ($level === 0 ? ' (전체)' : '');
+
+                    $levelFields = [
+                        'read_level'     => ['label' => '읽기 레벨',     'board' => $selectedBoard?->getReadLevel()],
+                        'download_level' => ['label' => '다운로드 레벨', 'board' => $selectedBoard?->getDownloadLevel()],
+                    ];
+                    $lastField = array_key_last($levelFields);
+                    ?>
+                    <?php foreach ($levelFields as $field => $info): ?>
+                    <?php
+                        $articleLevel = isset($article[$field]) && $article[$field] !== null
+                            ? (int) $article[$field]
+                            : null;
+                        $boardLevel = $info['board'];
+                        $isWeaker = $articleLevel !== null && $boardLevel !== null && $articleLevel < $boardLevel;
+                    ?>
+                    <div class="<?= $field === $lastField ? 'mb-0' : 'mb-3' ?>">
+                        <label class="form-label small"><?= $info['label'] ?></label>
+                        <select class="form-select" name="formData[<?= $field ?>]">
+                            <option value="">
+                                게시판 설정 사용<?= $boardLevel !== null ? ' (현재: ' . $levelText($boardLevel) . ')' : '' ?>
+                            </option>
                             <?php for ($i = 0; $i <= 10; $i++): ?>
-                            <option value="<?= $i ?>" <?= ($article['read_level'] ?? '') === $i ? 'selected' : '' ?>>
-                                Lv.<?= $i ?><?= $i === 0 ? ' (전체)' : '' ?>
+                            <option value="<?= $i ?>" <?= $articleLevel === $i ? 'selected' : '' ?>>
+                                <?= $levelText($i) ?>
                             </option>
                             <?php endfor; ?>
                         </select>
+                        <?php if ($isWeaker): ?>
+                        <div class="form-text text-danger">
+                            이 글의 개별 설정이 게시판 설정(<?= $levelText($boardLevel) ?>)보다 낮습니다.
+                            게시판 정책을 따르려면 "게시판 설정 사용"으로 되돌리세요.
+                        </div>
+                        <?php elseif ($articleLevel !== null): ?>
+                        <div class="form-text">이 글만 개별 설정을 사용 중입니다.</div>
+                        <?php endif; ?>
                     </div>
-                    <div class="mb-0">
-                        <label class="form-label small">다운로드 레벨</label>
-                        <select class="form-select" name="formData[download_level]">
-                            <option value="">게시판 설정 사용</option>
-                            <?php for ($i = 0; $i <= 10; $i++): ?>
-                            <option value="<?= $i ?>" <?= ($article['download_level'] ?? '') === $i ? 'selected' : '' ?>>
-                                Lv.<?= $i ?><?= $i === 0 ? ' (전체)' : '' ?>
-                            </option>
-                            <?php endfor; ?>
-                        </select>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
             </div>
 

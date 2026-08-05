@@ -312,9 +312,76 @@ class BoardPermissionService
     }
 
     /**
+     * 글 개별 레벨을 그대로 인정할지 판단한다.
+     *
+     * 게시판 설정은 관리자가 정한 하한이다. 조이는 방향(더 높은 레벨)은 누구나 걸 수
+     * 있지만, 푸는 방향은 관리자만 할 수 있다. 그러지 않으면 회원 전용 게시판에서
+     * 회원 하나가 자기 글만 전체 공개로 열어 게시판 정책을 우회할 수 있다.
+     *
+     * 허용되지 않는 값은 거절하지 않고 null(게시판 설정 상속)로 떨어뜨린다 — 글쓰기
+     * 자체를 실패시킬 사안이 아니고, 상속이 언제나 안전한 쪽이다.
+     *
+     * @param string   $type  'read' | 'download'
+     * @param int|null $level 요청된 개별 레벨 (null 이면 상속)
+     * @return int|null 저장할 값 (null = 게시판 설정 상속)
+     */
+    public function resolveArticleLevel(
+        BoardConfig $board,
+        Context $context,
+        string $type,
+        ?int $level
+    ): ?int {
+        if ($level === null) {
+            return null;
+        }
+
+        if ($this->isAdmin($board, $context)) {
+            return $level;
+        }
+
+        $boardLevel = match ($type) {
+            'read' => $board->getReadLevel(),
+            'download' => $board->getDownloadLevel(),
+            default => null,
+        };
+
+        if ($boardLevel === null) {
+            return $level;
+        }
+
+        // 게시판 하한보다 낮추려는 시도는 무시하고 상속으로 되돌린다
+        return $level < $boardLevel ? null : $level;
+    }
+
+    /**
+     * 필요 레벨과 그 출처를 함께 조회한다.
+     *
+     * 관리자 화면이 "이 값이 어디서 왔는지"를 보여줄 수 있어야, 게시판 설정과 글 개별
+     * 설정이 어긋난 상태를 눈으로 찾을 수 있다. 숫자만 돌려주면 두 화면을 번갈아
+     * 보면서 추론해야 한다.
+     *
+     * @param string $type 'list'|'read'|'write'|'comment'|'download'
+     * @return array{value: int, source: string} source: article|category|board|group
+     */
+    public function describeRequiredLevel(BoardConfig $board, ?BoardArticle $article, string $type): array
+    {
+        return $this->resolveRequiredLevel($board, $article, $type);
+    }
+
+    /**
      * 필요 레벨 조회 (게시글 → 카테고리 → 게시판 → 그룹 순서)
      */
     private function getRequiredLevel(BoardConfig $board, ?BoardArticle $article, string $type): int
+    {
+        return $this->resolveRequiredLevel($board, $article, $type)['value'];
+    }
+
+    /**
+     * 레벨 판정 본체. 값과 출처를 함께 만든다.
+     *
+     * @return array{value: int, source: string}
+     */
+    private function resolveRequiredLevel(BoardConfig $board, ?BoardArticle $article, string $type): array
     {
         // 1. 게시글에 개별 레벨 설정이 있으면 사용
         if ($article) {
@@ -325,7 +392,7 @@ class BoardPermissionService
             };
 
             if ($articleLevel !== null) {
-                return $articleLevel;
+                return ['value' => $articleLevel, 'source' => 'article'];
             }
 
             // 2. 카테고리 매핑에 레벨 오버라이드가 있으면 사용
@@ -335,7 +402,7 @@ class BoardPermissionService
                 if ($mapping) {
                     $categoryLevel = $mapping->getLevel($type);
                     if ($categoryLevel !== null) {
-                        return $categoryLevel;
+                        return ['value' => $categoryLevel, 'source' => 'category'];
                     }
                 }
             }
@@ -352,13 +419,17 @@ class BoardPermissionService
         };
 
         if ($boardLevel !== null) {
-            return $boardLevel;
+            return ['value' => $boardLevel, 'source' => 'board'];
         }
 
         // 4. 그룹 설정의 레벨 사용
+        //
+        // 주의: BoardConfig 의 레벨 게터는 int 를 반환하므로 위 3번의 null 검사가
+        // 항상 참이고, 현재 이 분기에는 도달하지 않는다. 그룹 레벨을 실제로 쓰려면
+        // board_configs 의 레벨 컬럼을 NULL 허용으로 바꿔야 한다 — 별도 과제.
         $group = $this->groupRepository->find($board->getGroupId());
         if ($group) {
-            return match ($type) {
+            $groupLevel = match ($type) {
                 'list' => $group->getListLevel(),
                 'read' => $group->getReadLevel(),
                 'write' => $group->getWriteLevel(),
@@ -366,9 +437,11 @@ class BoardPermissionService
                 'download' => $group->getDownloadLevel(),
                 default => 0,
             };
+
+            return ['value' => $groupLevel, 'source' => 'group'];
         }
 
-        return 0;
+        return ['value' => 0, 'source' => 'board'];
     }
 
     /**

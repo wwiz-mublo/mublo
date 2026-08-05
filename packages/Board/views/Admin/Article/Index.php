@@ -40,6 +40,22 @@ $columns = $this->columns()
             if ($row['is_secret']) {
                 $html .= '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle me-1">비밀</span>';
             }
+            // 글 개별 레벨이 게시판 정책보다 낮으면 그 글만 권한이 풀려 있다는 뜻이다.
+            // 화면에 드러나지 않으면 신고를 받고서야 알게 된다.
+            // 키가 없으면 조용히 건너뛴다 — ErrorHandler 가 notice 도 예외로 올리므로
+            // 컬럼이 빠진 데이터로 이 뷰를 그리면 배지가 아니라 목록 전체가 죽는다.
+            foreach ([['read_level', 'board_read_level', '읽기'], ['download_level', 'board_download_level', '다운로드']] as [$key, $boardKey, $label]) {
+                $articleLevel = $row[$key] ?? null;
+                $boardLevel = $row[$boardKey] ?? null;
+                if ($articleLevel === null || $boardLevel === null) {
+                    continue;
+                }
+                if ((int) $articleLevel < (int) $boardLevel) {
+                    $html .= '<span class="badge bg-danger-subtle text-danger-emphasis border border-danger-subtle me-1"'
+                        . ' title="게시판 설정(Lv.' . (int) $boardLevel . ')보다 낮은 개별 설정(Lv.' . (int) $articleLevel . ')">'
+                        . $label . ' 권한 열림</span>';
+                }
+            }
             $title = mb_substr($row['title'], 0, 50);
             $title .= mb_strlen($row['title']) > 50 ? '...' : '';
             $html .= '<a href="/admin/board/article/view?id=' . $row['article_id'] . '" class="text-decoration-none">' . htmlspecialchars($title) . '</a>';
