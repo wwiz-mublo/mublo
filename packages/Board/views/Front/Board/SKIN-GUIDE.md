@@ -64,6 +64,33 @@ packages/Board/views/Front/Board/
 | `$canComment` / `$canReact` | bool | 댓글·반응 권한 |
 | `$canDownload` | bool | 첨부 다운로드 권한 |
 | `$isGuestArticle` | bool | 비회원 작성 글 여부 |
+| `$attachments` | array | 첨부 목록 (§2-3) |
+| `$links` | array | 관련 링크 목록 |
+
+### 2-3. 첨부 항목 (`$attachments[]`)
+
+| 키 | 타입 | 설명 |
+|---|---|---|
+| `download_url` | string\|null | **다운로드 주소. 이 값을 그대로 출력한다** |
+| `original_name` | string | 원본 파일명 |
+| `file_size` | int | 바이트 |
+| `file_type` | string | 의미 단위 종류 (`image`/`pdf`/`archive`/… → 아이콘 매핑은 스킨 몫) |
+| `is_image` | bool | 이미지 여부 |
+| `thumb_url` | string\|null | 200px 썸네일 (이미지만) |
+| `download_count` | int | 다운로드 횟수 |
+
+> **다운로드 주소를 직접 조립하지 마라.**
+>
+> `public_id`·`attachment_id` 같은 식별자로 `/board/{slug}/file/download/…` 를 만들면,
+> 식별자 규칙이 바뀔 때 **조용히 404가 된다.** 라우트가 hex 22자를 요구하므로 어긋난
+> 주소는 매칭조차 되지 않고, 예외가 아니라서 로그에도 남지 않는다. 실제로 두 번 겪었다 —
+> 마이그레이션 003 이 `attachment_id` 를 `public_id` 로 바꿨을 때 번들 스킨이 한 번,
+> 갱신되지 않은 커스텀 스킨이 또 한 번.
+>
+> `download_url` 만 쓰면 이후 식별자가 또 바뀌어도 스킨은 손댈 필요가 없다.
+>
+> `download_url` 이 `null` 이면 주소를 만들 수 없는 첨부다(데이터 이상). 링크 대신
+> 받을 수 없음을 표시한다 — 번들 스킨의 `--broken` 분기를 참고하라.
 
 ### Write.php (작성/수정)
 
@@ -153,7 +180,7 @@ packages/Board/views/Front/Board/
 | 댓글 등록 | POST | `/board/{slug}/comment` |
 | 댓글 수정·삭제 | POST | `/board/{slug}/comment/{cid}/update` · `/delete` |
 | 반응(좋아요 등) | POST | `/board/{slug}/reaction` |
-| 첨부 다운로드 | GET | `/board/{slug}/file/download/{publicId}` |
+| 첨부 다운로드 | GET | `$att['download_url']` 을 그대로 쓴다 (§2-3) — 직접 조립 금지 |
 
 - 검색 폼은 목록 경로로 `GET` 전송한다 (`keyword`, `search_field`).
 - POST 동작(삭제·댓글·반응)은 `MubloRequest` 로 보낸다. 확인창은
