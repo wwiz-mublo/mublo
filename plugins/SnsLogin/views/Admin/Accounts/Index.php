@@ -2,9 +2,11 @@
 /**
  * SNS 연동 내역
  *
- * @var array  $accounts   연동 계정 목록 (sa.* + nickname, user_id)
- * @var string $provider   현재 필터 provider
- * @var array  $pagination totalItems, perPage, currentPage, totalPages
+ * @var array  $accounts    연동 계정 목록 (sa.* + nickname, user_id)
+ * @var string $provider    현재 필터 provider
+ * @var bool   $failedOnly  폐기 실패 연결만 보기
+ * @var int    $failedCount 폐기 실패로 남은 연결 수 (탭 배지)
+ * @var array  $pagination  totalItems, perPage, currentPage, totalPages
  */
 $providerMeta = [
     'naver'  => ['label' => '네이버',  'icon' => 'bi-chat-fill',       'color' => '#03C75A'],
@@ -39,27 +41,45 @@ $totalPages  = $pagination['totalPages'];
         <!-- 제공자 필터 탭 -->
         <ul class="nav nav-tabs mb-2">
             <li class="nav-item">
-                <a class="nav-link <?= $provider === '' ? 'active' : '' ?>"
+                <a class="nav-link <?= ($provider === '' && !$failedOnly) ? 'active' : '' ?>"
                    href="<?= buildUrl($baseUrl, ['provider' => '']) ?>">
                     전체
-                    <?php if ($provider === ''): ?>
+                    <?php if ($provider === '' && !$failedOnly): ?>
                     <span class="badge bg-secondary ms-1"><?= number_format($pagination['totalItems']) ?></span>
                     <?php endif; ?>
                 </a>
             </li>
             <?php foreach ($providerMeta as $key => $meta): ?>
             <li class="nav-item">
-                <a class="nav-link <?= $provider === $key ? 'active' : '' ?>"
+                <a class="nav-link <?= ($provider === $key && !$failedOnly) ? 'active' : '' ?>"
                    href="<?= buildUrl($baseUrl, ['provider' => $key]) ?>">
                     <i class="<?= $meta['icon'] ?>" style="color:<?= $meta['color'] ?>;"></i>
                     <?= $meta['label'] ?>
-                    <?php if ($provider === $key): ?>
+                    <?php if ($provider === $key && !$failedOnly): ?>
                     <span class="badge bg-secondary ms-1"><?= number_format($pagination['totalItems']) ?></span>
                     <?php endif; ?>
                 </a>
             </li>
             <?php endforeach; ?>
+            <?php if ($failedCount > 0 || $failedOnly): ?>
+            <li class="nav-item ms-auto">
+                <a class="nav-link <?= $failedOnly ? 'active' : '' ?> text-danger"
+                   href="<?= buildUrl($baseUrl, ['failed' => '1']) ?>">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    폐기 실패
+                    <span class="badge bg-danger ms-1"><?= number_format($failedCount) ?></span>
+                </a>
+            </li>
+            <?php endif; ?>
         </ul>
+
+        <?php if ($failedOnly): ?>
+        <div class="alert alert-warning py-2 small">
+            제공자 측 연결 해제에 실패해 남은 연결입니다.
+            회원은 이미 탈퇴·해제되었지만 제공자에는 연결이 살아 있을 수 있습니다.
+            설정(Client ID·시크릿)을 확인한 뒤 <strong>재시도</strong>하면 폐기와 정리가 함께 진행됩니다.
+        </div>
+        <?php endif; ?>
 
         <!-- 목록 테이블 -->
         <div class="table-responsive">
@@ -85,6 +105,7 @@ $totalPages  = $pagination['totalPages'];
                     <?php else: ?>
                     <?php foreach ($accounts as $row):
                         $meta = $providerMeta[$row['provider']] ?? ['label' => $row['provider'], 'icon' => 'bi-person-badge', 'color' => '#6c757d'];
+                        $revokeFailed = !empty($row['revoke_failed_at']);
                     ?>
                     <tr>
                         <td>
@@ -101,14 +122,20 @@ $totalPages  = $pagination['totalPages'];
                             <?php else: ?>
                             <span class="text-muted">(탈퇴회원)</span>
                             <?php endif; ?>
+                            <?php if ($revokeFailed): ?>
+                            <span class="badge bg-danger-subtle text-danger-emphasis ms-1"
+                                  title="<?= htmlspecialchars(substr($row['revoke_failed_at'], 0, 16) . ' · ' . ($row['revoke_failure_reason'] ?? '')) ?>">
+                                폐기 실패
+                            </span>
+                            <?php endif; ?>
                         </td>
                         <td class="text-muted small"><?= htmlspecialchars($row['user_id'] ?? '') ?></td>
                         <td class="text-muted small"><?= htmlspecialchars($row['provider_email'] ?? '-') ?></td>
                         <td class="text-muted small"><?= htmlspecialchars(substr($row['linked_at'] ?? '', 0, 16)) ?></td>
                         <td>
                             <button type="button" class="btn btn-sm btn-outline-danger"
-                                    onclick="unlinkAccount(<?= (int)$row['id'] ?>)">
-                                해제
+                                    onclick="unlinkAccount(<?= (int)$row['id'] ?>, <?= $revokeFailed ? 'true' : 'false' ?>)">
+                                <?= $revokeFailed ? '재시도' : '해제' ?>
                             </button>
                         </td>
                     </tr>
@@ -132,8 +159,11 @@ $totalPages  = $pagination['totalPages'];
 </div>
 
 <script>
-function unlinkAccount(id) {
-    if (!confirm('이 SNS 연동을 해제하시겠습니까?\n해당 회원은 SNS 로그인을 사용할 수 없게 됩니다.')) return;
+function unlinkAccount(id, revokeFailed) {
+    var message = revokeFailed
+        ? '제공자 연결 폐기를 다시 시도하시겠습니까?\n성공하면 이 연동 기록도 함께 삭제됩니다.'
+        : '이 SNS 연동을 해제하시겠습니까?\n해당 회원은 SNS 로그인을 사용할 수 없게 됩니다.';
+    if (!confirm(message)) return;
 
     MubloRequest.requestJson('/admin/sns-login/accounts/' + id, {}, { method: 'DELETE' })
         .then(function() { location.reload(); });
