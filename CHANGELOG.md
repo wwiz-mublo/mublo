@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-08-05
+
 ### Fixed
 - 메뉴: 같은 메뉴를 자기 하위에 넣거나 최대 깊이(10단계)를 넘기는 트리 저장을 거부합니다. 이전에는 그대로 저장되어 경로가 어긋났습니다
 - 메뉴: 메뉴명을 변경할 때 하위 경로의 이름이 일부만 갱신되던 문제를 수정했습니다. 경로명을 경로 코드에서 다시 만들므로 이미 어긋나 있던 기존 데이터도 함께 정리됩니다
@@ -56,5 +58,6 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.0.1...HEAD
+[1.0.1]: https://github.com/wwiz-mublo/mublo/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/wwiz-mublo/mublo/releases/tag/v1.0.0
