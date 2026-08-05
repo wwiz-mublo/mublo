@@ -201,7 +201,15 @@ class BoardController
         $guestAuthorized = $this->canManageGuestArticle($articleId);
 
         // 게시글 조회 (권한 체크 + 조회수 증가)
-        $result = $this->articleService->getArticle($articleId, $context, $incrementView);
+        // 슬러그는 서비스에 넘겨 조회 이벤트 전에 대조시킨다 — 여기서 뒤늦게 보면
+        // 404 로 끝날 요청에 열람 포인트가 이미 빠져나간 뒤다.
+        $result = $this->articleService->getArticle($articleId, $context, $incrementView, $boardSlug);
+
+        if ($result->isFailure() && $result->get('reason') === BoardArticleService::REASON_NOT_FOUND) {
+            return ViewResponse::view('error/notfound')
+                ->withStatusCode(404)
+                ->withData(['message' => '게시글을 찾을 수 없습니다.']);
+        }
 
         // 조회수 증가했으면 쿠키에 기록 (당일 자정까지)
         if ($incrementView && $result->isSuccess()) {
@@ -261,6 +269,8 @@ class BoardController
         }
 
         // board_slug 검증 (URL 조작 방지)
+        // 정상 경로는 위에서 getArticle 이 이미 걸렀다. 여기 남는 건 권한 우회
+        // 재조회(getArticleWithoutPermission)로 온 비회원 흐름이다.
         $board = $data['board'];
         if ($board['board_slug'] !== $boardSlug) {
             return ViewResponse::view('error/notfound')
@@ -850,7 +860,22 @@ class BoardController
         $articleId = (int) ($params['post_no'] ?? 0);
         $domainId = $context->getDomainId() ?? 1;
 
-        $result = $this->articleService->getArticle($articleId, $context, false);
+        // 수정 폼은 콘텐츠 소비가 아니라 관리 행위다 — 열람 포인트를 물리지 않는다.
+        // (블라인드 등 접근 판정은 billableView 와 무관하게 그대로 걸린다)
+        $result = $this->articleService->getArticle(
+            $articleId,
+            $context,
+            false,
+            $slug,
+            billableView: false
+        );
+
+        if ($result->isFailure() && $result->get('reason') === BoardArticleService::REASON_NOT_FOUND) {
+            return ViewResponse::view('error/notfound')
+                ->withStatusCode(404)
+                ->withData(['message' => '게시글을 찾을 수 없습니다.']);
+        }
+
         if ($result->isFailure()) {
             if ($this->canManageGuestArticle($articleId)) {
                 $result = $this->articleService->getArticleWithoutPermission($articleId, $context, true);

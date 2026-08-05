@@ -37,8 +37,13 @@ class BoardPointSubscriber implements EventSubscriberInterface
             ArticleDeletedEvent::class  => 'onArticleDeleted',
             CommentCreatedEvent::class  => 'onCommentCreated',
             CommentDeletedEvent::class  => 'onCommentDeleted',
-            ArticleViewingEvent::class  => 'onArticleViewing',
-            FileDownloadingEvent::class => 'onFileDownloading',
+            // 소비(과금)는 맨 뒤에서 판정한다. 같은 이벤트에 걸린 차단 게이트
+            // (블라인드 등)가 먼저 돌아야, 볼 수 없는 글에 포인트만 빠져나가는
+            // 일이 없다. 우선순위는 순서를 정할 뿐 보장은 아니므로
+            // (뒤에 -100 이하로 붙는 구독자가 있을 수 있다) 핸들러 진입부에서
+            // isBlocked() 도 함께 본다.
+            ArticleViewingEvent::class  => ['onArticleViewing', -100],
+            FileDownloadingEvent::class => ['onFileDownloading', -100],
         ];
     }
 
@@ -126,6 +131,13 @@ class BoardPointSubscriber implements EventSubscriberInterface
 
     public function onArticleViewing(ArticleViewingEvent $event): void
     {
+        // 이미 다른 게이트가 막았으면 과금하지 않는다. 차감은 즉시 커밋되고
+        // 원장은 INSERT ONLY 라, 여기서 깎으면 열지도 못한 글값을 돌려줄 방법이 없다.
+        if ($event->isBlocked()) return;
+
+        // 관리 목적 조회(관리자 화면·수정 폼)는 열람이 아니다
+        if (!$event->isBillable()) return;
+
         $memberId = $event->getMemberId();
         if (!$memberId) return;
 
@@ -151,6 +163,8 @@ class BoardPointSubscriber implements EventSubscriberInterface
 
     public function onFileDownloading(FileDownloadingEvent $event): void
     {
+        if ($event->isBlocked()) return;
+
         $memberId = $event->getMemberId();
         if (!$memberId) return;
 

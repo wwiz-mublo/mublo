@@ -13,6 +13,10 @@ use Mublo\Packages\Board\Entity\BoardArticle;
  * 용도: 포인트 소비, 접근 제한
  *
  * 차단 가능: setBlocked(true) 호출 시 게시글 조회 중단
+ *
+ * 접근 판정과 과금은 이 이벤트 하나에 함께 걸린다. 관리 목적 조회(관리자 화면,
+ * 수정 폼)는 접근 판정은 받아야 하고 과금은 받으면 안 되므로, 발행부가
+ * billable=false 로 그 차이를 알린다 (isBillable 참고).
  */
 class ArticleViewingEvent extends AbstractEvent implements FailFastEventInterface
 {
@@ -25,7 +29,8 @@ class ArticleViewingEvent extends AbstractEvent implements FailFastEventInterfac
         private readonly BoardArticle $article,
         private readonly ?int $memberId,
         private readonly ?string $ipAddress = null,
-        private readonly ?int $accessDomainId = null
+        private readonly ?int $accessDomainId = null,
+        private readonly bool $billable = true
     ) {}
 
     public function getArticle(): BoardArticle
@@ -56,6 +61,18 @@ class ArticleViewingEvent extends AbstractEvent implements FailFastEventInterfac
     public function getIpAddress(): ?string
     {
         return $this->ipAddress;
+    }
+
+    /**
+     * 열람 대가를 물려도 되는 조회인가
+     *
+     * false 면 관리 목적 조회다 — 관리자 화면이나 수정 폼처럼 콘텐츠를 소비하러
+     * 온 것이 아닌 경로. 차단 게이트(블라인드 등)는 그대로 판정해야 하고,
+     * 과금 구독자만 물러난다.
+     */
+    public function isBillable(): bool
+    {
+        return $this->billable;
     }
 
     /**

@@ -112,8 +112,8 @@ class BoardArticleController
             $articleId = (int) $params[0];
         }
 
-        // 게시글 조회 (조회수 증가 안함)
-        $result = $this->articleService->getArticle($articleId, $context, false);
+        // 게시글 조회 (조회수 증가 안함, 관리 조회라 열람 포인트 없음)
+        $result = $this->articleService->getArticle($articleId, $context, false, billableView: false);
 
         if ($result->isFailure()) {
             return ViewResponse::view('Error/404')
@@ -198,8 +198,8 @@ class BoardArticleController
             $articleId = (int) $params[0];
         }
 
-        // 게시글 조회
-        $result = $this->articleService->getArticle($articleId, $context, false);
+        // 게시글 조회 (관리 조회라 열람 포인트 없음)
+        $result = $this->articleService->getArticle($articleId, $context, false, billableView: false);
 
         if ($result->isFailure()) {
             return ViewResponse::view('Error/404')

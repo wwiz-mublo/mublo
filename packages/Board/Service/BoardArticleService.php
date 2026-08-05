@@ -37,6 +37,14 @@ class BoardArticleService
     private const TITLE_MAX_LENGTH = 255;
     private const AUTHOR_NAME_MAX_LENGTH = 50;
 
+    /**
+     * 실패 Result 의 reason — 호출부가 404 로 응답해야 하는 실패.
+     *
+     * 현재는 URL 슬러그 불일치에만 붙는다. 이 실패는 비회원 비밀글 흐름(비밀번호 폼)
+     * 으로도, 403 으로도 가면 안 되고 곧장 404 여야 한다.
+     */
+    public const REASON_NOT_FOUND = 'not_found';
+
     private BoardArticleRepository $articleRepository;
     private BoardConfigRepository $boardRepository;
     private MemberQueryInterface $memberRepository;
@@ -127,8 +135,21 @@ class BoardArticleService
 
     /**
      * 게시글 상세 조회 (조회수 증가 + 이벤트)
+     *
+     * @param ?string $expectedSlug URL 이 가리킨 게시판 슬러그. 넘기면 글의 실제
+     *        게시판과 대조해 조회 이벤트 발행 전에 걸러낸다. 호출부가 이벤트 이후에
+     *        대조하면, 어차피 404 로 끝날 요청에 열람 포인트가 먼저 빠져나간다.
+     * @param bool $billableView 열람 대가(포인트)를 물려도 되는 조회인가.
+     *        관리자 화면·수정 폼처럼 콘텐츠를 소비하러 온 것이 아닌 경로는 false 로
+     *        부른다. 조회 이벤트 자체는 그대로 발행되므로 블라인드 등 접근 판정은 유지된다.
      */
-    public function getArticle(int $articleId, Context $context, bool $incrementView = true): Result
+    public function getArticle(
+        int $articleId,
+        Context $context,
+        bool $incrementView = true,
+        ?string $expectedSlug = null,
+        bool $billableView = true
+    ): Result
     {
         // 게시글 조회
         $articleData = $this->articleRepository->findWithAuthor($articleId);
@@ -148,6 +169,11 @@ class BoardArticleService
             return Result::failure('게시글을 찾을 수 없습니다.');
         }
 
+        // URL 슬러그 대조 — 차단·과금 게이트보다 먼저 본다
+        if ($expectedSlug !== null && $board->getBoardSlug() !== $expectedSlug) {
+            return Result::failure('게시글을 찾을 수 없습니다.', ['reason' => self::REASON_NOT_FOUND]);
+        }
+
         // 권한 체크
         if (!$this->permissionService->canRead($board, $article, $context)) {
             return Result::failure('읽기 권한이 없습니다.');
@@ -164,7 +190,8 @@ class BoardArticleService
             $article,
             $memberId,
             $clientIp,
-            $context->getDomainId()
+            $context->getDomainId(),
+            $billableView
         ));
         if ($viewingEvent->isBlocked()) {
             return Result::failure($viewingEvent->getBlockReason() ?? '게시글을 볼 수 없습니다.');
