@@ -1027,10 +1027,6 @@ input.board-write__input--title { font-size: 1rem; }
     gap: 8px;
 }
 
-.board-write__file-input {
-    display: none;
-}
-
 .board-write__btn--file,
 .board-write__btn--link {
     background: var(--board-bg);
@@ -1055,13 +1051,6 @@ input.board-write__input--title { font-size: 1rem; }
     display: flex;
     gap: 8px;
     align-items: center;
-}
-
-.board-write__file-notice {
-    color: var(--muted-foreground);
-    font-size: 13px;
-    margin: 0;
-    font-style: italic;
 }
 
 .board-write__hint {
