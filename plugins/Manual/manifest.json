@@ -2,7 +2,7 @@
     "name": "Manual",
     "label": "매뉴얼",
     "description": "매뉴얼(사용설명서) 책·페이지 관리 플러그인 — 트리형 목차와 프론트 열람 제공",
-    "version": "1.1.0",
+    "version": "1.0.1",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",

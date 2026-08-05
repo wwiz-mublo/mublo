@@ -2,7 +2,7 @@
     "name": "Qna",
     "label": "Q&A",
     "description": "질문과 답변(Q&A) 관리 플러그인.",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",

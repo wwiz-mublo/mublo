@@ -2,7 +2,7 @@
     "name": "BoardReport",
     "label": "게시글 신고",
     "description": "게시글 신고 접수와 블라인드 처리. Board 패키지 종속 플러그인의 레퍼런스 구현입니다.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",
