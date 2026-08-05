@@ -166,24 +166,6 @@ class DataResetService
             $this->db->beginTransaction();
             $result = $targetResetter->reset($targetCategoryKey, $domainId);
             $this->db->commit();
-
-            $result = $this->withDeletedFiles(
-                $result,
-                $targetResetter,
-                $targetCategoryKey,
-                $domainId
-            );
-
-            $this->writeResetLog('category', $categoryId, $targetLabel, $domainId, $memberId, $result);
-
-            $message = "{$targetLabel} 데이터가 초기화되었습니다.";
-            if (str_contains($result->details, '일부 파일 정리 실패')) {
-                $message .= ' 일부 파일은 정리하지 못했습니다.';
-            }
-            return Result::success(
-                $message,
-                $result->toArray()
-            );
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -191,6 +173,30 @@ class DataResetService
             error_log("[DataReset] Error: category={$categoryId}, domain={$domainId} — " . $e->getMessage());
             return Result::failure('초기화 중 오류가 발생했습니다. 관리자 로그를 확인해주세요.');
         }
+
+        // 커밋 이후 — 데이터는 이미 지워졌다. 파일 정리·로그 기록이 실패했다고
+        // "초기화 실패"를 돌려주면 관리자는 이미 비워진 데이터를 다시 지우려 든다.
+        $result = $this->withDeletedFiles(
+            $result,
+            $targetResetter,
+            $targetCategoryKey,
+            $domainId
+        );
+
+        $this->runPostCommit(
+            'category reset log',
+            fn () => $this->writeResetLog('category', $categoryId, $targetLabel, $domainId, $memberId, $result)
+        );
+
+        $message = "{$targetLabel} 데이터가 초기화되었습니다.";
+        if (str_contains($result->details, '일부 파일 정리 실패')) {
+            $message .= ' 일부 파일은 정리하지 못했습니다.';
+        }
+
+        return Result::success(
+            $message,
+            $result->toArray()
+        );
     }
 
     /**
@@ -231,26 +237,6 @@ class DataResetService
             }
 
             $this->db->commit();
-
-            foreach ($completed as [$resetter, $categoryKey, $result]) {
-                $withFiles = $this->withDeletedFiles($result, $resetter, $categoryKey, $domainId);
-                $totalResult['files_deleted'] += $withFiles->filesDeleted;
-                if ($withFiles->details !== $result->details) {
-                    $totalResult['warnings'][] = $withFiles->details;
-                }
-            }
-
-            $this->writeResetLog('all', 'all', '전체 초기화', $domainId, $memberId, $totalResult);
-
-            $categoriesList = implode(', ', $totalResult['categories']);
-            $message = "전체 초기화가 완료되었습니다. ({$categoriesList})";
-            if ($totalResult['warnings'] !== []) {
-                $message .= ' 일부 파일은 정리하지 못했습니다.';
-            }
-            return Result::success(
-                $message,
-                $totalResult
-            );
         } catch (\Throwable $e) {
             if ($this->db->inTransaction()) {
                 $this->db->rollBack();
@@ -258,6 +244,31 @@ class DataResetService
             error_log("[DataReset] resetAll Error: domain={$domainId} — " . $e->getMessage());
             return Result::failure('전체 초기화 중 오류가 발생했습니다. 관리자 로그를 확인해주세요.');
         }
+
+        // 커밋 이후 — 초기화는 이미 성립했다 (resetCategory 와 동일한 이유로 try 밖)
+        foreach ($completed as [$resetter, $categoryKey, $result]) {
+            $withFiles = $this->withDeletedFiles($result, $resetter, $categoryKey, $domainId);
+            $totalResult['files_deleted'] += $withFiles->filesDeleted;
+            if ($withFiles->details !== $result->details) {
+                $totalResult['warnings'][] = $withFiles->details;
+            }
+        }
+
+        $this->runPostCommit(
+            'all reset log',
+            fn () => $this->writeResetLog('all', 'all', '전체 초기화', $domainId, $memberId, $totalResult)
+        );
+
+        $categoriesList = implode(', ', $totalResult['categories']);
+        $message = "전체 초기화가 완료되었습니다. ({$categoriesList})";
+        if ($totalResult['warnings'] !== []) {
+            $message .= ' 일부 파일은 정리하지 못했습니다.';
+        }
+
+        return Result::success(
+            $message,
+            $totalResult
+        );
     }
 
     /**
@@ -352,6 +363,26 @@ class DataResetService
     /**
      * 초기화 로그 기록
      */
+    /**
+     * 커밋 이후 부수효과 실행 — 실패는 로그만 남기고 업무 결과를 뒤집지 않는다.
+     *
+     * 커밋이 끝났으면 초기화는 이미 일어났다. 로그 파일 기록 같은 사후 처리가 실패했다고
+     * "초기화 실패"를 반환하면 관리자는 이미 비워진 데이터를 다시 지우려 든다.
+     * (writeResetLog 는 mkdir/file_put_contents 를 억제 없이 부르고, ErrorHandler 가
+     *  E_WARNING 을 ErrorException 으로 바꾸므로 권한·디스크 문제가 그대로 예외가 된다.)
+     *
+     * BlockRowService::runPostCommit() 과 같은 규약이다.
+     */
+    private function runPostCommit(string $operation, callable $callback): void
+    {
+        try {
+            $callback();
+        } catch (\Throwable $e) {
+            error_log('[DataReset] post_commit_failed operation=' . $operation
+                . ' error=' . $e->getMessage());
+        }
+    }
+
     private function writeResetLog(string $type, string $category, string $label, int $domainId, int $memberId, DataResetResult|array $result): void
     {
         $logDir = MUBLO_STORAGE_PATH . '/logs/reset';
