@@ -37,6 +37,10 @@ class BoardArticleService
     private const TITLE_MAX_LENGTH = 255;
     private const AUTHOR_NAME_MAX_LENGTH = 50;
 
+    /** 회원 레벨 범위. 관리자 폼의 선택지(0~10)와 board_articles 의 TINYINT UNSIGNED 에 맞춘다. */
+    private const LEVEL_MIN = 0;
+    private const LEVEL_MAX = 10;
+
     /**
      * 실패 Result 의 reason — 호출부가 404 로 응답해야 하는 실패.
      *
@@ -447,6 +451,14 @@ class BoardArticleService
         // 업데이트할 필드만 추출
         $updateData = $this->extractUpdateFields($data);
 
+        // 레벨은 생성 때와 같은 규칙을 탄다 — 명시적 숫자만 개별 설정, 나머지는 상속.
+        // 여기서 다시 태우지 않으면 수정 경로로만 잘못된 값이 들어온다.
+        foreach (['read', 'download'] as $levelType) {
+            if (array_key_exists($levelType . '_level', $updateData)) {
+                $updateData[$levelType . '_level'] = $this->resolveLevel($data, $levelType, $board, $context);
+            }
+        }
+
         // 비밀게시판이면 비밀글 해제 방지
         if ($board->isSecretBoard()) {
             $updateData['is_secret'] = 1;
@@ -792,6 +804,41 @@ class BoardArticleService
     }
 
     /**
+     * 글 개별 레벨 결정. 명시적으로 지정되지 않으면 게시판 설정을 상속한다(null).
+     *
+     * board_articles 의 레벨 컬럼은 NULL 이 '게시판 설정 따름'을 뜻한다. 그런데 예전
+     * 구현은 isset() 으로 판단해서 빈 문자열이나 숫자가 아닌 값이 (int) 캐스팅으로
+     * 0 — 즉 '비회원 허용' — 이 됐다. 판단할 수 없는 입력이 가장 느슨한 권한으로
+     * 떨어지는 fail-open 이다. 스킨이 레벨 입력을 제공하기 시작하면 바로 구멍이 된다.
+     *
+     * 그래서 숫자로 해석되고 범위 안인 값만 개별 설정으로 인정하고, 나머지(미전송·빈
+     * 값·숫자 아님·범위 밖)는 전부 상속으로 되돌린다. 애매하면 게시판 정책을 따른다.
+     *
+     * 값이 유효해도 게시판 하한보다 낮추는 것은 관리자만 가능하다
+     * (BoardPermissionService::resolveArticleLevel).
+     */
+    private function resolveLevel(array $data, string $type, BoardConfig $board, Context $context): ?int
+    {
+        $key = $type . '_level';
+
+        if (!array_key_exists($key, $data)) {
+            return null;
+        }
+
+        $raw = $data[$key];
+        if (!is_int($raw) && !(is_string($raw) && $raw !== '' && ctype_digit($raw))) {
+            return null;
+        }
+
+        $level = (int) $raw;
+        if ($level < self::LEVEL_MIN || $level > self::LEVEL_MAX) {
+            return null;
+        }
+
+        return $this->permissionService->resolveArticleLevel($board, $context, $type, $level);
+    }
+
+    /**
      * 게시글 데이터 정규화
      */
     private function normalizeArticleData(
@@ -817,8 +864,8 @@ class BoardArticleService
             'is_notice' => !empty($data['is_notice']) ? 1 : 0,
             'is_secret' => ($board->isSecretBoard() || !empty($data['is_secret'])) ? 1 : 0,
             'status' => $data['status'] ?? 'published',
-            'read_level' => isset($data['read_level']) ? (int) $data['read_level'] : null,
-            'download_level' => isset($data['download_level']) ? (int) $data['download_level'] : null,
+            'read_level' => $this->resolveLevel($data, 'read', $board, $context),
+            'download_level' => $this->resolveLevel($data, 'download', $board, $context),
             'location_lat' => $data['location_lat'] ?? null,
             'location_lng' => $data['location_lng'] ?? null,
             'ip_address' => $context->getRequest()->getClientIp(),
