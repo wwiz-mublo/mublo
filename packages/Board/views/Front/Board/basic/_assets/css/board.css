@@ -1488,10 +1488,6 @@ input.board-write__input--title {
     gap: 8px;
 }
 
-.board-write__file-input {
-    display: none;
-}
-
 .board-write__btn--file,
 .board-write__btn--link {
     background: var(--board-bg);
@@ -1516,13 +1512,6 @@ input.board-write__input--title {
     display: flex;
     gap: 8px;
     align-items: center;
-}
-
-.board-write__file-notice {
-    color: var(--board-text-muted);
-    font-size: 13px;
-    margin: 0;
-    font-style: italic;
 }
 
 .board-write__hint {
