@@ -7,6 +7,7 @@ use Mublo\Core\Event\Rendering\FrontFootRenderEvent;
 use Mublo\Packages\Board\Event\ArticleActionsCollectEvent;
 use Mublo\Packages\Board\Event\ArticleDeletedEvent;
 use Mublo\Packages\Board\Event\ArticleViewingEvent;
+use Mublo\Packages\Board\Event\FileDownloadingEvent;
 use Mublo\Packages\Board\Plugins\BoardReport\Service\BoardReportService;
 use Mublo\Contract\Auth\AuthContextInterface;
 
@@ -18,6 +19,9 @@ use Mublo\Contract\Auth\AuthContextInterface;
  *   없이 모달로 접수한다. JS 가 없으면 링크가 폴백 페이지(/board/report/form)로
  *   그대로 동작한다 (점진적 향상).
  * - ArticleViewingEvent: 블라인드 글 차단
+ * - FileDownloadingEvent: 블라인드 글의 첨부 차단 — 본문을 막고 첨부를 열어두면
+ *   블라인드가 반쪽이다. 첨부 URL 은 목록·검색 결과·외부 링크로 이미 퍼져 있어
+ *   글을 거치지 않고도 눌린다.
  * - ArticleDeletedEvent: 글 삭제 시 신고·블라인드 정리
  */
 class ArticleSubscriber implements EventSubscriberInterface
@@ -36,6 +40,7 @@ class ArticleSubscriber implements EventSubscriberInterface
             ArticleActionsCollectEvent::class => 'onActionsCollect',
             FrontFootRenderEvent::class => 'onFrontFoot',
             ArticleViewingEvent::class => 'onArticleViewing',
+            FileDownloadingEvent::class => 'onFileDownloading',
             ArticleDeletedEvent::class => 'onArticleDeleted',
         ];
     }
@@ -64,6 +69,20 @@ class ArticleSubscriber implements EventSubscriberInterface
     public function onArticleViewing(ArticleViewingEvent $event): void
     {
         // 관리자는 블라인드 글도 읽을 수 있어야 신고를 판단할 수 있다
+        if ($this->authService->isAdmin()) {
+            return;
+        }
+
+        $reason = $this->service->getBlindReason($event->getDomainId(), $event->getArticleId());
+        if ($reason !== null) {
+            $event->setBlocked(true);
+            $event->setBlockReason($reason);
+        }
+    }
+
+    public function onFileDownloading(FileDownloadingEvent $event): void
+    {
+        // 글 열람과 같은 기준 — 관리자는 신고 판단을 위해 첨부도 받을 수 있어야 한다
         if ($this->authService->isAdmin()) {
             return;
         }
