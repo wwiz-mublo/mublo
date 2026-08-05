@@ -8,6 +8,9 @@ declare(strict_types=1);
  * 가져온 뒤에는 일반 매뉴얼과 동일하게 도메인 관리자가 편집할 수 있다.
  */
 return [
+    // 첫 페이지의 mublo-bundle 표식과 짝을 이룬다. 이 값이 없으면 이미 가져간
+    // 설치본은 번들을 고쳐도 영원히 옛 내용을 그대로 둔다(ManualService::refreshOutdatedBundle).
+    'version' => 1,
     'book' => [
         'title' => 'Mublo 스킨 제작 가이드',
         'slug' => 'skin-development',
@@ -22,6 +25,7 @@ return [
             'slug' => 'overview',
             'sort_order' => 10,
             'content' => <<<'HTML'
+<!-- mublo-bundle:skin-development:v1 -->
 <p>Mublo 스킨은 적용 범위에 따라 콘텐츠, 프레임, 블록, Package 스킨으로 나뉩니다. 처음에는 한 파일만 바꿀 수 있는 <strong>Front 콘텐츠 스킨</strong>으로 시작하는 것이 좋습니다.</p>
 <table>
 <thead><tr><th>종류</th><th>경로</th><th>선택 위치</th></tr></thead>
@@ -167,13 +171,15 @@ HTML,
 <pre><code>packages/Board/views/Front/Board/{skin}/
 ├── List.php
 ├── View.php
-└── Write.php
+├── Write.php
+└── Password.php
 
 packages/Shop/views/Front/Product/{skin}/
 ├── List.php
 ├── View.php
 └── _assets/</code></pre>
 <ul>
+<li>Board 스킨은 <code>Password.php</code>(비회원 글 비밀번호 확인)까지 네 파일입니다.</li>
 <li>Board 스킨은 관리자 게시판 설정의 <strong>게시판 스킨</strong>에서 선택합니다.</li>
 <li>Shop 스킨은 관리자 Shop 설정의 기능별 콘텐츠 스킨에서 선택합니다.</li>
 <li>Board 데이터는 <code>ArticlePresenter</code>, Shop 데이터는 <code>ProductPresenter</code> 계약을 따릅니다.</li>

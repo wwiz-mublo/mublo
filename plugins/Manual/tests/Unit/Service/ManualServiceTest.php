@@ -9,6 +9,7 @@ use Mublo\Plugin\Manual\Dto\ManualRecentPage;
 use Mublo\Plugin\Manual\Event\ManualContentChangedEvent;
 use Mublo\Plugin\Manual\Repository\ManualRepository;
 use Mublo\Plugin\Manual\Service\ManualService;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -198,13 +199,20 @@ final class ManualServiceTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->storagePath . '/D7/manual/3');
     }
 
-    public function testImportSkinTutorialDoesNotOverwriteExistingBook(): void
+    public function testImportSkinTutorialDoesNotRecreateExistingBook(): void
     {
         $repository = $this->repository();
         $repository->method('findBookBySlug')->willReturn([
             'book_id' => 42,
             'domain_id' => 7,
             'slug' => ManualService::SKIN_TUTORIAL_SLUG,
+        ]);
+        // 최신 표식이 이미 있으면 책도 페이지도 건드리지 않는다.
+        $repository->method('findPageBySlug')->willReturn([
+            'page_id' => 420,
+            'book_id' => 42,
+            'slug' => 'overview',
+            'content' => $this->bundleMarker('skin-development'),
         ]);
         $repository->expects($this->never())->method('transaction');
         $repository->expects($this->never())->method('insertBook');
@@ -215,6 +223,92 @@ final class ManualServiceTest extends TestCase
         $this->assertTrue($result->isSuccess(), $result->getMessage());
         $this->assertTrue($result->get('already_exists'));
         $this->assertSame(42, $result->get('book_id'));
+    }
+
+    public function testImportSkinTutorialRefreshesOutdatedBookInsteadOfSkipping(): void
+    {
+        // 가져오기를 다시 눌렀을 때 개정본이 반영되지 않으면, 이미 가져간 도메인은
+        // 번들을 고쳐도 영원히 옛 내용을 본다. 게시판·쇼핑몰과 달리 이 책은 자동
+        // 경로(ensureDefaultManuals)를 타지 않으므로 이 버튼이 유일한 갱신 수단이다.
+        $repository = $this->repository();
+        $repository->method('findBookBySlug')->willReturn([
+            'book_id' => 42,
+            'domain_id' => 7,
+            'slug' => ManualService::SKIN_TUTORIAL_SLUG,
+        ]);
+        $repository->method('findPageBySlug')->willReturn([
+            'page_id' => 420,
+            'book_id' => 42,
+            'slug' => 'overview',
+            'content' => '<!-- mublo-bundle:skin-development:v0 -->',
+        ]);
+        $repository->method('transaction')->willReturnCallback(static fn (callable $cb): mixed => $cb());
+        $repository->method('findPages')->willReturn([]);
+        $repository->expects($this->never())->method('insertBook');
+
+        $inserted = [];
+        $repository->method('insertPage')->willReturnCallback(
+            static function (array $page) use (&$inserted): int {
+                $inserted[] = $page['slug'];
+                return 500 + count($inserted);
+            }
+        );
+
+        $result = (new ManualService($repository, $this->storagePath))
+            ->importSkinDevelopmentTutorial(7);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+        $this->assertTrue($result->get('refreshed'));
+        $this->assertSame(42, $result->get('book_id'));
+        $this->assertContains('overview', $inserted);
+    }
+
+    /**
+     * 모든 번들은 version 과 첫 페이지 표식이 짝을 이뤄야 한다.
+     *
+     * 하나라도 빠지면 refreshOutdatedBundle 이 조기 반환해, 그 번들은 고쳐도
+     * 이미 가져간 설치본에 영원히 전달되지 않는다. 조용히 실패하는 종류라
+     * 여기서 고정한다.
+     */
+    #[DataProvider('bundleKeys')]
+    public function testEveryBundleDeclaresVersionMatchingItsFirstPageMarker(string $bundleKey, string $file): void
+    {
+        $template = require dirname(__DIR__, 3) . '/resources/manuals/' . $file;
+
+        $version = $template['version'] ?? 0;
+        $this->assertIsInt($version, "{$file} 에 정수 version 이 없습니다");
+        $this->assertGreaterThan(0, $version, "{$file} 의 version 이 0 이면 갱신 경로가 동작하지 않습니다");
+
+        $marker = '<!-- mublo-bundle:' . $bundleKey . ':v' . $version . ' -->';
+        $this->assertStringContainsString(
+            $marker,
+            (string) ($template['pages'][0]['content'] ?? ''),
+            "{$file} 첫 페이지에 {$marker} 표식이 없습니다"
+        );
+    }
+
+    public static function bundleKeys(): array
+    {
+        return [
+            'board' => ['board', 'board-manual.php'],
+            'shop' => ['shop', 'shop-manual.php'],
+            'skin-development' => ['skin-development', 'skin-development.php'],
+        ];
+    }
+
+    /**
+     * 번들 파일의 현재 버전 표식. 테스트가 버전 숫자를 직접 들고 있지 않게 한다.
+     */
+    private function bundleMarker(string $bundleKey): string
+    {
+        $files = [
+            'board' => 'board-manual.php',
+            'shop' => 'shop-manual.php',
+            'skin-development' => 'skin-development.php',
+        ];
+        $template = require dirname(__DIR__, 3) . '/resources/manuals/' . $files[$bundleKey];
+
+        return '<!-- mublo-bundle:' . $bundleKey . ':v' . ((int) $template['version']) . ' -->';
     }
 
     public function testImportSkinTutorialCreatesEditableBookAndPages(): void
@@ -283,14 +377,14 @@ final class ManualServiceTest extends TestCase
                 'slug' => $slug,
             ]
         );
+        // 표식은 번들 파일에서 읽는다. 여기에 버전을 적어두면 번들을 개정할 때마다
+        // 테스트가 같이 낡아, 갱신이 도는지 검증하는 대신 실패로 알리게 된다.
         $repository->method('findPageBySlug')->willReturnCallback(
-            static fn (int $bookId): array => [
+            fn (int $bookId): array => [
                 'page_id' => $bookId * 10,
                 'book_id' => $bookId,
                 'slug' => 'start',
-                'content' => $bookId === 81
-                    ? '<!-- mublo-bundle:board:v2 -->'
-                    : '<!-- mublo-bundle:shop:v3 -->',
+                'content' => $this->bundleMarker($bookId === 81 ? 'board' : 'shop'),
             ]
         );
         $repository->expects($this->never())->method('transaction');
