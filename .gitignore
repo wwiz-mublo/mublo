@@ -61,6 +61,9 @@ Thumbs.db
 # Editor local override
 /public/assets/lib/editor/*/config.local.php
 
+# 로컬 전용 개인 설정 (권한 규칙 등) — 저장소에 공유하지 않는다
+/.claude/settings.local.json
+
 # Local notes and review artifacts
 .mcp.json
 guide.md
