@@ -46,11 +46,14 @@ packages/Board/views/Front/Board/
 |---|---|---|
 | `$board` | array | 게시판 설정 (§2-1) |
 | `$items` | array | 게시글 목록 (Presenter 변환 완료) |
-| `$notices` | array | 상단 고정 공지 목록 |
+| `$notices` | array | 상단 고정 공지 목록 — **`$items` 와 같은 Presenter 형태** |
 | `$pagination` | array | `currentPage`, `totalItems`, `perPage`, `totalPages` |
 | `$filters` | array | `keyword`, `search_field`, `category_id` |
-| `$categories` | array | 카테고리 목록 (`use_category` 시) |
+| `$categories` | array | 카테고리 목록 (`use_category` 시) — 항목은 `category_id`, `category_name` |
 | `$canWrite` | bool | 글쓰기 권한 |
+
+> **정렬 파라미터는 없다.** 목록이 받는 조건은 위 `$filters` 세 개와 `page` 가 전부다.
+> 최신순/인기순 같은 정렬 UI 를 만들면 눌러도 아무 일이 일어나지 않는다.
 
 ### View.php (상세)
 
@@ -91,6 +94,47 @@ packages/Board/views/Front/Board/
 >
 > `download_url` 이 `null` 이면 주소를 만들 수 없는 첨부다(데이터 이상). 링크 대신
 > 받을 수 없음을 표시한다 — 번들 스킨의 `--broken` 분기를 참고하라.
+
+#### 첨부는 세 가지 상태가 있다
+
+`$canDownload` 와 `download_url` 을 곱하면 세 갈래가 된다. **세 개를 구분하지 않으면
+방문자는 링크가 고장 난 것인지 자기 권한이 모자란 것인지 알 수 없다.**
+
+| `$canDownload` | `download_url` | 그릴 것 |
+|---|---|---|
+| `true` | 있음 | 정상 다운로드 링크 (`<a href="…download_url">`) |
+| `false` | (무관) | **클릭 가능한 잠금 표시** — 아래 참조 |
+| `true` | `null` | "받을 수 없는 첨부입니다" (데이터 이상, 클릭 불가) |
+
+**권한이 없다고 클릭을 막지 마라.** 반응 없는 회색 텍스트로 두면 방문자는 아무것도
+알 수 없다. 파일 이름과 용량은 그대로 보여주고 클릭을 받아, 왜 못 받는지 알린다.
+
+```php
+<?php if ($canDownload && !empty($att['download_url'])): ?>
+    <a href="<?= htmlspecialchars($att['download_url'], ENT_QUOTES) ?>">…</a>
+<?php elseif (!$canDownload): ?>
+    <button type="button" data-attachment-locked>… 자물쇠 …</button>
+<?php else: ?>
+    <span>… (받을 수 없는 첨부입니다) …</span>
+<?php endif; ?>
+```
+
+잠금 버튼을 누르면 사유를 모달로 알린다. 비회원이면 로그인으로 유도하고, 로그인
+후 원래 글로 돌아오게 한다.
+
+```js
+if (isLoggedIn) {
+    MubloRequest.showAlert('이 첨부파일을 받을 권한이 없습니다.', 'error');
+} else {
+    MubloRequest.showConfirm('로그인 후 다운로드 가능합니다.', function () {
+        location.href = '/login?redirect=' + encodeURIComponent(articleUrl);
+    }, { type: 'warning', title: '로그인 필요', confirmText: '로그인', cancelText: '닫기' });
+}
+```
+
+서버도 같은 판단을 한다 — 주소로 직접 들어오면 비회원은 로그인 페이지로, 권한 없는
+회원은 403 으로 보낸다. 스킨의 잠금 표시는 그 판단을 **미리 보여주는 것**이지
+유일한 방어가 아니다.
 
 ### Write.php (작성/수정)
 
@@ -158,6 +202,8 @@ packages/Board/views/Front/Board/
 | `url` / `edit_url` | 상세·수정 URL |
 | `date_short` / `date_relative` / `date_compact` | 날짜 포맷 3종 |
 | `view_count_formatted` / `comment_count_formatted` | 포맷된 통계 |
+| `comment_count` | 원본 댓글 수 — **개수 판정(`> 0`)에 쓴다.** 출력은 `*_formatted` |
+| `category_id` | 카테고리 ID (`$categories` 와 매핑해 이름을 얻는다) |
 | `badges` | `['notice','secret','new']` 배열 |
 | `is_new` | 24시간 이내 신규 |
 
@@ -247,6 +293,40 @@ echo $this->pagination($pagination);    // 페이지네이션 — 직접 그리�
 $this->getQueryString();                // 목록 복귀용 쿼리 유지
 ```
 
+`$this->format` 의 포맷 헬퍼도 쓸 수 있다.
+
+| 호출 | 용도 |
+|---|---|
+| `$this->format->highlightKeyword($item['title_safe'], $keyword)` | 검색어 강조. **이스케이프된 문자열을 받는다** |
+| `$this->format->number($n)` | 천 단위 구분 |
+| `$this->format->bytes($n)` | 파일 크기 |
+| `$this->format->maskName($name)` | 이름 마스킹 |
+| `$this->format->relativeTime($datetime)` | 상대 시각 |
+
+### 5-1. 목록에서 반복되는 관용구
+
+**글 번호** — 페이지를 넘어가도 이어지도록 총건수에서 역산한다.
+
+```php
+$rowNum = $totalItems - (($currentPage - 1) * $perPage);
+foreach ($items as $item) { echo $rowNum--; }
+```
+
+**목록 컨텍스트 보존** — 상세로 갔다가 목록으로 돌아올 때 페이지·검색어를 유지한다.
+
+```php
+$listQuery = $this->getQueryString();
+$listQuerySuffix = $listQuery !== '' ? '?' . htmlspecialchars($listQuery, ENT_QUOTES) : '';
+// <a href="<?= $item['url'] ?><?= $listQuerySuffix ?>">
+```
+
+**카테고리 이름** — 글은 `category_id` 만 갖는다. `$categories` 로 맵을 만들어 잇는다.
+
+```php
+$categoryMap = [];
+foreach ($categories as $cat) { $categoryMap[$cat['category_id']] = $cat['category_name']; }
+```
+
 > ⚠ **복사 후 반드시 CSS 경로의 스킨명을 바꾼다.** `basic` 을 복사하면 경로가
 > `.../Board/basic/_assets/...` 로 남아 원본 CSS 를 로드한다. 스킨을 고쳤는데
 > 화면이 그대로인 대부분의 원인이 이것이다.
@@ -258,9 +338,29 @@ $this->getQueryString();                // 목록 복귀용 쿼리 유지
 - **클래스 접두사**를 스킨 단위로 통일한다 (`basic` 은 `board-list__*`,
   `board-view__*`, `board-comment__*`). 새 스킨은 자체 접두사를 쓰되
   한 스킨 안에서는 일관되게 간다.
-- **색은 토큰만 소비한다.** `var(--primary)`, `var(--foreground)`,
-  `var(--border)`, `var(--muted-foreground)`, `var(--card)` 등.
-  브랜드색을 하드코딩하면 프레임 스킨·다크모드를 따라가지 못한다.
+- **색은 토큰만 소비한다.** 브랜드색을 하드코딩하면 프레임 스킨·다크모드를
+  따라가지 못한다. 쓸 수 있는 토큰은 아래가 전부다(`public/assets/css/tokens.css`).
+
+  | 용도 | 토큰 |
+  |---|---|
+  | 바탕·글자 | `--background` `--foreground` |
+  | 카드·팝오버 | `--card` `--card-foreground` `--popover` `--popover-foreground` |
+  | 강조 | `--primary` `--primary-foreground` `--secondary` `--secondary-foreground` |
+  | 보조 | `--muted` `--muted-foreground` `--accent` `--accent-foreground` |
+  | 상태 | `--destructive` `--success` `--warning` (각 `-foreground`, `-subtle`, `-subtle-border`) |
+  | 선·입력 | `--border` `--border-subtle` `--input` `--ring` |
+
+  **스킨 안에서 별칭을 만들어 쓰는 것이 관례다.** 최상위 클래스에 한 번 매핑해 두면
+  이름이 짧아지고, 프레임 토큰이 바뀌어도 한 곳만 고치면 된다.
+
+  ```css
+  .board-list, .board-view, .board-write {
+      --board-bg: var(--card);
+      --board-text: var(--foreground);
+      --board-border: var(--border);
+      --board-primary: var(--primary);
+  }
+  ```
 - **폭을 하드코딩하지 않는다.** `max-width` 를 걸지 말고 프레임 콘텐츠 폭
   설정을 따른다. 좁은 가독 폭이 꼭 필요하면 본문 등 *내부 요소*에만 건다.
 - **반응형은 필수다.** 최소 한 개 이상의 브레이크포인트를 두고, 표 기반
@@ -279,6 +379,10 @@ $this->getQueryString();                // 목록 복귀용 쿼리 유지
 - [ ] **권한 플래그를 존중** — `$canWrite`/`$canModify`/`$canDelete`/`$canComment`
       가 false 면 해당 버튼을 숨기거나 비활성화한다. **UI 로만 막고 끝내지 말 것**
       (서버도 검사하지만, 노출 자체가 혼란을 준다).
+- [ ] **막을 때는 이유를 알린다** — 특히 `$canDownload` 가 false 인 첨부.
+      반응 없는 회색 텍스트로 두면 방문자는 링크가 고장 난 것인지 권한이 모자란
+      것인지 알 수 없다. 클릭을 받아 사유를 모달로 알리고, 비회원은 로그인으로
+      유도한다 (§2-3 의 세 가지 상태).
 - [ ] **카테고리 필터** — `$board['use_category']` 가 켜져 있으면 `$categories` 노출.
 - [ ] **검색 폼** — `keyword` + `search_field` 유지.
 - [ ] **페이지네이션** — `$this->pagination()` 사용.
@@ -295,8 +399,10 @@ $this->getQueryString();                // 목록 복귀용 쿼리 유지
 4. `List.php` 부터 마크업을 바꾼다. **데이터 접근 코드는 건드리지 말고
    HTML 구조와 클래스만 교체**하는 것이 안전하다.
 5. `View.php` → `Write.php` → `Password.php` 순으로 진행한다.
-6. CSS 를 새 클래스에 맞춰 다시 쓴다.
+6. CSS 를 새 클래스에 맞춰 다시 쓴다. **복사해 온 낡은 규칙을 반드시 지운다** —
+   특히 파일 뒤쪽의 반응형 블록(§10 참고).
 7. 관리자 > 게시판 설정에서 새 스킨을 선택해 확인한다.
+8. **모바일 폭에서 직접 열어본다.** 낡은 규칙과의 충돌은 데스크톱에서 안 보인다.
 
 ---
 
@@ -310,6 +416,8 @@ $this->getQueryString();                // 목록 복귀용 쿼리 유지
 - [ ] 작성: 신규/수정 양쪽, 비회원 작성 시 이름·비밀번호 입력
 - [ ] 비회원 비밀번호 확인 화면 동작
 - [ ] 권한 없는 계정으로 열어 버튼이 감춰지는지
+- [ ] 다운로드 권한 없는 계정으로 첨부를 눌러 사유가 뜨는지 (§2-3)
+- [ ] 내 섹션 밖에 옛 선택자가 남지 않았는지 (§10 — `grep` 으로 확인)
 - [ ] 모바일 폭(≤575px)에서 레이아웃이 깨지지 않는지
 - [ ] 다크모드에서 색이 뭉개지지 않는지 (토큰만 썼다면 자동)
 
@@ -325,3 +433,29 @@ $this->getQueryString();                // 목록 복귀용 쿼리 유지
 | 날짜·이름 형식이 다른 게시판과 다름 | Presenter 필드 대신 원본을 직접 가공함 |
 | 브랜드색이 안 따라옴 | 색을 하드코딩함 — 토큰(`var(--primary)`)을 쓸 것 |
 | 관리자 셀렉트에 안 보임 | 폴더 위치가 틀림 — `views/Front/Board/` 바로 아래여야 함 |
+| **데스크톱은 멀쩡한데 모바일만 깨짐** | 복사해 온 낡은 반응형 규칙이 새 마크업을 덮음 (아래) |
+| 첨부를 눌러도 아무 반응 없음 | 권한 없는 첨부를 회색 텍스트로만 둠 — 사유를 알릴 것 (§2-3) |
+| 정렬 버튼이 동작하지 않음 | 목록은 정렬 파라미터를 받지 않는다 (§2) |
+
+### 복사해 온 낡은 CSS 와의 충돌
+
+**마크업 구조를 바꾸는 스킨이라면 반드시 겪는다.** `basic` 을 복사하면 그 스킨의
+반응형 블록(표를 카드로 펼치는 규칙 등)이 **파일 뒤쪽에** 그대로 남는다. 새로 쓴
+규칙이 앞에 있으면 나중 규칙이 이기므로, 좁은 화면에서만 조용히 덮인다.
+
+```
+/* 내가 새로 쓴 그리드 규칙 */
+@media (max-width: 767px) { .board-list__row { grid-template-columns: … } }
+
+  ⋮  (수백 줄 뒤)
+
+/* basic 에서 딸려온 표 기반 규칙 — 이쪽이 이긴다 */
+@media (max-width: 768px) { .board-list__row { display: flex; … } }
+```
+
+문법 오류도 아니고 데스크톱에서는 보이지 않는다. **CSS 를 다시 쓸 때 옛 선택자가
+남아 있지 않은지 검색해 확인하고, 모바일 폭에서 직접 열어봐야 한다.**
+
+```bash
+grep -n "board-list__" _assets/css/board.css   # 내 섹션 밖에 남은 것이 있는가
+```
