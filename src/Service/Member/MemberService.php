@@ -991,18 +991,6 @@ class MemberService
 
                 return $memberId;
             });
-
-            // 이벤트 발행: 사용자 직접 가입
-            $member = $this->memberRepository->find($memberId);
-            if ($member) {
-                $event = new MemberRegisteredByUserEvent($member);
-                if (!empty($pluginData)) {
-                    $event->setAllPluginData($pluginData);
-                }
-                $this->dispatch($event);
-            }
-
-            return Result::success('회원가입이 완료되었습니다.', ['member_id' => $memberId]);
         } catch (DuplicateFieldValueException $e) {
             // 검증 통과 후 INSERT 경합 — 사용자에게 필드 중복 안내 (시스템 오류 아님)
             return Result::failure($e->getMessage());
@@ -1011,6 +999,27 @@ class MemberService
             // 시스템 오류: 컨트롤러가 검증 실패(422/warning)와 구분해 error로 안내하도록 태그
             return Result::failure('회원가입에 실패했습니다.', ['_system' => true]);
         }
+
+        // 커밋이 끝난 시점부터 가입은 성립한다. 아래 사후 처리는 그 사실을 뒤집지 못하므로
+        // 가입 트랜잭션의 catch 안에 두지 않는다 — 리스너 하나가 터졌다고 "가입 실패"를
+        // 돌려주면 사용자는 이미 만들어진 계정을 두고 재시도해 아이디 중복을 만난다.
+        // (개발 환경뿐 아니라 운영에서도 재현된다: EventDispatcher 는 \Error 와
+        //  FailFastEventInterface 예외를 환경과 무관하게 재throw 한다.)
+        try {
+            $member = $this->memberRepository->find($memberId);
+            if ($member) {
+                $event = new MemberRegisteredByUserEvent($member);
+                if (!empty($pluginData)) {
+                    $event->setAllPluginData($pluginData);
+                }
+                $this->dispatch($event);
+            }
+        } catch (\Throwable $e) {
+            error_log('[MemberService::register] post_commit_event_failed member_id=' . $memberId
+                . ' ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        }
+
+        return Result::success('회원가입이 완료되었습니다.', ['member_id' => $memberId]);
     }
 
     /**
@@ -1146,18 +1155,23 @@ class MemberService
                     $this->saveFieldValues($memberId, $data['fields'], $memberDomainId);
                 }
             });
-
-            // 이벤트 발행: 본인 정보 수정
-            if (!empty($changes)) {
-                $this->dispatch(new MemberUpdatedBySelfEvent($member, $changes));
-            }
-
-            return Result::success('회원정보가 수정되었습니다.');
         } catch (DuplicateFieldValueException $e) {
             return Result::failure($e->getMessage());
         } catch (\Throwable $e) {
             return Result::failure('회원정보 수정에 실패했습니다.');
         }
+
+        // 이벤트 발행: 본인 정보 수정 (커밋 이후 — 리스너 실패가 "수정 실패"로 둔갑하지 않도록 분리)
+        if (!empty($changes)) {
+            try {
+                $this->dispatch(new MemberUpdatedBySelfEvent($member, $changes));
+            } catch (\Throwable $e) {
+                error_log('[MemberService::update] post_commit_event_failed member_id=' . $memberId
+                    . ' ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            }
+        }
+
+        return Result::success('회원정보가 수정되었습니다.');
     }
 
     /**

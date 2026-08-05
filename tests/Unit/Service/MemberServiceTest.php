@@ -247,6 +247,72 @@ class MemberServiceTest extends TestCase
     }
 
     // ========================================
+    // 커밋 이후 이벤트 (회귀) — 리스너 실패가 업무 실패로 둔갑하지 않는다
+    // ========================================
+
+    /**
+     * 커밋이 끝났으면 가입은 성립한다. 리스너가 터졌다고 "가입 실패"를 돌려주면
+     * 사용자는 이미 만들어진 계정을 두고 재시도해 아이디 중복을 만난다.
+     *
+     * 개발 환경(rethrowListenerFailures=true) 설정으로 재현하지만, 운영에서도
+     * \Error 와 FailFastEventInterface 예외는 그대로 올라온다.
+     */
+    #[Test]
+    public function testRegisterSucceedsWhenPostCommitListenerThrows(): void
+    {
+        $dispatcher = new \Mublo\Core\Event\EventDispatcher(rethrowListenerFailures: true);
+        $dispatcher->addListener(
+            \Mublo\Service\Member\Event\MemberRegisteredByUserEvent::class,
+            function (): void {
+                throw new \RuntimeException('가입 축하 포인트 지급 실패');
+            }
+        );
+
+        $db = $this->createMock(\Mublo\Infrastructure\Database\Database::class);
+        $db->method('transaction')->willReturnCallback(fn(callable $fn) => $fn());
+
+        $service = $this->makeServiceWithDispatcher($dispatcher);
+        $this->repositoryMock->method('existsByUserId')->willReturn(false);
+        $this->repositoryMock->method('getDb')->willReturn($db);
+        $this->repositoryMock->expects($this->once())->method('create')->willReturn(100);
+        $this->repositoryMock->method('find')->willReturn($this->withdrawableMember());
+
+        $result = $service->register([
+            'domain_id' => 1,
+            'user_id' => 'hong',
+            'password' => 'password123',
+        ]);
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame(100, $result->getData()['member_id']);
+    }
+
+    #[Test]
+    public function testUpdateSucceedsWhenPostCommitListenerThrows(): void
+    {
+        $dispatcher = new \Mublo\Core\Event\EventDispatcher(rethrowListenerFailures: true);
+        $dispatcher->addListener(
+            \Mublo\Service\Member\Event\MemberUpdatedBySelfEvent::class,
+            function (): void {
+                throw new \RuntimeException('프로필 동기화 실패');
+            }
+        );
+
+        $db = $this->createMock(\Mublo\Infrastructure\Database\Database::class);
+        $db->method('transaction')->willReturnCallback(fn(callable $fn) => $fn());
+
+        $service = $this->makeServiceWithDispatcher($dispatcher);
+        $this->repositoryMock->method('find')->willReturn($this->withdrawableMember());
+        $this->repositoryMock->method('getDb')->willReturn($db);
+        $this->repositoryMock->expects($this->once())->method('update');
+
+        $result = $service->update(100, ['password' => 'newpassword123']);
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame('회원정보가 수정되었습니다.', $result->getMessage());
+    }
+
+    // ========================================
     // 필드 쓰기 경계 (회귀) — 미지 field_id 거부·admin_only·타 도메인
     // ========================================
 

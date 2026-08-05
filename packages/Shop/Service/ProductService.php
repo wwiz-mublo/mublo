@@ -66,6 +66,25 @@ class ProductService
     }
 
     /**
+     * 커밋 이후 이벤트 발행 헬퍼
+     *
+     * 반드시 트랜잭션 try/catch 를 닫은 뒤에 부른다. 커밋이 끝났으면 업무는 이미 성립했고
+     * 캐시 무효화 같은 사후 처리가 실패해도 그 사실을 뒤집을 수 없다. 이 호출이 트랜잭션
+     * catch 안에 있으면 리스너 예외가 롤백 경로로 흘러들어(이미 커밋돼 롤백할 것도 없는데)
+     * 저장 실패로 둔갑한다. EventDispatcher 는 \Error 와 FailFastEventInterface 예외를
+     * 환경과 무관하게 재throw 하므로 운영에서도 재현된다.
+     */
+    private function dispatchAfterCommit(EventInterface $event, string $context): void
+    {
+        try {
+            $this->dispatch($event);
+        } catch (\Throwable $e) {
+            error_log('[Shop ProductService::' . $context . '] post_commit_event_failed '
+                . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        }
+    }
+
+    /**
      * 상품 목록 조회 (페이지네이션 포함)
      *
      * @param int $domainId 도메인 ID
@@ -286,15 +305,20 @@ class ProductService
             }
 
             $db->commit();
-
-            $this->dispatch(new ProductChangedEvent($domainId, [(int) $goodsId], ProductChangedEvent::CREATED));
-
-            return Result::success('상품이 등록되었습니다.', ['goods_id' => $goodsId]);
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('[Shop ProductService::create] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return Result::failure('상품 등록 중 오류가 발생했습니다: ' . $e->getMessage());
         }
+
+        $this->dispatchAfterCommit(
+            new ProductChangedEvent($domainId, [(int) $goodsId], ProductChangedEvent::CREATED),
+            'create'
+        );
+
+        return Result::success('상품이 등록되었습니다.', ['goods_id' => $goodsId]);
     }
 
     /**
@@ -366,15 +390,20 @@ class ProductService
             }
 
             $db->commit();
-
-            $this->dispatch(new ProductChangedEvent($domainId, [$goodsId], ProductChangedEvent::UPDATED));
-
-            return Result::success('상품이 수정되었습니다.');
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             error_log('[Shop ProductService::update] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
             return Result::failure('상품 수정 중 오류가 발생했습니다: ' . $e->getMessage());
         }
+
+        $this->dispatchAfterCommit(
+            new ProductChangedEvent($domainId, [$goodsId], ProductChangedEvent::UPDATED),
+            'update'
+        );
+
+        return Result::success('상품이 수정되었습니다.');
     }
 
     /**
@@ -409,14 +438,19 @@ class ProductService
             $this->productRepository->deleteInDomain($domainId, $goodsId);
 
             $db->commit();
-
-            $this->dispatch(new ProductChangedEvent($domainId, [$goodsId], ProductChangedEvent::DELETED));
-
-            return Result::success('상품이 삭제되었습니다.');
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             return Result::failure('상품 삭제 중 오류가 발생했습니다.');
         }
+
+        $this->dispatchAfterCommit(
+            new ProductChangedEvent($domainId, [$goodsId], ProductChangedEvent::DELETED),
+            'delete'
+        );
+
+        return Result::success('상품이 삭제되었습니다.');
     }
 
     /**
@@ -458,14 +492,19 @@ class ProductService
             $deleted = $this->productRepository->deleteMultiple($domainId, $goodsIds);
 
             $db->commit();
-
-            $this->dispatch(new ProductChangedEvent($domainId, $goodsIds, ProductChangedEvent::DELETED));
-
-            return Result::success("{$deleted}개 상품이 삭제되었습니다.");
         } catch (\Throwable $e) {
-            $db->rollBack();
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
             return Result::failure('상품 삭제 중 오류가 발생했습니다.');
         }
+
+        $this->dispatchAfterCommit(
+            new ProductChangedEvent($domainId, $goodsIds, ProductChangedEvent::DELETED),
+            'deleteMultiple'
+        );
+
+        return Result::success("{$deleted}개 상품이 삭제되었습니다.");
     }
 
     /**
