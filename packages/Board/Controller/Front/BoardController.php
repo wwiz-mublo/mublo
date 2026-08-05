@@ -6,6 +6,7 @@ use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
+use Mublo\Core\Http\Request;
 use Mublo\Packages\Board\Service\BoardArticleService;
 use Mublo\Packages\Board\Service\BoardCategoryService;
 use Mublo\Packages\Board\Service\BoardCommentService;
@@ -1033,19 +1034,25 @@ class BoardController
     /**
      * 파일 다운로드
      */
-    public function fileDownload(array $params, Context $context): FileResponse|JsonResponse
+    public function fileDownload(array $params, Context $context): FileResponse|JsonResponse|ViewResponse|RedirectResponse
     {
         $publicId = (string) ($params['public_id'] ?? '');
+        $request = $context->getRequest();
 
         // 라우트 패턴이 이미 걸러내지만, 다른 경로로 호출될 때를 대비해 여기서도 본다
         if (preg_match('/^[0-9a-f]{22}$/', $publicId) !== 1) {
-            return JsonResponse::error('잘못된 요청입니다.');
+            return $this->downloadFailure($request, '잘못된 요청입니다.', BoardFileService::REASON_NOT_FOUND);
         }
 
         $result = $this->fileService->download($publicId, $context);
 
         if ($result->isFailure()) {
-            return JsonResponse::error($result->getMessage());
+            return $this->downloadFailure(
+                $request,
+                $result->getMessage(),
+                (string) $result->get('reason', BoardFileService::REASON_FORBIDDEN),
+                (string) $result->get('article_url', '')
+            );
         }
 
         $fileName = $result->get('original_name');
@@ -1060,6 +1067,64 @@ class BoardController
                 'X-Content-Type-Options' => 'nosniff',
             ]
         );
+    }
+
+    /**
+     * 다운로드 실패 응답.
+     *
+     * 첨부 다운로드는 스킨의 <a> 클릭, 즉 브라우저 내비게이션으로 들어온다. 여기서
+     * JSON 을 돌려주면 방문자는 페이지 대신 {"result":"error",...} 원문을 마주한다.
+     * 그래서 JSON 을 기대하는 요청에만 JSON 을 주고, 그 밖에는 이 컨트롤러의 다른
+     * 흐름(list/view)과 같은 규칙을 따른다 — 비회원은 로그인으로 보내고, 회원에게는
+     * 403/404 페이지를 보여준다.
+     *
+     * @param string $reason      BoardFileService::REASON_* 중 하나
+     * @param string $articleUrl  로그인 후 돌아갈 글 주소 (없으면 로그인 후 홈)
+     */
+    private function downloadFailure(
+        Request $request,
+        string $message,
+        string $reason,
+        string $articleUrl = ''
+    ): JsonResponse|ViewResponse|RedirectResponse {
+        $statusCode = match ($reason) {
+            BoardFileService::REASON_NOT_FOUND      => 404,
+            BoardFileService::REASON_LOGIN_REQUIRED => 401,
+            default                                 => 403,
+        };
+
+        if ($this->expectsJson($request)) {
+            return JsonResponse::error($message, ['reason' => $reason], $statusCode);
+        }
+
+        if ($reason === BoardFileService::REASON_LOGIN_REQUIRED) {
+            return RedirectResponse::to(
+                '/login' . ($articleUrl !== '' ? '?redirect=' . rawurlencode($articleUrl) : '')
+            );
+        }
+
+        $view = $reason === BoardFileService::REASON_NOT_FOUND ? 'error/notfound' : 'error/forbidden';
+
+        return ViewResponse::view($view)
+            ->withStatusCode($statusCode)
+            ->withData(['message' => $message]);
+    }
+
+    /**
+     * 요청이 JSON 응답을 기대하는지 판별.
+     *
+     * 브라우저 내비게이션은 Accept 에 text/html 을 싣는다. 스크립트가 부르는
+     * 경우(XHR, Accept: application/json)만 JSON 계약을 유지한다.
+     */
+    private function expectsJson(Request $request): bool
+    {
+        if ($request->isAjax()) {
+            return true;
+        }
+
+        $accept = strtolower((string) $request->header('Accept', ''));
+
+        return str_contains($accept, 'application/json') && !str_contains($accept, 'text/html');
     }
 
     /**
