@@ -102,6 +102,14 @@ $this->assets->addJs('/serve/package/Board/assets/js/code-block.js');
             'audio'        => 'bi-file-earmark-music',
             'file'         => 'bi-file-earmark',
         ];
+
+        // 다운로드 레벨이 모자라도 파일 이름과 용량은 그대로 보여주고, 클릭도 받는다.
+        // 회색 글씨만 두면 방문자는 링크가 죽은 건지 자기 권한이 모자란 건지 알 수 없다.
+        // 클릭하면 이유를 모달로 알려주고(비회원은 로그인으로 갈지 묻는다), 로그인이
+        // 끝나면 이 글로 돌아온다.
+        $loginToDownloadUrl = '/login?redirect=' . rawurlencode(
+            (string) ($article['url'] ?? '/board/' . ($board['board_slug'] ?? ''))
+        );
         ?>
         <ul class="board-view__attachment-list">
             <?php foreach ($attachments as $att): ?>
@@ -113,11 +121,12 @@ $this->assets->addJs('/serve/package/Board/assets/js/code-block.js');
                     <span class="board-view__attachment-size">(<?= number_format($att['file_size'] / 1024, 1) ?>KB)</span>
                 </a>
                 <?php else: ?>
-                <span class="board-view__attachment-link board-view__attachment-link--disabled">
+                <button type="button" class="board-view__attachment-link board-view__attachment-link--locked" data-attachment-locked>
                     <span class="board-view__attachment-icon"><i class="bi <?= $attachmentIcons[$att['file_type'] ?? 'file'] ?? 'bi-file-earmark' ?>"></i></span>
                     <span class="board-view__attachment-name"><?= htmlspecialchars($att['original_name']) ?></span>
                     <span class="board-view__attachment-size">(<?= number_format($att['file_size'] / 1024, 1) ?>KB)</span>
-                </span>
+                    <span class="board-view__attachment-lock" aria-hidden="true"><i class="bi bi-lock"></i></span>
+                </button>
                 <?php endif; ?>
                 <?php if ($att['download_count'] > 0): ?>
                 <span class="board-view__attachment-downloads">다운로드 <?= $att['download_count'] ?></span>
@@ -125,6 +134,26 @@ $this->assets->addJs('/serve/package/Board/assets/js/code-block.js');
             </li>
             <?php endforeach; ?>
         </ul>
+        <?php if (!$canDownload): ?>
+        <script>
+        (function () {
+            const loginUrl = <?= json_encode($loginToDownloadUrl, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+            const isLoggedIn = <?= $isLoggedIn ? 'true' : 'false' ?>;
+
+            document.querySelectorAll('[data-attachment-locked]').forEach(function (btn) {
+                btn.addEventListener('click', function () {
+                    if (isLoggedIn) {
+                        MubloRequest.showAlert('이 첨부파일을 받을 권한이 없습니다.', 'error');
+                        return;
+                    }
+                    MubloRequest.showConfirm('로그인 후 다운로드 가능합니다.', function () {
+                        location.href = loginUrl;
+                    }, { type: 'warning', title: '로그인 필요', confirmText: '로그인', cancelText: '닫기' });
+                });
+            });
+        })();
+        </script>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 

@@ -216,12 +216,59 @@ class BoardFileServicePermissionTest extends TestCase
                     ->method('canRead')
                     ->willReturn(false);
             },
+            authService: $this->member(),
         );
 
         $result = $service->download(self::PUBLIC_ID, $this->context());
 
         $this->assertTrue($result->isFailure());
         $this->assertSame('다운로드 권한이 없습니다.', $result->getMessage());
+        $this->assertSame(BoardFileService::REASON_FORBIDDEN, $result->get('reason'));
+    }
+
+    /**
+     * 다운로드 레벨이 '회원'인 게시판에서 비회원이 받는 거절은 "권한 없음"이 아니라
+     * "아직 로그인하지 않았음"이다. 컨트롤러가 이 사유를 보고 JSON 대신 로그인으로
+     * 보내므로, 사유와 복귀 주소가 함께 실려야 한다.
+     */
+    public function testGuestDownloadDenialAsksForLoginInsteadOfPermission(): void
+    {
+        $attachmentRepository = $this->createMock(BoardAttachmentRepository::class);
+        $attachmentRepository->method('findWithArticleByPublicId')
+            ->with(self::PUBLIC_ID)
+            ->willReturn(['attachment' => $this->attachment()]);
+
+        $service = $this->makeService(
+            attachmentRepository: $attachmentRepository,
+            article: $this->article(),
+            board: $this->board(),
+            permissionExpectations: function (BoardPermissionService $permission): void {
+                $permission->method('canRead')->willReturn(true);
+                $permission->expects($this->once())
+                    ->method('canDownload')
+                    ->willReturn(false);
+            },
+        );
+
+        $result = $service->download(self::PUBLIC_ID, $this->context());
+
+        $this->assertTrue($result->isFailure());
+        $this->assertSame('로그인 후 다운로드 가능합니다.', $result->getMessage());
+        $this->assertSame(BoardFileService::REASON_LOGIN_REQUIRED, $result->get('reason'));
+        $this->assertSame('/board/notice/view/10', $result->get('article_url'));
+    }
+
+    public function testMissingAttachmentReportsNotFoundReason(): void
+    {
+        $attachmentRepository = $this->createMock(BoardAttachmentRepository::class);
+        $attachmentRepository->method('findWithArticleByPublicId')->willReturn(null);
+
+        $service = $this->makeService(attachmentRepository: $attachmentRepository);
+
+        $result = $service->download(self::PUBLIC_ID, $this->context());
+
+        $this->assertTrue($result->isFailure());
+        $this->assertSame(BoardFileService::REASON_NOT_FOUND, $result->get('reason'));
     }
 
     public function testGetAttachmentsByArticleHidesStoredNameAndPath(): void
@@ -252,6 +299,7 @@ class BoardFileServicePermissionTest extends TestCase
         ?callable $permissionExpectations = null,
         ?callable $fileUploaderExpectations = null,
         ?FileUploader $fileUploader = null,
+        ?AuthService $authService = null,
     ): BoardFileService {
         $attachmentRepository ??= $this->createMock(BoardAttachmentRepository::class);
         if ($attachment !== null) {
@@ -283,10 +331,20 @@ class BoardFileServicePermissionTest extends TestCase
             $this->createMock(MemberQueryInterface::class),
             $permissionService,
             $this->createMock(EventDispatcher::class),
-            $this->createMock(AuthService::class),
+            // 기본은 비회원 — AuthService 목의 id()가 null 을 준다.
+            $authService ?? $this->createMock(AuthService::class),
             $fileUploader,
             $this->createMock(ImageProcessor::class),
         );
+    }
+
+    /** 로그인한 회원의 AuthService 목. */
+    private function member(int $memberId = 100): AuthService
+    {
+        $authService = $this->createMock(AuthService::class);
+        $authService->method('id')->willReturn($memberId);
+
+        return $authService;
     }
 
     private function context(): Context
