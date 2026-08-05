@@ -115,6 +115,56 @@ final class BoardAttachmentPublicIdTest extends TestCase
     }
 
     /**
+     * 스킨은 이제 URL 을 조립하지 않고 download_url 을 출력만 한다.
+     *
+     * 식별자 규칙이 바뀔 때마다 모든 스킨이 조용히 404 가 되던 부류를 끊으려고
+     * 조립 지점을 Presenter 한 곳으로 모았다. 이 테스트가 그 계약을 고정한다 —
+     * 완성된 주소가 실제 라우트 패턴(hex 22자)과 맞물리는지까지 본다.
+     */
+    public function testAssembledSkinArrayProvidesReadyMadeDownloadUrl(): void
+    {
+        $attachments = $this->createMock(BoardAttachmentRepository::class);
+        $attachments->method('findByArticle')->willReturn([$this->attachment()]);
+
+        $assembled = (new ArticlePresenter(['board_slug' => 'notice']))->decorateAttachments(
+            $this->service($attachments)->getAttachmentsByArticle(10)
+        );
+
+        $this->assertSame(
+            '/board/notice/file/download/' . self::PUBLIC_ID,
+            $assembled[0]['download_url'] ?? null
+        );
+        $this->assertMatchesRegularExpression(
+            '#^/board/[^/]+/file/download/[0-9a-f]{22}$#',
+            (string) $assembled[0]['download_url'],
+            '라우트가 요구하는 hex 22자 패턴과 맞물려야 한다'
+        );
+    }
+
+    /**
+     * public_id 가 비면 깨진 링크 대신 null 을 준다. 스킨은 이를 보고 '받을 수 없음'
+     * 으로 그린다 — 조용한 404 보다 눈에 보이는 상태가 낫다.
+     */
+    public function testDownloadUrlIsNullWhenPublicIdMissing(): void
+    {
+        $attachment = BoardAttachment::fromArray([
+            'attachment_id'  => 50,
+            'article_id'     => 10,
+            'original_name'  => 'test.pdf',
+            'file_extension' => 'pdf',
+        ]);
+
+        $attachments = $this->createMock(BoardAttachmentRepository::class);
+        $attachments->method('findByArticle')->willReturn([$attachment]);
+
+        $assembled = (new ArticlePresenter(['board_slug' => 'notice']))->decorateAttachments(
+            $this->service($attachments)->getAttachmentsByArticle(10)
+        );
+
+        $this->assertNull($assembled[0]['download_url']);
+    }
+
+    /**
      * 조립 후에도 비노출 계약은 그대로여야 한다 — public_id 를 살리려고
      * allowlist 를 넓힌 것이 아님을 함께 고정한다.
      */

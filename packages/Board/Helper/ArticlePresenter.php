@@ -443,16 +443,18 @@ class ArticlePresenter
     }
 
     /**
-     * 첨부 목록에 표시용 파일 종류(file_type)를 부여한다. (목록/뷰 공용)
+     * 첨부 목록에 표시용 파일 종류(file_type)와 다운로드 주소(download_url)를 부여한다.
+     * (목록/뷰 공용)
      *
-     * 라이브러리 중립적인 의미 단위만 내보내고, 실제 아이콘 매핑은 스킨이 소유한다
-     * (부트스트랩/다른 아이콘셋 자유). 미지원 확장자는 'file'(일반)로 떨어진다.
+     * file_type 은 라이브러리 중립적인 의미 단위만 내보내고, 실제 아이콘 매핑은 스킨이
+     * 소유한다(부트스트랩/다른 아이콘셋 자유). 미지원 확장자는 'file'(일반)로 떨어진다.
      */
     public function decorateAttachments(array $attachments): array
     {
         $attachments = $this->publicAttachments($attachments);
         foreach ($attachments as &$att) {
             $att['file_type'] = self::fileType($att['file_extension'] ?? '');
+            $att['download_url'] = $this->downloadUrl($att['public_id'] ?? null);
         }
         unset($att);
 
@@ -460,12 +462,32 @@ class ArticlePresenter
     }
 
     /**
+     * 첨부 다운로드 주소를 완성해서 준다. 스킨은 이 값을 출력만 한다.
+     *
+     * 스킨이 식별자로 URL 을 직접 조립하면, 식별자가 바뀔 때 조용히 깨진다. 실제로 두 번
+     * 겪었다 — 마이그레이션 003 이 attachment_id 를 public_id 로 바꿨을 때 번들 스킨이
+     * 한 번(7501299), 갱신되지 않은 커스텀 스킨이 또 한 번. 라우트가 hex 22자를 요구하므로
+     * 어긋난 주소는 매칭조차 되지 않아 404 로 떨어지고, 예외가 아니라 로그에도 안 남는다.
+     * 조립 지점을 여기 하나로 모아 그 부류를 끊는다.
+     *
+     * public_id 가 없으면 null 을 준다 — 깨진 링크를 그리는 대신 스킨이 '받을 수 없음'으로
+     * 표시할 수 있게 한다. 조용한 404 보다 눈에 보이는 상태가 낫다.
+     */
+    private function downloadUrl(?string $publicId): ?string
+    {
+        $slug = (string) ($this->boardConfig['board_slug'] ?? '');
+        if ($slug === '' || (string) $publicId === '') {
+            return null;
+        }
+
+        return '/board/' . rawurlencode($slug) . '/file/download/' . $publicId;
+    }
+
+    /**
      * 스킨에 넘길 첨부 필드를 고정한다.
      *
-     * public_id 는 다운로드 링크의 재료다 — 스킨이
-     * `/board/{board_id}/file/download/{public_id}` 를 만든다. 이 목록에서 빠지면
-     * 링크의 마지막 조각이 빈 문자열이 되고, 라우트가 hex 22자를 요구하므로
-     * 패턴에 매칭조차 되지 않아 첨부를 아무도 못 받는다.
+     * download_url 은 decorateAttachments() 가 채운다. public_id 도 함께 남기지만 이는
+     * 참조용이고, 스킨은 URL 을 직접 만들지 말고 download_url 을 써야 한다.
      *
      * @return list<array<string, mixed>>
      */
@@ -475,7 +497,7 @@ class ArticlePresenter
             'attachment_id', 'public_id', 'original_name', 'file_size', 'file_extension', 'mime_type',
             'is_image', 'image_width', 'image_height', 'thumbnail_path',
             'download_count', 'created_at',
-            'thumb_url', 'url', 'file_type',
+            'thumb_url', 'url', 'file_type', 'download_url',
         ]);
 
         return array_values(array_map(

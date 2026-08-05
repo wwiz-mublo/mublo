@@ -64,6 +64,14 @@ Thumbs.db
 # 로컬 전용 개인 설정 (권한 규칙 등) — 저장소에 공유하지 않는다
 /.claude/settings.local.json
 
+# 게시판 스킨: 번들 스킨(basic·gallery)만 버전관리한다.
+# 사이트별 커스텀 스킨은 각 사이트가 소유하므로 프레임워크 저장소에 넣지 않는다.
+# 디렉터리 자체가 아니라 하위 항목을 제외해야(/* ) 아래 예외가 살아난다.
+/packages/Board/views/Front/Board/*
+!/packages/Board/views/Front/Board/basic/
+!/packages/Board/views/Front/Board/gallery/
+!/packages/Board/views/Front/Board/SKIN-GUIDE.md
+
 # Local notes and review artifacts
 .mcp.json
 guide.md
