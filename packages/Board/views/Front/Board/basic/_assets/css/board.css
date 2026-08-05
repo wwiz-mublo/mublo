@@ -1362,13 +1362,30 @@ input.board-write__input--title {
     color: var(--board-primary);
 }
 
-.board-view__attachment-link--disabled {
+/*
+ * 권한이 없는 첨부. 클릭은 받되(사유를 모달로 알려준다) 받을 수 없음이 보이도록
+ * 흐리게 두고 자물쇠를 붙인다. button 이므로 브라우저 기본 스타일을 지운다.
+ */
+.board-view__attachment-link--locked {
     display: flex;
     align-items: center;
     gap: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    text-align: left;
     color: var(--board-text-muted);
     font-size: 14px;
-    cursor: not-allowed;
+    cursor: pointer;
+}
+
+.board-view__attachment-link--locked:hover {
+    color: var(--board-text);
+}
+
+.board-view__attachment-lock {
+    font-size: 12px;
 }
 
 .board-view__attachment-size {

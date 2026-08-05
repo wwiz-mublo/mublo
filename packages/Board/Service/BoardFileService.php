@@ -51,6 +51,19 @@ class BoardFileService
     private const SUBDIRECTORY = 'board';
     private const THUMBNAIL_SIZE = 200;
 
+    /**
+     * download() 실패 사유. 호출자가 메시지 문자열을 비교하지 않고 응답을 고르게 한다.
+     *
+     * - REASON_NOT_FOUND:      첨부·글·게시판·실물 파일이 없다 → 404
+     * - REASON_LOGIN_REQUIRED: 비회원이라 레벨이 모자란다. 로그인하면 열릴 수 있다 → 로그인 유도
+     * - REASON_FORBIDDEN:      로그인했는데도 레벨/도메인이 안 맞는다 → 403
+     * - REASON_BLOCKED:        구독자(포인트 등)가 막았다 → 403, 사유는 구독자 메시지
+     */
+    public const REASON_NOT_FOUND = 'not_found';
+    public const REASON_LOGIN_REQUIRED = 'login_required';
+    public const REASON_FORBIDDEN = 'forbidden';
+    public const REASON_BLOCKED = 'blocked';
+
     public function __construct(
         BoardAttachmentRepository $attachmentRepository,
         BoardLinkRepository $linkRepository,
@@ -262,7 +275,7 @@ class BoardFileService
         // 전체 첨부 건수와 증가 속도가 드러난다.
         $attachmentData = $this->attachmentRepository->findWithArticleByPublicId($publicId);
         if (!$attachmentData) {
-            return Result::failure('파일을 찾을 수 없습니다.');
+            return Result::failure('파일을 찾을 수 없습니다.', ['reason' => self::REASON_NOT_FOUND]);
         }
 
         $attachment = $attachmentData['attachment'];
@@ -270,17 +283,18 @@ class BoardFileService
         // 게시글 조회
         $article = $this->articleRepository->find($attachment->getArticleId());
         if (!$article) {
-            return Result::failure('게시글을 찾을 수 없습니다.');
+            return Result::failure('게시글을 찾을 수 없습니다.', ['reason' => self::REASON_NOT_FOUND]);
         }
 
         // 게시판 조회
         $board = $this->boardRepository->find($article->getBoardId());
         if (!$board) {
-            return Result::failure('게시판을 찾을 수 없습니다.');
+            return Result::failure('게시판을 찾을 수 없습니다.', ['reason' => self::REASON_NOT_FOUND]);
         }
 
         if (!$this->isDomainAccessible($article, $board, $context)) {
-            return Result::failure('권한이 없는 게시글입니다.');
+            // 도메인이 다르면 로그인해도 열리지 않는다. 로그인 유도 대상이 아니다.
+            return Result::failure('권한이 없는 게시글입니다.', ['reason' => self::REASON_FORBIDDEN]);
         }
 
         // 읽기 권한 필수: 글을 읽을 수 없으면 첨부도 받을 수 없다.
@@ -288,12 +302,12 @@ class BoardFileService
         // 첨부를, 글을 읽지도 못하는(또는 목록에도 안 뜨는) 유저가 받는 우회가 생긴다.
         // 비밀글뿐 아니라 모든 글에 적용한다.
         if (!$this->permissionService->canRead($board, $article, $context)) {
-            return Result::failure('다운로드 권한이 없습니다.');
+            return $this->downloadDenied($board, $article);
         }
 
         // 다운로드 레벨 체크
         if (!$this->permissionService->canDownload($board, $article, $context)) {
-            return Result::failure('다운로드 권한이 없습니다.');
+            return $this->downloadDenied($board, $article);
         }
 
         // 파일 존재 확인
@@ -303,7 +317,7 @@ class BoardFileService
         );
 
         if (!file_exists($fullPath)) {
-            return Result::failure('파일이 존재하지 않습니다.');
+            return Result::failure('파일이 존재하지 않습니다.', ['reason' => self::REASON_NOT_FOUND]);
         }
 
         // 다운로드 차단 pre-event (포인트 소비 등)
@@ -317,7 +331,10 @@ class BoardFileService
             $context->getDomainId()
         ));
         if ($downloadingEvent->isBlocked()) {
-            return Result::failure($downloadingEvent->getBlockReason() ?? '파일을 다운로드할 수 없습니다.');
+            return Result::failure(
+                $downloadingEvent->getBlockReason() ?? '파일을 다운로드할 수 없습니다.',
+                ['reason' => self::REASON_BLOCKED]
+            );
         }
 
         // 이벤트 발행
@@ -331,6 +348,28 @@ class BoardFileService
             'file_path' => $fullPath,
             'original_name' => $attachment->getOriginalName(),
             'mime_type' => $attachment->getMimeType(),
+        ]);
+    }
+
+    /**
+     * 레벨이 모자라 다운로드를 거절할 때의 실패 Result.
+     *
+     * 비회원과 회원을 구분한다. 다운로드 레벨을 '회원'으로 둔 게시판에서 비회원이
+     * 받는 거절은 "권한 없음"이 아니라 "아직 로그인하지 않았음"이다. 둘을 같은
+     * 메시지로 뭉치면 방문자는 로그인하면 받을 수 있다는 사실을 알 수 없다.
+     *
+     * article_url 은 로그인 후 원래 글로 돌려보내기 위한 것이다. 여기서 만드는 이유는
+     * 이 시점에만 게시판 슬러그와 글 번호가 함께 있기 때문이다.
+     */
+    private function downloadDenied(BoardConfig $board, BoardArticle $article): Result
+    {
+        if ($this->getCurrentUserId() !== null) {
+            return Result::failure('다운로드 권한이 없습니다.', ['reason' => self::REASON_FORBIDDEN]);
+        }
+
+        return Result::failure('로그인 후 다운로드 가능합니다.', [
+            'reason'      => self::REASON_LOGIN_REQUIRED,
+            'article_url' => '/board/' . $board->getBoardSlug() . '/view/' . $article->getArticleId(),
         ]);
     }
 
