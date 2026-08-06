@@ -10,7 +10,8 @@ final readonly class MemberIdentity
         public int $memberId,
         public int $domainId,
         public string $userId,
-        public string $displayName
+        public string $displayName,
+        public string $publicId = '',
     ) {
     }
 
@@ -24,9 +25,17 @@ final readonly class MemberIdentity
         return $this->domainId;
     }
 
+    /**
+     * @deprecated since 1.1.0; removal planned for 2.0.0. 신규 코드는 getPublicId()를 사용한다.
+     */
     public function getUserId(): string
     {
         return $this->userId;
+    }
+
+    public function getPublicId(): string
+    {
+        return $this->publicId;
     }
 
     public function getDisplayName(): string

@@ -150,6 +150,8 @@ class ArticlePresenter
 
         // === 작성자 ===
         $item = array_merge($item, $this->buildAuthorFields($item));
+        // member_id는 권한 판정용 내부 값이다. Presenter 경계를 넘겨 스킨에 노출하지 않는다.
+        unset($item['member_id']);
 
         // === 날짜 (7가지 포맷) ===
         $createdAt = $item['created_at'] ?? '';

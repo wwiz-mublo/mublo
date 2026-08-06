@@ -28,6 +28,7 @@ class Member
     // Core 필드 (members 테이블)
     // ========================================
     protected int $memberId;
+    protected string $publicId = '';
     protected int $domainId;
     protected ?int $originDomainId = null;   // 최초 가입 도메인(불변). legacy 회원은 null
     protected string $userId;
@@ -69,6 +70,7 @@ class Member
 
         // Core 필드
         $member->memberId = (int) ($data['member_id'] ?? 0);
+        $member->publicId = (string) ($data['public_id'] ?? '');
         $member->domainId = (int) ($data['domain_id'] ?? 0);
         $member->originDomainId = isset($data['origin_domain_id']) && $data['origin_domain_id'] !== null
             ? (int) $data['origin_domain_id']
@@ -106,6 +108,7 @@ class Member
     {
         return [
             'member_id' => $this->memberId,
+            'public_id' => $this->publicId,
             'domain_id' => $this->domainId,
             'origin_domain_id' => $this->originDomainId,
             'user_id' => $this->userId,
@@ -148,6 +151,11 @@ class Member
     public function getMemberId(): int
     {
         return $this->memberId;
+    }
+
+    public function getPublicId(): string
+    {
+        return $this->publicId;
     }
 
     public function getDomainId(): int
@@ -429,6 +437,21 @@ class Member
     public function getDisplayName(): string
     {
         return $this->getNickname() ?: $this->getName() ?: $this->userId;
+    }
+
+    /**
+     * 다른 회원에게 노출해도 되는 표시명.
+     *
+     * 실명과 로그인 아이디는 폴백으로 사용하지 않는다.
+     */
+    public function getPublicDisplayName(): string
+    {
+        $nickname = trim((string) $this->getNickname());
+        if ($nickname !== '') {
+            return $nickname;
+        }
+
+        return $this->publicId !== '' ? '회원 ' . substr($this->publicId, 0, 12) : '회원';
     }
 
     /**

@@ -192,11 +192,7 @@ class ReviewController
                 $row['image3'] ?? null,
             ]));
 
-            // 작성자: 닉네임 원본 > 아이디, 비회원(닉네임 없음)은 빈값
-            $author = trim((string) ($row['nickname'] ?? ''));
-            if ($author === '') {
-                $author = trim((string) ($row['user_id'] ?? ''));
-            }
+            $author = trim((string) ($row['public_display_name'] ?? ''));
 
             return [
                 'review_id'      => (int) ($row['review_id'] ?? 0),

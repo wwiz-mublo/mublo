@@ -23,6 +23,7 @@ final readonly class AuthenticatedUser
         public ?string $name = null,
         public string $domainGroup = '',
         public string $levelType = '',
+        public string $publicId = '',
     ) {
     }
 
@@ -35,5 +36,15 @@ final readonly class AuthenticatedUser
 
         $name = trim((string) $this->name);
         return $name !== '' ? $name : $this->userId;
+    }
+
+    public function publicDisplayName(): string
+    {
+        $nickname = trim((string) $this->nickname);
+        if ($nickname !== '') {
+            return $nickname;
+        }
+
+        return $this->publicId !== '' ? '회원 ' . substr($this->publicId, 0, 12) : '회원';
     }
 }

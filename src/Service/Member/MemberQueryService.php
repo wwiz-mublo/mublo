@@ -32,6 +32,25 @@ final class MemberQueryService implements MemberQueryInterface
         return $member === null ? null : $this->profile($member);
     }
 
+    public function findByPublicId(int $domainId, string $publicId): ?MemberProfile
+    {
+        $member = $this->members->findByPublicId($domainId, $publicId);
+        return $member === null ? null : $this->profile($member);
+    }
+
+    public function searchActiveByNickname(int $domainId, string $nickname, int $limit = 10): array
+    {
+        return array_map(
+            fn (\Mublo\Entity\Member\Member $member): MemberProfile => $this->profile($member),
+            $this->members->searchActiveByNickname($domainId, $nickname, $limit)
+        );
+    }
+
+    public function publicIdsFor(int $domainId, array $memberIds): array
+    {
+        return $this->members->publicIdsFor($domainId, $memberIds);
+    }
+
     private function profile(\Mublo\Entity\Member\Member $member): MemberProfile
     {
         return new MemberProfile(
@@ -47,6 +66,7 @@ final class MemberQueryService implements MemberQueryInterface
             domainGroup: $member->getDomainGroup() ?? '',
             admin: $member->isAdmin(),
             levelType: $member->getLevelType(),
+            publicId: $member->getPublicId(),
         );
     }
 }

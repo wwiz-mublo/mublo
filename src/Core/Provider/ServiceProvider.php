@@ -48,6 +48,7 @@ use Mublo\Service\Auth\AuthService;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Contract\Auth\MemberAuthenticatorInterface;
 use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\MemberActionQueryInterface;
 use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Contract\Site\ManagedSiteGatewayInterface;
 use Mublo\Service\Auth\LoginAttemptService;
@@ -64,6 +65,8 @@ use Mublo\Service\Block\MainScreenComposition;
 use Mublo\Service\System\InstallIdProvider;
 use Mublo\Repository\Member\MemberRepository;
 use Mublo\Service\Member\MemberQueryService;
+use Mublo\Service\Member\MemberActionQueryService;
+use Mublo\Service\Member\MemberActionRegistry;
 use Mublo\Core\Middleware\AdminMiddleware;
 use Mublo\Core\Middleware\AuthMiddleware;
 use Mublo\Core\Middleware\CsrfMiddleware;
@@ -72,12 +75,14 @@ use Mublo\Core\Middleware\SessionMiddleware;
 use Mublo\Core\Context\ContextBuilder;
 use Mublo\Infrastructure\Security\CsrfManager;
 use Mublo\Repository\Balance\BalanceLogRepository;
+use Mublo\Repository\Balance\BalanceRankingRepository;
 use Mublo\Repository\Balance\BalanceRepairAuditRepository;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Repository\Member\AdminPermissionRepository;
 use Mublo\Repository\Member\MemberLevelRepository;
 use Mublo\Repository\Notification\MemberNotificationRepository;
 use Mublo\Service\Balance\BalanceManager;
+use Mublo\Service\Balance\BalanceRankingQueryService;
 use Mublo\Service\Balance\BalanceResetManager;
 use Mublo\Service\Domain\DomainResolver;
 use Mublo\Infrastructure\Code\CodeGenerator;
@@ -435,6 +440,26 @@ class ServiceProvider
             return new MemberQueryService($c->get(MemberRepository::class));
         });
 
+        $container->singleton(MemberActionRegistry::class, function (DependencyContainer $c) {
+            return new MemberActionRegistry(
+                $c->get(EventDispatcher::class),
+                static function (string $message, array $context) use ($c): void {
+                    if ($c->has(Logger::class)) {
+                        $c->get(Logger::class)->channel('error')->warning($message, $context);
+                    }
+                }
+            );
+        });
+
+        $container->singleton(MemberActionQueryInterface::class, function (DependencyContainer $c) {
+            return new MemberActionQueryService(
+                $c->get(MemberActionRegistry::class),
+                static fn (): ?int => $c->has(Context::class)
+                    ? $c->get(Context::class)->getDomainId()
+                    : null
+            );
+        });
+
         $container->singleton(
             \Mublo\Contract\Member\MemberCustomFieldQueryInterface::class,
             function (DependencyContainer $c) {
@@ -455,6 +480,10 @@ class ServiceProvider
 
         $container->singleton(BalanceLogRepository::class, function (DependencyContainer $c) {
             return new BalanceLogRepository($c->get(Database::class));
+        });
+
+        $container->singleton(BalanceRankingRepository::class, function (DependencyContainer $c) {
+            return new BalanceRankingRepository($c->get(Database::class));
         });
 
         $container->singleton(BalanceRepairAuditRepository::class, function (DependencyContainer $c) {
@@ -635,6 +664,15 @@ class ServiceProvider
         $container->singleton(
             \Mublo\Contract\Balance\BalanceGatewayInterface::class,
             fn(DependencyContainer $c) => $c->get(BalanceManager::class)
+        );
+
+        $container->singleton(BalanceRankingQueryService::class, function (DependencyContainer $c) {
+            return new BalanceRankingQueryService($c->get(BalanceRankingRepository::class));
+        });
+
+        $container->singleton(
+            \Mublo\Contract\Balance\BalanceRankingQueryInterface::class,
+            fn(DependencyContainer $c) => $c->get(BalanceRankingQueryService::class)
         );
 
         $container->singleton(BalanceResetManager::class, function (DependencyContainer $c) {

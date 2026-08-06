@@ -70,6 +70,17 @@ packages/Board/views/Front/Board/
 | `$attachments` | array | 첨부 목록 (§2-3) |
 | `$links` | array | 관련 링크 목록 |
 
+작성자 메뉴는 컨트롤러가 준비한 공개 식별자와 검증된 액션만 코어 헬퍼에 넘긴다.
+내부 회원 번호나 로그인 아이디로 프로필 URL·쪽지 URL을 직접 조립하지 않는다.
+
+```php
+<?= $this->memberActionMenu(
+    $article['author_actions'] ?? [],
+    (string) ($article['author_public_id'] ?? ''),
+    ['placement' => 'board.article_author', 'compact' => true]
+) ?>
+```
+
 ### 2-3. 첨부 항목 (`$attachments[]`)
 
 | 키 | 타입 | 설명 |
@@ -180,7 +191,9 @@ if (isLoggedIn) {
 | `comment_id` | 댓글 ID — 수정·삭제 엔드포인트에 사용 |
 | `content` | 내용 |
 | `author_name` | 작성자명 |
-| `member_id` | 회원 ID (비회원 null) |
+| `author_public_id` | 공개 회원 식별자 (비회원은 빈 문자열) |
+| `author_actions` | 코어 정책 검증을 마친 회원 액션 DTO 목록 |
+| `is_own` | 현재 로그인 회원이 작성한 댓글인지 여부 |
 | `created_at` | 작성일시 |
 | `depth` | 답글 깊이 — 들여쓰기에 사용 |
 | `is_secret` | 비밀 댓글 여부 |
@@ -199,6 +212,8 @@ if (isLoggedIn) {
 | `author_name` / `author_name_masked` | 글쓴이 (원본 / 마스킹). 이스케이프 완료 |
 | `author_id` / `author_id_masked` | 아이디 (비회원은 null) |
 | `is_member` | 회원 여부 |
+| `author_public_id` | 공개 회원 식별자 (상세 화면에서만 제공) |
+| `author_actions` | 코어 정책 검증을 마친 회원 액션 DTO 목록 (상세 화면에서만 제공) |
 | `url` / `edit_url` | 상세·수정 URL |
 | `date_short` / `date_relative` / `date_compact` | 날짜 포맷 3종 |
 | `view_count_formatted` / `comment_count_formatted` | 포맷된 통계 |
@@ -209,6 +224,10 @@ if (isLoggedIn) {
 
 > **이스케이프 규칙**: `*_safe`, `author_name*` 은 이미 처리됨. 그 외 원본 문자열
 > (예: `$board['board_name']`)은 `htmlspecialchars()` 로 감싼다.
+
+> **회원 식별자 규칙**: `member_id`와 `user_id`는 권한 판정·저장용 내부 값이다.
+> 프론트 스킨에서 출력하거나 `data-*`, 링크, 폼 필드에 넣지 않는다. 작성자 동작은
+> 반드시 `author_public_id` + `author_actions` + `$this->memberActionMenu()` 조합으로 렌더링한다.
 
 ---
 

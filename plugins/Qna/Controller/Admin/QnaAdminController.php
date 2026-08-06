@@ -165,7 +165,7 @@ class QnaAdminController
         $data      = $request->json() ?: $request->input('formData') ?? [];
 
         $user = $this->auth->currentUser();
-        $data['author_name'] = $user?->displayName() ?: '관리자';
+        $data['author_name'] = $user?->publicDisplayName() ?: '관리자';
 
         $result = $this->qnaService->addReply(
             $domainId,

@@ -15,6 +15,9 @@ use Mublo\Packages\Board\Service\BoardFileService;
 use Mublo\Packages\Board\Service\BoardPermissionService;
 use Mublo\Packages\Board\Service\BoardReactionService;
 use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Contract\Member\MemberActionQueryInterface;
+use Mublo\Contract\Member\MemberActionScope;
+use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Helper\Form\FormHelper;
 use Mublo\Packages\Board\Helper\ArticlePresenter;
@@ -56,6 +59,8 @@ class BoardController
     private AuthContextInterface $authService;
     private SessionInterface $session;
     private EventDispatcher $eventDispatcher;
+    private MemberActionQueryInterface $memberActions;
+    private MemberQueryInterface $memberQueries;
     private ?RateLimiter $rateLimiter;
 
     public function __construct(
@@ -69,6 +74,8 @@ class BoardController
         AuthContextInterface $authService,
         SessionInterface $session,
         EventDispatcher $eventDispatcher,
+        MemberActionQueryInterface $memberActions,
+        MemberQueryInterface $memberQueries,
         ?RateLimiter $rateLimiter = null
     ) {
         $this->articleService = $articleService;
@@ -81,6 +88,8 @@ class BoardController
         $this->authService = $authService;
         $this->session = $session;
         $this->eventDispatcher = $eventDispatcher;
+        $this->memberActions = $memberActions;
+        $this->memberQueries = $memberQueries;
         $this->rateLimiter = $rateLimiter;
     }
 
@@ -332,11 +341,21 @@ class BoardController
                     }
                 }
 
+                $c['is_own'] = $viewerId > 0 && (int) ($c['member_id'] ?? 0) === $viewerId;
+
                 $comments[] = $c;
             }
         }
 
         $currentUser = $this->authService->currentUser();
+        $memberAuthorData = $this->decorateMemberAuthors(
+            $domainId,
+            $article,
+            $comments,
+            (int) ($data['article']['member_id'] ?? 0)
+        );
+        $article = $memberAuthorData['article'];
+        $comments = $memberAuthorData['comments'];
 
         // 글쓰기 권한 (Service가 반환한 Entity 사용, DB 재조회 불필요)
         $boardEntity = $data['board_entity'];
@@ -395,6 +414,68 @@ class BoardController
                 'pageJsonLd'       => $seo['json_ld'],
                 'breadcrumb'       => $seo['breadcrumb'],
             ]);
+    }
+
+    /**
+     * @param array<string, mixed> $article
+     * @param list<array<string, mixed>> $comments
+     * @param int $articleAuthorId Presenter 경계 전에 확보한 내부 작성자 ID
+     * @return array{article:array<string,mixed>,comments:list<array<string,mixed>>}
+     */
+    private function decorateMemberAuthors(
+        int $domainId,
+        array $article,
+        array $comments,
+        int $articleAuthorId
+    ): array
+    {
+        $commentAuthorIds = array_values(array_unique(array_filter(array_map(
+            static fn (array $comment): int => (int) ($comment['member_id'] ?? 0),
+            $comments
+        ))));
+        $authorIds = array_values(array_unique(array_filter([
+            $articleAuthorId,
+            ...$commentAuthorIds,
+        ])));
+        $authorPublicIds = $this->memberQueries->publicIdsFor($domainId, $authorIds);
+
+        $article['author_public_id'] = $authorPublicIds[$articleAuthorId] ?? '';
+        $article['author_actions'] = $articleAuthorId > 0
+            ? $this->memberActions->forMember(
+                $this->memberActionScope($domainId, ['board.article_author', 'member.author']),
+                $articleAuthorId
+            )
+            : [];
+
+        $commentActions = $commentAuthorIds !== []
+            ? $this->memberActions->forMembers(
+                $this->memberActionScope($domainId, ['board.comment_author', 'member.author']),
+                $commentAuthorIds
+            )
+            : [];
+        foreach ($comments as &$comment) {
+            $authorId = (int) ($comment['member_id'] ?? 0);
+            $comment['author_public_id'] = $authorPublicIds[$authorId] ?? '';
+            $comment['author_actions'] = $commentActions[$authorId] ?? [];
+            unset($comment['member_id']);
+        }
+        unset($comment);
+
+        return ['article' => $article, 'comments' => $comments];
+    }
+
+    /** @param list<string> $placements */
+    private function memberActionScope(int $domainId, array $placements): MemberActionScope
+    {
+        $viewer = $this->authService->currentUser();
+
+        return new MemberActionScope(
+            $domainId,
+            $viewer?->memberId,
+            $viewer !== null && $this->authService->isProxyLogin(),
+            $viewer?->levelValue ?? 0,
+            $placements,
+        );
     }
 
     /**

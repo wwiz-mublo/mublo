@@ -20,11 +20,22 @@ final readonly class MemberProfile
         public string $domainGroup = '',
         public bool $admin = false,
         public ?string $levelType = null,
+        public string $publicId = '',
     ) {
     }
 
     public function displayName(): string
     {
         return $this->nickname ?: ($this->name ?: $this->userId);
+    }
+
+    public function publicDisplayName(): string
+    {
+        $nickname = trim((string) $this->nickname);
+        if ($nickname !== '') {
+            return $nickname;
+        }
+
+        return $this->publicId !== '' ? '회원 ' . substr($this->publicId, 0, 12) : '회원';
     }
 }

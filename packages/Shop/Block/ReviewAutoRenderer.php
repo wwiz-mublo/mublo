@@ -136,10 +136,7 @@ class ReviewAutoRenderer implements RendererInterface
      */
     private function authorName(array $row): string
     {
-        $name = trim((string) ($row['nickname'] ?? ''));
-        if ($name === '') {
-            $name = trim((string) ($row['user_id'] ?? ''));
-        }
+        $name = trim((string) ($row['public_display_name'] ?? ''));
         return $name;
     }
 }

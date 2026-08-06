@@ -8,19 +8,35 @@
  * @var array[] $mypageMenus     사이드바 메뉴 목록 (buildMenus()가 반환)
  * @var string  $currentSection  현재 활성 섹션 키
  * @var string  $content         렌더링할 콘텐츠 HTML
+ * @var array|\Mublo\Contract\Auth\AuthenticatedUser|null $user 로그인 사용자
  */
 $this->assets->addCss('/serve/front/view/mypage/basic/css/mypage.css');
+
+$mpUser = $user ?? null;
+$mpName = '';
+$mpAvatar = '';
+$mpLevelName = '일반회원';
+
+if ($mpUser instanceof \Mublo\Contract\Auth\AuthenticatedUser) {
+    $mpName = $mpUser->displayName();
+    $mpAvatar = (string) ($mpUser->avatar ?? '');
+    $mpLevelName = $mpUser->super ? '전체관리자' : ($mpUser->admin ? '관리자' : '일반회원');
+} elseif (is_array($mpUser)) {
+    $mpName = (string) ($mpUser['nickname'] ?? $mpUser['user_id'] ?? '');
+    $mpAvatar = (string) ($mpUser['avatar'] ?? '');
+    $mpLevelName = (string) ($mpUser['level_name'] ?? '일반회원');
+}
+$mpHasUser = $mpName !== '';
 ?>
 
 <div class="mypage-wrapper">
     <!-- 사이드바 -->
     <aside class="mypage-sidebar">
-        <?php if (!empty($user)): ?>
-            <?php $mpName = $user['nickname'] ?? $user['user_id'] ?? ''; ?>
+        <?php if ($mpHasUser): ?>
             <div class="mypage-user-card">
                 <div class="mypage-user-card__avatar">
-                    <?php if (!empty($user['avatar'])): ?>
-                        <img src="<?= htmlspecialchars($user['avatar']) ?>" alt="">
+                    <?php if ($mpAvatar !== ''): ?>
+                        <img src="<?= htmlspecialchars($mpAvatar) ?>" alt="">
                     <?php else: ?>
                         <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                             <path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/>
@@ -29,7 +45,7 @@ $this->assets->addCss('/serve/front/view/mypage/basic/css/mypage.css');
                 </div>
                 <div class="mypage-user-card__info">
                     <div class="user-name"><?= htmlspecialchars($mpName) ?></div>
-                    <div class="user-level"><?= htmlspecialchars($user['level_name'] ?? '일반회원') ?></div>
+                    <div class="user-level"><?= htmlspecialchars($mpLevelName) ?></div>
                 </div>
             </div>
         <?php endif; ?>

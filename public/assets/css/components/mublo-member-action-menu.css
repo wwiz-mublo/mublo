@@ -1,0 +1,79 @@
+.mublo-mam {
+    display: inline-block;
+    position: relative;
+    vertical-align: middle;
+}
+
+.mublo-mam__button {
+    align-items: center;
+    border-radius: .375rem;
+    color: var(--bs-secondary-color, #6c757d);
+    cursor: pointer;
+    display: inline-flex;
+    justify-content: center;
+    list-style: none;
+    min-height: 2.25rem;
+    min-width: 2.25rem;
+    user-select: none;
+}
+
+.mublo-mam__button::-webkit-details-marker { display: none; }
+.mublo-mam__button:hover { background: var(--bs-tertiary-bg, #f1f3f5); }
+
+.mublo-mam__list {
+    background: var(--bs-body-bg, #fff);
+    border: 1px solid var(--bs-border-color, #dee2e6);
+    border-radius: .5rem;
+    box-shadow: 0 .5rem 1rem rgba(0, 0, 0, .12);
+    list-style: none;
+    margin: .25rem 0 0;
+    min-width: 10rem;
+    padding: .25rem;
+    position: absolute;
+    right: 0;
+    z-index: 1050;
+}
+
+.mublo-mam__form { margin: 0; }
+
+.mublo-mam__item {
+    background: transparent;
+    border: 0;
+    border-radius: .375rem;
+    color: var(--bs-body-color, #212529);
+    cursor: pointer;
+    display: block;
+    font: inherit;
+    padding: .5rem .75rem;
+    text-align: left;
+    text-decoration: none;
+    width: 100%;
+}
+
+.mublo-mam__item:hover,
+.mublo-mam__item:focus-visible { background: var(--bs-tertiary-bg, #f1f3f5); }
+.mublo-mam--compact .mublo-mam__button { min-height: 1.75rem; min-width: 1.75rem; }
+
+.mublo-mam--text .mublo-mam__button {
+    border-radius: .25rem;
+    color: inherit;
+    font: inherit;
+    font-weight: inherit;
+    min-height: 0;
+    min-width: 0;
+    padding: 0;
+    text-decoration: underline dotted;
+    text-underline-offset: .2em;
+}
+
+.mublo-mam--text .mublo-mam__button::after {
+    content: '\25BE';
+    font-size: .72em;
+    margin-left: .25rem;
+    opacity: .6;
+}
+
+.mublo-mam--text .mublo-mam__button:hover {
+    background: transparent;
+    opacity: .8;
+}

@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Mublo\Core\Rendering;
 
 use Mublo\Core\Registry\CategoryProviderRegistry;
+use Mublo\Contract\Member\MemberActionTargetTransport;
+use Mublo\Contract\Member\MemberActionView;
 use Mublo\Helper\List\ListColumnBuilder;
 
 /**
@@ -65,6 +67,8 @@ use Mublo\Helper\List\ListColumnBuilder;
  */
 class ViewContext
 {
+    private const MEMBER_ACTION_MENU_OPTIONS = ['placement', 'compact', 'ariaLabel', 'triggerLabel'];
+
     /**
      * View 스킨 (Admin 또는 Front 그룹 스킨)
      */
@@ -324,6 +328,63 @@ class ViewContext
         $pagination['queryString'] = $this->queryString;
 
         return $this->component('pagination', $pagination);
+    }
+
+    /**
+     * 검증된 회원 액션을 코어 소유 메뉴로 렌더링한다.
+     *
+     * @param list<MemberActionView> $actions
+     * @param array{placement?:string,compact?:bool,ariaLabel?:string,triggerLabel?:string} $options
+     */
+    public function memberActionMenu(array $actions, string $targetPublicId, array $options = []): string
+    {
+        if ($actions === [] || preg_match('/\A[0-9a-f]{22}\z/', $targetPublicId) !== 1) {
+            return '';
+        }
+
+        $actions = array_values(array_filter(
+            $actions,
+            static fn (mixed $action): bool => $action instanceof MemberActionView
+        ));
+        if ($actions === []) {
+            return '';
+        }
+
+        $mublo = $this->get('mublo', []);
+        $csrfToken = is_array($mublo) ? (string) ($mublo['security']['csrfToken'] ?? '') : '';
+        if ($csrfToken === '') {
+            $actions = array_values(array_filter(
+                $actions,
+                static fn (MemberActionView $action): bool =>
+                    $action->getTargetTransport() !== MemberActionTargetTransport::PrivateBody
+            ));
+            if ($actions === []) {
+                return '';
+            }
+        }
+
+        if (isset($this->helpers['assets'])) {
+            $this->helpers['assets']->addCss('/assets/css/components/mublo-member-action-menu.css', 'component');
+            $this->helpers['assets']->addJs('/assets/js/components/mublo-member-action-menu.js', 'footer');
+        }
+
+        $safeOptions = array_intersect_key($options, array_flip(self::MEMBER_ACTION_MENU_OPTIONS));
+        $placement = (string) ($safeOptions['placement'] ?? '');
+        if ($placement !== ''
+            && preg_match('/\A[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*\z/', $placement) !== 1
+        ) {
+            $placement = '';
+        }
+
+        return $this->component('member_action_menu', [
+            'placement' => $placement,
+            'compact' => (bool) ($safeOptions['compact'] ?? false),
+            'ariaLabel' => (string) ($safeOptions['ariaLabel'] ?? '회원 액션'),
+            'triggerLabel' => (string) ($safeOptions['triggerLabel'] ?? ''),
+            'actions' => $actions,
+            'targetPublicId' => $targetPublicId,
+            'csrfToken' => $csrfToken,
+        ]);
     }
 
     /**
