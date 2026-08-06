@@ -102,13 +102,33 @@ class BoardArticleRepository extends BaseRepository
             $query->where('a.member_id', '=', (int) $filters['member_id']);
         }
 
+        // 기본 일반글 목록은 MariaDB가 단일 인덱스들을 index_merge하는 잘못된 계획을
+        // 선택하기 쉽다. 이 조건 조합에 맞춘 커버링 인덱스를 명시해 COUNT와 목록 모두
+        // 같은 범위 인덱스를 사용하게 한다. 추가 필터가 있으면 옵티마이저 선택을 존중한다.
+        $canUseDomainListIndex = !$isGlobal
+            && $status !== 'all'
+            && isset($filters['is_notice'])
+            && empty($filters['category_id'])
+            && empty($filters['keyword'])
+            && empty($filters['member_id']);
+
+        if ($canUseDomainListIndex) {
+            $query->forceIndex('idx_domain_board_list');
+        }
+
         // 전체 개수
         $total = $query->count();
 
         // 정렬 및 페이지네이션
         $offset = ($page - 1) * $perPage;
+        // 공지 여부가 필터로 고정된 목록에서 is_notice를 다시 정렬하면 MariaDB가
+        // idx_*_board_list를 사용하지 않고 전체 후보를 filesort할 수 있다.
+        // 공지/일반글을 함께 조회할 때만 기존의 공지 우선 정렬을 유지한다.
+        if (!isset($filters['is_notice'])) {
+            $query->orderBy('a.is_notice', 'DESC');
+        }
+
         $rows = $query
-            ->orderBy('a.is_notice', 'DESC')
             ->orderBy('a.created_at', 'DESC')
             ->limit($perPage)
             ->offset($offset)

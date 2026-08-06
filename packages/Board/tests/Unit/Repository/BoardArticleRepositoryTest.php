@@ -269,4 +269,58 @@ class BoardArticleRepositoryTest extends TestCase
         ], $result['relations']);
         $this->assertArrayNotHasKey('pagination', $result);
     }
+
+    public function testPaginatedListSkipsRedundantNoticeOrderingWhenNoticeIsFiltered(): void
+    {
+        $orderByCalls = [];
+
+        $this->qbMock->method('where')->willReturnSelf();
+        $this->qbMock->method('count')->willReturn(0);
+        $this->qbMock->expects($this->once())
+            ->method('forceIndex')
+            ->with('idx_domain_board_list')
+            ->willReturnSelf();
+        $this->qbMock->method('limit')->willReturnSelf();
+        $this->qbMock->method('offset')->willReturnSelf();
+        $this->qbMock->method('get')->willReturn([]);
+        $this->qbMock->expects($this->once())
+            ->method('orderBy')
+            ->willReturnCallback(
+                function (string $column, string $direction) use (&$orderByCalls): QueryBuilder {
+                    $orderByCalls[] = [$column, $direction];
+                    return $this->qbMock;
+                }
+            );
+
+        $this->repository->getPaginatedList(10, 2, 120, 20, ['is_notice' => 0]);
+
+        $this->assertSame([['a.created_at', 'DESC']], $orderByCalls);
+    }
+
+    public function testPaginatedListKeepsNoticeFirstOrderingWithoutNoticeFilter(): void
+    {
+        $orderByCalls = [];
+
+        $this->qbMock->method('where')->willReturnSelf();
+        $this->qbMock->method('count')->willReturn(0);
+        $this->qbMock->expects($this->never())->method('forceIndex');
+        $this->qbMock->method('limit')->willReturnSelf();
+        $this->qbMock->method('offset')->willReturnSelf();
+        $this->qbMock->method('get')->willReturn([]);
+        $this->qbMock->expects($this->exactly(2))
+            ->method('orderBy')
+            ->willReturnCallback(
+                function (string $column, string $direction) use (&$orderByCalls): QueryBuilder {
+                    $orderByCalls[] = [$column, $direction];
+                    return $this->qbMock;
+                }
+            );
+
+        $this->repository->getPaginatedList(10, 2);
+
+        $this->assertSame([
+            ['a.is_notice', 'DESC'],
+            ['a.created_at', 'DESC'],
+        ], $orderByCalls);
+    }
 }
