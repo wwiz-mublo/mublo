@@ -107,8 +107,14 @@ class BoardArticleRepository extends BaseRepository
 
         // 정렬 및 페이지네이션
         $offset = ($page - 1) * $perPage;
+        // 공지 여부가 필터로 고정된 목록에서 is_notice를 다시 정렬하면 옵티마이저가
+        // idx_*_board_list를 쓰지 않고 전체 후보를 filesort할 수 있다.
+        // 공지/일반글을 함께 조회할 때만 기존의 공지 우선 정렬을 유지한다.
+        if (!isset($filters['is_notice'])) {
+            $query->orderBy('a.is_notice', 'DESC');
+        }
+
         $rows = $query
-            ->orderBy('a.is_notice', 'DESC')
             ->orderBy('a.created_at', 'DESC')
             ->limit($perPage)
             ->offset($offset)
