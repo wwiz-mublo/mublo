@@ -1,8 +1,16 @@
 name: CI
 
-# 문서·이미지만 바뀐 변경은 건너뛴다. PHP 3종 × DB 4종 매트릭스가 5분씩 도는데
-# 마크다운은 어떤 테스트도 깨뜨릴 수 없다. 코드가 한 줄이라도 섞이면 paths-ignore
-# 는 적용되지 않으므로 평소대로 전부 돈다.
+# 문서·이미지만 바뀐 변경은 무거운 검사를 건너뛴다. PHP 3종 × DB 4종 매트릭스가
+# 5분씩 도는데 마크다운은 어떤 테스트도 깨뜨릴 수 없다.
+#
+# 다만 pull_request 에는 paths-ignore 를 쓰지 않는다. 워크플로 자체가 건너뛰어지면
+# 체크가 아예 생성되지 않고, 브랜치 보호의 필수 체크(PHP 8.2/8.3/8.4)가 영원히
+# pending 으로 남아 문서만 고치는 PR 은 머지가 불가능해진다. workflow_dispatch 로
+# 수동 실행해도 그 체크 스위트는 PR 에 연결되지 않아 소용이 없다(2026-08-07 #21
+# 에서 확인). 그래서 워크플로는 항상 돌리고, 아래 changes 잡의 판정으로 잡 안의
+# 무거운 스텝만 건너뛴다.
+#
+# push 는 필수 체크와 무관하므로 종전처럼 paths-ignore 로 통째로 거른다.
 #
 # 제외 목록은 "실행에 영향이 없는 것" 만 담는다. 예를 들어 .github/workflows 는
 # 넣지 않는다 — CI 자신을 고치는 변경이야말로 검증이 필요하다.
@@ -19,22 +27,58 @@ on:
       - '**/*.svg'
   pull_request:
     branches: [ main ]
-    paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - 'LICENSE'
-      - 'NOTICE'
-      - '**/*.png'
-      - '**/*.jpg'
-      - '**/*.svg'
-  # 임의 브랜치/커밋을 수동으로 검증할 때 사용한다. paths-ignore 와 무관하게 돈다.
+  # 임의 브랜치/커밋을 수동으로 검증할 때 사용한다.
   #   gh workflow run ci.yml --ref <브랜치>
   workflow_dispatch:
 
 jobs:
+  # 이 PR 에 코드가 한 줄이라도 섞였는지 판정한다. pull_request 가 아니면
+  # (push·workflow_dispatch) 무조건 돈다 — 판정 대상 범위가 없다.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - id: filter
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "pull_request 가 아니므로 전체 실행"
+            exit 0
+          fi
+
+          FILES=$(git diff --name-only "$BASE" "$HEAD")
+          echo "변경 파일:"
+          echo "$FILES" | sed 's/^/  /'
+
+          # 한 줄이라도 제외 목록 밖이면 코드 변경으로 본다.
+          if echo "$FILES" | grep -qvE '(\.md$|^docs/|^LICENSE$|^NOTICE$|\.(png|jpg|svg)$)'; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "→ 코드 변경 있음, 전체 실행"
+          else
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "→ 문서·이미지 변경뿐, 무거운 검사 생략"
+          fi
+
+  # 필수 체크 3종(PHP 8.2/8.3/8.4)이다. 잡 레벨 if 로 건너뛰면 결론이 skipped 가
+  # 되는데, 필수 체크를 skipped 로 두는 것이 통과로 인정되는지는 보호 규칙 설정에
+  # 따라 달라진다. 머지 가능 여부가 걸린 자리라 추측하지 않는다 — 잡은 항상 돌려
+  # success 로 보고하고, 안의 무거운 스텝만 건너뛴다.
   test:
     name: PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
+    needs: changes
 
     strategy:
       fail-fast: false
@@ -61,6 +105,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Setup PHP
+        if: needs.changes.outputs.code == 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php }}
@@ -70,6 +115,7 @@ jobs:
       # v4 는 Node.js 20 을 타깃해 러너가 24 로 강제 실행하며 폐기 경고를 낸다.
       # v5 부터 node24 다. path/key/restore-keys 는 그대로다.
       - name: Cache Composer dependencies
+        if: needs.changes.outputs.code == 'true'
         uses: actions/cache@v6
         with:
           path: vendor
@@ -77,39 +123,47 @@ jobs:
           restore-keys: composer-${{ matrix.php }}-
 
       - name: Install dependencies
+        if: needs.changes.outputs.code == 'true'
         run: composer install --no-interaction --prefer-dist
 
       # 배포되는 운영 의존성의 알려진 취약점을 차단(dev 도구 CVE는 사용자 배포물에 없으므로 제외).
       - name: Security audit (production deps)
+        if: needs.changes.outputs.code == 'true'
         run: composer audit --no-dev
 
       - name: Run DI check
+        if: needs.changes.outputs.code == 'true'
         run: composer check-di
 
       # 확장이 안정 API 밖의 코어 심볼에 새로 의존하는 것을 막는다.
       # 기존 의존은 tools/extension-api-baseline.json 에 동결되어 있다.
       - name: Run extension API check
+        if: needs.changes.outputs.code == 'true'
         run: composer check-extension-api
 
       # 런타임 파일이 declare(strict_types=1) 을 빠뜨리지 않게 한다.
       # strict_types 는 "선언한 파일에서 나가는 호출"에만 적용되므로,
       # 한 파일이라도 빠지면 그 파일의 호출은 다시 조용히 형변환된다.
       - name: Run strict types check
+        if: needs.changes.outputs.code == 'true'
         run: composer check-strict-types
 
       # 정적분석 level 0 — "부르는데 없는" 클래스·인터페이스·메서드를 잡는다.
       # 오탐 0건이라 베이스라인 없이 게이트로 쓴다. 설정은 phpstan.neon.dist.
       - name: Run static analysis
+        if: needs.changes.outputs.code == 'true'
         run: composer analyse
 
       # 정리가 끝난 범위(코어·Board·Shop·플러그인, 뷰 제외)만 level 3 으로 본다.
       # level 2 부터 "아무 객체에나 없는 메서드 호출"을 잡는다.
       - name: Run static analysis (strict scope)
+        if: needs.changes.outputs.code == 'true'
         run: composer analyse-strict
 
       # DB_TEST_* 가 있으면 tests/Integration 이 실 DB 를 태운다(없으면 스킵).
       # 리포지토리·QueryBuilder 의 SQL 은 mock 으로는 검증되지 않는다.
       - name: Run tests
+        if: needs.changes.outputs.code == 'true'
         run: composer test
         env:
           DB_TEST_HOST: 127.0.0.1
@@ -125,7 +179,9 @@ jobs:
   migration-immutability:
     name: Migration immutability
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    needs: changes
+    # 필수 체크가 아니라 skipped 로 남아도 머지를 막지 않는다.
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
 
     steps:
       - name: Checkout (비교를 위해 전체 이력)
@@ -175,6 +231,9 @@ jobs:
   database-compatibility:
     name: DB compatibility (${{ matrix.name }})
     runs-on: ubuntu-latest
+    needs: changes
+    # 필수 체크가 아니라 skipped 로 남아도 머지를 막지 않는다.
+    if: needs.changes.outputs.code == 'true'
 
     strategy:
       fail-fast: false
