@@ -143,6 +143,40 @@ class MemberRepositoryCreateTest extends DatabaseTestCase
     }
 
     /**
+     * 빈 문자열은 "넘겼다"가 아니라 "없다"로 취급해야 한다.
+     *
+     * 값으로 취급하면 첫 회원은 '' 로 들어가고 두 번째 회원이 uk_member_public_id 에
+     * 걸린다. 원인(발급 분기)에서 먼 곳에서 터지므로 두 건을 연달아 만들어 확인한다.
+     */
+    public function testEmptyPublicIdIsTreatedAsMissing(): void
+    {
+        $first = $this->repository->create([
+            'public_id' => '',
+            'domain_id' => 1,
+            'user_id' => 'blank-one',
+            'password' => 'hash',
+            'nickname' => '빈값',
+            'status' => 'active',
+        ]);
+        $second = $this->repository->create([
+            'public_id' => '',
+            'domain_id' => 1,
+            'user_id' => 'blank-two',
+            'password' => 'hash',
+            'status' => 'active',
+        ]);
+
+        $rows = $this->fetchAll(
+            'SELECT public_id FROM members WHERE member_id IN (?, ?) ORDER BY member_id',
+            [$first, $second]
+        );
+
+        $this->assertMatchesRegularExpression('/\A[0-9a-f]{22}\z/', (string) $rows[0]['public_id']);
+        $this->assertMatchesRegularExpression('/\A[0-9a-f]{22}\z/', (string) $rows[1]['public_id']);
+        $this->assertNotSame((string) $rows[0]['public_id'], (string) $rows[1]['public_id']);
+    }
+
+    /**
      * 발급된 값으로 실제 조회 경로가 동작해야 한다. findByPublicId 는 정규식 게이트를
      * 통과한 값만 질의하므로, 발급 형식과 게이트가 어긋나면 방금 만든 회원을 못 찾는다.
      */
