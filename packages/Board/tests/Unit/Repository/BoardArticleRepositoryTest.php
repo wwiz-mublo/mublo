@@ -276,10 +276,6 @@ class BoardArticleRepositoryTest extends TestCase
 
         $this->qbMock->method('where')->willReturnSelf();
         $this->qbMock->method('count')->willReturn(0);
-        $this->qbMock->expects($this->once())
-            ->method('forceIndex')
-            ->with('idx_domain_board_list')
-            ->willReturnSelf();
         $this->qbMock->method('limit')->willReturnSelf();
         $this->qbMock->method('offset')->willReturnSelf();
         $this->qbMock->method('get')->willReturn([]);
@@ -303,7 +299,6 @@ class BoardArticleRepositoryTest extends TestCase
 
         $this->qbMock->method('where')->willReturnSelf();
         $this->qbMock->method('count')->willReturn(0);
-        $this->qbMock->expects($this->never())->method('forceIndex');
         $this->qbMock->method('limit')->willReturnSelf();
         $this->qbMock->method('offset')->willReturnSelf();
         $this->qbMock->method('get')->willReturn([]);

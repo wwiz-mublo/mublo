@@ -767,28 +767,4 @@ class QueryBuilderSecurityTest extends TestCase
 
         $this->assertSame(4, $count);
     }
-
-    public function testForceIndexAddsValidatedHintAfterTableAlias(): void
-    {
-        $db = $this->createMock(Database::class);
-
-        $sql = (new QueryBuilder($db, 'board_articles AS a'))
-            ->forceIndex('idx_domain_board_list')
-            ->where('a.domain_id', 1)
-            ->toSql();
-
-        $this->assertSame(
-            'SELECT * FROM board_articles AS a FORCE INDEX (idx_domain_board_list) WHERE a.domain_id = ?',
-            $sql
-        );
-    }
-
-    public function testForceIndexRejectsUnsafeIdentifier(): void
-    {
-        $db = $this->createMock(Database::class);
-
-        $this->expectException(DatabaseException::class);
-
-        (new QueryBuilder($db, 'board_articles'))->forceIndex('idx_board_list) DROP TABLE members');
-    }
 }

@@ -36,7 +36,6 @@ class QueryBuilder
     protected ?int $limitValue = null;
     protected ?int $offsetValue = null;
     protected bool $distinct = false;
-    protected ?string $indexHint = null;
     protected bool $allowFullTableOperation = false;
 
     /**
@@ -78,28 +77,6 @@ class QueryBuilder
     public function distinct(): self
     {
         $this->distinct = true;
-        return $this;
-    }
-
-    /**
-     * MySQL/MariaDB 옵티마이저가 잘못된 인덱스 계획을 선택할 때 사용할 인덱스를 지정한다.
-     *
-     * 외부 입력을 그대로 SQL에 넣지 않도록 인덱스 이름은 단순 식별자만 허용한다.
-     */
-    public function forceIndex(string ...$indexes): self
-    {
-        if ($indexes === []) {
-            throw new DatabaseException('At least one index must be specified');
-        }
-
-        foreach ($indexes as $index) {
-            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $index)) {
-                throw new DatabaseException("Invalid index identifier: {$index}");
-            }
-        }
-
-        $this->indexHint = 'FORCE INDEX (' . implode(', ', $indexes) . ')';
-
         return $this;
     }
 
@@ -1386,10 +1363,6 @@ class QueryBuilder
 
         $sql .= implode(', ', $this->columns);
         $sql .= " FROM {$this->table}";
-
-        if ($this->indexHint !== null) {
-            $sql .= ' ' . $this->indexHint;
-        }
 
         // JOIN
         if (!empty($this->joins)) {
