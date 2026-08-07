@@ -283,7 +283,8 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 |---|---|---|
 | Auth | `AuthContextInterface` | 현재 요청의 인증 상태 읽기(`AuthService` 직접 참조 대체) |
 | Auth | `MemberAuthenticatorInterface`, `AuthenticatedUser` | 신뢰 확장(SNS 로그인 등)이 기존 회원 세션을 시작 |
-| Member | `MemberQueryInterface`, `MemberProfile`, `MemberIdentity` | 내부 Member Entity·Repository 없이 읽기 전용 회원 조회 |
+| Member | `MemberQueryInterface`, `MemberProfile`, `MemberIdentity`, `MemberExtensionIdentity` | 내부 Member Entity·Repository 없이 읽기 전용 회원 조회·활성 회원 닉네임 검색과 안전한 확장 이벤트 식별 정보 |
+| Member Action | `MemberActionQueryInterface`, Definition·Variant·Scope·View·StateResolver | 확장이 회원 문맥 액션을 등록하고 소비 화면이 일괄 조회 |
 | Member | `MemberAccountGatewayInterface`, `MemberRegistrationRequest` | 가입·자격 검증·커스텀 필드 저장 |
 | Member | `MemberLevelCatalogInterface`, `MemberLevelDescriptor`, `MemberLevelType` | 회원 등급 목록·타입 판정 ([19장](19-member-custom-fields.md)) |
 | Member | `MemberCustomFieldQueryInterface`, `PolicyQueryInterface`, `PolicyDocument` | 회원 커스텀 필드 값 조회, 약관 문서 조회·렌더 |
@@ -297,6 +298,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | Extension | `ExtensionCatalogInterface` | 현재 도메인의 활성 Plugin·Package 이름 목록 |
 | Frame | `DomainFrameEditorInterface` | 도메인 프레임(header/footer) 초안·발행 상태 조회 ([18장](18-theme-rendering.md)) |
 | Balance | `BalanceResetGatewayInterface` | 출처별 잔액 원장 초기화 — 코어 소유 테이블을 직접 지우지 않는다 |
+| Balance | `BalanceRankingQueryInterface`, `BalanceRankingMetric`, `BalanceRankingFilter` | 현재 잔액과 기간별 획득·순증감 점수의 도메인 랭킹 조회 |
 
 ### 사이트를 코드로 짓는 계약 — Provisioning 계열
 

@@ -12,6 +12,7 @@ use Mublo\Contract\Site\DomainQueryInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
+use Mublo\Contract\Member\MemberActionQueryInterface;
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
 use Mublo\Contract\CustomField\CustomFieldValueValidatorInterface;
 use Mublo\Contract\CustomField\CustomFieldFileManagerInterface;
@@ -45,6 +46,7 @@ class ServiceProviderContractBindingTest extends TestCase
             MenuManagementInterface::class,
             MemberAccountGatewayInterface::class,
             MemberLevelCatalogInterface::class,
+            MemberActionQueryInterface::class,
             SensitiveValueCodecInterface::class,
             CustomFieldValueValidatorInterface::class,
             CustomFieldFileManagerInterface::class,

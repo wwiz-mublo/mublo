@@ -712,7 +712,8 @@ class BoardFileService
             $profile->memberId,
             $profile->domainId,
             $profile->userId,
-            $profile->displayName()
+            $profile->publicDisplayName(),
+            $profile->publicId,
         );
     }
 

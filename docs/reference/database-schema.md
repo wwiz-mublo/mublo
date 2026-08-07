@@ -43,6 +43,7 @@
 | 컬럼 | 타입 | 설명 |
 |------|------|------|
 | member_id | BIGINT PK | 회원 ID |
+| public_id | CHAR(22) UK | 화면·공개 URL·폼에서 사용하는 비순차 회원 식별자 |
 | domain_id | BIGINT | 도메인 ID |
 | user_id | VARCHAR(50) | 로그인 ID |
 | password | VARCHAR(255) | bcrypt 해시 |
@@ -59,7 +60,7 @@
 | withdrawn_at | DATETIME | 탈퇴일 |
 | withdrawal_reason | VARCHAR(500) | 탈퇴 사유 |
 
-UK: `(domain_id, user_id)`, `(domain_id, nickname)`
+UK: `public_id`, `(domain_id, user_id)`, `(domain_id, nickname)`
 
 ### member_level_denied_menus
 

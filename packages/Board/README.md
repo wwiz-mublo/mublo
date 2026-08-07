@@ -17,6 +17,7 @@ Mublo Board는 Mublo Framework의 기본 게시판 패키지입니다.
 - **검색 연동**: 통합 검색 소스와 결과 공급
 - **블록 연동**: 최신글, 게시판 그룹 등 블록 콘텐츠 타입 제공
 - **관리자 메뉴 연동**: Event 기반으로 관리자 메뉴에 게시판 관리 항목 추가
+- **회원 액션 연동**: 글·댓글 작성자 옆에 Core 회원 액션 메뉴 제공
 
 ## Mublo 확장 구조와의 관계
 
@@ -28,6 +29,7 @@ Board는 Mublo의 Package 구조를 보여 주는 대표 예시입니다.
 | Routes | `routes.php`에서 프론트/관리자 라우트 정의 |
 | Migration | `database/migrations`로 게시판 테이블 생성 |
 | Event | 관리자 메뉴, 도메인 생성, 검색, 마이페이지, 블록 아이템 공급 |
+| Member Action | Core Contract로 작성자 액션을 조회하는 소비자 역할 |
 | Block | 게시판/게시판 그룹 블록 렌더러 제공 |
 | Service | 게시글, 댓글, 권한, 파일, 포인트 정책 처리 |
 | Repository | 게시판/게시글/댓글/그룹 데이터 접근 |
@@ -120,6 +122,17 @@ Board는 Core와 직접 결합하지 않고 이벤트를 통해 필요한 지점
 - `SearchSourceCollectEvent`: 검색 가능한 게시판 소스 공급
 - `MypageSectionBuildingEvent`: 마이페이지 내가 쓴 글/댓글 섹션 공급
 - `BlockContentItemsCollectEvent`: 블록 편집기의 게시판 아이템 목록 공급
+
+## 회원 액션 연동
+
+Board는 글·댓글 작성자 메뉴의 **소비자**입니다. `MemberActionQueryInterface`로
+`board.article_author`, `board.comment_author`, `member.author` 위치의 액션을 조회하고,
+Core의 `memberActionMenu()`로 렌더링합니다.
+
+쪽지·팔로우·공개 프로필 같은 기능의 구현 클래스나 URL은 Board가 알지 않습니다.
+해당 Plugin이 액션을 등록하면 메뉴에 나타나고, 비활성화하면 Board 수정 없이 사라집니다.
+타인 식별에는 `author_public_id`만 사용하며 내부 `member_id`나 로그인 아이디를 HTML에
+출력하지 않습니다. 이 기능은 `MemberActionQueryInterface` 를 제공하는 Core 를 요구합니다.
 
 ## 권한 모델
 

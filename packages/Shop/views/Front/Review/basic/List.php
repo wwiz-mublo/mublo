@@ -12,13 +12,9 @@ $pagination = $pagination ?? [];
 $goodsId = $goodsId ?? 0;
 $avgRating = $avgRating ?? 0.0;
 $totalItems = $pagination['totalItems'] ?? 0;
-// 작성자 표시명 (닉네임 원본 > 아이디, 마스킹 안 함). 비회원(닉네임 없음)은 빈값 → 미표시.
+// Repository가 회원 공개 표시명 정책(닉네임 > public_id 꼬리표)을 적용한다.
 $authorLabel = static function (array $item): string {
-    $name = trim((string) ($item['nickname'] ?? ''));
-    if ($name === '') {
-        $name = trim((string) ($item['user_id'] ?? ''));
-    }
-    return $name;
+    return trim((string) ($item['public_display_name'] ?? ''));
 };
 
 $this->assets->addCss('/serve/package/Shop/views/Front/Review/basic/_assets/css/review-list.css');

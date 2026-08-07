@@ -78,6 +78,7 @@ class ArticlePresenterTest extends TestCase
     {
         $result = $this->present([
             'title' => '공개 제목',
+            'member_id' => 987654321,
             'author_password' => 'hash',
             'ip_address' => '127.0.0.1',
             'future_internal_column' => 'secret',
@@ -96,6 +97,8 @@ class ArticlePresenterTest extends TestCase
         ]);
 
         $this->assertSame('공개 제목', $result['title']);
+        $this->assertTrue($result['is_member']);
+        $this->assertArrayNotHasKey('member_id', $result);
         $this->assertArrayNotHasKey('author_password', $result);
         $this->assertArrayNotHasKey('ip_address', $result);
         $this->assertArrayNotHasKey('future_internal_column', $result);

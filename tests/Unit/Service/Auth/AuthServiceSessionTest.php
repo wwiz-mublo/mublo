@@ -173,6 +173,36 @@ class AuthServiceSessionTest extends TestCase
         $this->assertFalse(property_exists($user, 'point'));
     }
 
+    public function testCurrentUserRefreshesLegacySessionPublicIdOnlyOnce(): void
+    {
+        $publicId = 'a3f9c2e81b47d06f5a92c1';
+        $legacy = [
+            'member_id' => 42,
+            'domain_id' => 7,
+            'user_id' => 'private-login',
+            'nickname' => null,
+            'level_value' => 1,
+            'avatar' => '/avatar.png',
+        ];
+        $member = Member::fromArray([
+            ...$legacy,
+            'public_id' => $publicId,
+            'status' => 'active',
+        ]);
+
+        $this->sessionMock->expects($this->once())->method('get')->with('auth_user')->willReturn($legacy);
+        $this->memberRepositoryMock->expects($this->once())->method('find')->with(42)->willReturn($member);
+        $this->sessionMock->expects($this->once())->method('set')
+            ->with('auth_user', $this->callback(static fn (array $data): bool => $data['public_id'] === $publicId));
+
+        $first = $this->authService->currentUser();
+        $second = $this->authService->currentUser();
+
+        $this->assertSame($publicId, $first?->publicId);
+        $this->assertSame('회원 a3f9c2e81b47', $first?->publicDisplayName());
+        $this->assertSame($publicId, $second?->publicId);
+    }
+
     // =========================================================================
     // isAdmin() / isSuper() / hasLevel()
     // =========================================================================

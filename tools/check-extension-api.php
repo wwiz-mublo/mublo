@@ -197,7 +197,8 @@ function collectImports(array $scanDirs, string $basePath): array
 
             // import 문을 쓰지 않고 완전한 클래스명으로 내부 API를 우회하는 경우도
             // 동일하게 검사한다. token_get_all을 사용해 문자열·주석의 예시는 제외한다.
-            foreach (token_get_all($source) as $token) {
+            $tokens = token_get_all($source);
+            foreach ($tokens as $token) {
                 if (!is_array($token) || $token[0] !== T_NAME_FULLY_QUALIFIED) {
                     continue;
                 }
@@ -224,6 +225,22 @@ function collectImports(array $scanDirs, string $basePath): array
 
                 $imports[] = ['symbol' => $symbol, 'file' => $relative, 'line' => $token[2]];
             }
+
+            // MemberIdentity::getUserId()는 하위 호환 때문에 Contract에 남아 있지만 신규
+            // 확장 코드에서는 금지한다. 토큰으로 검사해 주석·문자열 예시는 제외한다.
+            foreach ($tokens as $index => $token) {
+                if (!is_array($token) || $token[0] !== T_OBJECT_OPERATOR) {
+                    continue;
+                }
+                $next = $tokens[$index + 1] ?? null;
+                if (is_array($next) && $next[0] === T_STRING && $next[1] === 'getUserId') {
+                    $imports[] = [
+                        'symbol' => 'deprecated:MemberIdentity::getUserId',
+                        'file' => $relative,
+                        'line' => $next[2],
+                    ];
+                }
+            }
         }
     }
 
@@ -234,7 +251,8 @@ $imports = collectImports($scanDirs, $basePath);
 
 $violations = [];
 foreach ($imports as $import) {
-    $stable = isStable($import['symbol'], $stablePrefixes);
+    $stable = $import['symbol'] !== 'deprecated:MemberIdentity::getUserId'
+        && isStable($import['symbol'], $stablePrefixes);
 
     // Package 종속 Plugin이 부모 Package에서 사용할 수 있는 공개 표면.
     if (!$stable

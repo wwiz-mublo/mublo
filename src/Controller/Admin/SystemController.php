@@ -15,6 +15,7 @@ use Mublo\Service\System\DataResetService;
 use Mublo\Service\System\DatabaseBackupService;
 use Mublo\Service\Extension\ExtensionService;
 use Mublo\Service\Auth\AuthService;
+use Mublo\Service\Member\MemberActionRegistry;
 
 /**
  * Admin SystemController
@@ -82,6 +83,11 @@ class SystemController
                 ->get(ExtensionLoadDiagnostics::class)
                 ->all();
         }
+        $memberActionDiagnostics = [];
+        if ($domainId !== null && $domainId > 0 && $this->container->has(MemberActionRegistry::class)) {
+            // 과거 요청의 request-scoped 진단을 재사용하지 않고 현재 도메인 정의를 다시 검증한다.
+            $memberActionDiagnostics = $this->container->get(MemberActionRegistry::class)->diagnostics($domainId);
+        }
 
         // 데이터 초기화 항목 (SUPER 전용)
         $resetItems = [];
@@ -100,6 +106,7 @@ class SystemController
                 'totalExecuted' => $totalExecuted,
                 'tempFileInfo' => $tempFileInfo,
                 'extensionLoadFailures' => $extensionLoadFailures,
+                'memberActionDiagnostics' => $memberActionDiagnostics,
                 'resetItems' => $resetItems,
                 'isSuper' => $this->authService->isSuper(),
                 'activeCode' => '002_005',

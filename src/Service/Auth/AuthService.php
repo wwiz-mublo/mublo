@@ -244,7 +244,9 @@ class AuthService implements AuthContextInterface, MemberAuthenticatorInterface
      */
     public function refreshSession(): bool
     {
-        $user = $this->user();
+        // 명시적 갱신 경로에서는 legacy 세션 자동 보정이 먼저 DB를 조회하지 않게 한다.
+        // 아래 단일 조회가 public_id를 포함한 전체 스냅샷을 갱신한다.
+        $user = $this->user ?? $this->session->get(self::SESSION_USER_KEY);
         if (!$user) {
             return false;
         }
@@ -280,7 +282,8 @@ class AuthService implements AuthContextInterface, MemberAuthenticatorInterface
      */
     public function revalidatePrivileges(int $ttl = 60): bool
     {
-        $user = $this->user();
+        // 권한 재검증 자체가 DB 동기화 경계이므로 user()의 legacy 보정 조회와 겹치지 않는다.
+        $user = $this->user ?? $this->session->get(self::SESSION_USER_KEY);
         if (!$user) {
             return false;
         }
@@ -376,6 +379,18 @@ class AuthService implements AuthContextInterface, MemberAuthenticatorInterface
         }
 
         $this->user = $this->session->get(self::SESSION_USER_KEY);
+        if (is_array($this->user)
+            && preg_match('/\A[0-9a-f]{22}\z/', (string) ($this->user['public_id'] ?? '')) !== 1
+        ) {
+            $memberId = (int) ($this->user['member_id'] ?? 0);
+            $member = $memberId > 0 ? $this->memberRepository->find($memberId) : null;
+            if ($member instanceof Member) {
+                $safeUser = $member->toSafeArray();
+                $safeUser['avatar'] = $this->user['avatar'] ?? $this->resolveAvatarUrl($memberId);
+                $this->session->set(self::SESSION_USER_KEY, $safeUser);
+                $this->user = $safeUser;
+            }
+        }
         return $this->user;
     }
 
@@ -405,6 +420,7 @@ class AuthService implements AuthContextInterface, MemberAuthenticatorInterface
             name: isset($user['name']) ? (string) $user['name'] : null,
             domainGroup: (string) ($user['domain_group'] ?? ''),
             levelType: (string) ($user['level_type'] ?? ''),
+            publicId: (string) ($user['public_id'] ?? ''),
         );
     }
 

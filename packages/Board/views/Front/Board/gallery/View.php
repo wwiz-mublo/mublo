@@ -39,7 +39,6 @@ $isSecret = in_array('secret', $article['badges']);
 $viewer = $mublo['viewer'];
 $viewerMember = $viewer['member'];
 $isLoggedIn = !empty($viewer['authenticated']);
-$currentMemberId = $viewerMember['memberId'] ?? null;
 $currentNickname = htmlspecialchars($viewerMember['displayName'] ?? '');
 
 $this->assets->addCss('/serve/package/Board/views/Front/Board/gallery/_assets/css/board.css');
@@ -67,7 +66,19 @@ $this->assets->addJs('/serve/package/Board/assets/js/code-block.js');
             <?= $article['title_safe'] ?>
         </h3>
         <div class="board-view__meta">
-            <span class="board-view__author"><?= $article['author_name'] ?></span>
+            <?php
+            $articleAuthorMenu = $this->memberActionMenu(
+                $article['author_actions'] ?? [],
+                (string) ($article['author_public_id'] ?? ''),
+                [
+                    'placement' => 'board.article_author',
+                    'compact' => true,
+                    'ariaLabel' => '글 작성자 메뉴',
+                    'triggerLabel' => htmlspecialchars_decode((string) $article['author_name'], ENT_QUOTES | ENT_HTML5),
+                ]
+            );
+            ?>
+            <span class="board-view__author"><?= $articleAuthorMenu !== '' ? $articleAuthorMenu : $article['author_name'] ?></span>
             <span class="board-view__date"><?= $article['date_full'] ?></span>
             <span class="board-view__views">조회 <?= $article['view_count_formatted'] ?></span>
             <?php if ((int) ($article['comment_count'] ?? 0) > 0): ?>
@@ -297,12 +308,21 @@ $this->assets->addJs('/serve/package/Board/assets/js/code-block.js');
                     $cDate = $c['created_at'] ? date('Y-m-d H:i', strtotime($c['created_at'])) : '';
                     $cAuthor = htmlspecialchars($c['author_name'] ?? '익명');
                     $cIsSecret = !empty($c['is_secret']);
-                    $cMemberId = $c['member_id'] ?? null;
-                    $isOwn = $currentMemberId && $cMemberId && (int) $cMemberId === (int) $currentMemberId;
+                    $isOwn = !empty($c['is_own']);
+                    $cAuthorMenu = $this->memberActionMenu(
+                        $c['author_actions'] ?? [],
+                        (string) ($c['author_public_id'] ?? ''),
+                        [
+                            'placement' => 'board.comment_author',
+                            'compact' => true,
+                            'ariaLabel' => '댓글 작성자 메뉴',
+                            'triggerLabel' => (string) ($c['author_name'] ?? '익명'),
+                        ]
+                    );
                 ?>
                     <div id="comment-<?= $cId ?>" class="board-comment__item board-comment__item--depth-<?= $cDepth ?>" data-comment-id="<?= $cId ?>" style="margin-left: <?= $cDepth * 30 ?>px;">
                         <div class="board-comment__item-header">
-                            <span class="board-comment__item-author"><?= $cAuthor ?></span>
+                            <span class="board-comment__item-author"><?= $cAuthorMenu !== '' ? $cAuthorMenu : $cAuthor ?></span>
                             <span class="board-comment__item-date"><?= $cDate ?></span>
                         </div>
                         <div class="board-comment__item-content">

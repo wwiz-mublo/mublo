@@ -206,7 +206,7 @@ class QnaController
         if (!$user) {
             return null;
         }
-        $name = $user->displayName();
+        $name = $user->publicDisplayName();
         return $name !== '' ? $name : null;
     }
 

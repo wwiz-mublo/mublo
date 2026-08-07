@@ -18,7 +18,12 @@ class ReviewRepository
     public function findInDomain(int $domainId, int $id): ?array
     {
         return $this->db->selectOne(
-            "SELECT r.*, p.goods_name, p.goods_slug, m.user_id, m.nickname
+            "SELECT r.*, p.goods_name, p.goods_slug, m.user_id, m.nickname,
+                    CASE
+                        WHEN TRIM(COALESCE(m.nickname, '')) <> '' THEN m.nickname
+                        WHEN m.public_id IS NOT NULL THEN CONCAT('회원 ', LEFT(m.public_id, 12))
+                        ELSE '회원'
+                    END AS public_display_name
              FROM {$this->table} r
              LEFT JOIN shop_products p ON p.goods_id = r.goods_id
              LEFT JOIN members m ON m.member_id = r.member_id
@@ -80,6 +85,11 @@ class ReviewRepository
 
         $items = $this->db->select(
             "SELECT r.*, p.goods_name, p.goods_slug, p.display_price, m.user_id, m.nickname,
+                    CASE
+                        WHEN TRIM(COALESCE(m.nickname, '')) <> '' THEN m.nickname
+                        WHEN m.public_id IS NOT NULL THEN CONCAT('회원 ', LEFT(m.public_id, 12))
+                        ELSE '회원'
+                    END AS public_display_name,
                     (SELECT image_url FROM shop_product_images pi WHERE pi.goods_id = r.goods_id ORDER BY sort_order LIMIT 1) AS product_thumbnail
              FROM {$this->table} r
              LEFT JOIN shop_products p ON p.goods_id = r.goods_id

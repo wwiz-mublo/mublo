@@ -183,7 +183,7 @@ class InquiryController
         $formData = $request->input('formData') ?? [];
         $data = FormHelper::normalizeFormData($formData, $this->getFormSchema());
         $data['member_id'] = $memberId;
-        $data['author_name'] = $user?->displayName() ?? '';
+        $data['author_name'] = $user?->publicDisplayName() ?? '';
 
         $result = $this->inquiryService->createInquiry($domainId, $data);
 

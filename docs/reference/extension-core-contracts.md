@@ -15,13 +15,20 @@
 | Contract | 책임 | 실제 소비자 |
 |---|---|---|
 | `AuthContextInterface` | 현재 사용자, 관리자·SUPER 권한, 대리 로그인 여부를 세션 배열 없이 조회 | Board, Mshop, Rental, Reservation, Shop, SiteKit, AutoForm, Promotion, Qna, Survey |
-| `MemberQueryInterface` | 내부 Member Entity 없이 단건·일괄 회원 프로필 조회 | Board, Mshop, Rental, MemberPoint, SnsLogin |
+| `MemberQueryInterface` | 내부 Member Entity 없이 단건·일괄 프로필 및 활성 회원 닉네임 검색 | Board, Mshop, Rental, MemberPoint, SnsLogin, DirectMessage |
+| `MemberActionQueryInterface` | 로그인·자기 자신·위치·상태 정책을 공통 적용한 회원 액션 단건/일괄 조회 | Board 및 회원 작성자 화면 |
 | `MemberAccountGatewayInterface` | 계정 생성·자격 검증·커스텀 필드 저장을 회원 테이블과 해시 형식 없이 수행 | Rental, SnsLogin |
 | `MemberLevelCatalogInterface` | 내부 레벨 Entity를 `MemberLevelDescriptor`로 변환해 조회 | Board, Mshop, Shop, MemberPoint |
 | `PolicyQueryInterface` | 도메인 소유권이 확인된 활성·단건 약관과 렌더 결과 조회 | Mshop, Rental, Shop, AutoForm |
+| `BalanceRankingQueryInterface` | 코어 원장·잔액으로 현재/기간 랭킹과 회원 순위를 조회 | PointRanking |
 
 `AuthContextInterface::currentUser()`는 `AuthenticatedUser`를 반환합니다. 표시 이름과 식별자,
 고정 레벨 타입은 DTO가 제공하며 세션 키나 내부 Member Entity는 공개하지 않습니다.
+
+회원 액션 Provider는 `MemberActionBuildingEvent`에서 값 DTO만 등록합니다. 민감한 이동은
+`PrivateBody`, 공유 가능한 읽기 전용 화면은 `PublicPath` 또는 `PublicQuery`를 선택합니다.
+endpoint에는 대상·쿼리·fragment를 넣지 않으며 최종 URL과 POST hidden 필드는 코어가
+검증된 `public_id`로 조립합니다.
 
 ## 블록, 메뉴와 도메인
 

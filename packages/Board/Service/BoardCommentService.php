@@ -142,9 +142,9 @@ class BoardCommentService
 
         // 작성자 정보 설정
         if ($memberId !== null) {
-            // 회원: 닉네임을 author_name에 저장
+            // 회원: 공개 가능한 표시명을 author_name 스냅샷으로 저장
             $member = $this->memberRepository->findProfile($memberId);
-            $data['author_name'] = $member ? ($member->nickname ?? $member->userId) : '회원';
+            $data['author_name'] = $member?->publicDisplayName() ?? '회원';
             $data['author_password'] = null;
         } else {
             // 비회원: 입력값 검증
@@ -507,7 +507,8 @@ class BoardCommentService
             $profile->memberId,
             $profile->domainId,
             $profile->userId,
-            $profile->displayName()
+            $profile->publicDisplayName(),
+            $profile->publicId,
         );
     }
 }

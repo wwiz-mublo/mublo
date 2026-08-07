@@ -12,6 +12,7 @@
  * @var int $totalExecuted
  * @var array $tempFileInfo
  * @var array $extensionLoadFailures
+ * @var array $memberActionDiagnostics
  * @var array $resetItems
  * @var bool $isSuper
  */
@@ -63,6 +64,32 @@
                         </tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!empty($memberActionDiagnostics)): ?>
+    <div class="page-block">
+        <div class="card border-warning">
+            <div class="card-hero">
+                <i class="bi bi-person-exclamation text-warning"></i>
+                <span>회원 액션 정의 진단</span>
+                <span class="badge bg-warning text-dark ms-auto"><?= count($memberActionDiagnostics) ?>건</span>
+            </div>
+            <div class="card-body table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead><tr><th>출처</th><th>액션</th><th>사유</th></tr></thead>
+                    <tbody>
+                    <?php foreach ($memberActionDiagnostics as $diagnostic): ?>
+                        <tr>
+                            <td><?= htmlspecialchars(($diagnostic['sourceType'] ?? '-') . ':' . ($diagnostic['sourceName'] ?? '-')) ?></td>
+                            <td><code><?= htmlspecialchars($diagnostic['actionKey'] ?? '-') ?></code></td>
+                            <td><?= htmlspecialchars($diagnostic['reason'] ?? '-') ?></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

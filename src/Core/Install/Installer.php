@@ -236,13 +236,14 @@ class Installer
 
             // 2. 관리자 회원 등록 (level_value=255)
             $sql = "INSERT INTO `members` (
-                domain_id, origin_domain_id, user_id, password, nickname, level_value, domain_group, status, created_at, updated_at
+                public_id, domain_id, origin_domain_id, user_id, password, nickname, level_value, domain_group, status, created_at, updated_at
             ) VALUES (
-                1, 1, :user_id, :password, :nickname, 255, '1', 'active', :created_at, :updated_at
+                :public_id, 1, 1, :user_id, :password, :nickname, 255, '1', 'active', :created_at, :updated_at
             )";
             $stmt = $pdo->prepare($sql);
             $stmt->execute([
                 'user_id' => $adminData['user_id'],
+                'public_id' => bin2hex(random_bytes(11)),
                 'password' => $hashedPassword,
                 'nickname' => '관리자',
                 'created_at' => $now,

@@ -77,6 +77,11 @@ $mublo = [
 
 비밀번호, 세션 원본, IP, 내부 Entity는 전달되지 않습니다.
 
+`viewer.member.memberId`와 `viewer.member.userId`는 **현재 뷰어 본인의 상태 비교와 계정 화면용
+호환 필드**다. 타인을 가리키는 URL·HTML·`data-*`·JSON에 복사하거나 그대로 출력하지 않는다.
+타인 대상 컴포넌트에는 `public_id`를 전달하고, 남에게 보일 이름은 `publicDisplayName()` 정책을
+적용한 값을 사용한다([회원 식별자 경계 정책](member-identifier-policy.md)).
+
 ## 화면 고유 payload
 
 `$mublo`는 모든 화면에 공통인 정보만 담당합니다. 게시글의 `$article`, 상품의 `$product`, 목록의 `$items`처럼 화면 고유 데이터는 기존처럼 이름 있는 최상위 변수로 전달됩니다.

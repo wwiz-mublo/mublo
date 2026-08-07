@@ -36,6 +36,15 @@ class MemberRepository extends BaseRepository
         parent::__construct($db);
     }
 
+    public function create(array $data): int|null
+    {
+        if (!isset($data['public_id']) || !is_string($data['public_id']) || $data['public_id'] === '') {
+            $data['public_id'] = bin2hex(random_bytes(11));
+        }
+
+        return parent::create($data);
+    }
+
     /**
      * 도메인+아이디로 회원 조회
      */
@@ -44,6 +53,18 @@ class MemberRepository extends BaseRepository
         return $this->findOneBy([
             'domain_id' => $domainId,
             'user_id' => $userId,
+        ]);
+    }
+
+    public function findByPublicId(int $domainId, string $publicId): ?Member
+    {
+        if ($domainId <= 0 || preg_match('/\A[0-9a-f]{22}\z/', $publicId) !== 1) {
+            return null;
+        }
+
+        return $this->findOneBy([
+            'domain_id' => $domainId,
+            'public_id' => $publicId,
         ]);
     }
 
@@ -985,6 +1006,38 @@ class MemberRepository extends BaseRepository
     }
 
     /**
+     * @param list<int> $memberIds
+     * @return array<int, string>
+     */
+    public function publicIdsFor(int $domainId, array $memberIds): array
+    {
+        $memberIds = array_values(array_unique(array_filter(
+            array_map('intval', $memberIds),
+            static fn (int $memberId): bool => $memberId > 0
+        )));
+        if ($domainId <= 0 || $memberIds === []) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($memberIds), '?'));
+        $rows = $this->getDb()->table($this->table)
+            ->where('domain_id', '=', $domainId)
+            ->whereRaw("member_id IN ({$placeholders})", $memberIds)
+            ->get();
+
+        $result = [];
+        foreach ($rows as $row) {
+            $memberId = (int) ($row['member_id'] ?? 0);
+            $publicId = (string) ($row['public_id'] ?? '');
+            if ($memberId > 0 && preg_match('/\A[0-9a-f]{22}\z/', $publicId) === 1) {
+                $result[$memberId] = $publicId;
+            }
+        }
+
+        return $result;
+    }
+
+    /**
      * 아이디로 회원 검색 (자동완성용)
      *
      * @param int $domainId 도메인 ID
@@ -1022,6 +1075,38 @@ class MemberRepository extends BaseRepository
             ->where('domain_id', '=', $domainId)
             ->whereRaw('(user_id LIKE ? OR nickname LIKE ?)', [$likeKeyword, $likeKeyword])
             ->orderBy('user_id', 'ASC')
+            ->limit($limit)
+            ->get();
+
+        return array_map(fn($row) => $this->toEntity($row), $rows);
+    }
+
+    /**
+     * 프론트 확장용 닉네임 검색.
+     *
+     * 관리자 검색과 달리 로그인 아이디를 조회 조건에 포함하지 않으며,
+     * 현재 도메인의 활성 회원 중 공개 식별자가 있는 회원만 반환한다.
+     *
+     * @return Member[]
+     */
+    public function searchActiveByNickname(int $domainId, string $nickname, int $limit = 10): array
+    {
+        $nickname = trim($nickname);
+        if ($domainId < 1 || $nickname === '') {
+            return [];
+        }
+
+        $limit = max(1, min(20, $limit));
+        $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $nickname);
+        $likeNickname = '%' . $escaped . '%';
+
+        $rows = $this->getDb()->table($this->table)
+            ->where('domain_id', '=', $domainId)
+            ->where('status', '=', 'active')
+            ->where('public_id', '!=', '')
+            ->whereRaw("nickname LIKE ? ESCAPE '!'", [$likeNickname])
+            ->orderByRaw('CASE WHEN nickname = ? THEN 0 ELSE 1 END', [$nickname])
+            ->orderBy('nickname', 'ASC')
             ->limit($limit)
             ->get();
 
