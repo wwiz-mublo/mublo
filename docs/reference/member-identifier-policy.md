@@ -18,8 +18,8 @@
 나간다.
 
 기존 안정 이벤트의 `MemberIdentity::getUserId()`는 하위 호환 때문에 유지하지만 신규 코드에서
-사용하지 않는다. `getPublicId()`와 안전한 `getDisplayName()`을 사용한다. 이 접근자는 1.1.0에서
-deprecated 되었고 다음 major인 2.0.0에서 제거할 예정이다.
+사용하지 않는다. `getPublicId()`와 안전한 `getDisplayName()`을 사용한다. 이 접근자는 deprecated
+상태이며 다음 major에서 제거할 예정이다.
 
 `BalanceRankingQueryInterface`의 `BalanceRankingEntry::memberId`도 서버 내부 결합 키다.
 소비 확장은 프로필을 배치 결합한 뒤 프론트 경계에서 `is_me`, `public_id`, 회원 액션으로

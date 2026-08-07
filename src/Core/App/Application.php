@@ -72,7 +72,7 @@ class Application
      * - `-dev` 등 접미사는 사용하지 않는다. (직전 출고번호를 유지하다 릴리즈 커밋에서 올림)
      * - SemVer: 둘째 자리=메이저(호환성 깸 가능), 셋째=패치.
      */
-    public const VERSION = '1.1.0';
+    public const VERSION = '1.0.1';
 
     /**
      * 전역 DI 컨테이너

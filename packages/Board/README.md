@@ -132,7 +132,7 @@ Core의 `memberActionMenu()`로 렌더링합니다.
 쪽지·팔로우·공개 프로필 같은 기능의 구현 클래스나 URL은 Board가 알지 않습니다.
 해당 Plugin이 액션을 등록하면 메뉴에 나타나고, 비활성화하면 Board 수정 없이 사라집니다.
 타인 식별에는 `author_public_id`만 사용하며 내부 `member_id`나 로그인 아이디를 HTML에
-출력하지 않습니다. 이 기능은 Core 1.1.0 이상을 요구합니다.
+출력하지 않습니다. 이 기능은 `MemberActionQueryInterface` 를 제공하는 Core 를 요구합니다.
 
 ## 권한 모델
 
