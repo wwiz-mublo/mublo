@@ -595,8 +595,12 @@ class MenuService
             return Result::failure('provider_type 은 core·plugin·package 중 하나여야 합니다.');
         }
 
+        // 대소문자를 바꾸지 않는다. provider_name 은 확장의 디렉터리 이름이고,
+        // DB 밖에서 그 이름으로 파일 경로를 만들거나(manifest.json) 활성 확장 목록과
+        // 문자열 비교를 하는 소비자가 있다. MySQL 콜레이션이 대소문자를 구분하지
+        // 않아 DB 안에서는 티가 나지 않지만, 밖에서는 그대로 어긋난다.
         $providerName = isset($data['provider_name']) && trim((string) $data['provider_name']) !== ''
-            ? strtolower(trim((string) $data['provider_name']))
+            ? trim((string) $data['provider_name'])
             : null;
 
         if ($providerType !== 'core' && $providerName === null) {
