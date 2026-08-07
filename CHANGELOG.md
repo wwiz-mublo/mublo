@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-08-07
+
 ### Added
 - Core: 회원 공개 식별자 `public_id` 를 도입했습니다. 22자 소문자 16진수이며, 타인을 클라이언트에서 가리키는 HTML·URL·JSON 은 이제 내부 `member_id` 나 로그인 아이디 대신 이 값을 씁니다. 기존 회원은 마이그레이션이 값을 채워 넣습니다
 - Core: 남에게 보이는 이름을 만드는 `publicDisplayName()` 을 `AuthenticatedUser` 와 `MemberProfile` 에 추가했습니다. 닉네임이 없으면 `회원 {public_id 앞 12자}` 로 떨어지며, 실명이나 로그인 아이디로는 떨어지지 않습니다
@@ -25,11 +27,14 @@
 - 관리자: 블록 에디터의 스크립트를 뷰 인라인에서 정적 자산(`assets/js/admin/blockeditor.js`)으로 분리했습니다. 브라우저가 캐시하므로 편집 화면 재방문이 빨라집니다. 이 뷰를 직접 수정해 쓰던 경우 스크립트 위치가 바뀐 점에 유의하세요
 - 관리자: 포인트 내역 화면의 총 건수 조회가 빨라졌습니다. 원장에 `(domain_id, created_at, member_id, amount)` 인덱스를 추가해 인덱스만으로 집계합니다 (100만 행 기준 110.6ms → 19.5ms)
 - Board: 게시판 목록과 총 건수 조회가 빨라졌습니다. `(domain_id, board_id, status, is_notice, created_at)` 커버링 인덱스를 추가하고, 공지 여부가 이미 필터로 고정된 목록에서 중복 정렬을 제거했습니다 (20만 행 기준 목록 8.9ms → 3.5ms, 건수 14.9ms → 3.3ms)
-- 업그레이드: 이 릴리즈는 마이그레이션을 포함합니다 — Core `026`(회원 `public_id`), Core `027`(원장 인덱스), Board `004`(작성자 표시명 백필)·`005`(목록 인덱스), Shop `030`, Qna `003`. **기존 설치본은 파일을 교체해도 마이그레이션이 자동으로 적용되지 않습니다.** 업데이트 후 관리자 → 시스템 관리에서 대기 중인 마이그레이션을 실행하세요
+- 업그레이드: 이 릴리즈는 마이그레이션을 포함합니다 — Core `026`(회원 `public_id`)·`027`(원장 인덱스)·`028`(메뉴 제공자명 정정), Board `004`(작성자 표시명 백필)·`005`(목록 인덱스), Shop `030`, Qna `003`. **기존 설치본은 파일을 교체해도 마이그레이션이 자동으로 적용되지 않습니다.** 업데이트 후 관리자 → 시스템 관리에서 대기 중인 마이그레이션을 실행하세요
 - 업그레이드: Core `026` 이 회원 `public_id` 를 채운 뒤에 Board·Shop·Qna 의 작성자 표시명 백필이 의미를 갖습니다. 시스템 관리 화면의 실행 순서를 그대로 따르면 됩니다
 
 ### Deprecated
 - Core: `MemberIdentity::getUserId()` — 다음 major 에서 제거합니다. 신규 코드는 `getPublicId()` 와 `getDisplayName()` 을 사용하세요. 기존 안정 이벤트의 하위 호환을 위해 당분간 유지됩니다
+
+### Fixed
+- 메뉴: 확장이 만든 메뉴 항목의 제공자명이 소문자로 저장되던 문제를 수정했습니다. 그 탓에 메뉴 관리에서 항목을 수정할 때 제공자가 선택되지 않았고, 마이페이지 사이드바가 확장 아이콘 대신 기본 아이콘을 표시했습니다. 데이터베이스 조회는 대소문자를 구분하지 않아 다른 기능은 정상 동작했기에 드러나지 않던 문제입니다. 마이그레이션이 기존 데이터도 함께 정정합니다
 
 ## [1.0.1] - 2026-08-05
 
@@ -83,6 +88,7 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/wwiz-mublo/mublo/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/wwiz-mublo/mublo/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/wwiz-mublo/mublo/releases/tag/v1.0.0
