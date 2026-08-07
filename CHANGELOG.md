@@ -6,8 +6,29 @@
 
 ## [Unreleased]
 
+### Added
+- Core: 회원 공개 식별자 `public_id` 를 도입했습니다. 22자 소문자 16진수이며, 타인을 클라이언트에서 가리키는 HTML·URL·JSON 은 이제 내부 `member_id` 나 로그인 아이디 대신 이 값을 씁니다. 기존 회원은 마이그레이션이 값을 채워 넣습니다
+- Core: 남에게 보이는 이름을 만드는 `publicDisplayName()` 을 `AuthenticatedUser` 와 `MemberProfile` 에 추가했습니다. 닉네임이 없으면 `회원 {public_id 앞 12자}` 로 떨어지며, 실명이나 로그인 아이디로는 떨어지지 않습니다
+- Core: 확장이 회원 문맥 액션(쪽지 보내기·프로필 보기 같은 작성자 메뉴 항목)을 등록할 수 있는 Contract 를 추가했습니다 — `MemberActionQueryInterface`, `MemberActionDefinition`, `MemberActionView`, `MemberActionScope`, `MemberActionVariant`, `MemberActionTargetTransport`, `MemberActionStateResolverInterface`, `MemberActionStateScope`, `MemberExtensionIdentity`, 그리고 `MemberActionBuildingEvent`. 소비자는 구현 클래스나 URL 을 알지 않으며, 액션을 등록한 확장을 비활성화하면 메뉴에서 사라집니다
+- Core: 작성자 메뉴를 렌더링하는 뷰 헬퍼 `memberActionMenu($actions, $targetPublicId, $options)` 와 컴포넌트 자산을 추가했습니다
+- Core: 원장·잔액 기반 랭킹 조회 계약 `BalanceRankingQueryInterface` 와 부속 타입(`BalanceRankingEntry`, `BalanceRankingFilter`, `BalanceRankingMetric`, `BalanceRankingPage`)을 추가했습니다
+- 관리자: 시스템 관리 화면에 회원 액션 정의 진단 패널이 추가되어, 확장이 등록한 액션의 문제를 도메인별로 확인할 수 있습니다
+
 ### Changed
+- **Board 스킨**: 글·댓글 데이터에서 `member_id` 가 빠지고 `author_public_id` 와 `author_actions` 가 제공됩니다. 작성자 동작은 `$this->memberActionMenu($article['author_actions'], $article['author_public_id'], [...])` 조합으로 렌더링해야 합니다. 내부 회원 번호나 로그인 아이디로 프로필·쪽지 URL 을 직접 조립하던 커스텀 스킨은 수정이 필요합니다. 번들 스킨(basic·gallery)은 이미 반영되어 있으며 자세한 내용은 `SKIN-GUIDE.md` 를 참고하세요
+- Core: `MemberQueryInterface` 에 `findByPublicId()`, `searchActiveByNickname()`, `publicIdsFor()` 가 추가되었습니다. 이 인터페이스를 직접 구현한 확장은 세 메서드를 함께 구현해야 합니다
+- Core: 회원 검색이 닉네임만 대상으로 합니다. 로그인 아이디로는 다른 회원을 찾을 수 없습니다
+- Shop: 리뷰·문의 작성자 표시가 닉네임이 없을 때 로그인 아이디로 떨어지던 동작을 없애고 공개 표시명을 사용합니다
+- Qna: 문의 작성자·운영자 표시에 공개 표시명을 사용합니다
+- Board·Shop·Qna: 기존 글·댓글·리뷰·문의에 저장된 작성자 표시 데이터를 마이그레이션이 공개 표시명으로 정리합니다. 로그인 아이디가 노출되어 있던 과거 데이터가 함께 정정됩니다
+- 프론트: 마이페이지 기본 레이아웃이 사용자 정보를 `AuthenticatedUser` 에서 직접 읽도록 정리되었습니다
 - 관리자: 블록 에디터의 스크립트를 뷰 인라인에서 정적 자산(`assets/js/admin/blockeditor.js`)으로 분리했습니다. 브라우저가 캐시하므로 편집 화면 재방문이 빨라집니다. 이 뷰를 직접 수정해 쓰던 경우 스크립트 위치가 바뀐 점에 유의하세요
+- 관리자: 포인트 내역 화면의 총 건수 조회가 빨라졌습니다. 원장에 `(domain_id, created_at, member_id, amount)` 인덱스를 추가해 인덱스만으로 집계합니다 (100만 행 기준 110.6ms → 19.5ms)
+- 업그레이드: 이 릴리즈는 마이그레이션을 포함합니다 — Core `026`(회원 `public_id`), Core `027`(원장 인덱스), Board `004`(작성자 표시명 백필), Shop `030`, Qna `003`. **기존 설치본은 파일을 교체해도 마이그레이션이 자동으로 적용되지 않습니다.** 업데이트 후 관리자 → 시스템 관리에서 대기 중인 마이그레이션을 실행하세요
+- 업그레이드: Core `026` 이 회원 `public_id` 를 채운 뒤에 Board·Shop·Qna 의 작성자 표시명 백필이 의미를 갖습니다. 시스템 관리 화면의 실행 순서를 그대로 따르면 됩니다
+
+### Deprecated
+- Core: `MemberIdentity::getUserId()` — 다음 major 에서 제거합니다. 신규 코드는 `getPublicId()` 와 `getDisplayName()` 을 사용하세요. 기존 안정 이벤트의 하위 호환을 위해 당분간 유지됩니다
 
 ## [1.0.1] - 2026-08-05
 
