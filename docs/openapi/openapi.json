@@ -1,0 +1,546 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Mublo AI Assistant API",
+    "version": "0.1.0",
+    "description": "Android AI Assistant, SaaS API, and private Worker contract. Business tenancy is always scoped by company_id, independently from Framework domain_id."
+  },
+  "servers": [
+    { "url": "https://{host}/mublo-ai/api/v1", "variables": { "host": { "default": "crm.meccaphone.shop" } } }
+  ],
+  "tags": [
+    { "name": "Auth" },
+    { "name": "Devices" },
+    { "name": "Customer sync" },
+    { "name": "Interactions" },
+    { "name": "Messaging policy" },
+    { "name": "Worker" }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "login",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/LoginRequest" } } } },
+        "responses": {
+          "200": { "description": "Authenticated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/ValidationError" },
+          "429": { "$ref": "#/components/responses/RateLimited" }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "refreshToken",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RefreshRequest" } } } },
+        "responses": {
+          "200": { "description": "Tokens rotated", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AuthResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": ["Auth"],
+        "operationId": "getCurrentPrincipal",
+        "responses": {
+          "200": { "description": "Current principal", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PrincipalResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": ["Auth"],
+        "operationId": "logout",
+        "responses": {
+          "200": { "description": "Current token pair revoked" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/devices/enroll": {
+      "post": {
+        "tags": ["Devices"],
+        "operationId": "enrollDevice",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceEnrollRequest" } } } },
+        "responses": {
+          "201": { "description": "Device enrolled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceResponse" } } } },
+          "200": { "description": "Existing idempotent enrollment", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/devices/{device_id}/heartbeat": {
+      "post": {
+        "tags": ["Devices"],
+        "operationId": "heartbeatDevice",
+        "parameters": [
+          { "$ref": "#/components/parameters/DeviceId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceHeartbeatRequest" } } } },
+        "responses": {
+          "200": { "description": "Heartbeat accepted", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/DeviceResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/sync/customers/bootstrap": {
+      "get": {
+        "tags": ["Customer sync"],
+        "operationId": "bootstrapCustomers",
+        "parameters": [
+          { "$ref": "#/components/parameters/OptionalCursor" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": { "description": "First customer snapshot page", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SyncPageResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/sync/customers/delta": {
+      "get": {
+        "tags": ["Customer sync"],
+        "operationId": "deltaCustomers",
+        "parameters": [
+          { "$ref": "#/components/parameters/Cursor" },
+          { "$ref": "#/components/parameters/Limit" }
+        ],
+        "responses": {
+          "200": { "description": "Customer changes after cursor", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SyncPageResponse" } } } },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
+        }
+      }
+    },
+    "/sync/customers/push": {
+      "post": {
+        "tags": ["Customer sync"],
+        "operationId": "pushCustomerChanges",
+        "description": "Applies customer/customer_phone changes and updates the encrypted SaaS directory projection.",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SyncPushRequest" } } } },
+        "responses": {
+          "200": { "description": "Changes applied", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SyncPushResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/crypto/worker-key": {
+      "get": {
+        "tags": ["Interactions"],
+        "operationId": "getWorkerEncryptionKey",
+        "responses": {
+          "200": { "description": "Active Worker RSA public key" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "description": "Worker key is not configured" }
+        }
+      }
+    },
+    "/interactions": {
+      "post": {
+        "tags": ["Interactions"],
+        "operationId": "uploadEncryptedInteraction",
+        "description": "Accepts an encrypted transcript only after customer_phone_id membership is verified. Raw call audio is not accepted.",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InteractionUpload" } } } },
+        "responses": {
+          "200": { "description": "Encrypted interaction queued" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/customer-phones/{customer_phone_id}/permissions/{channel}/{purpose}": {
+      "put": {
+        "tags": ["Messaging policy"],
+        "operationId": "putContactPermission",
+        "parameters": [
+          { "$ref": "#/components/parameters/CustomerPhoneId" },
+          { "name": "channel", "in": "path", "required": true, "schema": { "type": "string", "enum": ["SMS", "KAKAO"] } },
+          { "name": "purpose", "in": "path", "required": true, "schema": { "type": "string", "enum": ["MARKETING", "SERVICE_NOTICE"] } },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContactPermission" } } } },
+        "responses": {
+          "200": { "description": "Permission version stored" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/messaging/eligibility/check": {
+      "post": {
+        "tags": ["Messaging policy"],
+        "operationId": "checkMessagingEligibility",
+        "description": "Fails closed when registration, management, permission, revocation, or suppression checks do not pass.",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/MessagingEligibilityRequest" } } } },
+        "responses": {
+          "200": { "description": "Eligibility decision with stable reason codes" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/messaging/suppressions/events": {
+      "post": {
+        "tags": ["Messaging policy"],
+        "operationId": "appendSuppressionEvent",
+        "description": "Appends a versioned SUPPRESS or LIFT event and updates the current suppression projection atomically. LIFT never restores contact permission.",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SuppressionEvent" } } } },
+        "responses": {
+          "200": { "description": "Suppression event stored" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/messaging/campaigns/{campaign_id}/recipient-snapshot": {
+      "post": {
+        "tags": ["Messaging policy"],
+        "operationId": "createCampaignRecipientSnapshot",
+        "description": "Creates one immutable, policy-versioned recipient snapshot. Any unregistered or cross-scope phone rejects the whole request before persistence.",
+        "parameters": [
+          { "name": "campaign_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CampaignRecipientSnapshot" } } } },
+        "responses": {
+          "200": { "description": "Immutable snapshot created with per-recipient eligibility decisions" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/messaging/campaigns/{campaign_id}/dispatch-policy": {
+      "put": {
+        "tags": ["Messaging policy"],
+        "operationId": "putCampaignDispatchPolicy",
+        "description": "Stores a versioned server-side approval, timezone, quiet-hours, and recipient-frequency policy.",
+        "parameters": [
+          { "name": "campaign_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CampaignDispatchPolicy" } } } },
+        "responses": {
+          "200": { "description": "Campaign dispatch policy stored" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/messaging/campaigns/{campaign_id}/dispatch-preflight": {
+      "post": {
+        "tags": ["Messaging policy"],
+        "operationId": "createCampaignDispatchPreflight",
+        "description": "Rechecks approval, current policy, quiet hours, daily frequency, and stale interactions before creating immutable READY or BLOCKED reservations.",
+        "parameters": [
+          { "name": "campaign_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CampaignDispatchPreflight" } } } },
+        "responses": {
+          "200": { "description": "Immutable per-recipient dispatch reservations created" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/customers/{customer_id}/analysis": {
+      "get": {
+        "tags": ["Interactions"],
+        "operationId": "getLatestCustomerAnalysis",
+        "parameters": [{ "name": "customer_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Latest signed analysis result" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/worker/jobs/lease": {
+      "post": {
+        "tags": ["Worker"],
+        "operationId": "leaseAnalysisJob",
+        "security": [{ "workerToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkerLeaseRequest" } } } },
+        "responses": { "200": { "description": "Leased job or null" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
+      }
+    },
+    "/worker/jobs/{job_id}/complete": {
+      "post": {
+        "tags": ["Worker"],
+        "operationId": "completeAnalysisJob",
+        "security": [{ "workerToken": [] }],
+        "parameters": [{ "name": "job_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkerCompleteRequest" } } } },
+        "responses": { "200": { "description": "Job completed" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "409": { "$ref": "#/components/responses/Conflict" }, "422": { "$ref": "#/components/responses/ValidationError" } }
+      }
+    },
+    "/worker/jobs/{job_id}/fail": {
+      "post": {
+        "tags": ["Worker"],
+        "operationId": "failAnalysisJob",
+        "security": [{ "workerToken": [] }],
+        "parameters": [{ "name": "job_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkerFailRequest" } } } },
+        "responses": { "200": { "description": "Job requeued or dead-lettered" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "409": { "$ref": "#/components/responses/Conflict" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque" },
+      "workerToken": { "type": "apiKey", "in": "header", "name": "X-Worker-Token" }
+    },
+    "parameters": {
+      "IdempotencyKey": {
+        "name": "Idempotency-Key",
+        "in": "header",
+        "required": true,
+        "schema": { "type": "string", "minLength": 8, "maxLength": 128 }
+      },
+      "DeviceId": { "name": "device_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "CustomerPhoneId": { "name": "customer_phone_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+      "Cursor": { "name": "cursor", "in": "query", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 256 } },
+      "OptionalCursor": { "name": "cursor", "in": "query", "required": false, "schema": { "type": "string", "minLength": 1, "maxLength": 256 } },
+      "Limit": { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer", "minimum": 1, "maximum": 500, "default": 200 } }
+    },
+    "responses": {
+      "BadRequest": { "description": "Malformed request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "Unauthorized": { "description": "Missing, expired, or revoked credentials", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "Forbidden": { "description": "Authenticated but outside the principal company or capability", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "NotFound": { "description": "Resource not found in the principal company", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "Conflict": { "description": "Version, token rotation, or idempotency conflict", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "ValidationError": { "description": "Semantic validation failed", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } },
+      "RateLimited": { "description": "Too many attempts", "headers": { "Retry-After": { "schema": { "type": "integer", "minimum": 1 } } }, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } } }
+    },
+    "schemas": {
+      "Uuid": { "type": "string", "format": "uuid" },
+      "Role": { "type": "string", "enum": ["OWNER", "MANAGER", "STAFF", "VIEWER"] },
+      "LoginRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["user_id", "password"],
+        "properties": {
+          "company_slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}$" },
+          "user_id": { "type": "string", "minLength": 1, "maxLength": 190 },
+          "password": { "type": "string", "minLength": 8, "maxLength": 1024 }
+        }
+      },
+      "RefreshRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["refresh_token"],
+        "properties": { "refresh_token": { "type": "string", "minLength": 32, "maxLength": 512 } }
+      },
+      "Principal": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["company_id", "user_id", "role"],
+        "properties": {
+          "company_id": { "$ref": "#/components/schemas/Uuid" },
+          "user_id": { "$ref": "#/components/schemas/Uuid" },
+          "login_id": { "type": "string", "minLength": 1, "maxLength": 190 },
+          "nickname": { "type": "string", "maxLength": 190 },
+          "role": { "$ref": "#/components/schemas/Role" }
+        }
+      },
+      "TokenPair": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["access_token", "access_expires_in", "refresh_token", "refresh_expires_in"],
+        "properties": {
+          "access_token": { "type": "string" },
+          "access_expires_in": { "type": "integer", "minimum": 1 },
+          "refresh_token": { "type": "string" },
+          "refresh_expires_in": { "type": "integer", "minimum": 1 }
+        }
+      },
+      "AuthResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SuccessEnvelope" },
+          { "type": "object", "properties": { "data": { "type": "object", "required": ["principal", "tokens"], "properties": { "principal": { "$ref": "#/components/schemas/Principal" }, "tokens": { "$ref": "#/components/schemas/TokenPair" } } } } }
+        ]
+      },
+      "PrincipalResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SuccessEnvelope" },
+          { "type": "object", "properties": { "data": { "type": "object", "required": ["principal"], "properties": { "principal": { "$ref": "#/components/schemas/Principal" } } } } }
+        ]
+      },
+      "DeviceEnrollRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["installation_id", "name", "platform", "public_key", "capabilities"],
+        "properties": {
+          "installation_id": { "type": "string", "minLength": 16, "maxLength": 128 },
+          "name": { "type": "string", "minLength": 1, "maxLength": 190 },
+          "platform": { "const": "ANDROID" },
+          "public_key": { "type": "string", "minLength": 64, "maxLength": 8192 },
+          "fcm_token": { "type": ["string", "null"], "maxLength": 4096 },
+          "app_version": { "type": "string", "maxLength": 64 },
+          "os_version": { "type": "string", "maxLength": 64 },
+          "capabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["CALL_COLLECT", "SMS_COLLECT", "KAKAO_COLLECT", "SMS_SEND", "KAKAO_SEND"] } }
+        }
+      },
+      "DeviceHeartbeatRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["app_version", "os_version", "permissions", "battery_optimization_exempt"],
+        "properties": {
+          "app_version": { "type": "string", "maxLength": 64 },
+          "os_version": { "type": "string", "maxLength": 64 },
+          "kakao_version": { "type": ["string", "null"], "maxLength": 64 },
+          "permissions": { "type": "object", "additionalProperties": { "type": "boolean" } },
+          "battery_optimization_exempt": { "type": "boolean" },
+          "fcm_token": { "type": ["string", "null"], "maxLength": 4096 }
+        }
+      },
+      "Device": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["device_id", "company_id", "status", "capabilities", "created_at", "updated_at"],
+        "properties": {
+          "device_id": { "$ref": "#/components/schemas/Uuid" },
+          "company_id": { "$ref": "#/components/schemas/Uuid" },
+          "status": { "type": "string", "enum": ["ACTIVE", "REVOKED", "LOST", "REPLACED"] },
+          "capabilities": { "type": "array", "items": { "type": "string" } },
+          "last_seen_at": { "type": ["string", "null"], "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DeviceResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SuccessEnvelope" },
+          { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/Device" } } }
+        ]
+      },
+      "SyncRecord": { "$ref": "./schemas/sync-record-v1.schema.json" },
+      "CryptoEnvelope": { "$ref": "./schemas/crypto-envelope-v1.schema.json" },
+      "AnalysisResult": { "$ref": "./schemas/analysis-result-v1.schema.json" },
+      "CustomerDirectory": { "$ref": "./schemas/customer-directory-v1.schema.json" },
+      "ContactPermission": { "$ref": "./schemas/contact-permission-v1.schema.json" },
+      "MessagingEligibilityRequest": { "$ref": "./schemas/messaging-eligibility-v1.schema.json" },
+      "SuppressionEvent": { "$ref": "./schemas/suppression-event-v1.schema.json" },
+      "CampaignRecipientSnapshot": { "$ref": "./schemas/campaign-recipient-snapshot-v1.schema.json" },
+      "CampaignDispatchPolicy": { "$ref": "./schemas/campaign-dispatch-policy-v1.schema.json" },
+      "CampaignDispatchPreflight": { "$ref": "./schemas/campaign-dispatch-preflight-v1.schema.json" },
+      "InteractionUpload": { "$ref": "./schemas/interaction-upload-v2.schema.json" },
+      "WorkerLeaseRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["worker_id", "capabilities"],
+        "properties": {
+          "worker_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+          "capabilities": { "type": "array", "contains": { "const": "TEXT_ANALYSIS" }, "items": { "type": "string" } }
+        }
+      },
+      "WorkerCompleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lease_token", "result"],
+        "properties": { "lease_token": { "type": "string", "minLength": 32 }, "result": { "$ref": "#/components/schemas/AnalysisResult" } }
+      },
+      "WorkerFailRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["lease_token", "error_code", "retryable"],
+        "properties": {
+          "lease_token": { "type": "string", "minLength": 32 },
+          "error_code": { "type": "string", "pattern": "^[A-Z0-9_]{3,64}$" },
+          "retryable": { "type": "boolean" }
+        }
+      },
+      "SyncPushRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["device_id", "records"],
+        "properties": {
+          "device_id": { "$ref": "#/components/schemas/Uuid" },
+          "records": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "$ref": "#/components/schemas/SyncRecord" } }
+        }
+      },
+      "SyncPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["records", "next_cursor", "has_more"],
+        "properties": {
+          "records": { "type": "array", "items": { "$ref": "#/components/schemas/SyncRecord" } },
+          "next_cursor": { "type": "string" },
+          "has_more": { "type": "boolean" }
+        }
+      },
+      "SyncPageResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SuccessEnvelope" },
+          { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/SyncPage" } } }
+        ]
+      },
+      "SyncPushResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SuccessEnvelope" },
+          { "type": "object", "properties": { "data": { "type": "object", "required": ["applied", "unchanged", "conflicts", "cursor"], "properties": { "applied": { "type": "integer", "minimum": 0 }, "unchanged": { "type": "integer", "minimum": 0 }, "conflicts": { "type": "array", "items": { "type": "object" } }, "cursor": { "type": "string" } } } } }
+        ]
+      },
+      "SuccessEnvelope": {
+        "type": "object",
+        "required": ["result", "success", "message", "data"],
+        "properties": {
+          "result": { "const": "success" },
+          "success": { "const": true },
+          "message": { "type": "string" },
+          "data": {}
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["result", "success", "message", "error"],
+        "properties": {
+          "result": { "const": "error" },
+          "success": { "const": false },
+          "message": { "type": "string" },
+          "error": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code"],
+            "properties": {
+              "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{2,63}$" },
+              "details": { "type": "object" },
+              "request_id": { "type": "string", "maxLength": 128 }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }]
+}

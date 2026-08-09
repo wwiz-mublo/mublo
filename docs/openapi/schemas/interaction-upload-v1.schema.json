@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/interaction-upload-v1.schema.json",
+  "title": "Encrypted interaction upload v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "interaction_id", "customer_id", "device_id", "channel", "occurred_at", "envelope"],
+  "properties": {
+    "schema_version": { "const": "interaction-upload-v1" },
+    "interaction_id": { "type": "string", "format": "uuid" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "device_id": { "type": "string", "format": "uuid" },
+    "channel": { "const": "CALL_TRANSCRIPT" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "duration_sec": { "type": ["integer", "null"], "minimum": 0 },
+    "direction": { "type": ["string", "null"], "enum": ["INCOMING", "OUTGOING", "UNKNOWN", null] },
+    "envelope": { "$ref": "crypto-envelope-v1.schema.json" }
+  }
+}

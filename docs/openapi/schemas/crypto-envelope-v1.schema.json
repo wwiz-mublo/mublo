@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/crypto-envelope-v1.schema.json",
+  "title": "Mublo crypto envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "algorithm",
+    "key_wrap_algorithm",
+    "key_id",
+    "wrapped_dek",
+    "iv",
+    "ciphertext",
+    "tag",
+    "aad",
+    "plaintext_sha256"
+  ],
+  "properties": {
+    "schema_version": { "const": "crypto-envelope-v1" },
+    "algorithm": { "const": "AES-256-GCM" },
+    "key_wrap_algorithm": { "const": "RSA-OAEP-256" },
+    "key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "wrapped_dek": { "$ref": "#/$defs/base64" },
+    "iv": { "$ref": "#/$defs/base64" },
+    "ciphertext": { "$ref": "#/$defs/base64" },
+    "tag": { "$ref": "#/$defs/base64" },
+    "aad": { "$ref": "#/$defs/base64" },
+    "plaintext_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+  },
+  "$defs": {
+    "base64": {
+      "type": "string",
+      "minLength": 4,
+      "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+    }
+  }
+}

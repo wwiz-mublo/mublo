@@ -71,6 +71,7 @@ $runner = new MigrationRunner(new Database($pdo));
 $migrationTargets = [
     ['package', 'Board', MUBLO_PACKAGE_PATH . '/Board/database/migrations'],
     ['package', 'Shop', MUBLO_PACKAGE_PATH . '/Shop/database/migrations'],
+    ['package', 'AiAssistant', MUBLO_PACKAGE_PATH . '/AiAssistant/database/migrations'],
 ];
 
 foreach (glob(MUBLO_PLUGIN_PATH . '/*/database/migrations', GLOB_ONLYDIR) ?: [] as $path) {

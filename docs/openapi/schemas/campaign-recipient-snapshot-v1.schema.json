@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/campaign-recipient-snapshot-v1.schema.json",
+  "title": "Campaign recipient snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "campaign_id", "channel", "message_class", "content_version", "recipients"],
+  "properties": {
+    "schema_version": { "const": "campaign-recipient-snapshot-v1" },
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "channel": { "type": "string", "enum": ["SMS", "KAKAO"] },
+    "message_class": { "type": "string", "enum": ["TRANSACTIONAL", "MARKETING"] },
+    "content_version": { "type": "integer", "minimum": 1 },
+    "recipients": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["customer_id", "customer_phone_id"],
+        "properties": {
+          "customer_id": { "type": "string", "format": "uuid" },
+          "customer_phone_id": { "type": "string", "format": "uuid" }
+        }
+      }
+    }
+  }
+}
