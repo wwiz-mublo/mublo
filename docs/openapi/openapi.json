@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Mublo AI Assistant API",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Android AI Assistant, SaaS API, and private Worker contract. Business tenancy is always scoped by company_id, independently from Framework domain_id."
   },
   "servers": [
@@ -13,6 +13,7 @@
     { "name": "Devices" },
     { "name": "Customer sync" },
     { "name": "Interactions" },
+    { "name": "Analysis" },
     { "name": "Messaging policy" },
     { "name": "Worker" }
   ],
@@ -155,7 +156,7 @@
       "post": {
         "tags": ["Interactions"],
         "operationId": "uploadEncryptedInteraction",
-        "description": "Accepts an encrypted transcript only after customer_phone_id membership is verified. Raw call audio is not accepted.",
+        "description": "Accepts an encrypted interaction only after customer_phone_id membership is verified. v2 remains available for the legacy per-interaction flow; v3 returns a server sequence used by immutable customer manifests. Raw call audio is not accepted.",
         "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/InteractionUpload" } } } },
         "responses": {
@@ -163,6 +164,75 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "409": { "$ref": "#/components/responses/Conflict" },
           "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/analysis-consents": {
+      "post": {
+        "tags": ["Analysis"],
+        "operationId": "registerAnalysisConsent",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalysisConsent" } } } },
+        "responses": {
+          "200": { "description": "Consent receipt registered or replayed" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/analysis-batches": {
+      "post": {
+        "tags": ["Analysis"],
+        "operationId": "createAnalysisBatch",
+        "description": "Validates all selected customers and channel input sets before atomically creating immutable manifests and queued runs.",
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalysisBatchCreate" } } } },
+        "responses": {
+          "200": { "description": "Analysis batch created", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalysisBatchStatus" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/ValidationError" }
+        }
+      }
+    },
+    "/analysis-batches/{batch_id}": {
+      "get": {
+        "tags": ["Analysis"],
+        "operationId": "getAnalysisBatch",
+        "parameters": [{ "name": "batch_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Current batch and run states", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AnalysisBatchStatus" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/analysis-runs/{run_id}": {
+      "get": {
+        "tags": ["Analysis"],
+        "operationId": "getAnalysisRun",
+        "parameters": [{ "name": "run_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "responses": {
+          "200": { "description": "Current run state and latest result" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/analysis-runs/{run_id}/retry": {
+      "post": {
+        "tags": ["Analysis"],
+        "operationId": "retryAnalysisRun",
+        "parameters": [
+          { "name": "run_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "responses": {
+          "200": { "description": "Retry queued from the immutable manifest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
         }
       }
     },
@@ -293,14 +363,33 @@
         "responses": { "200": { "description": "Leased job or null" }, "401": { "$ref": "#/components/responses/Unauthorized" } }
       }
     },
+    "/worker/heartbeat": {
+      "post": {
+        "tags": ["Worker"],
+        "operationId": "workerHeartbeat",
+        "security": [{ "workerToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkerHeartbeat" } } } },
+        "responses": { "200": { "description": "Worker health accepted" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "422": { "$ref": "#/components/responses/ValidationError" } }
+      }
+    },
     "/worker/jobs/{job_id}/complete": {
       "post": {
         "tags": ["Worker"],
         "operationId": "completeAnalysisJob",
         "security": [{ "workerToken": [] }],
         "parameters": [{ "name": "job_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WorkerCompleteRequest" } } } },
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "oneOf": [{ "$ref": "#/components/schemas/WorkerCompleteRequest" }, { "$ref": "#/components/schemas/WorkerCompleteV2" }] } } } },
         "responses": { "200": { "description": "Job completed" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "409": { "$ref": "#/components/responses/Conflict" }, "422": { "$ref": "#/components/responses/ValidationError" } }
+      }
+    },
+    "/worker/jobs/{job_id}/renew": {
+      "post": {
+        "tags": ["Worker"],
+        "operationId": "renewAnalysisJobLease",
+        "security": [{ "workerToken": [] }],
+        "parameters": [{ "name": "job_id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["lease_token", "worker_id"], "properties": { "lease_token": { "type": "string", "minLength": 32 }, "worker_id": { "type": "string", "minLength": 3, "maxLength": 128 } } } } } },
+        "responses": { "200": { "description": "Lease renewed" }, "401": { "$ref": "#/components/responses/Unauthorized" }, "409": { "$ref": "#/components/responses/Conflict" } }
       }
     },
     "/worker/jobs/{job_id}/fail": {
@@ -446,6 +535,11 @@
       "SyncRecord": { "$ref": "./schemas/sync-record-v1.schema.json" },
       "CryptoEnvelope": { "$ref": "./schemas/crypto-envelope-v1.schema.json" },
       "AnalysisResult": { "$ref": "./schemas/analysis-result-v1.schema.json" },
+      "AnalysisResultV2": { "$ref": "./schemas/analysis-result-v2.schema.json" },
+      "AnalysisConsent": { "$ref": "./schemas/analysis-consent-v1.schema.json" },
+      "AnalysisBatchCreate": { "$ref": "./schemas/analysis-batch-create-v1.schema.json" },
+      "AnalysisBatchStatus": { "$ref": "./schemas/analysis-batch-status-v1.schema.json" },
+      "AnalysisManifest": { "$ref": "./schemas/analysis-manifest-v1.schema.json" },
       "CustomerDirectory": { "$ref": "./schemas/customer-directory-v1.schema.json" },
       "ContactPermission": { "$ref": "./schemas/contact-permission-v1.schema.json" },
       "MessagingEligibilityRequest": { "$ref": "./schemas/messaging-eligibility-v1.schema.json" },
@@ -453,14 +547,17 @@
       "CampaignRecipientSnapshot": { "$ref": "./schemas/campaign-recipient-snapshot-v1.schema.json" },
       "CampaignDispatchPolicy": { "$ref": "./schemas/campaign-dispatch-policy-v1.schema.json" },
       "CampaignDispatchPreflight": { "$ref": "./schemas/campaign-dispatch-preflight-v1.schema.json" },
-      "InteractionUpload": { "$ref": "./schemas/interaction-upload-v2.schema.json" },
+      "InteractionUpload": { "oneOf": [{ "$ref": "./schemas/interaction-upload-v2.schema.json" }, { "$ref": "./schemas/interaction-upload-v3.schema.json" }] },
+      "WorkerHeartbeat": { "$ref": "./schemas/worker-heartbeat-v1.schema.json" },
+      "WorkerJobV2": { "$ref": "./schemas/worker-job-v2.schema.json" },
+      "WorkerCompleteV2": { "$ref": "./schemas/worker-complete-v2.schema.json" },
       "WorkerLeaseRequest": {
         "type": "object",
         "additionalProperties": false,
         "required": ["worker_id", "capabilities"],
         "properties": {
           "worker_id": { "type": "string", "minLength": 3, "maxLength": 128 },
-          "capabilities": { "type": "array", "contains": { "const": "TEXT_ANALYSIS" }, "items": { "type": "string" } }
+          "capabilities": { "type": "array", "minItems": 1, "contains": { "enum": ["TEXT_ANALYSIS", "CUSTOMER_PROFILE_ANALYSIS_V2"] }, "items": { "type": "string", "enum": ["TEXT_ANALYSIS", "CUSTOMER_PROFILE_ANALYSIS_V2"] } }
         }
       },
       "WorkerCompleteRequest": {

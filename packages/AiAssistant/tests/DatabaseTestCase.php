@@ -6,6 +6,8 @@ namespace Tests\AiAssistant;
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Packages\AiAssistant\Repository\AuthTokenRepository;
+use Mublo\Packages\AiAssistant\Repository\AnalysisRepository;
+use Mublo\Packages\AiAssistant\Repository\AnalysisWorkerRepository;
 use Mublo\Packages\AiAssistant\Repository\CompanyUserRepository;
 use Mublo\Packages\AiAssistant\Repository\CustomerDirectoryRepository;
 use Mublo\Packages\AiAssistant\Repository\DeviceRepository;
@@ -14,8 +16,12 @@ use Mublo\Packages\AiAssistant\Repository\InteractionRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingPolicyRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingDispatchRepository;
 use Mublo\Packages\AiAssistant\Repository\SyncRecordRepository;
+use Mublo\Packages\AiAssistant\Repository\SaasRepository;
 use Mublo\Packages\AiAssistant\Security\WorkerSecurity;
+use Mublo\Packages\AiAssistant\Security\WorkerResultVerifierInterface;
 use Mublo\Packages\AiAssistant\Service\AuthService;
+use Mublo\Packages\AiAssistant\Service\AnalysisService;
+use Mublo\Packages\AiAssistant\Service\AnalysisWorkerService;
 use Mublo\Packages\AiAssistant\Service\CompanyProvisioningService;
 use Mublo\Packages\AiAssistant\Service\CustomerSyncService;
 use Mublo\Packages\AiAssistant\Service\DeviceService;
@@ -23,6 +29,7 @@ use Mublo\Packages\AiAssistant\Service\IdempotencyService;
 use Mublo\Packages\AiAssistant\Service\InteractionService;
 use Mublo\Packages\AiAssistant\Service\MessagingPolicyService;
 use Mublo\Packages\AiAssistant\Service\WorkerJobService;
+use Mublo\Packages\AiAssistant\Service\SaasService;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -35,8 +42,11 @@ abstract class DatabaseTestCase extends TestCase
     protected CustomerSyncService $sync;
     protected IdempotencyService $idempotency;
     protected InteractionService $interactions;
+    protected AnalysisService $analysis;
     protected MessagingPolicyService $messaging;
     protected WorkerJobService $workerJobs;
+    protected AnalysisWorkerService $analysisWorker;
+    protected SaasService $saas;
     protected string $workerSigningSecret = 'test-worker-signing-secret-at-least-32-bytes';
 
     protected function setUp(): void
@@ -104,6 +114,14 @@ PEM;
             'test-worker-token',
             $this->workerSigningSecret
         );
+        $workerV2Security = new class implements WorkerResultVerifierInterface {
+            public function verifyResultSignature(array $result): void
+            {
+                if (($result['worker_signature'] ?? null) !== 'test-ed25519-signature') {
+                    throw new \RuntimeException('Unexpected test signature');
+                }
+            }
+        };
         $interactionRepository = new InteractionRepository($this->db);
         $this->interactions = new InteractionService(
             $interactionRepository,
@@ -111,7 +129,19 @@ PEM;
             $directory,
             $workerSecurity
         );
+        $this->analysis = new AnalysisService(
+            new AnalysisRepository($this->db),
+            $interactionRepository,
+            $deviceRepository,
+            $directory
+        );
         $this->workerJobs = new WorkerJobService($interactionRepository, $workerSecurity);
+        $this->analysisWorker = new AnalysisWorkerService(
+            new AnalysisWorkerRepository($this->db),
+            $workerSecurity,
+            $workerV2Security
+        );
+        $this->saas = new SaasService(new SaasRepository($this->db, $codec));
     }
 
     private function createSchema(PDO $pdo): void
@@ -220,6 +250,46 @@ PEM;
             'CREATE TABLE ai_analysis_results (
                 analysis_id TEXT PRIMARY KEY, job_id TEXT UNIQUE, interaction_id TEXT,
                 company_id TEXT, customer_id TEXT, input_cursor TEXT, result_json TEXT, created_at TEXT
+            )',
+            'CREATE TABLE ai_interaction_v3_index (
+                server_sequence INTEGER PRIMARY KEY AUTOINCREMENT, interaction_id TEXT UNIQUE,
+                company_id TEXT, customer_id TEXT, customer_phone_id TEXT, device_id TEXT,
+                channel TEXT, source_record_id TEXT, content_sha256 TEXT, created_at TEXT,
+                UNIQUE(company_id, device_id, channel, source_record_id)
+            )',
+            'CREATE TABLE ai_analysis_consent_receipts (
+                consent_receipt_id TEXT PRIMARY KEY, company_id TEXT, user_id TEXT, device_id TEXT,
+                consent_version TEXT, accepted_at TEXT, selected_customer_set_sha256 TEXT,
+                customer_ids_json TEXT, created_at TEXT
+            )',
+            'CREATE TABLE ai_analysis_batches (
+                batch_id TEXT PRIMARY KEY, company_id TEXT, requested_by_user_id TEXT, device_id TEXT,
+                consent_receipt_id TEXT, purpose TEXT, selected_customer_set_sha256 TEXT,
+                status TEXT, total_customers INTEGER, created_at TEXT, updated_at TEXT
+            )',
+            'CREATE TABLE ai_analysis_runs (
+                run_id TEXT PRIMARY KEY, batch_id TEXT, company_id TEXT, customer_id TEXT, mode TEXT,
+                base_analysis_id TEXT, from_cursor INTEGER, input_cursor INTEGER, status TEXT, stage TEXT,
+                progress_processed INTEGER, progress_total INTEGER, progress_sequence INTEGER,
+                retryable INTEGER, reason_code TEXT, analysis_id TEXT, created_at TEXT, updated_at TEXT,
+                UNIQUE(batch_id, customer_id)
+            )',
+            'CREATE TABLE ai_analysis_manifests (
+                manifest_id TEXT PRIMARY KEY, run_id TEXT UNIQUE, company_id TEXT, customer_id TEXT,
+                manifest_sha256 TEXT, manifest_json TEXT, created_at TEXT
+            )',
+            'CREATE TABLE ai_analysis_jobs_v2 (
+                job_id TEXT PRIMARY KEY, run_id TEXT UNIQUE, company_id TEXT, status TEXT,
+                attempts INTEGER, available_at TEXT, lease_owner TEXT, lease_token_hash TEXT,
+                lease_expires_at TEXT, last_error_code TEXT, created_at TEXT, updated_at TEXT
+            )',
+            'CREATE TABLE ai_analysis_results_v2 (
+                analysis_id TEXT PRIMARY KEY, job_id TEXT UNIQUE, run_id TEXT UNIQUE, company_id TEXT,
+                customer_id TEXT, manifest_sha256 TEXT, terminal_status TEXT, result_json TEXT, created_at TEXT
+            )',
+            'CREATE TABLE ai_worker_heartbeats (
+                worker_id TEXT PRIMARY KEY, status TEXT, capabilities_json TEXT, active_job_count INTEGER,
+                version TEXT, observed_at TEXT, received_at TEXT
             )',
         ];
         foreach ($statements as $statement) {

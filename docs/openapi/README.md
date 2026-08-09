@@ -18,6 +18,9 @@
 - 고객명·전화번호 payload는 TLS 구간에서만 평문이며 서버 저장 시 Framework 민감값 codec으로 즉시 암호화한다. 로그 및 오류 응답에는 포함하지 않는다.
 - 고객 sync changelog에서 암호화 고객·전화번호 directory projection을 유지하며 대량발송·등록번호 검증의 기준으로 사용한다.
 - `interaction-upload-v2`는 등록된 활성 `customer_phone_id`를 필수로 요구하고 같은 회사·고객 소속을 저장 전에 확인한다.
+- `interaction-upload-v3`는 채널 원본 식별자와 평문 digest를 함께 받아 중복 업로드와 내용 충돌을 구분하고, immutable manifest에 사용할 서버 sequence를 발급한다.
+- AI 분석은 동의 영수증 등록 후 선택 고객 전체의 채널별 건수·집합 digest를 서버가 재계산한다. 하나라도 다르면 배치 전체를 생성하지 않는다.
+- `manifest_sha256`은 `manifest_sha256` 필드를 추가하기 전 manifest 객체를 canonical JSON으로 직렬화한 SHA-256이다.
 - 고객 등록은 광고 수신동의가 아니다. 채널·목적별 permission, 철회와 suppression을 별도 gate로 관리한다.
 - suppression 변경은 versioned append-only 이벤트로 기록하며 해제가 기존 광고 동의를 되살리지 않는다.
 - 캠페인 수신자 snapshot은 등록번호 검증을 먼저 끝낸 뒤 정책 version과 사유만 immutable하게 저장한다.
@@ -32,6 +35,15 @@
 - `schemas/crypto-envelope-v1.schema.json`: 암호화 원문 envelope
 - `schemas/interaction-upload-v1.schema.json`: 이전 transcript interaction 계약
 - `schemas/interaction-upload-v2.schema.json`: 등록 고객 전화번호가 결합된 transcript interaction 계약
+- `schemas/interaction-upload-v3.schema.json`: 다중 채널 원본 식별자·digest·서버 sequence 기반 interaction 계약
+- `schemas/analysis-consent-v1.schema.json`: 선택 고객 집합에 대한 AI 분석 동의 영수증
+- `schemas/analysis-batch-create-v1.schema.json`: 고객별 수집 결과와 채널 집합 검증 요청
+- `schemas/analysis-batch-status-v1.schema.json`: 온보딩과 SaaS가 표시할 실제 배치·실행 상태
+- `schemas/analysis-manifest-v1.schema.json`: Worker가 받는 고객 단위 immutable 입력 manifest
+- `schemas/analysis-result-v2.schema.json`: 고객 단위 분석 결과 및 부족 데이터 판정
+- `schemas/worker-job-v2.schema.json`: Worker lease 응답
+- `schemas/worker-heartbeat-v1.schema.json`: Worker health·capability 보고
+- `schemas/worker-complete-v2.schema.json`: manifest digest에 결합된 서명 완료 요청
 - `schemas/customer-directory-v1.schema.json`: SaaS 최소 고객 디렉터리
 - `schemas/contact-permission-v1.schema.json`: 채널·목적별 동의·철회 근거
 - `schemas/messaging-eligibility-v1.schema.json`: 발송 가능 여부 사전검증 요청

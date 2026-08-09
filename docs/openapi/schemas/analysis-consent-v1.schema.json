@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/analysis-consent-v1.schema.json",
+  "title": "Customer analysis consent receipt v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "consent_receipt_id", "device_id", "consent_version", "accepted_at", "selected_customer_set_sha256", "customer_ids"],
+  "properties": {
+    "schema_version": { "const": "analysis-consent-v1" },
+    "consent_receipt_id": { "type": "string", "format": "uuid" },
+    "device_id": { "type": "string", "format": "uuid" },
+    "consent_version": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "accepted_at": { "type": "string", "format": "date-time" },
+    "selected_customer_set_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "customer_ids": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "uniqueItems": true,
+      "items": { "type": "string", "format": "uuid" }
+    }
+  }
+}

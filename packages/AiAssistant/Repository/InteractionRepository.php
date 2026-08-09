@@ -25,6 +25,93 @@ final class InteractionRepository
         );
     }
 
+    /** @return array<string, mixed>|null */
+    public function findV3BySource(string $companyId, string $deviceId, string $channel, string $sourceRecordId): ?array
+    {
+        return $this->db->selectOne(
+            'SELECT i.*, x.server_sequence, x.source_record_id, x.content_sha256
+               FROM ai_interaction_v3_index x
+               JOIN ai_interactions i ON i.interaction_id = x.interaction_id
+              WHERE x.company_id = ? AND x.device_id = ? AND x.channel = ? AND x.source_record_id = ? LIMIT 1',
+            [$companyId, $deviceId, $channel, $sourceRecordId]
+        );
+    }
+
+    /** @return array<string, mixed>|null */
+    public function findV3(string $companyId, string $interactionId): ?array
+    {
+        return $this->db->selectOne(
+            'SELECT i.*, x.server_sequence, x.source_record_id, x.content_sha256
+               FROM ai_interaction_v3_index x
+               JOIN ai_interactions i ON i.interaction_id = x.interaction_id
+              WHERE x.company_id = ? AND x.interaction_id = ? LIMIT 1',
+            [$companyId, $interactionId]
+        );
+    }
+
+    /** @param array<string, mixed> $interaction @return array{server_sequence: int} */
+    public function createV3(array $interaction): array
+    {
+        return $this->db->transaction(function () use ($interaction): array {
+            $now = Time::database();
+            $this->db->insert(
+                'INSERT INTO ai_interactions
+                    (interaction_id, company_id, customer_id, customer_phone_id, device_id, channel, occurred_at,
+                     envelope_json, envelope_sha256, status, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $interaction['interaction_id'], $interaction['company_id'], $interaction['customer_id'],
+                    $interaction['customer_phone_id'], $interaction['device_id'], $interaction['channel'],
+                    $interaction['occurred_at'], $interaction['envelope_json'], $interaction['envelope_sha256'],
+                    'STORED', $now, $now,
+                ]
+            );
+            $this->db->insert(
+                'INSERT INTO ai_interaction_v3_index
+                    (interaction_id, company_id, customer_id, customer_phone_id, device_id, channel,
+                     source_record_id, content_sha256, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                [
+                    $interaction['interaction_id'], $interaction['company_id'], $interaction['customer_id'],
+                    $interaction['customer_phone_id'], $interaction['device_id'], $interaction['channel'],
+                    $interaction['source_record_id'], $interaction['content_sha256'], $now,
+                ]
+            );
+            $row = $this->db->selectOne(
+                'SELECT server_sequence FROM ai_interaction_v3_index WHERE interaction_id = ? LIMIT 1',
+                [$interaction['interaction_id']]
+            );
+            return ['server_sequence' => (int) ($row['server_sequence'] ?? 0)];
+        });
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function listManifestInputs(
+        string $companyId,
+        string $customerId,
+        string $channel,
+        ?int $fromCursor,
+        ?string $from,
+        string $to
+    ): array {
+        $sql = 'SELECT i.interaction_id, i.customer_phone_id, i.device_id, i.channel, i.occurred_at,
+                       i.envelope_json, x.source_record_id, x.content_sha256, x.server_sequence
+                  FROM ai_interaction_v3_index x
+                  JOIN ai_interactions i ON i.interaction_id = x.interaction_id
+                 WHERE x.company_id = ? AND x.customer_id = ? AND x.channel = ? AND i.occurred_at < ?';
+        $params = [$companyId, $customerId, $channel, $to];
+        if ($from !== null) {
+            $sql .= ' AND i.occurred_at >= ?';
+            $params[] = $from;
+        }
+        if ($fromCursor !== null) {
+            $sql .= ' AND x.server_sequence > ?';
+            $params[] = $fromCursor;
+        }
+        $sql .= ' ORDER BY x.server_sequence ASC';
+        return $this->db->select($sql, $params);
+    }
+
     /** @param array<string, mixed> $interaction @return array{job_id: string} */
     public function create(array $interaction): array
     {

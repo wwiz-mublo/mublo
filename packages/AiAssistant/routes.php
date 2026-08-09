@@ -2,7 +2,10 @@
 declare(strict_types=1);
 
 use Mublo\Core\App\PrefixedRouteCollector;
+use Mublo\Core\Middleware\AdminMiddleware;
+use Mublo\Packages\AiAssistant\Controller\Admin\DashboardController;
 use Mublo\Packages\AiAssistant\Controller\Api\AuthController;
+use Mublo\Packages\AiAssistant\Controller\Api\AnalysisController;
 use Mublo\Packages\AiAssistant\Controller\Api\CustomerSyncController;
 use Mublo\Packages\AiAssistant\Controller\Api\DeviceController;
 use Mublo\Packages\AiAssistant\Controller\Api\InteractionController;
@@ -11,6 +14,17 @@ use Mublo\Packages\AiAssistant\Controller\Api\WorkerController;
 
 return function (PrefixedRouteCollector $r): void {
     $prefix = '/mublo-ai/api/v1';
+
+    $r->addRawRoute('GET', '/admin/mublo-ai', [
+        'controller' => DashboardController::class,
+        'method' => 'index',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRawRoute('GET', '/admin/mublo-ai/dashboard', [
+        'controller' => DashboardController::class,
+        'method' => 'index',
+        'middleware' => [AdminMiddleware::class],
+    ]);
 
     $r->addRawRoute('POST', $prefix . '/auth/login', [
         'controller' => AuthController::class,
@@ -56,6 +70,26 @@ return function (PrefixedRouteCollector $r): void {
         'controller' => InteractionController::class,
         'method' => 'upload',
     ]);
+    $r->addRawRoute('POST', $prefix . '/analysis-consents', [
+        'controller' => AnalysisController::class,
+        'method' => 'consent',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/analysis-batches', [
+        'controller' => AnalysisController::class,
+        'method' => 'createBatch',
+    ]);
+    $r->addRawRoute('GET', $prefix . '/analysis-batches/{batch_id}', [
+        'controller' => AnalysisController::class,
+        'method' => 'batch',
+    ]);
+    $r->addRawRoute('GET', $prefix . '/analysis-runs/{run_id}', [
+        'controller' => AnalysisController::class,
+        'method' => 'run',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/analysis-runs/{run_id}/retry', [
+        'controller' => AnalysisController::class,
+        'method' => 'retry',
+    ]);
     $r->addRawRoute('PUT', $prefix . '/customer-phones/{customer_phone_id}/permissions/{channel}/{purpose}', [
         'controller' => MessagingPolicyController::class,
         'method' => 'putPermission',
@@ -87,6 +121,14 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRawRoute('POST', $prefix . '/worker/jobs/lease', [
         'controller' => WorkerController::class,
         'method' => 'lease',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/worker/heartbeat', [
+        'controller' => WorkerController::class,
+        'method' => 'heartbeat',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/worker/jobs/{job_id}/renew', [
+        'controller' => WorkerController::class,
+        'method' => 'renew',
     ]);
     $r->addRawRoute('POST', $prefix . '/worker/jobs/{job_id}/complete', [
         'controller' => WorkerController::class,

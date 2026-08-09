@@ -105,6 +105,20 @@ final class CustomerDirectoryRepository
         return $phone;
     }
 
+    /** @return array<string, mixed> */
+    public function requireManagedCustomer(string $companyId, string $customerId): array
+    {
+        $customer = $this->db->selectOne(
+            'SELECT * FROM ai_customer_directory
+              WHERE company_id = ? AND customer_id = ? AND deleted_at IS NULL LIMIT 1',
+            [$companyId, $customerId]
+        );
+        if ($customer === null || (string) $customer['management_status'] !== 'MANAGED') {
+            throw new ApiException('CUSTOMER_NOT_ELIGIBLE', '관리 대상인 활성 고객만 분석할 수 있습니다.', 422);
+        }
+        return $customer;
+    }
+
     /** @return array<string, mixed>|null */
     public function findPhone(string $companyId, string $customerPhoneId): ?array
     {

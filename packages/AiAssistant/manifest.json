@@ -1,8 +1,8 @@
 {
   "name": "AiAssistant",
   "label": "Mublo AI Assistant",
-  "description": "AI 비서용 회사·기기 인증, 고객 동기화, interaction API",
-  "version": "0.1.0",
+  "description": "AI 비서용 회사·기기 인증, 고객 동기화, 분석 API와 운영 콘솔",
+  "version": "0.2.0",
   "author": "Mublo",
   "vendor": "mublo",
   "type": "package",

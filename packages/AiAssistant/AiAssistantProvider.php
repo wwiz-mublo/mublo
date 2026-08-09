@@ -4,17 +4,22 @@ declare(strict_types=1);
 namespace Mublo\Packages\AiAssistant;
 
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
+use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Core\Container\DependencyContainer;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Extension\ExtensionProviderInterface;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Packages\AiAssistant\Controller\Api\AuthController;
+use Mublo\Packages\AiAssistant\Controller\Api\AnalysisController;
 use Mublo\Packages\AiAssistant\Controller\Api\CustomerSyncController;
 use Mublo\Packages\AiAssistant\Controller\Api\DeviceController;
 use Mublo\Packages\AiAssistant\Controller\Api\InteractionController;
 use Mublo\Packages\AiAssistant\Controller\Api\MessagingPolicyController;
 use Mublo\Packages\AiAssistant\Controller\Api\WorkerController;
+use Mublo\Packages\AiAssistant\Controller\Admin\DashboardController;
 use Mublo\Packages\AiAssistant\Repository\AuthTokenRepository;
+use Mublo\Packages\AiAssistant\Repository\AnalysisRepository;
+use Mublo\Packages\AiAssistant\Repository\AnalysisWorkerRepository;
 use Mublo\Packages\AiAssistant\Repository\CompanyUserRepository;
 use Mublo\Packages\AiAssistant\Repository\CustomerDirectoryRepository;
 use Mublo\Packages\AiAssistant\Repository\DeviceRepository;
@@ -23,8 +28,12 @@ use Mublo\Packages\AiAssistant\Repository\InteractionRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingPolicyRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingDispatchRepository;
 use Mublo\Packages\AiAssistant\Repository\SyncRecordRepository;
+use Mublo\Packages\AiAssistant\Repository\SaasRepository;
 use Mublo\Packages\AiAssistant\Security\WorkerSecurity;
+use Mublo\Packages\AiAssistant\Security\WorkerV2Security;
 use Mublo\Packages\AiAssistant\Service\AuthService;
+use Mublo\Packages\AiAssistant\Service\AnalysisService;
+use Mublo\Packages\AiAssistant\Service\AnalysisWorkerService;
 use Mublo\Packages\AiAssistant\Service\CompanyProvisioningService;
 use Mublo\Packages\AiAssistant\Service\CustomerSyncService;
 use Mublo\Packages\AiAssistant\Service\DeviceService;
@@ -32,6 +41,7 @@ use Mublo\Packages\AiAssistant\Service\IdempotencyService;
 use Mublo\Packages\AiAssistant\Service\InteractionService;
 use Mublo\Packages\AiAssistant\Service\MessagingPolicyService;
 use Mublo\Packages\AiAssistant\Service\WorkerJobService;
+use Mublo\Packages\AiAssistant\Service\SaasService;
 
 final class AiAssistantProvider implements ExtensionProviderInterface
 {
@@ -70,6 +80,15 @@ final class AiAssistantProvider implements ExtensionProviderInterface
         $container->singleton(InteractionRepository::class, fn(DependencyContainer $c) =>
             new InteractionRepository($c->get(Database::class))
         );
+        $container->singleton(AnalysisRepository::class, fn(DependencyContainer $c) =>
+            new AnalysisRepository($c->get(Database::class))
+        );
+        $container->singleton(AnalysisWorkerRepository::class, fn(DependencyContainer $c) =>
+            new AnalysisWorkerRepository($c->get(Database::class))
+        );
+        $container->singleton(SaasRepository::class, fn(DependencyContainer $c) =>
+            new SaasRepository($c->get(Database::class), $c->get(SensitiveValueCodecInterface::class))
+        );
         $container->singleton(WorkerSecurity::class, function (): WorkerSecurity {
             $publicKey = str_replace('\\n', "\n", (string) env('MUBLO_AI_WORKER_PUBLIC_KEY', ''));
             $publicKeyFile = (string) env('MUBLO_AI_WORKER_PUBLIC_KEY_FILE', '');
@@ -84,6 +103,10 @@ final class AiAssistantProvider implements ExtensionProviderInterface
                 (string) env('MUBLO_AI_WORKER_SIGNING_SECRET', '')
             );
         });
+        $container->singleton(WorkerV2Security::class, fn(): WorkerV2Security => new WorkerV2Security(
+            (string) env('MUBLO_AI_WORKER_SIGNING_KEY_ID', ''),
+            (string) env('MUBLO_AI_WORKER_SIGNING_PUBLIC_KEY', '')
+        ));
 
         $container->singleton(AuthService::class, fn(DependencyContainer $c) =>
             new AuthService(
@@ -115,6 +138,14 @@ final class AiAssistantProvider implements ExtensionProviderInterface
                 $c->get(WorkerSecurity::class)
             )
         );
+        $container->singleton(AnalysisService::class, fn(DependencyContainer $c) =>
+            new AnalysisService(
+                $c->get(AnalysisRepository::class),
+                $c->get(InteractionRepository::class),
+                $c->get(DeviceRepository::class),
+                $c->get(CustomerDirectoryRepository::class)
+            )
+        );
         $container->singleton(MessagingPolicyService::class, fn(DependencyContainer $c) =>
             new MessagingPolicyService(
                 $c->get(CustomerDirectoryRepository::class),
@@ -125,9 +156,26 @@ final class AiAssistantProvider implements ExtensionProviderInterface
         $container->singleton(WorkerJobService::class, fn(DependencyContainer $c) =>
             new WorkerJobService($c->get(InteractionRepository::class), $c->get(WorkerSecurity::class))
         );
+        $container->singleton(AnalysisWorkerService::class, fn(DependencyContainer $c) =>
+            new AnalysisWorkerService(
+                $c->get(AnalysisWorkerRepository::class),
+                $c->get(WorkerSecurity::class),
+                $c->get(WorkerV2Security::class)
+            )
+        );
+        $container->singleton(SaasService::class, fn(DependencyContainer $c) =>
+            new SaasService($c->get(SaasRepository::class))
+        );
 
         $container->singleton(AuthController::class, fn(DependencyContainer $c) =>
             new AuthController($c->get(AuthService::class))
+        );
+        $container->singleton(AnalysisController::class, fn(DependencyContainer $c) =>
+            new AnalysisController(
+                $c->get(AuthService::class),
+                $c->get(AnalysisService::class),
+                $c->get(IdempotencyService::class)
+            )
         );
         $container->singleton(DeviceController::class, fn(DependencyContainer $c) =>
             new DeviceController(
@@ -158,7 +206,17 @@ final class AiAssistantProvider implements ExtensionProviderInterface
             )
         );
         $container->singleton(WorkerController::class, fn(DependencyContainer $c) =>
-            new WorkerController($c->get(AuthService::class), $c->get(WorkerJobService::class))
+            new WorkerController(
+                $c->get(AuthService::class),
+                $c->get(WorkerJobService::class),
+                $c->get(AnalysisWorkerService::class)
+            )
+        );
+        $container->singleton(DashboardController::class, fn(DependencyContainer $c) =>
+            new DashboardController(
+                $c->get(SaasService::class),
+                $c->get(AuthContextInterface::class)
+            )
         );
     }
 

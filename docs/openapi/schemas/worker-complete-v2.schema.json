@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/worker-complete-v2.schema.json",
+  "title": "Worker complete request v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "lease_token", "result", "cleanup_attestation"],
+  "properties": {
+    "schema_version": { "const": "worker-complete-v2" },
+    "lease_token": { "type": "string", "minLength": 32, "maxLength": 512 },
+    "result": { "$ref": "analysis-result-v2.schema.json" },
+    "cleanup_attestation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plaintext_files_remaining", "completed_at"],
+      "properties": {
+        "plaintext_files_remaining": { "const": 0 },
+        "completed_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
