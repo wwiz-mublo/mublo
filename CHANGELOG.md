@@ -6,6 +6,10 @@
 
 ## [Unreleased]
 
+### Added
+- 에디터: `data-toolbar-mobile`·`data-toolbar-items-mobile`·`data-toolbar-breakpoint`로 모바일 툴바를 따로 구성할 수 있습니다. Board 기본·갤러리 글쓰기는 768px 이하에서 필수 편집 버튼만 표시합니다
+- 에디터: 툴바 프리셋에 `compact`(7개 — 되돌리기·되돌리기 취소·굵게·기울임·밑줄·링크·이미지)를 추가했습니다. 기존 `minimal`(3개)과 `basic`(20개) 사이가 비어 있어 좁은 화면이나 좁은 칸에 쓸 프리셋이 없었습니다. 320px 폭에서 한 줄에 들어가며, `toolbar` 와 `toolbarMobile` 양쪽에서 쓸 수 있으므로 스킨이 버튼 이름을 나열하지 않아도 됩니다
+
 ## [1.1.0] - 2026-08-07
 
 ### Added

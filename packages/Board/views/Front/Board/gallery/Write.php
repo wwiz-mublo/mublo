@@ -100,10 +100,12 @@ $this->assets->addCss('/serve/package/Board/views/Front/Board/gallery/_assets/cs
         <!-- 내용 (에디터) -->
         <div class="board-write__field">
             <label class="board-write__label">내용</label>
+            <?php // toolbarMobile 은 에디터 어댑터가 data-* 로 넘긴다. 이 옵션을 모르는 에디터는 무시한다. ?>
             <?= editor_html('article_content', $content, [
                 'name' => 'formData[content]',
                 'height' => 400,
                 'toolbar' => 'full',
+                'toolbarMobile' => 'compact',
                 'placeholder' => '내용을 입력하세요',
             ]) ?>
         </div>
