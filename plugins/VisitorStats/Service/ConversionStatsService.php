@@ -4,96 +4,37 @@ declare(strict_types=1);
 namespace Mublo\Plugin\VisitorStats\Service;
 
 use Mublo\Plugin\VisitorStats\Repository\ConversionEventRepository;
-use Mublo\Plugin\VisitorStats\Repository\ConversionRepository;
 use Mublo\Plugin\VisitorStats\Repository\VisitorCampaignRepository;
 use Mublo\Plugin\VisitorStats\Repository\VisitorCampaignKeyRepository;
 
 /**
  * 전환 통계 Service
  *
- * ConversionRepository(form_submissions)와 VisitorCampaignRepository(방문 집계)를
- * 결합하여 캠페인별 전환율, 전환 추이, 폼별 전환 현황 등을 제공한다.
+ * 전환 기록(ConversionEventRepository)과 방문 집계(VisitorCampaignRepository)를
+ * 결합하여 캠페인별 전환율, 전환 추이, 소스별 전환 현황을 제공한다.
  *
- * 폼 접수 밖의 전환(주문·상담·가입 등)은 확장이 ConversionRecordedEvent 로 통보하고
- * ConversionEventRepository 에 쌓인다. 두 저장소는 소유자가 달라 합치지 않고
- * 나란히 보여 준다 — form_submissions 는 AutoForm 것이고, 전환 기록은 이 플러그인 것이다.
+ * 전환은 오직 ConversionRecordedEvent 로만 들어온다 — 주문·상담·가입·폼 접수 모두
+ * 발행 확장이 통보하며, VisitorStats 는 발행자가 누구인지도, 그쪽 테이블이 무엇인지도
+ * 알지 못한다. 갈래는 계약이 실어 온 sourceType/sourceLabel 로만 구분한다.
  */
 class ConversionStatsService
 {
     public function __construct(
-        private ConversionRepository $conversionRepo,
+        private ConversionEventRepository $eventRepo,
         private VisitorCampaignRepository $campaignRepo,
         private VisitorCampaignKeyRepository $campaignKeyRepo,
         private VisitorStatsService $statsService,
-        private ?ConversionEventRepository $eventRepo = null,
     ) {}
-
-    /**
-     * 확장이 통보한 전환 — 소스 타입별·캠페인별 집계
-     *
-     * 폼 전환(form_submissions)과 달리 AutoForm 설치 여부와 무관하게 동작한다.
-     *
-     * @return array{sources: array<int, array<string, mixed>>, campaigns: array<int, array<string, mixed>>, totalConversions: int, totalValue: float}
-     */
-    public function getEventConversions(int $domainId, string $period): array
-    {
-        $empty = ['sources' => [], 'campaigns' => [], 'totalConversions' => 0, 'totalValue' => 0.0];
-
-        if ($this->eventRepo === null) {
-            return $empty;
-        }
-
-        [$startDate, $endDate] = $this->statsService->periodToDates($period);
-
-        $sources = $this->eventRepo->summaryBySourceType($domainId, $startDate, $endDate);
-        $campaigns = $this->eventRepo->summaryByCampaign($domainId, $startDate, $endDate);
-
-        $totalConversions = 0;
-        $totalValue = 0.0;
-        foreach ($sources as $row) {
-            $totalConversions += (int) ($row['conversions'] ?? 0);
-            $totalValue += (float) ($row['value_sum'] ?? 0);
-        }
-
-        return [
-            'sources' => array_map(static fn(array $row): array => [
-                'source_type'  => (string) $row['source_type'],
-                'source_label' => (string) ($row['source_label'] ?? $row['source_type']),
-                'total'        => (int) $row['total'],
-                'conversions'  => (int) $row['conversions'],
-                'value_sum'    => (float) ($row['value_sum'] ?? 0),
-            ], $sources),
-            'campaigns' => array_map(static fn(array $row): array => [
-                'campaign_key' => (string) $row['campaign_key'],
-                'conversions'  => (int) $row['conversions'],
-                'value_sum'    => (float) ($row['value_sum'] ?? 0),
-            ], $campaigns),
-            'totalConversions' => $totalConversions,
-            'totalValue'       => $totalValue,
-        ];
-    }
-
-    /**
-     * AutoForm 테이블 존재 여부
-     */
-    public function isAvailable(): bool
-    {
-        return $this->conversionRepo->hasTable();
-    }
 
     /**
      * 캠페인별 요약 (방문자 + 전환 + 전환율)
      */
     public function getCampaignSummary(int $domainId, string $period): array
     {
-        if (!$this->isAvailable()) {
-            return ['items' => [], 'totalVisitors' => 0, 'totalConversions' => 0, 'totalRate' => 0];
-        }
-
         [$startDate, $endDate] = $this->statsService->periodToDates($period);
 
         $campaignStats = $this->campaignRepo->getByKeys($domainId, $startDate, $endDate);
-        $conversionStats = $this->conversionRepo->getConversionsByCampaign($domainId, $startDate, $endDate);
+        $conversionStats = $this->eventRepo->summaryByCampaign($domainId, $startDate, $endDate);
         $keys = $this->campaignKeyRepo->getAll($domainId);
 
         $keyMap = [];
@@ -123,7 +64,7 @@ class ConversionStatsService
                 'visitors'     => $visitors,
                 'pageviews'    => (int) $row['pageviews'],
                 'conversions'  => $conversions,
-                'rate'         => $visitors > 0 ? round($conversions / $visitors * 100, 1) : 0,
+                'rate'         => $visitors > 0 ? round($conversions / $visitors * 100, 1) : 0.0,
             ];
 
             $totalVisitors += $visitors;
@@ -150,37 +91,30 @@ class ConversionStatsService
             'totalConversions' => $totalConversions,
             'totalRate'        => $totalVisitors > 0
                 ? round($totalConversions / $totalVisitors * 100, 1)
-                : 0,
+                : 0.0,
         ];
     }
 
     /**
-     * 전환 통계 (요약 + 일별 추이 + 폼별 현황)
+     * 전환 통계 (요약 + 일별 추이 + 소스별·캠페인별 현황)
      */
     public function getConversionStats(int $domainId, string $period): array
     {
-        if (!$this->isAvailable()) {
-            return [
-                'total' => 0, 'avgDaily' => 0, 'topCampaign' => null, 'topForm' => null,
-                'dailyTrend' => [], 'byForm' => [], 'byCampaign' => [],
-            ];
-        }
-
         [$startDate, $endDate] = $this->statsService->periodToDates($period);
 
-        $totals = $this->conversionRepo->getTotalConversions($domainId, $startDate, $endDate);
-        $totalSubmissions = $totals['submissions'];
+        $totals = $this->eventRepo->totals($domainId, $startDate, $endDate);
+        $totalRecorded = $totals['total'];
         $totalConversions = $totals['conversions'];
 
-        $dailyRaw = $this->conversionRepo->getDailyConversions($domainId, $startDate, $endDate);
-        $byForm = $this->conversionRepo->getConversionsByForm($domainId, $startDate, $endDate);
-        $byCampaign = $this->conversionRepo->getCampaignConversionDetail($domainId, $startDate, $endDate);
+        $dailyRaw = $this->eventRepo->dailyTrend($domainId, $startDate, $endDate);
+        $bySourceRaw = $this->eventRepo->summaryBySource($domainId, $startDate, $endDate);
+        $byCampaign = $this->eventRepo->summaryByCampaign($domainId, $startDate, $endDate);
 
         // 일별 추이를 빈 날짜 포함하여 채움
         $dailyMap = [];
         foreach ($dailyRaw as $row) {
             $dailyMap[$row['conv_date']] = [
-                'submissions' => (int) $row['submissions'],
+                'recorded'    => (int) $row['total'],
                 'conversions' => (int) $row['conversions'],
             ];
         }
@@ -191,18 +125,26 @@ class ConversionStatsService
         while ($current <= $endDate) {
             $dailyTrend[] = [
                 'date'        => $current,
-                'submissions' => $dailyMap[$current]['submissions'] ?? 0,
+                'recorded'    => $dailyMap[$current]['recorded'] ?? 0,
                 'conversions' => $dailyMap[$current]['conversions'] ?? 0,
             ];
             $current = date('Y-m-d', strtotime($current . ' +1 day'));
         }
 
-        $avgDaily = $days > 0 ? round($totalConversions / $days, 1) : 0;
-        $conversionRate = $totalSubmissions > 0 ? round($totalConversions / $totalSubmissions * 100, 1) : 0;
+        $avgDaily = $days > 0 ? round($totalConversions / $days, 1) : 0.0;
+        $conversionRate = $totalRecorded > 0 ? round($totalConversions / $totalRecorded * 100, 1) : 0.0;
 
-        // 최다 전환 캠페인/폼
+        $bySource = array_map(static fn(array $row): array => [
+            'source_type'  => (string) $row['source_type'],
+            'source_label' => (string) ($row['source_label'] ?? $row['source_type']),
+            'recorded'     => (int) $row['total'],
+            'conversions'  => (int) $row['conversions'],
+            'value_sum'    => (float) ($row['value_sum'] ?? 0),
+        ], $bySourceRaw);
+
+        // 최다 전환 캠페인/소스
         $topCampaign = null;
-        $topForm = null;
+        $topSource = null;
         if (!empty($byCampaign)) {
             $first = $byCampaign[0];
             $topCampaign = [
@@ -210,23 +152,29 @@ class ConversionStatsService
                 'conversions'  => (int) $first['conversions'],
             ];
         }
-        if (!empty($byForm)) {
-            $first = $byForm[0];
-            $topForm = [
-                'form_name'   => $first['form_name'] ?? '(삭제된 폼)',
-                'conversions' => (int) $first['conversions'],
+        if (!empty($bySource)) {
+            $first = $bySource[0];
+            $topSource = [
+                'source_label' => $first['source_label'],
+                'conversions'  => $first['conversions'],
             ];
+        }
+
+        $totalValue = 0.0;
+        foreach ($bySource as $row) {
+            $totalValue += $row['value_sum'];
         }
 
         return [
             'total'          => $totalConversions,
-            'submissions'    => $totalSubmissions,
+            'recorded'       => $totalRecorded,
             'conversionRate' => $conversionRate,
             'avgDaily'       => $avgDaily,
+            'totalValue'     => $totalValue,
             'topCampaign'    => $topCampaign,
-            'topForm'        => $topForm,
+            'topSource'      => $topSource,
             'dailyTrend'     => $dailyTrend,
-            'byForm'         => $byForm,
+            'bySource'       => $bySource,
             'byCampaign'     => $byCampaign,
         ];
     }
@@ -237,32 +185,21 @@ class ConversionStatsService
     public function getConversionList(
         int $domainId,
         string $period,
-        ?int $formId = null,
+        ?string $sourceType = null,
+        ?string $sourceLabel = null,
         ?string $campaignKey = null,
         int $page = 1,
         int $perPage = 20
     ): array {
-        if (!$this->isAvailable()) {
-            return [
-                'items' => [], 'totalItems' => 0, 'currentPage' => $page,
-                'perPage' => $perPage, 'totalPages' => 0, 'forms' => [],
-            ];
-        }
-
         [$startDate, $endDate] = $this->statsService->periodToDates($period);
 
-        $result = $this->conversionRepo->getConversionList(
+        $result = $this->eventRepo->listConversions(
             $domainId, $startDate, $endDate,
-            $formId, $campaignKey,
+            $sourceType, $sourceLabel, $campaignKey,
             $page, $perPage
         );
 
-        // IP 마스킹
-        foreach ($result['items'] as &$item) {
-            $item['ip_address'] = $this->maskIp($item['ip_address'] ?? '');
-        }
-
-        $forms = $this->conversionRepo->getFormList($domainId);
+        $sources = $this->eventRepo->sourceOptions($domainId, $startDate, $endDate);
 
         return [
             'items'       => $result['items'],
@@ -270,60 +207,13 @@ class ConversionStatsService
             'currentPage' => $page,
             'perPage'     => $perPage,
             'totalPages'  => (int) ceil($result['total'] / $perPage),
-            'forms'       => $forms,
-        ];
-    }
-
-    /**
-     * 특정 폼의 캠페인별 전환 + 일별 추이
-     */
-    public function getFormConversions(int $domainId, int $formId, string $period): array
-    {
-        if (!$this->isAvailable()) {
-            return ['total' => 0, 'campaignTotal' => 0, 'campaignRate' => 0, 'byCampaign' => [], 'dailyTrend' => []];
-        }
-
-        [$startDate, $endDate] = $this->statsService->periodToDates($period);
-
-        $byCampaign = $this->conversionRepo->getFormConversionsByCampaign(
-            $domainId, $formId, $startDate, $endDate
-        );
-
-        $dailyRaw = $this->conversionRepo->getFormDailyConversions(
-            $domainId, $formId, $startDate, $endDate
-        );
-
-        $dailyMap = [];
-        foreach ($dailyRaw as $row) {
-            $dailyMap[$row['conv_date']] = (int) $row['conversions'];
-        }
-
-        $dailyTrend = [];
-        $current = $startDate;
-        while ($current <= $endDate) {
-            $dailyTrend[] = [
-                'date'        => $current,
-                'conversions' => $dailyMap[$current] ?? 0,
-            ];
-            $current = date('Y-m-d', strtotime($current . ' +1 day'));
-        }
-
-        $total = 0;
-        $campaignTotal = 0;
-        foreach ($byCampaign as $row) {
-            $cnt = (int) $row['conversions'];
-            $total += $cnt;
-            if ($row['campaign_key'] !== '') {
-                $campaignTotal += $cnt;
-            }
-        }
-
-        return [
-            'total'            => $total,
-            'campaignTotal'    => $campaignTotal,
-            'campaignRate'     => $total > 0 ? round($campaignTotal / $total * 100, 1) : 0,
-            'byCampaign'       => $byCampaign,
-            'dailyTrend'       => $dailyTrend,
+            // has_label 은 "라벨 없이 기록된 갈래"를 필터가 골라낼 수 있게 한다 —
+            // 표시용으로 타입 문자열을 대신 채우고 나면 둘을 구분할 수 없어진다.
+            'sources'     => array_map(static fn(array $row): array => [
+                'source_type'  => (string) $row['source_type'],
+                'source_label' => (string) ($row['source_label'] ?? $row['source_type']),
+                'has_label'    => $row['source_label'] !== null,
+            ], $sources),
         ];
     }
 
@@ -332,21 +222,15 @@ class ConversionStatsService
      */
     public function getDashboardConversions(int $domainId, string $period): array
     {
-        if (!$this->isAvailable()) {
-            return ['conversions' => 0, 'change' => 0.0];
-        }
-
         [$startDate, $endDate] = $this->statsService->periodToDates($period);
 
-        $totals = $this->conversionRepo->getTotalConversions($domainId, $startDate, $endDate);
-        $total = $totals['conversions'];
+        $total = $this->eventRepo->totals($domainId, $startDate, $endDate)['conversions'];
 
         // 전기 비교
         $days = (int) ((strtotime($endDate) - strtotime($startDate)) / 86400) + 1;
         $prevEnd = date('Y-m-d', strtotime($startDate . ' -1 day'));
         $prevStart = date('Y-m-d', strtotime($prevEnd . ' -' . ($days - 1) . ' days'));
-        $prevTotals = $this->conversionRepo->getTotalConversions($domainId, $prevStart, $prevEnd);
-        $prevTotal = $prevTotals['conversions'];
+        $prevTotal = $this->eventRepo->totals($domainId, $prevStart, $prevEnd)['conversions'];
 
         $change = 0.0;
         if ($prevTotal > 0) {
@@ -356,20 +240,9 @@ class ConversionStatsService
         }
 
         return [
-            'conversions' => $total,
-            'change'      => $change,
+            'conversions'     => $total,
+            'prevConversions' => $prevTotal,
+            'change'          => $change,
         ];
-    }
-
-    private function maskIp(string $ip): string
-    {
-        if (str_contains($ip, '.')) {
-            $parts = explode('.', $ip);
-            if (count($parts) === 4) {
-                $parts[3] = 'xxx';
-                return implode('.', $parts);
-            }
-        }
-        return $ip;
     }
 }

@@ -397,56 +397,27 @@ class VisitorStatsController
         }
     }
 
-    /**
-     * 확장이 통보한 전환 집계 (소스 타입별 + 캠페인별)
-     *
-     * form_submissions 를 읽는 apiConversionStats 와 저장소가 다르다.
-     * AutoForm 이 없어도 동작한다.
-     */
-    public function apiEventConversions(array $params, Context $context): JsonResponse
-    {
-        try {
-            $period = (string) ($context->getRequest()->json('period') ?? 'last_7_days');
-            $domainId = $context->getDomainId() ?? 1;
-
-            return JsonResponse::success($this->conversionService->getEventConversions($domainId, $period));
-        } catch (\Throwable $e) {
-            return JsonResponse::error($e->getMessage());
-        }
-    }
-
     public function apiConversions(array $params, Context $context): JsonResponse
     {
         try {
             $request = $context->getRequest();
             $period = (string) ($request->json('period') ?? 'last_7_days');
-            $formId = $request->json('form_id') !== null ? (int) $request->json('form_id') : null;
+            $sourceType = $request->json('source_type');
+            $sourceLabel = $request->json('source_label');
             $campaignKey = $request->json('campaign_key');
             $page = max(1, (int) ($request->json('page') ?? 1));
             $domainId = $context->getDomainId() ?? 1;
 
+            // 빈 문자열은 각각 "직접접속"·"라벨 없이 기록됨"이라는 뜻이라 null 과 구분해 넘긴다.
             return JsonResponse::success(
-                $this->conversionService->getConversionList($domainId, $period, $formId, $campaignKey, $page)
-            );
-        } catch (\Throwable $e) {
-            return JsonResponse::error($e->getMessage());
-        }
-    }
-
-    public function apiFormConversions(array $params, Context $context): JsonResponse
-    {
-        try {
-            $request = $context->getRequest();
-            $period = (string) ($request->json('period') ?? 'last_7_days');
-            $formId = (int) ($request->json('form_id') ?? 0);
-            $domainId = $context->getDomainId() ?? 1;
-
-            if ($formId <= 0) {
-                return JsonResponse::error('폼을 선택해 주세요.');
-            }
-
-            return JsonResponse::success(
-                $this->conversionService->getFormConversions($domainId, $formId, $period)
+                $this->conversionService->getConversionList(
+                    $domainId,
+                    $period,
+                    $sourceType !== null ? (string) $sourceType : null,
+                    $sourceLabel !== null ? (string) $sourceLabel : null,
+                    $campaignKey !== null ? (string) $campaignKey : null,
+                    $page
+                )
             );
         } catch (\Throwable $e) {
             return JsonResponse::error($e->getMessage());

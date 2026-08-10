@@ -160,19 +160,6 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    // 확장이 ConversionRecordedEvent 로 통보한 전환 (폼 접수와 별개 저장소)
-    $r->addRoute('POST', '/admin/api/event-conversions', [
-        'controller' => VisitorStatsController::class,
-        'method'     => 'apiEventConversions',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
-    $r->addRoute('POST', '/admin/api/form-conversions', [
-        'controller' => VisitorStatsController::class,
-        'method'     => 'apiFormConversions',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
     $r->addRoute('POST', '/admin/api/dashboard-conversions', [
         'controller' => VisitorStatsController::class,
         'method'     => 'apiDashboardConversions',

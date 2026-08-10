@@ -42,8 +42,8 @@ class ConversionRecorderSubscriberTest extends TestCase
     {
         $this->subscriber()->onConversionRecorded(new ConversionRecordedEvent(
             domainId: 3,
-            sourceType: ConversionSourceTypes::RENTAL_ORDER,
-            sourceId: 'R-2026-0001',
+            sourceType: ConversionSourceTypes::MEMBER_SIGNUP,
+            sourceId: '2026-0001',
             campaignKey: 'summer2026',
             status: 'success',
             memberId: 42,
@@ -55,14 +55,14 @@ class ConversionRecorderSubscriberTest extends TestCase
 
         $row = $this->recorded[0];
         $this->assertSame(3, $row['domain_id']);
-        $this->assertSame('rental_order', $row['source_type']);
-        $this->assertSame('R-2026-0001', $row['source_id']);
+        $this->assertSame('member_signup', $row['source_type']);
+        $this->assertSame('2026-0001', $row['source_id']);
         $this->assertSame('summer2026', $row['campaign_key']);
         $this->assertSame(42, $row['member_id']);
         $this->assertSame(129000.0, $row['value_amount']);
         $this->assertSame('2026-08-01 10:20:30', $row['occurred_at']);
         // 라벨을 안 실어 보내면 코어 상수의 한글 라벨로 채운다.
-        $this->assertSame('렌탈 주문', $row['source_label']);
+        $this->assertSame('회원가입', $row['source_label']);
     }
 
     /**
@@ -76,10 +76,10 @@ class ConversionRecorderSubscriberTest extends TestCase
             domainId: 1, sourceType: '', sourceId: 'X-1', campaignKey: null
         ));
         $subscriber->onConversionRecorded(new ConversionRecordedEvent(
-            domainId: 1, sourceType: 'rental_order', sourceId: '  ', campaignKey: null
+            domainId: 1, sourceType: 'store_order', sourceId: '  ', campaignKey: null
         ));
         $subscriber->onConversionRecorded(new ConversionRecordedEvent(
-            domainId: 0, sourceType: 'rental_order', sourceId: 'X-1', campaignKey: null
+            domainId: 0, sourceType: 'store_order', sourceId: 'X-1', campaignKey: null
         ));
 
         $this->assertSame([], $this->recorded);
@@ -126,7 +126,7 @@ class ConversionRecorderSubscriberTest extends TestCase
         $repo->method('record')->willThrowException(new \RuntimeException('db down'));
 
         (new ConversionRecorderSubscriber($repo))->onConversionRecorded(new ConversionRecordedEvent(
-            domainId: 1, sourceType: 'rental_order', sourceId: 'R-1', campaignKey: null
+            domainId: 1, sourceType: 'store_order', sourceId: 'S-1', campaignKey: null
         ));
 
         $this->addToAssertionCount(1);
