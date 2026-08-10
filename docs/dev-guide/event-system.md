@@ -584,7 +584,7 @@ MemberRegisteredByUserEvent::class => 'onUserRegistration',  // 사용자 직접
 
 발행 시점:
 - 토큰 검증과 도메인 검증 후
-- 코어 기본 카테고리(`member-fields`, `autoform`)에 해당하지 않을 때
+- 코어 기본 카테고리(`member-fields`)에 해당하지 않을 때
 
 용도:
 - 카테고리별 다운로드 권한 판단을 확장에 위임
