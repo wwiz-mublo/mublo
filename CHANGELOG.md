@@ -10,6 +10,10 @@
 - 에디터: `data-toolbar-mobile`·`data-toolbar-items-mobile`·`data-toolbar-breakpoint`로 모바일 툴바를 따로 구성할 수 있습니다. Board 기본·갤러리 글쓰기는 768px 이하에서 필수 편집 버튼만 표시합니다
 - 에디터: 툴바 프리셋에 `compact`(7개 — 되돌리기·되돌리기 취소·굵게·기울임·밑줄·링크·이미지)를 추가했습니다. 기존 `minimal`(3개)과 `basic`(20개) 사이가 비어 있어 좁은 화면이나 좁은 칸에 쓸 프리셋이 없었습니다. 320px 폭에서 한 줄에 들어가며, `toolbar` 와 `toolbarMobile` 양쪽에서 쓸 수 있으므로 스킨이 버튼 이름을 나열하지 않아도 됩니다
 
+### Removed
+- Core: 알림 템플릿 헬퍼(`NotificationTemplateUiHelper`)에서 폼 확장의 테이블(`forms`·`form_fields`)을 직접 조회하던 `loadActiveFormsWithMeta()`·`buildExampleBodies()`·`buildSamplePreviewValues()` 를 제거했습니다. 코어가 특정 확장의 스키마를 알고 있던 자리이며, 안정 계약(`NotificationTemplateContextInterface`)에 노출된 적이 없고 호출하는 곳도 없었습니다. 확장이 제공하는 알림 변수는 이전부터 `CollectNotificationVariablesEvent` 를 구독해 각 확장이 채워 넣는 경로로 흐르고 있으므로 동작은 달라지지 않습니다. 이 구체 클래스를 직접 참조해 세 메서드를 부르던 코드가 있다면 해당 이벤트 구독으로 옮기세요
+- Core: 보안 파일 다운로드 권한 검증에서 `autoform` 파일 카테고리 하드코딩을 제거했습니다. 코어가 확장의 카테고리 이름을 알던 분기로, 확장용 위임 경로(`SecureFileAccessEvent`)가 이미 있는데도 그 앞을 가로채고 있었습니다. 이벤트를 거쳐도 grant 하는 구독자가 없으면 안전 기본값인 관리자 전용으로 판정하므로 접근 허용 범위는 그대로이며, 거부 시 남는 경고 로그 문구만 달라집니다. 이 카테고리를 관리자 외에게 열려면 `SecureFileAccessEvent` 를 구독해 grant 하세요
+
 ## [1.1.0] - 2026-08-07
 
 ### Added

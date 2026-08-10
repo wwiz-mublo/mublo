@@ -141,9 +141,6 @@ class DownloadController
         switch ($category) {
             case 'member-fields':
                 return $this->checkMemberFieldsAccess($entityId);
-
-            case 'autoform':
-                return $this->checkAdminAccess($entityId, $category, $clientIp);
         }
 
         // Core 미처리 카테고리 → 이벤트로 위임
@@ -190,25 +187,6 @@ class DownloadController
         if ($user && (string) $user['member_id'] === $entityId) {
             return true;
         }
-
-        return false;
-    }
-
-    /**
-     * 관리자 전용 카테고리
-     */
-    private function checkAdminAccess(string $entityId, string $category, string $clientIp): bool
-    {
-        if ($this->authService->isAdmin()) {
-            return true;
-        }
-
-        $this->logger?->warning('[SecureFile] 관리자 전용 접근 시도', [
-            'memberId' => $this->authService->user()['member_id'] ?? null,
-            'category' => $category,
-            'entityId' => $entityId,
-            'ip'       => $clientIp,
-        ]);
 
         return false;
     }

@@ -13,13 +13,19 @@ use Mublo\Infrastructure\Database\Database;
  *
  * 알림 게이트웨이 플러그인의 템플릿 작성 화면에서 공통으로 필요한
  *  - 변수 그룹 수집 (CollectNotificationVariablesEvent)
- *  - 활성 폼 + 필드 + 상태 옵션 (AutoForm)
- *  - 폼/트리거별 예문 본문 휴리스틱 생성
  *  - 도메인 기본 정보 (shop sample)
- *  - 미리보기 샘플 변수값
+ *  - 사업자/고객센터 샘플 변수값
  * 을 한 곳에서 관리해 중복 제거.
  *
- * AutoForm 미설치 환경은 빈 배열로 안전 fallback.
+ * ## 확장의 변수는 이벤트로만 들어온다
+ *
+ * 여기서 다루는 것은 **코어가 소유한 문맥**(도메인 설정·사업자정보)뿐이다.
+ * 확장이 제공하는 변수는 `CollectNotificationVariablesEvent` 를 구독해
+ * 각 확장이 자기 저장소로 채워 넣는다 — 코어가 확장 테이블을 읽지 않는다.
+ *
+ * 과거에는 특정 폼 플러그인의 테이블(`forms`·`form_fields`)을 직접 조회해
+ * 폼 목록·필드·상태 옵션을 얻고 예문 본문까지 생성하는 코드가 있었다.
+ * 확장 스키마가 코어에 새어 든 것이라 걷어냈다(호출부는 처음부터 없었다).
  */
 class NotificationTemplateUiHelper implements NotificationTemplateContextInterface
 {
@@ -78,7 +84,7 @@ class NotificationTemplateUiHelper implements NotificationTemplateContextInterfa
     /**
      * 알림 치환 변수 그룹 수집 (이벤트 기반 + 사업자/사이트 정보).
      *
-     * 각 플러그인·패키지(AutoForm 의 폼별 필드 등) 가 등록한 변수에 더해,
+     * 각 플러그인·패키지(주문 정보, 폼별 필드 등) 가 등록한 변수에 더해,
      * 도메인의 사업자정보(domain_configs.company_config) 와 사이트정보를
      * 자동으로 별도 그룹("사업자/고객센터 정보") 으로 추가.
      *
@@ -88,7 +94,7 @@ class NotificationTemplateUiHelper implements NotificationTemplateContextInterfa
     {
         $groups = [];
 
-        // 1) 이벤트 기반 변수 (AutoForm 등)
+        // 1) 확장이 등록한 변수
         if ($this->eventDispatcher !== null) {
             $event = new CollectNotificationVariablesEvent();
             $this->eventDispatcher->dispatch($event);
@@ -175,214 +181,5 @@ class NotificationTemplateUiHelper implements NotificationTemplateContextInterfa
         if (!empty($cc['privacy_email']))    $samples['개인정보이메일']   = $cc['privacy_email'];
 
         return $samples;
-    }
-
-    /**
-     * 활성 AutoForm 폼 + 필드 + 상태 옵션 조회.
-     * AutoForm 미설치 (테이블 없음) 환경은 빈 배열 반환.
-     *
-     * @return array<int, array{form_id:int, form_name:string, fields:array, status_options:array}>
-     */
-    public function loadActiveFormsWithMeta(int $domainId): array
-    {
-        $forms = [];
-        try {
-            $formRows = $this->db->select(
-                "SELECT form_id, form_name FROM forms
-                 WHERE domain_id = ? AND status = 'active'
-                 ORDER BY form_id ASC",
-                [$domainId]
-            );
-        } catch (\Throwable) {
-            return [];
-        }
-
-        foreach ($formRows as $f) {
-            $formId = (int) ($f['form_id'] ?? 0);
-            $formName = (string) ($f['form_name'] ?? '');
-            if ($formId <= 0 || $formName === '') {
-                continue;
-            }
-
-            $fields = [];
-            $statusOptions = [];
-            try {
-                $fieldRows = $this->db->select(
-                    "SELECT field_name, field_label, field_type, field_options_json, field_config_json
-                     FROM form_fields WHERE domain_id = ? AND form_id = ? AND is_active = 1
-                     ORDER BY sort_order ASC, field_id ASC",
-                    [$domainId, $formId]
-                );
-                foreach ($fieldRows as $fld) {
-                    $fields[] = [
-                        'name'  => (string) ($fld['field_name'] ?? ''),
-                        'label' => (string) ($fld['field_label'] ?? $fld['field_name'] ?? ''),
-                        'type'  => (string) ($fld['field_type'] ?? 'text'),
-                    ];
-
-                    if (($fld['field_type'] ?? '') === 'status') {
-                        $opts = $fld['field_options_json'] ?? null;
-                        if (is_string($opts)) {
-                            $opts = json_decode($opts, true) ?: [];
-                        }
-                        if (is_array($opts)) {
-                            foreach ($opts as $opt) {
-                                $val = (string) ($opt['value'] ?? '');
-                                $lbl = (string) ($opt['label'] ?? $val);
-                                if ($val !== '') {
-                                    $statusOptions[] = ['value' => $val, 'label' => $lbl];
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch (\Throwable) {}
-
-            $forms[] = [
-                'form_id'        => $formId,
-                'form_name'      => $formName,
-                'fields'         => $fields,
-                'status_options' => $statusOptions,
-            ];
-        }
-        return $forms;
-    }
-
-    /**
-     * 폼/트리거별 메시지 본문 예문 자동 생성 (PHP 휴리스틱).
-     *
-     * 키 형식: "form_{$formId}_submit" / "form_{$formId}_status_{$statusValue}"
-     *
-     * @return array<string, string>
-     */
-    public function buildExampleBodies(array $forms): array
-    {
-        $examples = [];
-        foreach ($forms as $form) {
-            $formId = $form['form_id'];
-
-            $examples["form_{$formId}_submit"] = $this->renderSubmitExample($form);
-
-            foreach ($form['status_options'] as $opt) {
-                $key = "form_{$formId}_status_" . $opt['value'];
-                $examples[$key] = $this->renderStatusChangeExample($form, $opt['label']);
-            }
-        }
-        return $examples;
-    }
-
-    /**
-     * 미리보기용 샘플값 — 시스템 변수 + 폼 필드 라벨별 휴리스틱 샘플.
-     *
-     * @return array<string, string>
-     */
-    public function buildSamplePreviewValues(int $domainId, array $forms, array $shopSample): array
-    {
-        $sampleShopVars = [
-            '폼제목'   => '문의 폼',
-            '제출번호' => '12345',
-            '제출일시' => date('Y-m-d H:i'),
-            '쇼핑몰명' => $shopSample['shop_name'] ?: '내 사이트',
-            '도메인'   => $shopSample['domain'] ?: 'example.com',
-        ];
-
-        // 사업자/고객센터 샘플값 머지 (실제 등록된 값)
-        $sampleShopVars = array_merge($sampleShopVars, $this->getCompanySampleValues($domainId));
-
-        $sampleFieldVars = [];
-        foreach ($forms as $f) {
-            foreach (($f['fields'] ?? []) as $fld) {
-                $label = $fld['label'] ?? '';
-                if ($label === '' || isset($sampleFieldVars[$label])) continue;
-                $type = $fld['type'] ?? 'text';
-                $name = strtolower($fld['name'] ?? '');
-                $sampleFieldVars[$label] = match (true) {
-                    $type === 'email' || str_contains($name, 'email') || str_contains($name, 'mail')
-                        => 'sample@test.com',
-                    $type === 'tel' || $type === 'phone'
-                        || str_contains($label, '연락처') || str_contains($label, '전화') || str_contains($label, '휴대')
-                        => '010-1234-5678',
-                    str_contains($label, '이름') || str_contains($label, '성함') || str_contains($label, '닉네임')
-                        => '홍길동',
-                    str_contains($label, '주소')   => '서울시 강남구 테헤란로 123',
-                    str_contains($label, '날짜')   => date('Y-m-d'),
-                    str_contains($label, '시간')   => '14:00',
-                    $type === 'number'              => '1',
-                    $type === 'textarea'            => '문의 내용 예시입니다.',
-                    default                          => '예시값',
-                };
-            }
-        }
-
-        return array_merge($sampleShopVars, $sampleFieldVars);
-    }
-
-    private function renderSubmitExample(array $form): string
-    {
-        $nameLabel = $this->guessNameLabel($form['fields']);
-        $detailLines = $this->buildDetailLines($form['fields']);
-
-        $greeting = $nameLabel
-            ? "#{{$nameLabel}}님, 접수가 완료되었습니다."
-            : "[#{폼제목}] 접수가 완료되었습니다.";
-
-        $body = $greeting;
-        if (!empty($detailLines)) {
-            $body .= "\n\n" . implode("\n", $detailLines);
-        }
-        $body .= "\n\n접수번호: #{제출번호}\n접수일시: #{제출일시}";
-        return $body;
-    }
-
-    private function renderStatusChangeExample(array $form, string $statusLabel): string
-    {
-        $nameLabel = $this->guessNameLabel($form['fields']);
-        $greeting = $nameLabel
-            ? "#{{$nameLabel}}님, 상태가 변경되었습니다."
-            : "접수 상태가 변경되었습니다.";
-
-        return $greeting
-            . "\n\n폼: #{폼제목}"
-            . "\n변경된 상태: {$statusLabel}"
-            . "\n\n접수번호: #{제출번호}";
-    }
-
-    private function guessNameLabel(array $fields): ?string
-    {
-        $namePatterns = ['이름', '성함', '닉네임', '고객명', '신청자'];
-        foreach ($fields as $f) {
-            $label = $f['label'] ?? '';
-            if ($label === '') continue;
-            foreach ($namePatterns as $p) {
-                if (str_contains($label, $p)) {
-                    return $label;
-                }
-            }
-            $name = strtolower($f['name'] ?? '');
-            if (in_array($name, ['name', 'username', 'customer_name'], true)) {
-                return $label;
-            }
-        }
-        return null;
-    }
-
-    private function buildDetailLines(array $fields): array
-    {
-        $lines = [];
-        $skipPatterns = ['이름', '성함', '닉네임', '고객명', '신청자', '상태'];
-        foreach ($fields as $f) {
-            $label = $f['label'] ?? '';
-            $type  = $f['type'] ?? 'text';
-            if ($label === '' || $type === 'status' || $type === 'hidden') continue;
-            $skip = false;
-            foreach ($skipPatterns as $p) {
-                if (str_contains($label, $p)) { $skip = true; break; }
-            }
-            if ($skip) continue;
-
-            $lines[] = "- {$label}: #{{$label}}";
-            if (count($lines) >= 4) break;
-        }
-        return $lines;
     }
 }
