@@ -10,7 +10,14 @@
 - 에디터: `data-toolbar-mobile`·`data-toolbar-items-mobile`·`data-toolbar-breakpoint`로 모바일 툴바를 따로 구성할 수 있습니다. Board 기본·갤러리 글쓰기는 768px 이하에서 필수 편집 버튼만 표시합니다
 - 에디터: 툴바 프리셋에 `compact`(7개 — 되돌리기·되돌리기 취소·굵게·기울임·밑줄·링크·이미지)를 추가했습니다. 기존 `minimal`(3개)과 `basic`(20개) 사이가 비어 있어 좁은 화면이나 좁은 칸에 쓸 프리셋이 없었습니다. 320px 폭에서 한 줄에 들어가며, `toolbar` 와 `toolbarMobile` 양쪽에서 쓸 수 있으므로 스킨이 버튼 이름을 나열하지 않아도 됩니다
 
+### Changed
+- **VisitorStats**: 전환 통계가 폼 확장의 테이블(`form_submissions`·`forms`)을 직접 조회하지 않고, `ConversionRecordedEvent` 로 통보된 전환만 집계합니다. 전환의 갈래는 계약이 실어 온 `sourceType`·`sourceLabel` 로 구분하므로 주문·상담·가입·폼 접수가 한 화면에서 같은 축으로 보입니다. 이에 따라 "폼별 전환"은 "소스별 전환"이 되고, 전환 목록의 필터도 폼 선택에서 소스 선택으로 바뀌며, 목록에서 IP 열이 빠집니다(이벤트 계약에 없는 값입니다). 관리자 API 응답도 함께 바뀌었습니다 — `/api/conversion-stats` 는 `byForm`·`topForm` 대신 `bySource`·`topSource` 를, `submissions` 대신 `recorded` 를 돌려주고, `/api/conversions` 는 요청 필드가 `form_id` → `source_type` 이며 항목이 `submission_id`·`created_at`·`form_name`·`ip_address` 대신 `conversion_id`·`occurred_at`·`source_type`·`source_label`·`status` 를 담습니다
+- Core: 전환 소스 타입(`ConversionSourceTypes`)은 **코어 자신의 개념만** 담습니다. 확장이 발행하는 타입은 그 확장이 소유하며 코어에 등재하지 않습니다. 등재는 강제가 아니어서 어떤 문자열이든 그대로 집계되고, 표시 이름은 발행 쪽이 `ConversionRecordedEvent::$sourceLabel` 로 실어 보내는 값이 우선합니다 — 한 타입 안의 갈래(폼 제목·상품군 등)는 이 값으로 구분하며, 통계 화면도 타입+라벨 단위로 나눠 집계합니다
+
 ### Removed
+- **VisitorStats**: 폼 확장의 테이블을 직접 읽던 `ConversionRepository` 를 제거했습니다. 이 저장소는 `form_submissions` 존재 여부만 확인하고 `forms` 는 확인하지 않은 채 조인했으며, `outcome = 'success'` 같은 컬럼·값 계약까지 남의 스키마에 의존하고 있었습니다. 해당 확장이 없는 설치본에서는 전환 화면이 언제나 0 이었고, 미설치와 실적 0 건이 화면에서 구분되지도 않았습니다
+- Core: `ConversionSourceTypes` 에서 특정 확장의 소스 타입 상수 `RENTAL_ORDER`·`RENTAL_CONSULTATION` 를 제거했습니다. 코어가 확장 목록을 들고 있으면 그 확장이 없는 설치본에서 죽은 이름이 되고, 확장이 이름을 바꿔도 코어는 알 수 없습니다. **저장된 데이터와 집계는 영향을 받지 않습니다** — 와이어 값(`rental_order` 등)은 그대로이고, 표시 이름은 기록 시점에 이미 행에 저장되어 있습니다. 이 상수를 참조하던 확장은 자기 상수를 정의하거나 문자열 리터럴로 바꾸고, 표시 이름은 `ConversionRecordedEvent::$sourceLabel` 로 실어 보내세요
+- **VisitorStats**: 관리자 API `/api/form-conversions` 와 `/api/event-conversions` 를 제거했습니다. 앞의 것은 어떤 화면도 호출하지 않는 경로였고, 뒤의 것은 전환 통계가 하나로 합쳐지면서 `/api/conversion-stats` 응답의 `bySource` 로 흡수되었습니다
 - Core: 알림 템플릿 헬퍼(`NotificationTemplateUiHelper`)에서 폼 확장의 테이블(`forms`·`form_fields`)을 직접 조회하던 `loadActiveFormsWithMeta()`·`buildExampleBodies()`·`buildSamplePreviewValues()` 를 제거했습니다. 코어가 특정 확장의 스키마를 알고 있던 자리이며, 안정 계약(`NotificationTemplateContextInterface`)에 노출된 적이 없고 호출하는 곳도 없었습니다. 확장이 제공하는 알림 변수는 이전부터 `CollectNotificationVariablesEvent` 를 구독해 각 확장이 채워 넣는 경로로 흐르고 있으므로 동작은 달라지지 않습니다. 이 구체 클래스를 직접 참조해 세 메서드를 부르던 코드가 있다면 해당 이벤트 구독으로 옮기세요
 - Core: 보안 파일 다운로드 권한 검증에서 `autoform` 파일 카테고리 하드코딩을 제거했습니다. 코어가 확장의 카테고리 이름을 알던 분기로, 확장용 위임 경로(`SecureFileAccessEvent`)가 이미 있는데도 그 앞을 가로채고 있었습니다. 이벤트를 거쳐도 grant 하는 구독자가 없으면 안전 기본값인 관리자 전용으로 판정하므로 접근 허용 범위는 그대로이며, 거부 시 남는 경고 로그 문구만 달라집니다. 이 카테고리를 관리자 외에게 열려면 `SecureFileAccessEvent` 를 구독해 grant 하세요
 

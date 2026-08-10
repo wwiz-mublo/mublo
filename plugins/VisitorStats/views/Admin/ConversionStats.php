@@ -40,8 +40,8 @@
     <div class="col-6 col-lg-3">
         <div class="card h-100 vs-metric">
             <div class="card-body">
-                <div class="text-muted small">최다 폼</div>
-                <div class="vs-metric-val fs-6" id="cs-top-form">-</div>
+                <div class="text-muted small">최다 소스</div>
+                <div class="vs-metric-val fs-6" id="cs-top-source">-</div>
             </div>
         </div>
     </div>
@@ -73,7 +73,7 @@
                             <tr>
                                 <th>캠페인키</th>
                                 <th class="text-end" style="width:80px;">전환</th>
-                                <th style="width:120px;">최다 폼</th>
+                                <th style="width:120px;">최다 소스</th>
                             </tr>
                         </thead>
                         <tbody id="cs-campaign-body">
@@ -84,38 +84,12 @@
             </div>
         </div>
     </div>
-    <!-- 폼별 전환 -->
+    <!-- 소스별 전환 (주문·상담·폼 접수 등 확장이 통보한 전환) -->
     <div class="col-12 col-lg-6">
         <div class="card h-100">
             <div class="card-hero">
-                <i class="bi bi-ui-radios-grid text-chart-emerald"></i>
-                <span>폼별 전환</span>
-            </div>
-            <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover vs-table mb-0">
-                        <thead>
-                            <tr>
-                                <th>폼 제목</th>
-                                <th class="text-end" style="width:80px;">전환</th>
-                                <th class="text-end" style="width:100px;">캠페인 경유</th>
-                            </tr>
-                        </thead>
-                        <tbody id="cs-form-body">
-                            <tr><td colspan="3" class="text-center text-muted py-3">로딩 중...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-    <!-- 확장이 통보한 전환 (주문·상담·가입 등) — 폼 접수와 저장소가 다르다 -->
-    <div class="col-12" id="cs-event-card" style="display:none;">
-        <div class="card">
-            <div class="card-hero">
                 <i class="bi bi-bag-check text-chart-emerald"></i>
                 <span>소스별 전환</span>
-                <small class="text-muted ms-2">주문·상담 등 확장이 통보한 전환</small>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -123,12 +97,14 @@
                         <thead>
                             <tr>
                                 <th>소스</th>
-                                <th class="text-end" style="width:100px;">전환</th>
-                                <th class="text-end" style="width:100px;">전체 통보</th>
-                                <th class="text-end" style="width:140px;">금액 합계</th>
+                                <th class="text-end" style="width:80px;">전환</th>
+                                <th class="text-end" style="width:90px;">전체 통보</th>
+                                <th class="text-end" style="width:120px;">금액 합계</th>
                             </tr>
                         </thead>
-                        <tbody id="cs-event-body"></tbody>
+                        <tbody id="cs-source-body">
+                            <tr><td colspan="4" class="text-center text-muted py-3">로딩 중...</td></tr>
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -154,9 +130,9 @@ document.addEventListener('DOMContentLoaded', function () {
                     ? tc.campaign_key + ' (' + tc.conversions + '건)'
                     : '-';
 
-                var tf = d.topForm;
-                document.getElementById('cs-top-form').textContent = tf
-                    ? tf.form_name + ' (' + tf.conversions + '건)'
+                var ts = d.topSource;
+                document.getElementById('cs-top-source').textContent = ts
+                    ? ts.source_label + ' (' + ts.conversions + '건)'
                     : '-';
 
                 // 일별 추이 차트
@@ -171,32 +147,22 @@ document.addEventListener('DOMContentLoaded', function () {
                 // 캠페인별 테이블
                 renderCampaigns(d.byCampaign || []);
 
-                // 폼별 테이블
-                renderForms(d.byForm || []);
-            });
-
-        // 확장이 통보한 전환은 저장소가 달라 별도로 조회한다 (AutoForm 미설치여도 동작)
-        MubloRequest.requestJson('/admin/visitor-stats/api/event-conversions', { period: period }, { method: 'POST' })
-            .then(function (res) {
-                renderEventConversions((res.data || {}).sources || []);
+                // 소스별 테이블
+                renderSources(d.bySource || []);
             });
     }
 
-    // 통보된 전환이 하나도 없으면 카드를 감춘다 — 이 기능을 쓰지 않는 사이트에
-    // 빈 표가 상시 노출되지 않게 한다.
-    function renderEventConversions(items) {
-        var card = document.getElementById('cs-event-card');
+    function renderSources(items) {
+        var tbody = document.getElementById('cs-source-body');
         if (!items.length) {
-            card.style.display = 'none';
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted py-3">데이터 없음</td></tr>';
             return;
         }
-
-        card.style.display = '';
-        document.getElementById('cs-event-body').innerHTML = items.map(function (item) {
+        tbody.innerHTML = items.map(function (item) {
             return '<tr>'
                 + '<td>' + MubloRequest.escapeHtml(item.source_label || item.source_type) + '</td>'
                 + '<td class="text-end fw-semibold">' + VisitorChart.formatNum(item.conversions) + '</td>'
-                + '<td class="text-end text-muted">' + VisitorChart.formatNum(item.total) + '</td>'
+                + '<td class="text-end text-muted">' + VisitorChart.formatNum(item.recorded) + '</td>'
                 + '<td class="text-end">' + (item.value_sum ? VisitorChart.formatNum(Math.round(item.value_sum)) : '-') + '</td>'
                 + '</tr>';
         }).join('');
@@ -211,24 +177,10 @@ document.addEventListener('DOMContentLoaded', function () {
         tbody.innerHTML = items.map(function (item) {
             var ck = item.campaign_key || '(직접접속)';
             return '<tr>'
-                + '<td>' + ck + '</td>'
+                + '<td>' + MubloRequest.escapeHtml(ck) + '</td>'
                 + '<td class="text-end">' + VisitorChart.formatNum(parseInt(item.conversions)) + '</td>'
-                + '<td class="text-truncate" style="max-width:120px;">' + (item.top_form || '-') + '</td>'
-                + '</tr>';
-        }).join('');
-    }
-
-    function renderForms(items) {
-        var tbody = document.getElementById('cs-form-body');
-        if (!items.length) {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center text-muted py-3">데이터 없음</td></tr>';
-            return;
-        }
-        tbody.innerHTML = items.map(function (item) {
-            return '<tr>'
-                + '<td>' + (item.form_name || '(삭제된 폼)') + '</td>'
-                + '<td class="text-end">' + VisitorChart.formatNum(parseInt(item.conversions)) + '</td>'
-                + '<td class="text-end">' + VisitorChart.formatNum(parseInt(item.campaign_conversions || 0)) + '</td>'
+                + '<td class="text-truncate" style="max-width:120px;">'
+                + MubloRequest.escapeHtml(item.top_source || '-') + '</td>'
                 + '</tr>';
         }).join('');
     }

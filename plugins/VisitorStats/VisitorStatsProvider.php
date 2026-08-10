@@ -28,7 +28,6 @@ use Mublo\Plugin\VisitorStats\Repository\VisitorCampaignKeyRepository;
 use Mublo\Plugin\VisitorStats\Repository\VisitorCampaignRepository;
 use Mublo\Plugin\VisitorStats\Repository\VisitorReferrerRepository;
 use Mublo\Plugin\VisitorStats\Repository\ConversionEventRepository;
-use Mublo\Plugin\VisitorStats\Repository\ConversionRepository;
 use Mublo\Plugin\VisitorStats\Service\ConversionStatsService;
 use Mublo\Plugin\VisitorStats\Service\VisitorCollector;
 use Mublo\Plugin\VisitorStats\Service\VisitorStatsService;
@@ -68,12 +67,7 @@ class VisitorStatsProvider implements ExtensionProviderInterface, DataResettable
             return new VisitorCampaignRepository($c->get(Database::class));
         });
 
-        // Conversion (form_submissions 기반)
-        $container->singleton(ConversionRepository::class, function ($c) {
-            return new ConversionRepository($c->get(Database::class));
-        });
-
-        // Conversion (ConversionRecordedEvent 기반) — 폼 접수 밖의 전환
+        // Conversion — 전환은 ConversionRecordedEvent 로만 들어온다
         $container->singleton(ConversionEventRepository::class, function ($c) {
             return new ConversionEventRepository($c->get(Database::class));
         });
@@ -105,11 +99,10 @@ class VisitorStatsProvider implements ExtensionProviderInterface, DataResettable
 
         $container->singleton(ConversionStatsService::class, function ($c) {
             return new ConversionStatsService(
-                $c->get(ConversionRepository::class),
+                $c->get(ConversionEventRepository::class),
                 $c->get(VisitorCampaignRepository::class),
                 $c->get(VisitorCampaignKeyRepository::class),
                 $c->get(VisitorStatsService::class),
-                $c->get(ConversionEventRepository::class),
             );
         });
 

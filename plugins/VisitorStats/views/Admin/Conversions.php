@@ -3,8 +3,8 @@
 
 <!-- 필터 -->
 <div class="d-flex justify-content-end mb-3 gap-2 flex-wrap">
-    <select id="cv-form" class="form-select" style="width:auto;">
-        <option value="">전체 폼</option>
+    <select id="cv-source" class="form-select" style="width:auto;">
+        <option value="">전체 소스</option>
     </select>
     <select id="cv-campaign" class="form-select" style="width:auto;">
         <option value="">전체 캠페인</option>
@@ -31,9 +31,9 @@
                     <tr>
                         <th style="width:70px;">#</th>
                         <th>일시</th>
-                        <th>폼 제목</th>
+                        <th>소스</th>
                         <th>캠페인키</th>
-                        <th style="width:120px;">IP</th>
+                        <th style="width:90px;">상태</th>
                     </tr>
                 </thead>
                 <tbody id="cv-body">
@@ -50,7 +50,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var periodEl = document.getElementById('cv-period');
-    var formEl = document.getElementById('cv-form');
+    var sourceEl = document.getElementById('cv-source');
     var campaignEl = document.getElementById('cv-campaign');
     var currentPage = 1;
 
@@ -59,7 +59,12 @@ document.addEventListener('DOMContentLoaded', function () {
         currentPage = page;
 
         var params = { period: periodEl.value, page: page };
-        if (formEl.value) params.form_id = parseInt(formEl.value);
+        if (sourceEl.value) {
+            // 소스는 타입+라벨 한 쌍이 한 갈래다 (같은 타입 안의 폼별·상품군별 구분).
+            var picked = sourceEl.options[sourceEl.selectedIndex];
+            params.source_type = sourceEl.value;
+            params.source_label = picked.dataset.label;
+        }
         if (campaignEl.value === '__direct__') {
             params.campaign_key = '';
         } else if (campaignEl.value) {
@@ -72,13 +77,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 renderTable(d.items || []);
                 renderPagination(d.totalItems || 0, d.currentPage || 1, d.totalPages || 1);
 
-                // 폼 필터 옵션 채우기 (최초 1회)
-                if (formEl.options.length <= 1 && d.forms) {
-                    d.forms.forEach(function (f) {
+                // 소스 필터 옵션 채우기 (최초 1회)
+                if (sourceEl.options.length <= 1 && d.sources) {
+                    d.sources.forEach(function (s) {
                         var opt = document.createElement('option');
-                        opt.value = f.form_id;
-                        opt.textContent = f.form_name;
-                        formEl.appendChild(opt);
+                        opt.value = s.source_type;
+                        // 라벨 없이 기록된 갈래는 빈 문자열로 구분한다 (null 과 다름)
+                        opt.dataset.label = s.has_label ? s.source_label : '';
+                        opt.textContent = s.source_label || s.source_type;
+                        sourceEl.appendChild(opt);
                     });
                 }
             });
@@ -92,13 +99,18 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         tbody.innerHTML = items.map(function (item) {
-            var ck = item.campaign_key || '<span class="text-muted">(직접접속)</span>';
+            var ck = item.campaign_key
+                ? MubloRequest.escapeHtml(item.campaign_key)
+                : '<span class="text-muted">(직접접속)</span>';
+            var isSuccess = item.status === 'success';
+            var badge = '<span class="badge ' + (isSuccess ? 'text-bg-success' : 'text-bg-secondary') + '">'
+                + MubloRequest.escapeHtml(item.status || '-') + '</span>';
             return '<tr>'
-                + '<td>' + item.submission_id + '</td>'
-                + '<td>' + item.created_at + '</td>'
-                + '<td>' + (item.form_name || '<span class="text-muted">-</span>') + '</td>'
+                + '<td>' + item.conversion_id + '</td>'
+                + '<td>' + MubloRequest.escapeHtml(item.occurred_at || '') + '</td>'
+                + '<td>' + MubloRequest.escapeHtml(item.source_label || item.source_type || '-') + '</td>'
                 + '<td>' + ck + '</td>'
-                + '<td>' + (item.ip_address || '-') + '</td>'
+                + '<td>' + badge + '</td>'
                 + '</tr>';
         }).join('');
     }
@@ -130,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     periodEl.addEventListener('change', function () { load(1); });
-    formEl.addEventListener('change', function () { load(1); });
+    sourceEl.addEventListener('change', function () { load(1); });
     campaignEl.addEventListener('change', function () { load(1); });
 
     load(1);
