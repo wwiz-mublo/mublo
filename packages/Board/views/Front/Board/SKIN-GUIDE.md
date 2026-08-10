@@ -301,6 +301,37 @@ MubloRequest.registerCallback('articleSaved', function (response) {
 <?= editor_js() ?>                                   // 문서 끝
 ```
 
+에디터별 옵션도 `editor_html()` 의 옵션으로 넘긴다. 어댑터가 자기 마크업
+규약으로 변환하고, 그 옵션을 모르는 에디터는 무시한다. 스킨에서
+`textarea` 를 직접 조립하거나 현재 에디터 이름으로 분기하지 않는다.
+
+MubloEditor 는 좁은 화면에서 쓸 툴바를 따로 받는다. 프리셋으로 지정하면
+버튼 이름을 알 필요가 없다. 번들 `basic`·`gallery` 스킨은 768px 이하에서
+`compact` 프리셋을 쓴다.
+
+```php
+<?= editor_html('article_content', $content, [
+    'name'          => 'formData[content]',
+    'height'        => 400,
+    'toolbar'       => 'full',
+    'toolbarMobile' => 'compact',
+]) ?>
+```
+
+프리셋은 규모 순으로 `minimal`(3개) · `compact`(7개) · `basic`(20개) ·
+`full`(35개) 네 가지다. `toolbar` 와 `toolbarMobile` 이 같은 목록을 받는다.
+`compact` 는 320px 폭에서 한 줄에 들어가도록 맞춘 구성이다.
+
+적용 우선순위는 다음과 같다.
+
+1. `toolbarItemsMobile` — 프리셋으로 안 될 때만 항목을 쉼표로 직접 지정
+2. `toolbarMobile` — 프리셋
+3. `toolbarItems` 또는 `toolbar` — 데스크톱 설정을 모바일에도 사용
+
+`toolbarBreakpoint` 는 모바일 툴바로 전환할 최대 너비(px)며, 생략하면
+`768` 이다. 기준은 에디터 자신의 너비가 아니라 브라우저 창 너비다. 화면
+회전이나 창 크기 변경 시 본문은 유지하고 툴바만 재구성한다.
+
 ---
 
 ## 5. 뷰 헬퍼

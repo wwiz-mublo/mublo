@@ -367,6 +367,9 @@ const MubloEditor = (() => {
 
     const TOOLBAR_PRESETS = {
         minimal: ['bold', 'italic', 'separator', 'link'],
+        // 좁은 화면이나 좁은 칸(댓글 폼·사이드바)용. 스킨이 버튼 이름을 몰라도 쓸 수 있게 둔다.
+        // 320px 폭에서 한 줄에 들어가는 것이 이 프리셋의 조건이다. 항목을 늘리면 두 줄이 된다.
+        compact: ['undo', 'redo', 'separator', 'bold', 'italic', 'underline', 'separator', 'link', 'image'],
         basic: ['heading', 'fontname', 'fontsize', 'separator', 'bold', 'italic', 'underline', 'separator', 'forecolor', 'backcolor', 'separator', 'alignleft', 'aligncenter', 'alignright', 'separator', 'orderedlist', 'unorderedlist', 'separator', 'link', 'image', 'video', 'table'],
         full: ['source', 'separator', 'undo', 'redo', 'separator', 'heading', 'fontname', 'fontsize', 'separator', 'bold', 'italic', 'underline', 'strikethrough', 'subscript', 'superscript', 'separator', 'forecolor', 'backcolor', 'separator', 'alignleft', 'aligncenter', 'alignright', 'separator', 'orderedlist', 'unorderedlist', 'indent', 'outdent', 'separator', 'link', 'unlink', 'image', 'video', 'table', 'separator', 'blockquote', 'code', 'hr', 'separator', 'removeformat', 'selectall', 'print', 'separator', 'findreplace', 'fullscreen']
     };
@@ -711,6 +714,9 @@ const MubloEditor = (() => {
             // 전역 이벤트 핸들러 참조 (제거용)
             this._handlers = {};
 
+            // data-toolbar-*-mobile 옵션이 있을 때만 생성하는 반응형 툴바 쿼리
+            this._toolbarMedia = null;
+
             this._withLocale(() => this._build());
             this._withLocale(() => this._bindEvents());
             this._initPlugins();
@@ -730,6 +736,10 @@ const MubloEditor = (() => {
             if (el.dataset.uploadUrl) dataOptions.uploadUrl = el.dataset.uploadUrl;
             if (el.dataset.uploadCsrf) dataOptions.uploadCsrfToken = el.dataset.uploadCsrf;
             if (el.dataset.toolbarItems) dataOptions.toolbarItems = el.dataset.toolbarItems.split(',').map(s => s.trim());
+            // 반응형 툴바: 모바일 개별 항목 > 모바일 프리셋 > 데스크톱 설정 순으로 적용한다.
+            if (el.dataset.toolbarMobile) dataOptions.toolbarMobile = el.dataset.toolbarMobile;
+            if (el.dataset.toolbarItemsMobile) dataOptions.toolbarItemsMobile = el.dataset.toolbarItemsMobile.split(',').map(s => s.trim());
+            if (el.dataset.toolbarBreakpoint) dataOptions.toolbarBreakpoint = parseInt(el.dataset.toolbarBreakpoint, 10);
             if (el.dataset.showWordCount !== undefined) dataOptions.showWordCount = el.dataset.showWordCount === 'true';
             if (el.dataset.maxLength) dataOptions.maxLength = parseInt(el.dataset.maxLength, 10);
             if (el.dataset.autosave !== undefined) dataOptions.autosave = el.dataset.autosave === 'true';
@@ -739,6 +749,9 @@ const MubloEditor = (() => {
 
             return {
                 toolbar: 'full',
+                toolbarMobile: null,
+                toolbarItemsMobile: null,
+                toolbarBreakpoint: 768,
                 height: 300,
                 minHeight: 150,
                 placeholder: '',
@@ -916,7 +929,7 @@ const MubloEditor = (() => {
         _buildToolbar() {
             const toolbar = document.createElement('div');
             toolbar.className = EDITOR_TOOLBAR_CLASS;
-            const items = this.options.toolbarItems || TOOLBAR_PRESETS[this.options.toolbar] || TOOLBAR_PRESETS.full;
+            const items = this._resolveToolbarItems();
 
             items.forEach(name => {
                 if (name === 'separator') {
@@ -931,6 +944,92 @@ const MubloEditor = (() => {
                 if (btn) toolbar.appendChild(btn);
             });
             return toolbar;
+        }
+
+        _hasResponsiveToolbar() {
+            return this.options.toolbarMobile !== null
+                || Array.isArray(this.options.toolbarItemsMobile);
+        }
+
+        _getToolbarMedia() {
+            if (!this._hasResponsiveToolbar() || typeof window.matchMedia !== 'function') return null;
+            if (this._toolbarMedia) return this._toolbarMedia;
+
+            const configuredBreakpoint = Number(this.options.toolbarBreakpoint);
+            const breakpoint = Number.isFinite(configuredBreakpoint) && configuredBreakpoint > 0
+                ? configuredBreakpoint
+                : 768;
+            this._toolbarMedia = window.matchMedia(`(max-width: ${breakpoint}px)`);
+            return this._toolbarMedia;
+        }
+
+        _resolveToolbarItems() {
+            // data-toolbar-items 가 있으면 data-toolbar 프리셋보다 우선한다.
+            const desktopItems = Array.isArray(this.options.toolbarItems)
+                ? this.options.toolbarItems
+                : (TOOLBAR_PRESETS[this.options.toolbar] || TOOLBAR_PRESETS.full);
+            const media = this._getToolbarMedia();
+            let items = desktopItems;
+
+            if (media?.matches) {
+                if (Array.isArray(this.options.toolbarItemsMobile)) {
+                    items = this.options.toolbarItemsMobile;
+                } else if (TOOLBAR_PRESETS[this.options.toolbarMobile]) {
+                    items = TOOLBAR_PRESETS[this.options.toolbarMobile];
+                }
+            }
+
+            // 화면 크기가 바뀌어도 활성 모드에서 빠져나올 버튼은 유지한다.
+            items = [...items];
+            if (this.isSourceMode && !items.includes('source')) items.push('source');
+            if (this.isFullscreen && !items.includes('fullscreen')) items.push('fullscreen');
+            return items;
+        }
+
+        _renderResponsiveToolbar() {
+            if (!this.toolbar) return;
+
+            const nextToolbar = this._buildToolbar();
+            this.toolbar.replaceWith(nextToolbar);
+            this.toolbar = nextToolbar;
+
+            if (this.findReplaceBar
+                && this.findReplaceBar.style.display !== 'none'
+                && !this.toolbar.querySelector('[data-cmd="findreplace"]')) {
+                this._closeFindReplace();
+            }
+
+            this._syncToolbarState();
+        }
+
+        _syncToolbarState() {
+            this.toolbar.querySelectorAll('.mublo-editor-btn').forEach(btn => {
+                const cmd = btn.dataset.cmd;
+                btn.disabled = this.options.readonly
+                    || (this.isSourceMode && cmd !== 'source' && cmd !== 'fullscreen');
+            });
+
+            const sourceBtn = this.toolbar.querySelector('[data-cmd="source"]');
+            if (sourceBtn) sourceBtn.classList.toggle('active', this.isSourceMode);
+
+            const fullscreenBtn = this.toolbar.querySelector('[data-cmd="fullscreen"]');
+            if (fullscreenBtn) {
+                fullscreenBtn.innerHTML = this.isFullscreen
+                    ? TOOLBAR_ICONS.fullscreenExit
+                    : TOOLBAR_ICONS.fullscreen;
+            }
+        }
+
+        _bindResponsiveToolbar() {
+            const media = this._getToolbarMedia();
+            if (!media) return;
+
+            this._handlers.toolbarMediaChange = () => this._renderResponsiveToolbar();
+            if (typeof media.addEventListener === 'function') {
+                media.addEventListener('change', this._handlers.toolbarMediaChange);
+            } else if (typeof media.addListener === 'function') {
+                media.addListener(this._handlers.toolbarMediaChange);
+            }
         }
 
         _ensureParagraphSeparator() {
@@ -2102,6 +2201,7 @@ const MubloEditor = (() => {
             const btn = this.toolbar.querySelector('[data-cmd="fullscreen"]');
             if (btn) btn.innerHTML = this.isFullscreen ? TOOLBAR_ICONS.fullscreenExit : TOOLBAR_ICONS.fullscreen;
             this.fire('fullscreenStateChanged', { state: this.isFullscreen });
+            if (this._getToolbarMedia()?.matches) this._renderResponsiveToolbar();
         }
 
         _toggleSource() {
@@ -2131,6 +2231,7 @@ const MubloEditor = (() => {
             if (btn) btn.classList.toggle('active', this.isSourceMode);
             this._onChange();
             this.fire('sourceModeChanged', { state: this.isSourceMode });
+            if (this._getToolbarMedia()?.matches) this._renderResponsiveToolbar();
         }
 
         _formatHTML(html) {
@@ -2448,6 +2549,8 @@ const MubloEditor = (() => {
                 if (this.toolbar && !this.toolbar.contains(e.target)) this._closeAllDropdowns();
             };
             document.addEventListener('click', this._handlers.docClick);
+
+            this._bindResponsiveToolbar();
 
             if (this.options.autofocus) setTimeout(() => this.focus(), 100);
             this._updateWordCount();
@@ -3935,6 +4038,13 @@ const MubloEditor = (() => {
             if (this._handlers.docMouseup) document.removeEventListener('mouseup', this._handlers.docMouseup);
             if (this._handlers.docCloseTableMenu) document.removeEventListener('mousedown', this._handlers.docCloseTableMenu);
             if (this._handlers.docScrollCloseMenu) document.removeEventListener('scroll', this._handlers.docScrollCloseMenu, true);
+            if (this._toolbarMedia && this._handlers.toolbarMediaChange) {
+                if (typeof this._toolbarMedia.removeEventListener === 'function') {
+                    this._toolbarMedia.removeEventListener('change', this._handlers.toolbarMediaChange);
+                } else if (typeof this._toolbarMedia.removeListener === 'function') {
+                    this._toolbarMedia.removeListener(this._handlers.toolbarMediaChange);
+                }
+            }
 
             // 부유 UI 정리
             this._hideTableContextMenu();

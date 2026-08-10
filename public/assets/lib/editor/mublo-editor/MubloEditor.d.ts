@@ -199,11 +199,20 @@ interface Editor {
 }
 
 interface EditorOptions {
-    /** 툴바 프리셋: 'minimal', 'basic', 'full' */
-    toolbar?: 'minimal' | 'basic' | 'full';
+    /** 툴바 프리셋: 'minimal'(3개), 'compact'(7개), 'basic'(20개), 'full'(35개) */
+    toolbar?: 'minimal' | 'compact' | 'basic' | 'full';
 
     /** 커스텀 툴바 아이템 */
     toolbarItems?: string[];
+
+    /** 모바일 툴바 프리셋 (data-toolbar-mobile) */
+    toolbarMobile?: 'minimal' | 'compact' | 'basic' | 'full' | null;
+
+    /** 모바일 커스텀 툴바 아이템 (data-toolbar-items-mobile) */
+    toolbarItemsMobile?: string[] | null;
+
+    /** 모바일 툴바 전환 기준 (data-toolbar-breakpoint, px, 기본 768) */
+    toolbarBreakpoint?: number;
 
     /** 에디터 높이 (px) */
     height?: number;
