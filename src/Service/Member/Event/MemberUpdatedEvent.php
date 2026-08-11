@@ -30,7 +30,7 @@ class MemberUpdatedEvent extends AbstractEvent
     protected string $source;
 
     /**
-     * @param Member $member 수정된 회원 엔티티
+     * @param Member $member 수정 '전' 회원 엔티티 (getMember() 주의사항 참조)
      * @param array $changes 변경된 필드 목록 (필드명 배열)
      * @param string $source 수정 출처 (self|admin|api)
      */
@@ -42,7 +42,13 @@ class MemberUpdatedEvent extends AbstractEvent
     }
 
     /**
-     * 수정된 회원 엔티티 반환
+     * 회원 엔티티 반환 — 수정 '전' 스냅샷이다
+     *
+     * 발행자는 수정 시작 시점에 읽어둔 엔티티를 그대로 실어 보내며, DB 갱신 후에도
+     * 이 객체를 다시 읽지 않는다. 따라서 변경된 컬럼(등급·상태 등)은 옛 값을 담고 있다.
+     * 변경 '후' 값이 필요하면 Contract\Member\MemberQueryInterface 로 재조회할 것.
+     *
+     * 무엇이 바뀌었는지는 getChanges() / isLevelChanged() 등으로 판단한다.
      */
     public function getMember(): Member
     {

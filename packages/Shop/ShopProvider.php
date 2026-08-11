@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Packages\Shop;
 
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
+use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Contract\Block\BlockContentCacheInvalidatorInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
@@ -1023,7 +1024,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         // 회원가입/등급변경 시 쿠폰 자동 발행
         $eventDispatcher->addSubscriber(new CouponAutoIssueSubscriber(
             $container->get(CouponService::class),
-            $container->get(CouponRepository::class)
+            $container->get(CouponRepository::class),
+            $container->get(MemberQueryInterface::class)
         ));
 
         // 도메인 생성 시 프론트 메뉴 + 기본 배송 템플릿 자동 시딩
