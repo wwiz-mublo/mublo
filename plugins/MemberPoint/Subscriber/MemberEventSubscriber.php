@@ -35,8 +35,7 @@ class MemberEventSubscriber implements EventSubscriberInterface
     {
         if (!$event->isLevelChanged()) return;
 
-        // 이벤트의 Member = 업데이트 전 상태
-        $oldLevelValue = $event->getMember()->getLevelValue();
+        $oldLevelValue = $event->getPreviousLevelValue();
         $memberId      = $event->getMemberId();
         $domainId      = $event->getDomainId();
 

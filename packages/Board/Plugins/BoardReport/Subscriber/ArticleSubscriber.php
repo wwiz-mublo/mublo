@@ -96,8 +96,7 @@ class ArticleSubscriber implements EventSubscriberInterface
 
     public function onArticleDeleted(ArticleDeletedEvent $event): void
     {
-        $article = $event->getArticle();
-        $this->service->cleanupArticle($article->getDomainId(), $article->getArticleId());
+        $this->service->cleanupArticle($event->getDomainId(), $event->getArticleId());
     }
 
     /**

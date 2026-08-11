@@ -46,6 +46,8 @@ class TestOwnershipBoundaryTest extends TestCase
             => '경로 정규화 도구의 입력 문자열 — 실파일을 열지 않는다',
         'tests/Unit/Tools/ExtensionApiBaselineTest.php'
             => '베이스라인 도구의 입력 문자열 — 실파일을 열지 않는다',
+        'tests/Unit/Tools/EventPayloadScannerTest.php'
+            => '이벤트 payload 도구의 입력 문자열 — 실파일을 열지 않는다',
         'tests/Unit/Core/Extension/NestedPluginTest.php'
             => '검증 대상은 코어 NestedPlugin, Board/BoardReport 는 실물 픽스처',
         'tests/Unit/Service/Extension/ExtensionLifecycleMigrationTest.php'
