@@ -22,10 +22,6 @@ class MemberWithdrawnEvent extends AbstractEvent
     ) {
     }
 
-    public function getMember(): Member
-    {
-        return $this->member;
-    }
 
     public function getMemberId(): int
     {

@@ -17,7 +17,7 @@ use Mublo\Entity\Block\BlockPage;
  * ```php
  * public function onBlockPageRendering(BlockPageRenderingEvent $event): void
  * {
- *     $config = $event->getPage()->getPageConfig();
+ *     $config = $event->getPageConfig();
  *     if (empty($config['show_company_info'])) return;
  *
  *     $event->addHtml('<footer class="page-company-info">...</footer>', 900);
@@ -34,9 +34,34 @@ class BlockPageRenderingEvent extends AbstractEvent
         private readonly Context $context
     ) {}
 
-    public function getPage(): BlockPage
+    public function getPageId(): int
     {
-        return $this->page;
+        return $this->page->getPageId();
+    }
+
+    public function getDomainId(): int
+    {
+        return $this->page->getDomainId();
+    }
+
+    public function getPageCode(): string
+    {
+        return $this->page->getPageCode();
+    }
+
+    public function getPageTitle(): string
+    {
+        return $this->page->getPageTitle();
+    }
+
+    /**
+     * 페이지별 설정 — 어느 블록을 어떻게 붙일지 판단하는 데 쓴다
+     *
+     * @return array 페이지 config 배열
+     */
+    public function getPageConfig(): array
+    {
+        return $this->page->getPageConfig();
     }
 
     public function getContext(): Context

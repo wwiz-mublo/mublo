@@ -42,22 +42,6 @@ class MemberUpdatedEvent extends AbstractEvent
     }
 
     /**
-     * 회원 엔티티 반환 — 수정 '전' 스냅샷이다
-     *
-     * 발행자는 수정 시작 시점에 읽어둔 엔티티를 그대로 실어 보내며, DB 갱신 후에도
-     * 이 객체를 다시 읽지 않는다. 따라서 변경된 컬럼(등급·상태 등)은 옛 값을 담고 있다.
-     *
-     * @deprecated 다음 major 에서 제거한다. Member 는 코어 내부 엔티티이므로 확장이 여기에
-     *             묶이면 코어 리팩터링이 확장을 깨뜨린다. 확장은 이 이벤트의 스칼라 게터
-     *             (getMemberId()·getDomainId()·getPreviousLevelValue()) 를 쓰고, 그 밖의
-     *             변경 '후' 값이 필요하면 Contract\Member\MemberQueryInterface 로 재조회할 것.
-     */
-    public function getMember(): Member
-    {
-        return $this->member;
-    }
-
-    /**
      * 회원 ID 반환 (편의 메서드)
      */
     public function getMemberId(): int

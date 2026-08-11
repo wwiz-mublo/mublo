@@ -80,7 +80,7 @@ final class EventPayloadScanner
             return [];
         }
 
-        $ownPrefixes = self::ownPublicPrefixes($relativePath);
+        $ownPrefix = self::ownedTypePrefix($relativePath);
         $leaks = [];
 
         foreach (self::publicReturnTypes($source) as $method) {
@@ -94,10 +94,8 @@ final class EventPayloadScanner
                     continue;
                 }
 
-                foreach ($ownPrefixes as $prefix) {
-                    if (str_starts_with($type, $prefix)) {
-                        continue 2;
-                    }
+                if ($ownPrefix !== null && str_starts_with($type, $ownPrefix)) {
+                    continue;
                 }
 
                 $leaks[] = [
@@ -212,25 +210,34 @@ final class EventPayloadScanner
     }
 
     /**
-     * 이 이벤트를 소유한 확장이 자기 공개 표면으로 인정받는 프리픽스.
+     * 이 이벤트를 소유한 확장 자신의 네임스페이스.
      *
-     * Package 종속 Plugin 이 부모에게서 쓸 수 있는 표면과 같은 기준이다
-     * (docs/compatibility-policy.md — Contract\Extension\*, Api\DTO\*, Event\*).
+     * 확장이 자기 이벤트로 자기 타입을 넘기는 것은 내부 응집이다 — 소유자가 같으므로 한쪽을
+     * 리팩터링하면 다른 쪽도 같이 고친다. 이 검사가 막으려는 것은 **소유자가 다른** 타입이
+     * 이벤트를 타고 나가는 경우다(코어 → 확장, 부모 Package → 종속 Plugin).
      *
-     * @return list<string>
+     * 종속 Plugin 이 부모 Package 의 타입을 자기 이벤트로 흘리는 것은 여전히 누출이므로,
+     * 중첩 경로는 부모가 아니라 자기 네임스페이스를 소유 범위로 삼는다.
+     *
+     * 소유한 타입을 확장 밖 소비자가 이벤트에서 꺼내 쓰는 것은 소비자 쪽 문제다 —
+     * check-extension-api.php 의 게터 체이닝 검사가 담당한다.
      */
-    public static function ownPublicPrefixes(string $relativePath): array
+    public static function ownedTypePrefix(string $relativePath): ?string
     {
         $path = str_replace('\\', '/', $relativePath);
 
-        if (preg_match('#^packages/([^/]+)/#', $path, $parts) === 1) {
-            $own = "Mublo\\Packages\\{$parts[1]}\\";
-        } elseif (preg_match('#^plugins/([^/]+)/#', $path, $parts) === 1) {
-            $own = "Mublo\\Plugin\\{$parts[1]}\\";
-        } else {
-            return [];
+        if (preg_match('#^packages/([^/]+)/Plugins/([^/]+)/#', $path, $parts) === 1) {
+            return "Mublo\\Packages\\{$parts[1]}\\Plugins\\{$parts[2]}\\";
         }
 
-        return [$own . 'Contract\\Extension\\', $own . 'Api\\DTO\\', $own . 'Event\\'];
+        if (preg_match('#^packages/([^/]+)/#', $path, $parts) === 1) {
+            return "Mublo\\Packages\\{$parts[1]}\\";
+        }
+
+        if (preg_match('#^plugins/([^/]+)/#', $path, $parts) === 1) {
+            return "Mublo\\Plugin\\{$parts[1]}\\";
+        }
+
+        return null;
     }
 }

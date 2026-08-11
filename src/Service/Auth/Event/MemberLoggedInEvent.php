@@ -23,10 +23,6 @@ class MemberLoggedInEvent extends AbstractEvent
         $this->member = $member;
     }
 
-    public function getMember(): Member
-    {
-        return $this->member;
-    }
 
     public function getMemberId(): int
     {

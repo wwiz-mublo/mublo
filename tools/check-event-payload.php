@@ -65,6 +65,16 @@ if ($rewriteBaseline) {
         array_values($current)
     );
 
+    // 0건이면 파일을 남기지 않는다. 빈 목록을 두면 다음 사람이 그것을 허용 목록으로 읽는다.
+    if ($items === []) {
+        if (is_file($baselineFile)) {
+            unlink($baselineFile);
+        }
+
+        echo '위반이 0건이라 baseline 파일을 두지 않습니다.' . PHP_EOL;
+        exit(0);
+    }
+
     $payload = [
         '_comment' => '이벤트가 반환하는 기존 비안정 타입. 새 occurrence 추가 금지 — 이벤트는 스칼라나 Contract DTO 로 payload 를 넘긴다.',
         '_generated_by' => 'php tools/check-event-payload.php --baseline',
@@ -83,9 +93,8 @@ if ($rewriteBaseline) {
 $baseline = [];
 $baselineErrors = [];
 
-if (!is_file($baselineFile)) {
-    $baselineErrors[] = 'baseline 파일이 없습니다: tools/event-payload-baseline.json';
-} else {
+// baseline 파일이 없으면 동결분 0건이다 — 현재 상태이며 오류가 아니다.
+if (is_file($baselineFile)) {
     $decoded = null;
     try {
         $decoded = json_decode((string) file_get_contents($baselineFile), true, 512, JSON_THROW_ON_ERROR);

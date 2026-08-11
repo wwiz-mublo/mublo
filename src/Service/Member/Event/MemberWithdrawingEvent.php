@@ -24,10 +24,6 @@ class MemberWithdrawingEvent extends AbstractEvent implements FailFastEventInter
     ) {
     }
 
-    public function getMember(): Member
-    {
-        return $this->member;
-    }
 
     public function getMemberId(): int
     {

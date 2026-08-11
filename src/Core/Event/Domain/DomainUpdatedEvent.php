@@ -31,11 +31,16 @@ class DomainUpdatedEvent extends AbstractEvent
     }
 
     /**
-     * 수정 전 도메인 엔티티 (변경 전 스냅샷)
+     * 수정 전 도메인 값 (변경 전 스냅샷)
+     *
+     * 갱신이 끝난 뒤라 옛 값은 다시 조회할 수 없다. 무엇이 바뀌었는지 비교하려는
+     * 구독자를 위해 남긴다 — 새 값은 getUpdatedFields() 가 담는다.
+     *
+     * @return array 도메인 행의 컬럼 배열
      */
-    public function getPreviousDomain(): Domain
+    public function getPreviousValues(): array
     {
-        return $this->previousDomain;
+        return $this->previousDomain->toArray();
     }
 
     /**
