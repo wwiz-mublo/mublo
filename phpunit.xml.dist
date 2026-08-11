@@ -16,18 +16,30 @@
             <directory>tests/Integration</directory>
         </testsuite>
         <!--
-            기본 패키지 Board·Shop 을 기본 실행에 넣는다. 배선 스모크와
-            PHPStan strict 게이트도 같은 기준이다.
+            패키지도 플러그인과 같이 와일드카드로 수집한다. 무엇이 도는지는 이 파일이
+            아니라 그 저장소에 실제로 있는 패키지가 정한다.
 
-            여기 없는 패키지는 경로를 직접 지정해 돌린다.
-                php vendor/bin/phpunit packages/<이름>/tests
+            목록을 여기 두지 않는 이유: 패키지 구성은 저장소마다 다른 것이 정상인데
+            이 파일은 그렇지 않다. 한쪽에만 있는 경로를 여기 적으면 다른 쪽 CI 가
+            그 경로 때문에 깨진다. 변동분은 이미 갈라져도 되는 파일(composer.json)에만 둔다.
+
+            새 패키지는 tests 의 Tests\<이름>\ 네임스페이스를 composer.json 의
+            autoload-dev 에 등록한다. 테스트 파일 자체는 PHPUnit 이 직접 include 하므로
+            등록하지 않아도 수집은 되지만, 패키지 자체 TestCase 를 상속하는 순간 깨진다.
+
+            PHPStan strict 범위(phpstan-strict.neon.dist)는 이것과 별개다. 그쪽은
+            "정리가 끝난 범위만 level 3" 이라는 opt-in 이라 개별 지정이 맞다.
+
+            중첩 Plugin 은 부모 Package 가 편입된 시점에 함께 편입된 것이라 별도
+            결정이 없다 — 부모와 같은 규칙으로 수집한다.
         -->
         <testsuite name="Packages">
-            <directory>packages/Board/tests/Unit</directory>
-            <directory>packages/Board/tests/Integration</directory>
-            <directory>packages/Shop/tests/Unit</directory>
-            <directory>packages/Shop/tests/Feature</directory>
-            <directory>packages/Shop/tests/Integration</directory>
+            <directory>packages/*/tests/Unit</directory>
+            <directory>packages/*/tests/Feature</directory>
+            <directory>packages/*/tests/Integration</directory>
+            <directory>packages/*/Plugins/*/tests/Unit</directory>
+            <directory>packages/*/Plugins/*/tests/Feature</directory>
+            <directory>packages/*/Plugins/*/tests/Integration</directory>
         </testsuite>
         <!--
             플러그인은 와일드카드로 수집한다. 신규 플러그인을 추가할 때
