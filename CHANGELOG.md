@@ -12,6 +12,7 @@
 
 - Core: `MemberUpdatedEvent` 계열에 `getPreviousLevelValue()` 를 추가했습니다. 수정 **전** 등급값을 스칼라로 돌려주므로, 옛 등급을 알기 위해 회원 엔티티를 관통할 필요가 없습니다. 변경 **후** 등급은 이 이벤트가 들고 있지 않습니다 — 커밋된 값이므로 `MemberQueryInterface` 로 조회하세요
 - Core: `DomainDeletedEvent::getDomainName()`·`DomainUpdatedEvent::getPreviousValues()`·`BlockPageRenderingEvent` 의 페이지 접근자(`getPageId()`·`getDomainId()`·`getPageCode()`·`getPageTitle()`·`getPageConfig()`)를 추가했습니다. 아래에서 제거한 엔티티 게터의 자리를 대신합니다 — 삭제된 도메인 이름과 수정 전 도메인 값은 이벤트가 지나가면 다시 조회할 수 없으므로 그대로 실어 보냅니다
+- 개발 도구: `phpunit.xml.dist` 가 패키지 테스트도 플러그인처럼 와일드카드로 수집합니다. 패키지를 추가할 때 이 파일을 고칠 필요가 없고, 중첩 Plugin(`packages/*/Plugins/*/tests`)의 테스트도 함께 수집됩니다 — 이전에는 어느 경로에도 걸리지 않아 작성해도 실행되지 않았습니다. 새 패키지는 `composer.json` 의 autoload-dev 에 `Tests\<이름>\` 만 등록하면 됩니다
 - 개발 도구: 이벤트 payload 누출을 양쪽에서 검사합니다. 이벤트는 정책상 안정 API 라 기존 확장 API 검사가 무조건 통과시켰고, 그 탓에 이벤트가 반환하는 내부 타입을 타고 들어가는 의존(`$event->getMember()->getLevelValue()`)은 `use` 문이 없어 검사에 보이지 않았습니다. 생산자 쪽은 새 검사(`composer check-event-payload`)가 이벤트 정의를 보고, 소비자 쪽은 `check-extension-api` 가 이벤트 클래스를 찾아가 게터의 반환 타입을 읽어 판정합니다. 확장이 자기 소유 타입을 자기 이벤트로 주고받는 것은 내부 응집이므로 양쪽 모두 통과시킵니다. 두 검사 모두 동결분 0건에서 시작합니다
 
 ### Changed
