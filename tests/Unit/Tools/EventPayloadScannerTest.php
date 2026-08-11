@@ -129,17 +129,30 @@ final class EventPayloadScannerTest extends TestCase
         $this->assertSame([], $leaks);
     }
 
-    public function testItAllowsOwnPackagePublicSurfaceButNotOwnEntities(): void
+    public function testItAllowsAPackageEventToReturnItsOwnTypes(): void
     {
+        // 소유자가 같으면 한쪽을 리팩터링할 때 다른 쪽도 같이 고친다 — 내부 응집이다.
+        // 확장 밖 소비자가 이것을 꺼내 쓰는지는 EventConsumerScanner 가 본다.
         $source = $this->eventSource(
-            "use Mublo\Packages\Board\Api\DTO\ArticleSummary;\nuse Mublo\Packages\Board\Entity\BoardArticle;",
-            "public function getSummary(): ArticleSummary { return \$this->summary; }\n"
-            . '    public function getArticle(): BoardArticle { return $this->article; }',
+            'use Mublo\Packages\Board\Entity\BoardArticle;',
+            'public function getArticle(): BoardArticle { return $this->article; }',
             'Mublo\Packages\Board\Event'
         );
 
+        $this->assertSame([], EventPayloadScanner::leaksIn('packages/Board/Event/SampleEvent.php', $source));
+    }
+
+    public function testItReportsAParentPackageTypeLeakedByANestedPluginEvent(): void
+    {
+        // 종속 Plugin 에게 부모 Package 의 엔티티는 남의 타입이다.
+        $source = $this->eventSource(
+            'use Mublo\Packages\Board\Entity\BoardArticle;',
+            'public function getArticle(): BoardArticle { return $this->article; }',
+            'Mublo\Packages\Board\Plugins\BoardReport\Event'
+        );
+
         $symbols = array_column(
-            EventPayloadScanner::leaksIn('packages/Board/Event/SampleEvent.php', $source),
+            EventPayloadScanner::leaksIn('packages/Board/Plugins/BoardReport/Event/SampleEvent.php', $source),
             'symbol'
         );
 
@@ -166,22 +179,26 @@ final class EventPayloadScannerTest extends TestCase
         $this->assertSame($expected, $leaks[0]['line']);
     }
 
-    public function testItDerivesOwnPublicSurfaceFromPath(): void
+    public function testItDerivesTheOwningNamespaceFromPath(): void
     {
-        $this->assertSame([
-            'Mublo\Packages\Shop\Contract\Extension\\',
-            'Mublo\Packages\Shop\Api\DTO\\',
-            'Mublo\Packages\Shop\Event\\',
-        ], EventPayloadScanner::ownPublicPrefixes('packages/Shop/Event/SampleEvent.php'));
+        $this->assertSame(
+            'Mublo\Packages\Shop\\',
+            EventPayloadScanner::ownedTypePrefix('packages/Shop/Event/SampleEvent.php')
+        );
 
-        $this->assertSame([
-            'Mublo\Plugin\Qna\Contract\Extension\\',
-            'Mublo\Plugin\Qna\Api\DTO\\',
-            'Mublo\Plugin\Qna\Event\\',
-        ], EventPayloadScanner::ownPublicPrefixes('plugins/Qna/Event/SampleEvent.php'));
+        $this->assertSame(
+            'Mublo\Plugin\Qna\\',
+            EventPayloadScanner::ownedTypePrefix('plugins/Qna/Event/SampleEvent.php')
+        );
 
-        // 코어에는 "자기 확장 표면" 이라는 개념이 없다
-        $this->assertSame([], EventPayloadScanner::ownPublicPrefixes('src/Core/Event/SampleEvent.php'));
+        // 중첩 Plugin 의 소유 범위는 부모가 아니라 자기 자신이다
+        $this->assertSame(
+            'Mublo\Packages\Board\Plugins\BoardReport\\',
+            EventPayloadScanner::ownedTypePrefix('packages/Board/Plugins/BoardReport/Event/SampleEvent.php')
+        );
+
+        // 코어에는 "자기 확장" 이라는 개념이 없다
+        $this->assertNull(EventPayloadScanner::ownedTypePrefix('src/Core/Event/SampleEvent.php'));
     }
 
     private function eventSource(string $uses, string $body, string $namespace = 'Mublo\Core\Event'): string

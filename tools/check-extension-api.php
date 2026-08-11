@@ -2,7 +2,10 @@
 require_once __DIR__ . '/ExtensionApiPath.php';
 require_once __DIR__ . '/ExtensionApiBaseline.php';
 require_once __DIR__ . '/ExtensionApiSurface.php';
+require_once __DIR__ . '/EventPayloadScanner.php';
+require_once __DIR__ . '/EventConsumerScanner.php';
 
+use Mublo\Tools\EventConsumerScanner;
 use Mublo\Tools\ExtensionApiBaseline;
 use Mublo\Tools\ExtensionApiPath;
 use Mublo\Tools\ExtensionApiSurface;
@@ -154,6 +157,10 @@ function collectImports(array $scanDirs, string $basePath): array
 
 $imports = collectImports($scanDirs, $basePath);
 
+// 이벤트 게터의 반환값을 타고 남의 타입에 닿는 경우. import 검사로는 보이지 않는 형태라
+// 이벤트 클래스를 찾아가 반환 타입을 읽어 판정한다. 결과는 아래 위반 목록에 합류한다.
+$chainViolations = EventConsumerScanner::scan($scanDirs, [$basePath . '/src', ...$scanDirs], $basePath);
+
 $violations = [];
 foreach ($imports as $import) {
     $stable = $import['symbol'] !== 'deprecated:MemberIdentity::getUserId'
@@ -171,6 +178,10 @@ foreach ($imports as $import) {
     if (!$stable) {
         $violations[] = $import;
     }
+}
+
+foreach ($chainViolations as $chainViolation) {
+    $violations[] = $chainViolation;
 }
 
 // occurrence는 파일 + 심볼 조합이다. 라인 이동은 새 위반으로 보지 않는다.

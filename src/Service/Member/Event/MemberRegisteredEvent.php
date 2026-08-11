@@ -42,13 +42,6 @@ class MemberRegisteredEvent extends AbstractEvent
         $this->source = $source;
     }
 
-    /**
-     * 등록된 회원 엔티티 반환
-     */
-    public function getMember(): Member
-    {
-        return $this->member;
-    }
 
     /**
      * 회원 ID 반환 (편의 메서드)

@@ -29,10 +29,13 @@ class DomainDeletedEvent extends AbstractEvent
     }
 
     /**
-     * 삭제된 도메인 엔티티 (삭제 전 스냅샷)
+     * 삭제된 도메인 이름 (삭제 전 스냅샷)
+     *
+     * 행이 이미 사라졌으므로 이 값은 다시 조회할 수 없다. 호스트 기준으로 캐시·파일을
+     * 정리하는 구독자를 위해 남긴다.
      */
-    public function getDeletedDomain(): Domain
+    public function getDomainName(): string
     {
-        return $this->deletedDomain;
+        return $this->deletedDomain->getDomain();
     }
 }
