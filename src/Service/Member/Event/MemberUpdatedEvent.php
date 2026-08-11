@@ -46,9 +46,11 @@ class MemberUpdatedEvent extends AbstractEvent
      *
      * 발행자는 수정 시작 시점에 읽어둔 엔티티를 그대로 실어 보내며, DB 갱신 후에도
      * 이 객체를 다시 읽지 않는다. 따라서 변경된 컬럼(등급·상태 등)은 옛 값을 담고 있다.
-     * 변경 '후' 값이 필요하면 Contract\Member\MemberQueryInterface 로 재조회할 것.
      *
-     * 무엇이 바뀌었는지는 getChanges() / isLevelChanged() 등으로 판단한다.
+     * @deprecated 다음 major 에서 제거한다. Member 는 코어 내부 엔티티이므로 확장이 여기에
+     *             묶이면 코어 리팩터링이 확장을 깨뜨린다. 확장은 이 이벤트의 스칼라 게터
+     *             (getMemberId()·getDomainId()·getPreviousLevelValue()) 를 쓰고, 그 밖의
+     *             변경 '후' 값이 필요하면 Contract\Member\MemberQueryInterface 로 재조회할 것.
      */
     public function getMember(): Member
     {
@@ -69,6 +71,18 @@ class MemberUpdatedEvent extends AbstractEvent
     public function getDomainId(): int
     {
         return $this->member->getDomainId();
+    }
+
+    /**
+     * 수정 '전' 등급값 반환
+     *
+     * 등급이 실제로 바뀌었는지는 isLevelChanged() 로 확인한다 — 바뀌지 않았다면 이 값이
+     * 곧 현재 등급이다. 변경 '후' 등급은 이 이벤트에 없다. 커밋된 값이므로
+     * Contract\Member\MemberQueryInterface 로 조회하는 것이 정확하다.
+     */
+    public function getPreviousLevelValue(): int
+    {
+        return $this->member->getLevelValue();
     }
 
     /**

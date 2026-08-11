@@ -10,9 +10,15 @@
 - 에디터: `data-toolbar-mobile`·`data-toolbar-items-mobile`·`data-toolbar-breakpoint`로 모바일 툴바를 따로 구성할 수 있습니다. Board 기본·갤러리 글쓰기는 768px 이하에서 필수 편집 버튼만 표시합니다
 - 에디터: 툴바 프리셋에 `compact`(7개 — 되돌리기·되돌리기 취소·굵게·기울임·밑줄·링크·이미지)를 추가했습니다. 기존 `minimal`(3개)과 `basic`(20개) 사이가 비어 있어 좁은 화면이나 좁은 칸에 쓸 프리셋이 없었습니다. 320px 폭에서 한 줄에 들어가며, `toolbar` 와 `toolbarMobile` 양쪽에서 쓸 수 있으므로 스킨이 버튼 이름을 나열하지 않아도 됩니다
 
+- Core: `MemberUpdatedEvent` 계열에 `getPreviousLevelValue()` 를 추가했습니다. 수정 **전** 등급값을 스칼라로 돌려주므로, 옛 등급을 알기 위해 회원 엔티티를 관통할 필요가 없습니다. 변경 **후** 등급은 이 이벤트가 들고 있지 않습니다 — 커밋된 값이므로 `MemberQueryInterface` 로 조회하세요
+- 개발 도구: 이벤트 payload 누출 검사(`composer check-event-payload`)를 추가하고 CI 에 넣었습니다. 이벤트는 정책상 안정 API 라 기존 확장 API 검사가 무조건 통과시키는데, 그 탓에 이벤트가 반환하는 내부 타입을 타고 들어가는 의존(`$event->getMember()->getLevelValue()`)은 `use` 문이 없어 검사에 보이지 않았습니다. 이제 이벤트 게터가 안정 API 밖의 타입을 반환하면 실패합니다. 기존 노출 32건은 `tools/event-payload-baseline.json` 에 동결되어 있으며 새 항목은 추가할 수 없습니다
+
 ### Changed
 - **VisitorStats**: 전환 통계가 폼 확장의 테이블(`form_submissions`·`forms`)을 직접 조회하지 않고, `ConversionRecordedEvent` 로 통보된 전환만 집계합니다. 전환의 갈래는 계약이 실어 온 `sourceType`·`sourceLabel` 로 구분하므로 주문·상담·가입·폼 접수가 한 화면에서 같은 축으로 보입니다. 이에 따라 "폼별 전환"은 "소스별 전환"이 되고, 전환 목록의 필터도 폼 선택에서 소스 선택으로 바뀌며, 목록에서 IP 열이 빠집니다(이벤트 계약에 없는 값입니다). 관리자 API 응답도 함께 바뀌었습니다 — `/api/conversion-stats` 는 `byForm`·`topForm` 대신 `bySource`·`topSource` 를, `submissions` 대신 `recorded` 를 돌려주고, `/api/conversions` 는 요청 필드가 `form_id` → `source_type` 이며 항목이 `submission_id`·`created_at`·`form_name`·`ip_address` 대신 `conversion_id`·`occurred_at`·`source_type`·`source_label`·`status` 를 담습니다
 - Core: 전환 소스 타입(`ConversionSourceTypes`)은 **코어 자신의 개념만** 담습니다. 확장이 발행하는 타입은 그 확장이 소유하며 코어에 등재하지 않습니다. 등재는 강제가 아니어서 어떤 문자열이든 그대로 집계되고, 표시 이름은 발행 쪽이 `ConversionRecordedEvent::$sourceLabel` 로 실어 보내는 값이 우선합니다 — 한 타입 안의 갈래(폼 제목·상품군 등)는 이 값으로 구분하며, 통계 화면도 타입+라벨 단위로 나눠 집계합니다
+
+### Deprecated
+- Core: `MemberUpdatedEvent::getMember()` (및 `MemberUpdatedBySelfEvent`·`MemberUpdatedByAdminEvent`) — 다음 major 에서 제거합니다. `Member` 는 코어 내부 엔티티여서 확장이 여기에 묶이면 코어 리팩터링이 확장을 깨뜨립니다. 이 이벤트의 스칼라 게터(`getMemberId()`·`getDomainId()`·`getPreviousLevelValue()`)를 쓰고, 그 밖의 값이 필요하면 `MemberQueryInterface` 로 조회하세요. **이 엔티티는 수정 전 스냅샷입니다** — 변경 후 값을 읽는 용도로 쓰고 있었다면 그 코드는 이미 잘못 동작하고 있습니다
 
 ### Removed
 - **VisitorStats**: 폼 확장의 테이블을 직접 읽던 `ConversionRepository` 를 제거했습니다. 이 저장소는 `form_submissions` 존재 여부만 확인하고 `forms` 는 확인하지 않은 채 조인했으며, `outcome = 'success'` 같은 컬럼·값 계약까지 남의 스키마에 의존하고 있었습니다. 해당 확장이 없는 설치본에서는 전환 화면이 언제나 0 이었고, 미설치와 실적 0 건이 화면에서 구분되지도 않았습니다

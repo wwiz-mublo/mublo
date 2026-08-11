@@ -136,10 +136,18 @@ jobs:
         run: composer check-di
 
       # 확장이 안정 API 밖의 코어 심볼에 새로 의존하는 것을 막는다.
-      # 기존 의존은 tools/extension-api-baseline.json 에 동결되어 있다.
+      # 기존 의존은 tools/extension-api-baseline/*.json 에 동결되어 있다.
       - name: Run extension API check
         if: needs.changes.outputs.code == 'true'
         run: composer check-extension-api
+
+      # 위 검사는 확장이 "적은 이름"만 본다. 이벤트가 엔티티를 반환하면 확장은 use 문 없이
+      # 그 엔티티에 묶이고, 그 의존은 위 검사에 보이지 않는다. 생산자 쪽에서 막는다 —
+      # 안정 이벤트의 게터가 안정 API 밖의 타입을 반환하면 실패한다.
+      # 기존 노출은 tools/event-payload-baseline.json 에 동결되어 있다.
+      - name: Run event payload check
+        if: needs.changes.outputs.code == 'true'
+        run: composer check-event-payload
 
       # 런타임 파일이 declare(strict_types=1) 을 빠뜨리지 않게 한다.
       # strict_types 는 "선언한 파일에서 나가는 호출"에만 적용되므로,
