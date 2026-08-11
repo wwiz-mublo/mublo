@@ -21,6 +21,9 @@
 - Core: 알림 템플릿 헬퍼(`NotificationTemplateUiHelper`)에서 폼 확장의 테이블(`forms`·`form_fields`)을 직접 조회하던 `loadActiveFormsWithMeta()`·`buildExampleBodies()`·`buildSamplePreviewValues()` 를 제거했습니다. 코어가 특정 확장의 스키마를 알고 있던 자리이며, 안정 계약(`NotificationTemplateContextInterface`)에 노출된 적이 없고 호출하는 곳도 없었습니다. 확장이 제공하는 알림 변수는 이전부터 `CollectNotificationVariablesEvent` 를 구독해 각 확장이 채워 넣는 경로로 흐르고 있으므로 동작은 달라지지 않습니다. 이 구체 클래스를 직접 참조해 세 메서드를 부르던 코드가 있다면 해당 이벤트 구독으로 옮기세요
 - Core: 보안 파일 다운로드 권한 검증에서 `autoform` 파일 카테고리 하드코딩을 제거했습니다. 코어가 확장의 카테고리 이름을 알던 분기로, 확장용 위임 경로(`SecureFileAccessEvent`)가 이미 있는데도 그 앞을 가로채고 있었습니다. 이벤트를 거쳐도 grant 하는 구독자가 없으면 안전 기본값인 관리자 전용으로 판정하므로 접근 허용 범위는 그대로이며, 거부 시 남는 경고 로그 문구만 달라집니다. 이 카테고리를 관리자 외에게 열려면 `SecureFileAccessEvent` 를 구독해 grant 하세요
 
+### Fixed
+- **Shop**: 등급 변경 쿠폰(`LEVEL` 트리거)이 변경 **전** 등급으로 발행 대상을 판정하던 문제를 수정했습니다. 허용 등급을 지정한 정책에서 승급한 회원은 쿠폰을 받지 못하고, 강등된 회원이 오히려 상위 등급 쿠폰을 받았습니다. 이제 커밋된 등급을 `MemberQueryInterface` 로 재조회해 판정합니다. 허용 등급을 비워 둔 정책은 이전에도 등급을 보지 않았으므로 영향이 없습니다
+
 ## [1.1.0] - 2026-08-07
 
 ### Added
