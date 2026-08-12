@@ -15,8 +15,10 @@ use Mublo\Packages\AiAssistant\Repository\IdempotencyRepository;
 use Mublo\Packages\AiAssistant\Repository\InteractionRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingPolicyRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingDispatchRepository;
+use Mublo\Packages\AiAssistant\Repository\MessageScheduleRepository;
 use Mublo\Packages\AiAssistant\Repository\SyncRecordRepository;
 use Mublo\Packages\AiAssistant\Repository\SaasRepository;
+use Mublo\Packages\AiAssistant\Repository\SubscriptionRepository;
 use Mublo\Packages\AiAssistant\Security\WorkerSecurity;
 use Mublo\Packages\AiAssistant\Security\WorkerResultVerifierInterface;
 use Mublo\Packages\AiAssistant\Service\AuthService;
@@ -28,8 +30,10 @@ use Mublo\Packages\AiAssistant\Service\DeviceService;
 use Mublo\Packages\AiAssistant\Service\IdempotencyService;
 use Mublo\Packages\AiAssistant\Service\InteractionService;
 use Mublo\Packages\AiAssistant\Service\MessagingPolicyService;
+use Mublo\Packages\AiAssistant\Service\MessageScheduleService;
 use Mublo\Packages\AiAssistant\Service\WorkerJobService;
 use Mublo\Packages\AiAssistant\Service\SaasService;
+use Mublo\Packages\AiAssistant\Service\SubscriptionService;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -44,9 +48,11 @@ abstract class DatabaseTestCase extends TestCase
     protected InteractionService $interactions;
     protected AnalysisService $analysis;
     protected MessagingPolicyService $messaging;
+    protected MessageScheduleService $schedules;
     protected WorkerJobService $workerJobs;
     protected AnalysisWorkerService $analysisWorker;
     protected SaasService $saas;
+    protected SubscriptionService $subscription;
     protected string $workerSigningSecret = 'test-worker-signing-secret-at-least-32-bytes';
 
     protected function setUp(): void
@@ -86,15 +92,23 @@ abstract class DatabaseTestCase extends TestCase
             }
         };
         $directory = new CustomerDirectoryRepository($this->db, $codec);
+        $this->subscription = new SubscriptionService(new SubscriptionRepository($this->db));
         $this->sync = new CustomerSyncService(
             new SyncRecordRepository($this->db, $codec),
             $deviceRepository,
-            $directory
+            $directory,
+            $this->subscription
         );
         $this->messaging = new MessagingPolicyService(
             $directory,
             new MessagingPolicyRepository($this->db),
             new MessagingDispatchRepository($this->db)
+        );
+        $this->schedules = new MessageScheduleService(
+            new MessageScheduleRepository($this->db),
+            $deviceRepository,
+            $directory,
+            $codec
         );
         $this->idempotency = new IdempotencyService(new IdempotencyRepository($this->db));
         $publicKey = <<<'PEM'
@@ -115,6 +129,11 @@ PEM;
             $this->workerSigningSecret
         );
         $workerV2Security = new class implements WorkerResultVerifierInterface {
+            public function readiness(): array
+            {
+                return ['ready' => true, 'signing_key_id' => 'test-signing-key-v1'];
+            }
+
             public function verifyResultSignature(array $result): void
             {
                 if (($result['worker_signature'] ?? null) !== 'test-ed25519-signature') {
@@ -150,6 +169,14 @@ PEM;
             'CREATE TABLE ai_companies (
                 company_id TEXT PRIMARY KEY, framework_domain_id INTEGER UNIQUE, slug TEXT UNIQUE,
                 name TEXT, status TEXT, created_at TEXT, updated_at TEXT
+            )',
+            'CREATE TABLE ai_subscription_plans (
+                plan_code TEXT PRIMARY KEY, name TEXT, monthly_price_krw INTEGER,
+                customer_limit INTEGER, status TEXT, created_at TEXT, updated_at TEXT
+            )',
+            'CREATE TABLE ai_company_subscriptions (
+                company_id TEXT PRIMARY KEY, plan_code TEXT, status TEXT,
+                started_at TEXT, created_at TEXT, updated_at TEXT
             )',
             'CREATE TABLE ai_company_users (
                 user_id TEXT PRIMARY KEY, company_id TEXT, login_id TEXT, nickname TEXT,
@@ -236,6 +263,20 @@ PEM;
                 UNIQUE(company_id, campaign_id, customer_phone_id, content_version),
                 UNIQUE(company_id, preflight_id, customer_phone_id)
             )',
+            'CREATE TABLE ai_message_schedules (
+                schedule_id TEXT PRIMARY KEY, company_id TEXT, device_id TEXT, customer_id TEXT,
+                customer_phone_id TEXT, dispatch_id TEXT UNIQUE, revision INTEGER, channel TEXT,
+                message_class TEXT, content_ciphertext TEXT, fallback_ciphertext TEXT, status TEXT,
+                device_status TEXT, scheduled_at TEXT, expires_at TEXT, dispatched_at TEXT,
+                completed_at TEXT, last_error TEXT, created_at TEXT, updated_at TEXT
+            )',
+            'CREATE TABLE ai_schedule_dispatch_outbox (
+                outbox_id INTEGER PRIMARY KEY AUTOINCREMENT, schedule_id TEXT, company_id TEXT,
+                device_id TEXT, dispatch_id TEXT UNIQUE, revision INTEGER, status TEXT,
+                attempt_count INTEGER, available_at TEXT, lease_token_hash TEXT,
+                lease_expires_at TEXT, fcm_message_id TEXT, last_error TEXT,
+                acknowledged_at TEXT, created_at TEXT, updated_at TEXT
+            )',
             'CREATE TABLE ai_interactions (
                 interaction_id TEXT PRIMARY KEY, company_id TEXT, customer_id TEXT, customer_phone_id TEXT, device_id TEXT,
                 channel TEXT, occurred_at TEXT, envelope_json TEXT, envelope_sha256 TEXT,
@@ -295,6 +336,11 @@ PEM;
         foreach ($statements as $statement) {
             $pdo->exec($statement);
         }
+        $pdo->exec(
+            "INSERT INTO ai_subscription_plans
+                (plan_code, name, monthly_price_krw, customer_limit, status, created_at, updated_at)
+             VALUES ('BASIC', 'Basic', NULL, 30, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"
+        );
     }
 
     /** @return array<string, mixed> */
@@ -313,7 +359,8 @@ PEM;
             'name' => 'Galaxy test',
             'platform' => 'ANDROID',
             'public_key' => str_repeat('A', 96),
-            'capabilities' => ['CALL_COLLECT', 'SMS_COLLECT'],
+            'fcm_token' => 'test-fcm-token-' . $installationId,
+            'capabilities' => ['CALL_COLLECT', 'SMS_COLLECT', 'SMS_SEND', 'KAKAO_SEND'],
             'app_version' => '0.1.0',
             'os_version' => '14',
         ]);

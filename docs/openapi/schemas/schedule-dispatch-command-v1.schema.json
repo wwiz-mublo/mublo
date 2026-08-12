@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/schedule-dispatch-command-v1.schema.json",
+  "title": "Mublo device schedule dispatch command v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "action", "schedule_id", "dispatch_id", "dispatch_no", "revision"],
+  "properties": {
+    "schema_version": { "const": "schedule-dispatch-command-v1" },
+    "action": { "const": "dispatch_schedule" },
+    "schedule_id": { "type": "string", "format": "uuid" },
+    "dispatch_id": { "type": "string", "format": "uuid" },
+    "dispatch_no": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "revision": { "type": "string", "pattern": "^[1-9][0-9]*$" }
+  }
+}

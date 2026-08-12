@@ -10,6 +10,7 @@
 - `POST /mublo-ai/api/v1/auth/logout`
 - `POST /mublo-ai/api/v1/devices/enroll`
 - `POST /mublo-ai/api/v1/devices/{device_id}/heartbeat`
+- `GET /mublo-ai/api/v1/subscription`
 - `GET /mublo-ai/api/v1/sync/customers/bootstrap`
 - `GET /mublo-ai/api/v1/sync/customers/delta`
 - `POST /mublo-ai/api/v1/sync/customers/push`
@@ -26,6 +27,10 @@
 - `POST /mublo-ai/api/v1/messaging/campaigns/{campaign_id}/recipient-snapshot`
 - `PUT /mublo-ai/api/v1/messaging/campaigns/{campaign_id}/dispatch-policy`
 - `POST /mublo-ai/api/v1/messaging/campaigns/{campaign_id}/dispatch-preflight`
+- `POST /mublo-ai/api/v1/schedules`
+- `POST /mublo-ai/api/v1/schedules/{schedule_id}/cancel`
+- `GET /mublo-ai/api/v1/schedules/{schedule_id}/dispatch`
+- `POST /mublo-ai/api/v1/schedules/{schedule_id}/status`
 - `GET /mublo-ai/api/v1/customers/{customer_id}/analysis`
 - `POST /mublo-ai/api/v1/worker/jobs/lease`
 - `POST /mublo-ai/api/v1/worker/heartbeat`
@@ -56,6 +61,7 @@ Android 로그인 화면에 회사 입력란이 없으므로 현재 앱 배포�
 - 고객 payload 전체는 Framework `SensitiveValueCodecInterface`로 암호화해 저장한다.
 - 전화번호 검색 token은 서버 codec이 생성한다.
 - customer/customer_phone sync는 조회·발송 검증용 암호화 directory projection도 갱신한다.
+- 회사 생성 시 Basic 요금제가 자동 배정되며 관리 고객은 최대 30명이다. API가 고객 projection 직전에 한도를 다시 검증한다.
 - interaction은 같은 회사·고객에 등록된 활성 `customer_phone_id` 없이는 저장하지 않는다.
 - 고객 관리상태와 광고성 메시지 permission·철회·suppression은 별도 gate다.
 - suppression은 단조 증가 version의 append-only 이벤트 원장과 현재 projection을 함께 갱신한다.
@@ -76,6 +82,19 @@ Android 로그인 화면에 회사 입력란이 없으므로 현재 앱 배포�
 - `MUBLO_AI_WORKER_SIGNING_PUBLIC_KEY`: v2 결과 검증용 Ed25519 raw public key의 base64
 
 private key는 Python Worker 장비에만 둔다. HMAC 설정은 v1 호환용이며 신규 고객 단위 분석은 Ed25519 서명을 사용한다. 키가 설정되지 않으면 transcript 업로드 준비 endpoint는 `503`을 반환한다.
+
+## 예약 FCM 발신
+
+예약 발신은 분석 Worker에 넣지 않는다. API DB의 `ai_schedule_dispatch_outbox`를 서버 cron이 짧게 처리하고,
+Android는 FCM을 받을 때만 최신 명령을 조회한다. FCM data에는 본문·전화번호를 넣지 않는다.
+
+```text
+* * * * * php /absolute/path/tools/dispatch-ai-schedules.php 50
+```
+
+`MUBLO_AI_FIREBASE_SERVICE_ACCOUNT_FILE`에는 웹 루트 밖의 Firebase 서비스 계정 JSON 절대경로를 설정한다.
+FCM 성공 후에도 단말 ACK 전까지만 최대 5회 제한 재전송하며, `WAITING_DEVICE_READY` ACK도 수신 확인으로
+간주해 잠긴 단말을 반복해서 깨우지 않는다. Python Worker는 transcript 복호화·분석만 담당한다.
 
 ## 검사
 

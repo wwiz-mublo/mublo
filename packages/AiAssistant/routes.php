@@ -3,17 +3,34 @@ declare(strict_types=1);
 
 use Mublo\Core\App\PrefixedRouteCollector;
 use Mublo\Core\Middleware\AdminMiddleware;
+use Mublo\Core\Middleware\AuthMiddleware;
 use Mublo\Packages\AiAssistant\Controller\Admin\DashboardController;
+use Mublo\Packages\AiAssistant\Controller\Admin\OperationsController;
+use Mublo\Packages\AiAssistant\Controller\Admin\PlatformController;
+use Mublo\Packages\AiAssistant\Controller\Front\WorkspaceController;
 use Mublo\Packages\AiAssistant\Controller\Api\AuthController;
 use Mublo\Packages\AiAssistant\Controller\Api\AnalysisController;
 use Mublo\Packages\AiAssistant\Controller\Api\CustomerSyncController;
 use Mublo\Packages\AiAssistant\Controller\Api\DeviceController;
 use Mublo\Packages\AiAssistant\Controller\Api\InteractionController;
 use Mublo\Packages\AiAssistant\Controller\Api\MessagingPolicyController;
+use Mublo\Packages\AiAssistant\Controller\Api\ScheduleController;
+use Mublo\Packages\AiAssistant\Controller\Api\SubscriptionController;
 use Mublo\Packages\AiAssistant\Controller\Api\WorkerController;
 
 return function (PrefixedRouteCollector $r): void {
     $prefix = '/mublo-ai/api/v1';
+
+    $r->addRawRoute('GET', '/workspace', [
+        'controller' => WorkspaceController::class,
+        'method' => 'index',
+        'middleware' => [AuthMiddleware::class],
+    ]);
+    $r->addRawRoute('GET', '/workspace/{section}', [
+        'controller' => WorkspaceController::class,
+        'method' => 'index',
+        'middleware' => [AuthMiddleware::class],
+    ]);
 
     $r->addRawRoute('GET', '/admin/mublo-ai', [
         'controller' => DashboardController::class,
@@ -22,6 +39,21 @@ return function (PrefixedRouteCollector $r): void {
     ]);
     $r->addRawRoute('GET', '/admin/mublo-ai/dashboard', [
         'controller' => DashboardController::class,
+        'method' => 'index',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRawRoute('GET', '/admin/mublo-ai/platform', [
+        'controller' => PlatformController::class,
+        'method' => 'index',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRawRoute('GET', '/admin/mublo-ai/platform/{section}', [
+        'controller' => PlatformController::class,
+        'method' => 'index',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRawRoute('GET', '/admin/mublo-ai/{section}', [
+        'controller' => OperationsController::class,
         'method' => 'index',
         'middleware' => [AdminMiddleware::class],
     ]);
@@ -49,6 +81,10 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRawRoute('POST', $prefix . '/devices/{device_id}/heartbeat', [
         'controller' => DeviceController::class,
         'method' => 'heartbeat',
+    ]);
+    $r->addRawRoute('GET', $prefix . '/subscription', [
+        'controller' => SubscriptionController::class,
+        'method' => 'current',
     ]);
     $r->addRawRoute('GET', $prefix . '/sync/customers/bootstrap', [
         'controller' => CustomerSyncController::class,
@@ -114,6 +150,22 @@ return function (PrefixedRouteCollector $r): void {
         'controller' => MessagingPolicyController::class,
         'method' => 'dispatchPreflight',
     ]);
+    $r->addRawRoute('POST', $prefix . '/schedules', [
+        'controller' => ScheduleController::class,
+        'method' => 'create',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/schedules/{schedule_id}/cancel', [
+        'controller' => ScheduleController::class,
+        'method' => 'cancel',
+    ]);
+    $r->addRawRoute('GET', $prefix . '/schedules/{schedule_id}/dispatch', [
+        'controller' => ScheduleController::class,
+        'method' => 'dispatch',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/schedules/{schedule_id}/status', [
+        'controller' => ScheduleController::class,
+        'method' => 'acknowledge',
+    ]);
     $r->addRawRoute('GET', $prefix . '/customers/{customer_id}/analysis', [
         'controller' => InteractionController::class,
         'method' => 'latestAnalysis',
@@ -121,6 +173,10 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRawRoute('POST', $prefix . '/worker/jobs/lease', [
         'controller' => WorkerController::class,
         'method' => 'lease',
+    ]);
+    $r->addRawRoute('POST', $prefix . '/worker/preflight', [
+        'controller' => WorkerController::class,
+        'method' => 'preflight',
     ]);
     $r->addRawRoute('POST', $prefix . '/worker/heartbeat', [
         'controller' => WorkerController::class,

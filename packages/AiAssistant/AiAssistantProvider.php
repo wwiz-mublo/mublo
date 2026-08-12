@@ -8,6 +8,7 @@ use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Core\Container\DependencyContainer;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Extension\ExtensionProviderInterface;
+use Mublo\Core\Event\EventDispatcher;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Packages\AiAssistant\Controller\Api\AuthController;
 use Mublo\Packages\AiAssistant\Controller\Api\AnalysisController;
@@ -15,8 +16,13 @@ use Mublo\Packages\AiAssistant\Controller\Api\CustomerSyncController;
 use Mublo\Packages\AiAssistant\Controller\Api\DeviceController;
 use Mublo\Packages\AiAssistant\Controller\Api\InteractionController;
 use Mublo\Packages\AiAssistant\Controller\Api\MessagingPolicyController;
+use Mublo\Packages\AiAssistant\Controller\Api\ScheduleController;
+use Mublo\Packages\AiAssistant\Controller\Api\SubscriptionController;
 use Mublo\Packages\AiAssistant\Controller\Api\WorkerController;
 use Mublo\Packages\AiAssistant\Controller\Admin\DashboardController;
+use Mublo\Packages\AiAssistant\Controller\Admin\OperationsController;
+use Mublo\Packages\AiAssistant\Controller\Admin\PlatformController;
+use Mublo\Packages\AiAssistant\Controller\Front\WorkspaceController;
 use Mublo\Packages\AiAssistant\Repository\AuthTokenRepository;
 use Mublo\Packages\AiAssistant\Repository\AnalysisRepository;
 use Mublo\Packages\AiAssistant\Repository\AnalysisWorkerRepository;
@@ -27,8 +33,10 @@ use Mublo\Packages\AiAssistant\Repository\IdempotencyRepository;
 use Mublo\Packages\AiAssistant\Repository\InteractionRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingPolicyRepository;
 use Mublo\Packages\AiAssistant\Repository\MessagingDispatchRepository;
+use Mublo\Packages\AiAssistant\Repository\MessageScheduleRepository;
 use Mublo\Packages\AiAssistant\Repository\SyncRecordRepository;
 use Mublo\Packages\AiAssistant\Repository\SaasRepository;
+use Mublo\Packages\AiAssistant\Repository\SubscriptionRepository;
 use Mublo\Packages\AiAssistant\Security\WorkerSecurity;
 use Mublo\Packages\AiAssistant\Security\WorkerV2Security;
 use Mublo\Packages\AiAssistant\Service\AuthService;
@@ -40,8 +48,10 @@ use Mublo\Packages\AiAssistant\Service\DeviceService;
 use Mublo\Packages\AiAssistant\Service\IdempotencyService;
 use Mublo\Packages\AiAssistant\Service\InteractionService;
 use Mublo\Packages\AiAssistant\Service\MessagingPolicyService;
+use Mublo\Packages\AiAssistant\Service\MessageScheduleService;
 use Mublo\Packages\AiAssistant\Service\WorkerJobService;
 use Mublo\Packages\AiAssistant\Service\SaasService;
+use Mublo\Packages\AiAssistant\Service\SubscriptionService;
 
 final class AiAssistantProvider implements ExtensionProviderInterface
 {
@@ -77,6 +87,9 @@ final class AiAssistantProvider implements ExtensionProviderInterface
         $container->singleton(MessagingDispatchRepository::class, fn(DependencyContainer $c) =>
             new MessagingDispatchRepository($c->get(Database::class))
         );
+        $container->singleton(MessageScheduleRepository::class, fn(DependencyContainer $c) =>
+            new MessageScheduleRepository($c->get(Database::class))
+        );
         $container->singleton(InteractionRepository::class, fn(DependencyContainer $c) =>
             new InteractionRepository($c->get(Database::class))
         );
@@ -88,6 +101,9 @@ final class AiAssistantProvider implements ExtensionProviderInterface
         );
         $container->singleton(SaasRepository::class, fn(DependencyContainer $c) =>
             new SaasRepository($c->get(Database::class), $c->get(SensitiveValueCodecInterface::class))
+        );
+        $container->singleton(SubscriptionRepository::class, fn(DependencyContainer $c) =>
+            new SubscriptionRepository($c->get(Database::class))
         );
         $container->singleton(WorkerSecurity::class, function (): WorkerSecurity {
             $publicKey = str_replace('\\n', "\n", (string) env('MUBLO_AI_WORKER_PUBLIC_KEY', ''));
@@ -127,8 +143,12 @@ final class AiAssistantProvider implements ExtensionProviderInterface
             new CustomerSyncService(
                 $c->get(SyncRecordRepository::class),
                 $c->get(DeviceRepository::class),
-                $c->get(CustomerDirectoryRepository::class)
+                $c->get(CustomerDirectoryRepository::class),
+                $c->get(SubscriptionService::class)
             )
+        );
+        $container->singleton(SubscriptionService::class, fn(DependencyContainer $c) =>
+            new SubscriptionService($c->get(SubscriptionRepository::class))
         );
         $container->singleton(InteractionService::class, fn(DependencyContainer $c) =>
             new InteractionService(
@@ -151,6 +171,14 @@ final class AiAssistantProvider implements ExtensionProviderInterface
                 $c->get(CustomerDirectoryRepository::class),
                 $c->get(MessagingPolicyRepository::class),
                 $c->get(MessagingDispatchRepository::class)
+            )
+        );
+        $container->singleton(MessageScheduleService::class, fn(DependencyContainer $c) =>
+            new MessageScheduleService(
+                $c->get(MessageScheduleRepository::class),
+                $c->get(DeviceRepository::class),
+                $c->get(CustomerDirectoryRepository::class),
+                $c->get(SensitiveValueCodecInterface::class)
             )
         );
         $container->singleton(WorkerJobService::class, fn(DependencyContainer $c) =>
@@ -191,6 +219,12 @@ final class AiAssistantProvider implements ExtensionProviderInterface
                 $c->get(IdempotencyService::class)
             )
         );
+        $container->singleton(SubscriptionController::class, fn(DependencyContainer $c) =>
+            new SubscriptionController(
+                $c->get(AuthService::class),
+                $c->get(SubscriptionService::class)
+            )
+        );
         $container->singleton(InteractionController::class, fn(DependencyContainer $c) =>
             new InteractionController(
                 $c->get(AuthService::class),
@@ -202,6 +236,13 @@ final class AiAssistantProvider implements ExtensionProviderInterface
             new MessagingPolicyController(
                 $c->get(AuthService::class),
                 $c->get(MessagingPolicyService::class),
+                $c->get(IdempotencyService::class)
+            )
+        );
+        $container->singleton(ScheduleController::class, fn(DependencyContainer $c) =>
+            new ScheduleController(
+                $c->get(AuthService::class),
+                $c->get(MessageScheduleService::class),
                 $c->get(IdempotencyService::class)
             )
         );
@@ -218,9 +259,40 @@ final class AiAssistantProvider implements ExtensionProviderInterface
                 $c->get(AuthContextInterface::class)
             )
         );
+        $container->singleton(OperationsController::class, fn(DependencyContainer $c) =>
+            new OperationsController(
+                $c->get(SaasService::class),
+                $c->get(AuthContextInterface::class)
+            )
+        );
+        $container->singleton(PlatformController::class, fn(DependencyContainer $c) =>
+            new PlatformController(
+                $c->get(SaasService::class),
+                $c->get(AuthContextInterface::class)
+            )
+        );
+        $container->singleton(WorkspaceController::class, fn(DependencyContainer $c) =>
+            new WorkspaceController(
+                $c->get(SaasService::class),
+                $c->get(AuthContextInterface::class)
+            )
+        );
     }
 
     public function boot(DependencyContainer $container, Context $context): void
     {
+        // Bearer/Worker token 기반 API는 브라우저 세션 폼이 아니다. 세션과 CSRF를
+        // 함께 제외해야 모바일 앱·사무실 Worker가 쿠키 없이 안전하게 호출할 수 있다.
+        $apiPrefix = '/mublo-ai/api/v1';
+        if ($container->has(\Mublo\Core\Middleware\SessionMiddleware::class)) {
+            $container->get(\Mublo\Core\Middleware\SessionMiddleware::class)
+                ->addExcludePath($apiPrefix);
+        }
+        if ($container->has(\Mublo\Core\Middleware\CsrfMiddleware::class)) {
+            $container->get(\Mublo\Core\Middleware\CsrfMiddleware::class)
+                ->addExcludePath($apiPrefix);
+        }
+
+        $container->get(EventDispatcher::class)->addSubscriber(new FrontMenuSubscriber());
     }
 }

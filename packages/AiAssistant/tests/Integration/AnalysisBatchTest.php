@@ -11,6 +11,16 @@ use Tests\AiAssistant\DatabaseTestCase;
 
 final class AnalysisBatchTest extends DatabaseTestCase
 {
+    public function testWorkerPreflightReportsAnalysisAndSignatureReadiness(): void
+    {
+        $result = $this->analysisWorker->preflight();
+
+        self::assertTrue($result['ready']);
+        self::assertSame('worker-preflight-v1', $result['schema_version']);
+        self::assertSame('Ed25519', $result['signature_algorithm']);
+        self::assertContains('CUSTOMER_PROFILE_ANALYSIS_V2', $result['capabilities']);
+    }
+
     public function testV3InputsAreVerifiedBeforeAnImmutableCustomerRunIsQueued(): void
     {
         [$principal, $device, $customerId, $phoneId] = $this->customerFixture('analysis-batch', 601);
@@ -78,6 +88,13 @@ final class AnalysisBatchTest extends DatabaseTestCase
             'cleanup_attestation' => ['plaintext_files_remaining' => 0, 'completed_at' => '2026-08-09T02:00:01Z'],
         ]);
         self::assertSame('COMPLETED', $completed['status']);
+        self::assertSame(
+            'COMPLETED',
+            $this->db->selectOne(
+                'SELECT status FROM ai_analysis_batches WHERE batch_id = ?',
+                [$batch['batch_id']]
+            )['status']
+        );
         $finished = $this->analysis->getBatch($principal, (string) $batch['batch_id']);
         self::assertSame('COMPLETED', $finished['status']);
         self::assertSame(1, $finished['terminal_customers']);

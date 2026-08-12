@@ -12,10 +12,24 @@ final class WorkerV2Security implements WorkerResultVerifierInterface
     {
     }
 
+    /** @return array{ready: bool, signing_key_id: string} */
+    public function readiness(): array
+    {
+        $publicKey = base64_decode($this->publicKeyBase64, true);
+        return [
+            'ready' => function_exists('sodium_crypto_sign_verify_detached')
+                && $this->signingKeyId !== ''
+                && is_string($publicKey)
+                && defined('SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES')
+                && strlen($publicKey) === SODIUM_CRYPTO_SIGN_PUBLICKEYBYTES,
+            'signing_key_id' => $this->signingKeyId,
+        ];
+    }
+
     /** @param array<string, mixed> $result */
     public function verifyResultSignature(array $result): void
     {
-        if (!function_exists('sodium_crypto_sign_verify_detached')) {
+        if (!$this->readiness()['ready']) {
             throw new ApiException('WORKER_SIGNATURE_UNAVAILABLE', 'Ed25519 검증 기능이 준비되지 않았습니다.', 503);
         }
         if (($result['signature_algorithm'] ?? null) !== 'Ed25519'

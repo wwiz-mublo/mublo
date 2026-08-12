@@ -19,7 +19,8 @@ final class CustomerSyncService
     public function __construct(
         private SyncRecordRepository $records,
         private DeviceRepository $devices,
-        private CustomerDirectoryRepository $directory
+        private CustomerDirectoryRepository $directory,
+        private SubscriptionService $subscriptions
     ) {
     }
 
@@ -98,6 +99,7 @@ final class CustomerSyncService
                     $record,
                     $current,
                     function () use ($companyId, $record): void {
+                        $this->subscriptions->assertCustomerProjectionAllowed($companyId, $record);
                         $this->directory->project($companyId, $record);
                     }
                 );
@@ -113,6 +115,12 @@ final class CustomerSyncService
                     'code' => $exception->errorCode,
                     'server_version' => null,
                 ];
+            } catch (\Throwable $exception) {
+                $cause = $exception->getPrevious();
+                if ($cause instanceof ApiException) {
+                    throw $cause;
+                }
+                throw $exception;
             }
         }
 

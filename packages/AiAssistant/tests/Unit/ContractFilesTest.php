@@ -26,6 +26,7 @@ final class ContractFilesTest extends TestCase
     {
         yield 'openapi' => ['openapi.json', '3.1.0'];
         yield 'sync' => ['schemas/sync-record-v1.schema.json', 'sync-record-v1'];
+        yield 'subscription' => ['schemas/subscription-v1.schema.json', 'subscription-v1'];
         yield 'crypto' => ['schemas/crypto-envelope-v1.schema.json', 'crypto-envelope-v1'];
         yield 'interaction' => ['schemas/interaction-upload-v2.schema.json', 'interaction-upload-v2'];
         yield 'interaction v3' => ['schemas/interaction-upload-v3.schema.json', 'interaction-upload-v3'];
@@ -46,6 +47,10 @@ final class ContractFilesTest extends TestCase
         yield 'analysis' => ['schemas/analysis-result-v1.schema.json', 'analysis-result-v1'];
         yield 'analysis v2' => ['schemas/analysis-result-v2.schema.json', 'analysis-result-v2'];
         yield 'schedule' => ['schemas/schedule-message-v1.schema.json', 'schedule-message-v1'];
+        yield 'schedule dispatch command' => [
+            'schemas/schedule-dispatch-command-v1.schema.json',
+            'schedule-dispatch-command-v1',
+        ];
     }
 
     public function testCryptoVectorIsValidAndSelfConsistent(): void

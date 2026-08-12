@@ -117,6 +117,43 @@ final class CustomerSyncTest extends DatabaseTestCase
         $this->idempotency->execute($companyId, 'test', 'same-key-001', ['a' => 2], 200, fn(): array => ['ok' => true]);
     }
 
+    public function testBasicPlanSummaryAndThirtyCustomerLimit(): void
+    {
+        $principal = $this->principal('basic-plan-company', 401, 'basic-plan-company-secret');
+        $device = $this->enroll($principal, 'installation-basic-plan-company-1');
+        $companyId = (string) $principal['company_id'];
+
+        $initial = $this->subscription->summary($principal);
+        self::assertSame('subscription-v1', $initial['schema_version']);
+        self::assertSame('BASIC', $initial['plan']['code']);
+        self::assertSame('Basic', $initial['plan']['name']);
+        self::assertNull($initial['plan']['monthly_price_krw']);
+        self::assertSame(30, $initial['plan']['customer_limit']);
+        self::assertSame(0, $initial['usage']['registered_customers']);
+        self::assertSame(30, $initial['usage']['remaining_customers']);
+
+        for ($index = 1; $index <= 30; $index++) {
+            $record = $this->customerRecord($companyId, Uuid::v4(), 1, 'UPSERT');
+            $result = $this->sync->push($principal, (string) $device['device_id'], [$record]);
+            self::assertSame(1, $result['applied']);
+        }
+
+        $full = $this->subscription->summary($principal);
+        self::assertSame(30, $full['usage']['registered_customers']);
+        self::assertSame(0, $full['usage']['remaining_customers']);
+
+        try {
+            $record = $this->customerRecord($companyId, Uuid::v4(), 1, 'UPSERT');
+            $this->sync->push($principal, (string) $device['device_id'], [$record]);
+            self::fail('The thirty-first managed customer must be rejected');
+        } catch (ApiException $exception) {
+            self::assertSame('CUSTOMER_PLAN_LIMIT_EXCEEDED', $exception->errorCode);
+            self::assertSame(409, $exception->statusCode);
+            self::assertSame(30, $exception->details['customer_limit']);
+            self::assertSame(30, $exception->details['registered_customers']);
+        }
+    }
+
     /** @return array<string, mixed> */
     private function customerRecord(string $companyId, string $customerId, int $version, string $operation): array
     {

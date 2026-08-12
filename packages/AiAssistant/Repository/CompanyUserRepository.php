@@ -76,6 +76,12 @@ final class CompanyUserRepository
                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
                 [$userId, $companyId, $loginId, $nickname, $passwordHash, 'OWNER', 'ACTIVE', $now, $now]
             );
+            $this->db->insert(
+                'INSERT INTO ai_company_subscriptions
+                    (company_id, plan_code, status, started_at, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, ?, ?)',
+                [$companyId, 'BASIC', 'ACTIVE', $now, $now, $now]
+            );
         });
     }
 }

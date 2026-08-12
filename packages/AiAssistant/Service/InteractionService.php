@@ -173,8 +173,8 @@ final class InteractionService
             ?? $this->repository->findV3BySource($companyId, $deviceId, $channel, $sourceRecordId);
         if ($existing !== null) {
             if (!hash_equals((string) $existing['content_sha256'], $contentHash)
-                || !hash_equals((string) $existing['envelope_sha256'], $envelopeHash)
                 || !hash_equals((string) $existing['customer_id'], $customerId)
+                || !hash_equals((string) $existing['customer_phone_id'], $customerPhoneId)
             ) {
                 throw new ApiException('INTERACTION_CONTENT_CONFLICT', '같은 원본 interaction의 내용이 다릅니다.', 409);
             }

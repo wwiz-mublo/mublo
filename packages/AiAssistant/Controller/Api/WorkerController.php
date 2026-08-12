@@ -16,6 +16,14 @@ final class WorkerController extends ApiController
         parent::__construct($auth);
     }
 
+    public function preflight(array $params, Context $context): JsonResponse
+    {
+        return $this->respond($context, function () use ($context): JsonResponse {
+            $this->analysisJobs->authenticate($context->getRequest()->header('X-Worker-Token'));
+            return JsonResponse::success($this->analysisJobs->preflight());
+        });
+    }
+
     public function lease(array $params, Context $context): JsonResponse
     {
         return $this->respond($context, function () use ($context): JsonResponse {

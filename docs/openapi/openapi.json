@@ -11,6 +11,7 @@
   "tags": [
     { "name": "Auth" },
     { "name": "Devices" },
+    { "name": "Subscription" },
     { "name": "Customer sync" },
     { "name": "Interactions" },
     { "name": "Analysis" },
@@ -94,6 +95,17 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
           "404": { "$ref": "#/components/responses/NotFound" }
+        }
+      }
+    },
+    "/subscription": {
+      "get": {
+        "tags": ["Subscription"],
+        "operationId": "getCurrentSubscription",
+        "description": "Returns the authenticated company's active plan and managed-customer usage.",
+        "responses": {
+          "200": { "description": "Current subscription", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubscriptionResponse" } } } },
+          "401": { "$ref": "#/components/responses/Unauthorized" }
         }
       }
     },
@@ -354,6 +366,19 @@
         }
       }
     },
+    "/worker/preflight": {
+      "post": {
+        "tags": ["Worker"],
+        "operationId": "preflightAnalysisWorker",
+        "security": [{ "workerToken": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "additionalProperties": false, "required": ["schema_version"], "properties": { "schema_version": { "type": "string", "const": "worker-preflight-request-v1" } } } } } },
+        "responses": {
+          "200": { "description": "Worker API and Ed25519 verification are ready" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "503": { "description": "Server signature verification is unavailable" }
+        }
+      }
+    },
     "/worker/jobs/lease": {
       "post": {
         "tags": ["Worker"],
@@ -605,6 +630,40 @@
         "allOf": [
           { "$ref": "#/components/schemas/SuccessEnvelope" },
           { "type": "object", "properties": { "data": { "type": "object", "required": ["applied", "unchanged", "conflicts", "cursor"], "properties": { "applied": { "type": "integer", "minimum": 0 }, "unchanged": { "type": "integer", "minimum": 0 }, "conflicts": { "type": "array", "items": { "type": "object" } }, "cursor": { "type": "string" } } } } }
+        ]
+      },
+      "Subscription": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schema_version", "plan", "usage"],
+        "properties": {
+          "schema_version": { "const": "subscription-v1" },
+          "plan": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "name", "monthly_price_krw", "customer_limit"],
+            "properties": {
+              "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{1,39}$" },
+              "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+              "monthly_price_krw": { "type": ["integer", "null"], "minimum": 0 },
+              "customer_limit": { "type": "integer", "minimum": 1 }
+            }
+          },
+          "usage": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["registered_customers", "remaining_customers"],
+            "properties": {
+              "registered_customers": { "type": "integer", "minimum": 0 },
+              "remaining_customers": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      },
+      "SubscriptionResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/SuccessEnvelope" },
+          { "type": "object", "properties": { "data": { "$ref": "#/components/schemas/Subscription" } } }
         ]
       },
       "SuccessEnvelope": {

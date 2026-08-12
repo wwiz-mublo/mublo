@@ -120,11 +120,7 @@ final class AnalysisWorkerRepository
                     $result['analysis_id'], $now, $job['run_id'],
                 ]
             );
-            $this->db->execute(
-                'UPDATE ai_analysis_batches SET updated_at = ? WHERE batch_id =
-                    (SELECT batch_id FROM ai_analysis_runs WHERE run_id = ?)',
-                [$now, $job['run_id']]
-            );
+            $this->refreshBatchStatus((string) $job['run_id'], $now);
         });
     }
 
@@ -148,8 +144,31 @@ final class AnalysisWorkerRepository
                     progress_sequence = progress_sequence + 1, updated_at = ? WHERE run_id = ?',
                 [$runStatus, 'WAITING_WORKER', $willRetry ? 1 : 0, $errorCode, $now, $job['run_id']]
             );
+            $this->refreshBatchStatus((string) $job['run_id'], $now);
         });
         return $jobStatus;
+    }
+
+    private function refreshBatchStatus(string $runId, string $now): void
+    {
+        $run = $this->db->selectOne(
+            'SELECT batch_id FROM ai_analysis_runs WHERE run_id = ? LIMIT 1',
+            [$runId]
+        );
+        if ($run === null) {
+            return;
+        }
+        $batchId = (string) $run['batch_id'];
+        $active = $this->db->selectOne(
+            "SELECT COUNT(*) AS active_count FROM ai_analysis_runs
+             WHERE batch_id = ? AND status NOT IN ('COMPLETED', 'INSUFFICIENT_DATA', 'FAILED_FINAL', 'CANCELLED')",
+            [$batchId]
+        );
+        $status = (int) ($active['active_count'] ?? 0) === 0 ? 'COMPLETED' : 'IN_PROGRESS';
+        $this->db->execute(
+            'UPDATE ai_analysis_batches SET status = ?, updated_at = ? WHERE batch_id = ?',
+            [$status, $now, $batchId]
+        );
     }
 
     public function hasJob(string $jobId): bool

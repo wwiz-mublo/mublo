@@ -41,4 +41,43 @@ final class SaasDashboardTest extends DatabaseTestCase
             self::assertSame(403, $exception->statusCode);
         }
     }
+
+    public function testStaffCanOpenMemberWorkspaceWithoutWorkerData(): void
+    {
+        $principal = $this->principal('workspace-staff', 703, 'workspace-secret');
+        $this->db->execute('UPDATE ai_company_users SET role = ? WHERE company_id = ?', ['STAFF', $principal['company_id']]);
+
+        $workspace = $this->saas->workspace(703, 'owner', 'customers');
+
+        self::assertSame('STAFF', $workspace['principal']['role']);
+        self::assertSame('customers', $workspace['section']);
+        self::assertArrayNotHasKey('workers', $workspace);
+        self::assertSame([], $workspace['batches']);
+        self::assertSame([], $workspace['devices']);
+        self::assertSame([], $workspace['schedules']);
+    }
+
+    public function testWorkspaceFallsBackToDashboardForUnknownSection(): void
+    {
+        $this->principal('workspace-owner', 704, 'workspace-secret');
+
+        $workspace = $this->saas->workspace(704, 'owner', 'unknown');
+
+        self::assertSame('dashboard', $workspace['section']);
+        self::assertSame('OWNER', $workspace['principal']['role']);
+    }
+
+    public function testPlatformDashboardExposesOnlyAggregateCompanyMetadata(): void
+    {
+        $principal = $this->principal('platform-company', 705, 'platform-secret');
+        $this->enroll($principal, 'installation-platform-company-01');
+
+        $platform = $this->saas->platform('dashboard');
+
+        self::assertSame(1, $platform['summary']['companies']);
+        self::assertSame(1, $platform['summary']['active_devices']);
+        self::assertSame('platform-company', $platform['companies'][0]['slug']);
+        self::assertArrayNotHasKey('password_hash', $platform['companies'][0]);
+        self::assertArrayNotHasKey('fcm_token', $platform['companies'][0]);
+    }
 }

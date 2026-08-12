@@ -24,6 +24,27 @@ final class AnalysisWorkerService
         $this->authentication->authenticate($token);
     }
 
+    /** @return array<string, mixed> */
+    public function preflight(): array
+    {
+        $readiness = $this->signatures->readiness();
+        if (!$readiness['ready']) {
+            throw new ApiException(
+                'WORKER_SIGNATURE_UNAVAILABLE',
+                'Ed25519 검증 기능 또는 Worker 공개키가 준비되지 않았습니다.',
+                503
+            );
+        }
+        return [
+            'schema_version' => 'worker-preflight-v1',
+            'ready' => true,
+            'capabilities' => ['CUSTOMER_PROFILE_ANALYSIS_V2'],
+            'signature_algorithm' => 'Ed25519',
+            'signing_key_id' => $readiness['signing_key_id'],
+            'server_time' => gmdate('Y-m-d\TH:i:s\Z'),
+        ];
+    }
+
     /** @param array<string, mixed> $input @return array<string, mixed> */
     public function heartbeat(array $input): array
     {

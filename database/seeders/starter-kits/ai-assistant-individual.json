@@ -1,0 +1,188 @@
+{
+  "format": "mublo-starter-kit",
+  "format_version": "1.0",
+  "export_mode": "distribution",
+  "name": "개인 영업사원 AI 비서 홈",
+  "description": "개별 영업사원이 자신의 고객·다음 연락·AI 분석·예약 발신을 관리하는 서비스 메인 블록 킷",
+  "version": "1.0.0",
+  "author": "Mublo",
+  "author_url": "",
+  "screenshot": null,
+  "target": {
+    "kind": "position",
+    "position": "index"
+  },
+  "requires": {
+    "core": null,
+    "block_types": [
+      {"type": "html", "kind": "CORE"}
+    ]
+  },
+  "contains_script": false,
+  "rows": [
+    {
+      "position": "index",
+      "position_menu": null,
+      "section_id": "ai-individual-hero",
+      "admin_title": "AI 비서 홈 01 · 개인 영업사원 히어로",
+      "width_type": 1,
+      "column_count": 1,
+      "column_margin": 0,
+      "column_width_unit": 1,
+      "pc_margin": "0 0 0",
+      "mobile_margin": "0 0 0",
+      "pc_padding": "72px 0 84px",
+      "mobile_padding": "44px 0 60px",
+      "sort_order": 0,
+      "is_active": true,
+      "columns": [
+        {
+          "width": "100%",
+          "pc_padding": "0",
+          "mobile_padding": "0",
+          "title_config": {"show": false},
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<section class=\"aih-hero\"><div class=\"aih-copy\"><span class=\"aih-kicker\"><i class=\"bi bi-stars\"></i> 개인 영업사원을 위한 AI 비서</span><h1>내 고객과의 다음 연락,<br><em>머?비서?</em>가 챙깁니다.</h1><p>연락처와 상담 기록을 안전하게 정리하고, 전화·문자·카카오톡 일정부터 AI 고객 분석까지 나만의 흐름으로 연결하세요.</p><div class=\"aih-actions\"><a class=\"aih-primary\" href=\"/member/register\">무료로 시작하기 <i class=\"bi bi-arrow-right\"></i></a><a class=\"aih-secondary\" href=\"/workspace\"><i class=\"bi bi-grid\"></i> 내 워크스페이스</a></div><ul><li><i class=\"bi bi-check-circle-fill\"></i> 내 고객 30명부터</li><li><i class=\"bi bi-check-circle-fill\"></i> 서버 FCM 예약</li><li><i class=\"bi bi-check-circle-fill\"></i> 원문 암호화</li></ul></div><div class=\"aih-preview\"><div class=\"aih-preview-head\"><div><small>오늘의 업무</small><strong>좋은 아침이에요</strong></div><span><i class=\"bi bi-person\"></i></span></div><div class=\"aih-stats\"><article><i class=\"bi bi-telephone\"></i><strong>4</strong><small>전화 일정</small></article><article><i class=\"bi bi-chat-dots\"></i><strong>7</strong><small>메시지</small></article><article><i class=\"bi bi-stars\"></i><strong>3</strong><small>분석 완료</small></article></div><div class=\"aih-next\"><b>10:30<small>오늘</small></b><div><strong>김민지 고객</strong><span>계약 갱신 안내 전화</span></div><i class=\"bi bi-telephone-fill\"></i></div><div class=\"aih-push\"><i class=\"bi bi-send\"></i><div><strong>예약 메시지는 서버가 깨워요</strong><small>앱을 계속 실행하지 않아도 FCM으로 전달합니다.</small></div><em>정상</em></div></div></section>",
+            "css": ".aih-hero{min-height:560px;display:grid;grid-template-columns:minmax(0,1.06fr) minmax(390px,.94fr);gap:68px;align-items:center;color:#15213b}.aih-kicker{display:inline-flex;align-items:center;gap:8px;color:#5b5ce2;font-size:13px;font-weight:800;letter-spacing:.06em}.aih-copy h1{margin:20px 0 22px;font-size:clamp(42px,5vw,66px);line-height:1.12;letter-spacing:-.055em;font-weight:800}.aih-copy h1 em{color:#5b5ce2;font-style:normal}.aih-copy>p{max-width:620px;color:#667085;font-size:18px;line-height:1.75}.aih-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:31px}.aih-actions a{min-height:52px;padding:0 21px;border:1px solid #e8ebf3;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;font-weight:750}.aih-primary{border-color:#5b5ce2!important;color:#fff;background:#5b5ce2;box-shadow:0 12px 26px rgba(91,92,226,.24)}.aih-secondary{color:#15213b;background:#fff}.aih-copy ul{list-style:none;padding:0;margin:24px 0 0;display:flex;flex-wrap:wrap;gap:17px;color:#667085;font-size:12px}.aih-copy li i{margin-right:5px;color:#20a474}.aih-preview{position:relative;padding:26px;border:1px solid #eef0f6;border-radius:30px;background:#fff;box-shadow:0 32px 72px rgba(42,50,100,.18)}.aih-preview:before{content:'';position:absolute;z-index:-1;width:520px;height:520px;top:50%;left:50%;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle at 35% 35%,#dfe1ff,#eff8ff 58%,rgba(255,255,255,0) 73%)}.aih-preview-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}.aih-preview-head div{display:flex;flex-direction:column}.aih-preview-head small{color:#667085}.aih-preview-head strong{font-size:19px}.aih-preview-head>span{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;color:#5b5ce2;background:#ececff}.aih-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.aih-stats article{padding:14px 8px;border:1px solid #e8ebf3;border-radius:16px;display:grid;grid-template-columns:34px 1fr;gap:1px 8px;align-items:center}.aih-stats article i{width:34px;height:34px;grid-row:1/3;border-radius:11px;display:grid;place-items:center;color:#5b5ce2;background:#eeeeff}.aih-stats strong{font-size:19px;line-height:1}.aih-stats small{color:#667085;white-space:nowrap}.aih-next,.aih-push{margin-top:14px;padding:16px;border-radius:17px;display:flex;align-items:center;gap:13px}.aih-next{background:#f6f7fb}.aih-next>b{display:flex;flex-direction:column}.aih-next>b small,.aih-next span,.aih-push small{color:#667085;font-size:12px;font-weight:400}.aih-next>div,.aih-push>div{min-width:0;flex:1;display:flex;flex-direction:column}.aih-next>i{width:36px;height:36px;border-radius:11px;display:grid;place-items:center;color:#159560;background:#e7f7ef}.aih-push{border:1px solid #dfe0ff;background:#f5f5ff}.aih-push>i{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;color:#fff;background:#5b5ce2}.aih-push em{padding:5px 8px;border-radius:20px;color:#17855e;background:#ddf5eb;font-size:11px;font-style:normal;font-weight:700}@media(max-width:900px){.aih-hero{grid-template-columns:1fr;gap:54px}.aih-copy{text-align:center}.aih-copy>p{margin-left:auto;margin-right:auto}.aih-actions,.aih-copy ul{justify-content:center}.aih-preview{width:min(550px,100%);margin:0 auto}}@media(max-width:560px){.aih-copy h1{font-size:39px}.aih-copy>p{font-size:16px}.aih-actions{flex-direction:column}.aih-actions a{width:100%}.aih-copy ul{display:grid;text-align:left}.aih-preview{padding:18px 14px;border-radius:23px}.aih-stats{gap:6px}.aih-stats article{display:flex;flex-direction:column;padding:11px 3px;gap:4px;text-align:center}.aih-stats small{font-size:10px}}"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    },
+    {
+      "position": "index",
+      "position_menu": null,
+      "section_id": "features",
+      "admin_title": "AI 비서 홈 02 · 개인 영업 기능",
+      "width_type": 1,
+      "column_count": 1,
+      "column_margin": 0,
+      "column_width_unit": 1,
+      "pc_padding": "92px 0",
+      "mobile_padding": "70px 0",
+      "sort_order": 1,
+      "is_active": true,
+      "columns": [
+        {
+          "width": "100%",
+          "pc_padding": "0",
+          "mobile_padding": "0",
+          "title_config": {"show": false},
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<section class=\"aif-section\" id=\"features\"><header><span>혼자서도 놓치지 않게</span><h2>고객을 기억하는 데 쓰던 시간을 줄이세요</h2><p>현장에서는 앱으로 기록하고, 웹에서는 내 고객의 상태와 다음 할 일을 확인합니다.</p></header><div class=\"aif-grid\"><article><i class=\"bi bi-person-vcard\"></i><h3>내 고객 정리</h3><p>전화번호를 기준으로 중복을 확인하고 내 연락처와 고객 정보를 안전하게 동기화합니다.</p></article><article><i class=\"bi bi-calendar2-check\"></i><h3>다음 연락</h3><p>전화·문자·카카오톡을 구분하고 알림만 받을지 자동으로 보낼지 일정마다 선택합니다.</p></article><article><i class=\"bi bi-cpu\"></i><h3>증분 AI 분석</h3><p>변경된 기록만 분석해 초기 처리 병목과 배터리·네트워크 사용량을 줄입니다.</p></article><article><i class=\"bi bi-shield-check\"></i><h3>안전한 발신</h3><p>수신 동의, 철회, 야간 발송, 발송 횟수를 서버에서 다시 검증한 뒤 실행합니다.</p></article></div></section>",
+            "css": ".aif-section{color:#15213b}.aif-section header{max-width:690px;margin-bottom:43px}.aif-section header>span{color:#5b5ce2;font-size:13px;font-weight:800;letter-spacing:.08em}.aif-section h2{margin:11px 0 13px;font-size:clamp(31px,4vw,47px);line-height:1.25;letter-spacing:-.04em}.aif-section header p{color:#667085;font-size:17px;line-height:1.7}.aif-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:17px}.aif-grid article{padding:27px 23px;border:1px solid #e8ebf3;border-radius:21px;background:#fff}.aif-grid article>i{width:45px;height:45px;border-radius:14px;display:grid;place-items:center;color:#5b5ce2;background:#eeeeff;font-size:19px}.aif-grid article:nth-child(2)>i{color:#7652d8;background:#f1ebff}.aif-grid article:nth-child(3)>i{color:#14996c;background:#e6f8f1}.aif-grid article:nth-child(4)>i{color:#d87925;background:#fff1df}.aif-grid h3{margin:20px 0 9px;font-size:19px}.aif-grid p{margin:0;color:#667085;line-height:1.7}@media(max-width:900px){.aif-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.aif-grid{grid-template-columns:1fr}.aif-section header{text-align:center}}"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    },
+    {
+      "position": "index",
+      "position_menu": null,
+      "section_id": "how-it-works",
+      "admin_title": "AI 비서 홈 03 · 배터리 절약 발신 흐름",
+      "width_type": 1,
+      "column_count": 1,
+      "column_margin": 0,
+      "column_width_unit": 1,
+      "pc_padding": "0 0 92px",
+      "mobile_padding": "0 0 70px",
+      "sort_order": 2,
+      "is_active": true,
+      "columns": [
+        {
+          "width": "100%",
+          "pc_padding": "0",
+          "mobile_padding": "0",
+          "title_config": {"show": false},
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<section class=\"aif-flow\" id=\"how-it-works\"><header><span>배터리를 아끼는 구조</span><h2>필요할 때만 앱을 깨우는 예약 발신</h2><p>분석 Worker와 메시지 예약을 분리해 휴대폰의 상시 실행을 요구하지 않습니다.</p></header><ol><li><b>1</b><div><strong>앱에서 일정 등록</strong><span>본문은 암호화해 API 서버에 저장</span></div></li><li><b>2</b><div><strong>서버가 예약 관리</strong><span>FCM outbox가 발송 시각과 재시도를 관리</span></div></li><li><b>3</b><div><strong>필요할 때 휴대폰 호출</strong><span>FCM에는 본문과 전화번호를 담지 않음</span></div></li><li><b>4</b><div><strong>결과 확인</strong><span>수신·대기·성공·실패 상태를 내 화면에 반영</span></div></li></ol></section>",
+            "css": ".aif-flow{padding:65px 58px;border-radius:31px;color:#fff;background:linear-gradient(135deg,#172554,#3730a3 58%,#0f766e);box-shadow:0 26px 64px rgba(23,37,84,.18)}.aif-flow header{max-width:690px;margin-bottom:40px}.aif-flow header>span{color:#bfc2ff;font-size:13px;font-weight:800;letter-spacing:.08em}.aif-flow h2{margin:11px 0 10px;font-size:clamp(30px,4vw,45px);letter-spacing:-.04em}.aif-flow header p{color:rgba(255,255,255,.7);font-size:16px}.aif-flow ol{list-style:none;padding:0;margin:0;display:grid;grid-template-columns:repeat(4,1fr);gap:22px}.aif-flow li{display:flex;gap:12px}.aif-flow li>b{flex:0 0 33px;height:33px;border-radius:10px;display:grid;place-items:center;background:rgba(255,255,255,.14)}.aif-flow li>div{display:flex;flex-direction:column;gap:7px}.aif-flow li span{color:rgba(255,255,255,.63);font-size:13px;line-height:1.55}@media(max-width:900px){.aif-flow ol{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.aif-flow{padding:41px 23px;border-radius:23px}.aif-flow header{text-align:center}.aif-flow ol{grid-template-columns:1fr}}"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    },
+    {
+      "position": "index",
+      "position_menu": null,
+      "section_id": "security",
+      "admin_title": "AI 비서 홈 04 · 개인정보 보호",
+      "width_type": 1,
+      "column_count": 1,
+      "column_margin": 0,
+      "column_width_unit": 1,
+      "pc_padding": "12px 0 104px",
+      "mobile_padding": "0 0 76px",
+      "sort_order": 3,
+      "is_active": true,
+      "columns": [
+        {
+          "width": "100%",
+          "pc_padding": "0",
+          "mobile_padding": "0",
+          "title_config": {"show": false},
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<section class=\"aif-security\" id=\"security\"><div><span><i class=\"bi bi-lock\"></i> PRIVACY BY DESIGN</span><h2>상담 원문보다<br>영업에 필요한 결과를 보여줍니다.</h2><p>API 서버는 transcript 복호화 개인키를 보유하지 않고, 운영 화면도 대화 원문 대신 처리 상태와 분석 결과만 표시합니다.</p><a href=\"/privacy\">개인정보 처리 원칙 보기 <i class=\"bi bi-arrow-right\"></i></a></div><ul><li><i class=\"bi bi-key\"></i><div><strong>Worker 전용 복호화</strong><span>개인키는 분석 Worker에만 보관</span></div></li><li><i class=\"bi bi-file-earmark-lock\"></i><div><strong>민감정보 암호화</strong><span>고객명·전화번호·메시지 본문 암호화 저장</span></div></li><li><i class=\"bi bi-journal-check\"></i><div><strong>발신 정책 재검증</strong><span>동의와 차단 상태를 발송 직전에 확인</span></div></li></ul></section>",
+            "css": ".aif-security{display:grid;grid-template-columns:1fr .9fr;gap:80px;align-items:center;color:#15213b}.aif-security>div>span{color:#5b5ce2;font-size:12px;font-weight:800;letter-spacing:.08em}.aif-security h2{margin:12px 0 14px;font-size:clamp(31px,4vw,46px);line-height:1.25;letter-spacing:-.04em}.aif-security>div>p{max-width:590px;color:#667085;font-size:16px;line-height:1.75}.aif-security a{display:inline-flex;gap:7px;margin-top:9px;color:#5b5ce2;text-decoration:none;font-weight:750}.aif-security ul{list-style:none;padding:0;margin:0;display:grid;gap:12px}.aif-security li{padding:19px;border:1px solid #e8ebf3;border-radius:17px;display:flex;gap:15px;align-items:center;background:#f6f7fb}.aif-security li>i{width:41px;height:41px;border-radius:12px;display:grid;place-items:center;color:#5b5ce2;background:#e8e8ff;font-size:17px}.aif-security li>div{display:flex;flex-direction:column}.aif-security li span{color:#667085;font-size:13px}@media(max-width:800px){.aif-security{grid-template-columns:1fr;gap:38px}}@media(max-width:560px){.aif-security>div{text-align:center}.aif-security h2 br{display:none}}"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    },
+    {
+      "position": "index",
+      "position_menu": null,
+      "section_id": "ai-individual-cta",
+      "admin_title": "AI 비서 홈 05 · 회원가입 CTA",
+      "width_type": 1,
+      "column_count": 1,
+      "column_margin": 0,
+      "column_width_unit": 1,
+      "pc_padding": "0 0 90px",
+      "mobile_padding": "0 0 62px",
+      "sort_order": 4,
+      "is_active": true,
+      "columns": [
+        {
+          "width": "100%",
+          "pc_padding": "0",
+          "mobile_padding": "0",
+          "title_config": {"show": false},
+          "content_type": "html",
+          "content_kind": "CORE",
+          "content_skin": "basic",
+          "content_config": {
+            "html": "<section class=\"aif-cta\"><div><span>지금 시작하세요</span><h2>나만의 고객을 놓치지 않는 작은 습관</h2><p>머?비서?가 다음 연락을 가볍게 만들어 드립니다.</p></div><div><a href=\"/member/register\">회원가입</a><a href=\"/login\">로그인</a></div></section>",
+            "css": ".aif-cta{padding:50px 58px;border-radius:28px;display:flex;align-items:center;justify-content:space-between;gap:28px;color:#fff;background:#5b5ce2}.aif-cta>div:first-child>span{color:#d9d9ff;font-size:12px;font-weight:750}.aif-cta h2{margin:9px 0 7px;font-size:clamp(28px,3.4vw,42px);letter-spacing:-.04em}.aif-cta p{margin:0;color:rgba(255,255,255,.72)}.aif-cta>div:last-child{display:flex;gap:10px}.aif-cta a{min-height:48px;padding:0 19px;border:1px solid rgba(255,255,255,.45);border-radius:13px;display:inline-flex;align-items:center;color:#fff;text-decoration:none;font-weight:750;white-space:nowrap}.aif-cta a:first-child{color:#5b5ce2;background:#fff}@media(max-width:800px){.aif-cta{text-align:center;flex-direction:column}.aif-cta>div:last-child{justify-content:center}}@media(max-width:520px){.aif-cta{padding:39px 21px}.aif-cta>div:last-child{width:100%;flex-direction:column}.aif-cta a{justify-content:center}}"
+          },
+          "content_items": null,
+          "is_active": true
+        }
+      ]
+    }
+  ],
+  "site_settings": {
+    "site_config": {
+      "layout_max_width": 1200,
+      "use_main_layout": false,
+      "layout_type": "full"
+    }
+  }
+}
