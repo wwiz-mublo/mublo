@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/messaging-eligibility-v1.schema.json",
+  "title": "Messaging eligibility request v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "customer_id", "customer_phone_id", "channel", "message_class"],
+  "properties": {
+    "schema_version": { "const": "messaging-eligibility-v1" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "customer_phone_id": { "type": "string", "format": "uuid" },
+    "channel": { "type": "string", "enum": ["SMS", "KAKAO"] },
+    "message_class": { "type": "string", "enum": ["TRANSACTIONAL", "MARKETING"] }
+  }
+}

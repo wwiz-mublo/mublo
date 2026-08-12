@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/analysis-manifest-v1.schema.json",
+  "title": "Immutable customer analysis manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "manifest_id", "run_id", "company_id", "customer_id", "mode", "input_cursor", "channel_counts", "interactions", "manifest_sha256", "created_at"],
+  "properties": {
+    "schema_version": { "const": "analysis-manifest-v1" },
+    "manifest_id": { "type": "string", "format": "uuid" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "company_id": { "type": "string", "format": "uuid" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "mode": { "type": "string", "enum": ["INITIAL", "INCREMENTAL", "REBUILD"] },
+    "base_analysis_id": { "type": ["string", "null"], "format": "uuid" },
+    "from_cursor": { "type": ["integer", "null"], "minimum": 0 },
+    "input_cursor": { "type": "integer", "minimum": 0 },
+    "channel_counts": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/channelCount" },
+      "propertyNames": { "enum": ["CALL_TRANSCRIPT", "SMS", "KAKAO", "VOICE_MEMO"] }
+    },
+    "interactions": {
+      "type": "array",
+      "maxItems": 60000,
+      "items": { "$ref": "#/$defs/interactionRef" }
+    },
+    "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "channelCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "usable", "skipped"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "usable": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "interactionRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interaction_id", "customer_phone_id", "device_id", "channel", "source_record_id", "occurred_at", "content_sha256", "server_sequence", "envelope"],
+      "properties": {
+        "interaction_id": { "type": "string", "format": "uuid" },
+        "customer_phone_id": { "type": "string", "format": "uuid" },
+        "device_id": { "type": "string", "format": "uuid" },
+        "channel": { "type": "string", "enum": ["CALL_TRANSCRIPT", "SMS", "KAKAO", "VOICE_MEMO"] },
+        "source_record_id": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "occurred_at": { "type": "string", "format": "date-time" },
+        "content_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "server_sequence": { "type": "integer", "minimum": 1 },
+        "envelope": { "$ref": "crypto-envelope-v1.schema.json" }
+      }
+    }
+  }
+}

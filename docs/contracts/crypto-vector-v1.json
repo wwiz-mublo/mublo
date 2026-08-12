@@ -1,0 +1,33 @@
+{
+  "schema_version": "crypto-vector-v1",
+  "description": "Synthetic Android/PHP/Python AES-256-GCM, canonical AAD, interaction set and customer set fixture. This key is public test material and must never be used outside tests.",
+  "interaction": {
+    "company_id": "11111111-1111-4111-8111-111111111111",
+    "customer_id": "22222222-2222-4222-8222-222222222222",
+    "customer_phone_id": "33333333-3333-4333-8333-333333333333",
+    "interaction_id": "44444444-4444-4444-8444-444444444444",
+    "device_id": "55555555-5555-4555-8555-555555555555",
+    "channel": "CALL_TRANSCRIPT",
+    "source_record_id": "call:fixture:1",
+    "occurred_at": "2026-08-09T01:02:03Z"
+  },
+  "payload_utf8": "{\"interaction_id\":\"44444444-4444-4444-8444-444444444444\",\"participants\":[{\"label\":null,\"role\":\"OWNER\"},{\"label\":null,\"role\":\"CUSTOMER\"}],\"schema_version\":\"interaction-content-v1\",\"segments\":[],\"source_metadata\":{},\"text\":\"안녕하세요. 다음 주 화요일에 다시 연락드릴게요.\"}",
+  "plaintext_sha256": "c2f8b08d69d3a499ff6cdf6e78d2e215d9badac46a0991b77ec383d415e5b8ad",
+  "aad_utf8": "{\"channel\":\"CALL_TRANSCRIPT\",\"company_id\":\"11111111-1111-4111-8111-111111111111\",\"content_sha256\":\"c2f8b08d69d3a499ff6cdf6e78d2e215d9badac46a0991b77ec383d415e5b8ad\",\"customer_id\":\"22222222-2222-4222-8222-222222222222\",\"customer_phone_id\":\"33333333-3333-4333-8333-333333333333\",\"device_id\":\"55555555-5555-4555-8555-555555555555\",\"interaction_id\":\"44444444-4444-4444-8444-444444444444\",\"occurred_at\":\"2026-08-09T01:02:03Z\",\"schema_version\":\"interaction-upload-v3\",\"source_record_id\":\"call:fixture:1\"}",
+  "aad_sha256": "8fbd16984526bad7907ef1e8a54ed677dd4a92e2f8d6d95a32d51b13321f0f1f",
+  "aes_256_gcm": {
+    "key_base64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "iv_base64": "GvOMLcK5b/3YZpQJ",
+    "ciphertext_base64": "2VL3o0OElCAfVZdnOupj0ac8+VCMrkFCwr9LPSHyS9FvFkfbYP+eVcToUIKCuXaQprK0HvJLxpqyUR6khmD4vrV6NUDhwfUH84kVwAbgTuMdyT5nhdloZomoz0fGbCh0PLekwzc4luTxr2k2UBSCqsnowFON+bU1sEVxpECXmb5rxPzDsA/Qtk/jedtvj6TKaTdaaCWzjZc3HK2q5UxsOl8tSfDkk5jMbwuR5nP0hRJebq9B1Au6uKLiJGk3ydx+D+EUvAC6Yv2yjDK994mBUGn0Sc5TEfg+4jdbczNNutKbBIvRctMONrrYbuH76IYJs41NbvlvcIdXzh2GV+K7aJJzG+q4ly3N7ONPuVkh8p4ULMiLxhhZZNdantx+pE1I3q5G",
+    "tag_base64": "iRgkPiDdhiykk3i/LckdTA=="
+  },
+  "interaction_set": {
+    "canonical_utf8": "44444444-4444-4444-8444-444444444444:c2f8b08d69d3a499ff6cdf6e78d2e215d9badac46a0991b77ec383d415e5b8ad",
+    "sha256": "6e22f3cdaa593b7fd44f2de0635a476318a454de2775ec50aaeabd88971fcdf9",
+    "empty_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "customer_set": {
+    "canonical_utf8": "22222222-2222-4222-8222-222222222222\n66666666-6666-4666-8666-666666666666",
+    "sha256": "595e0528b52c351284486a54aed2c384a3948b725093b0ff9c2a36ec7e1eb019"
+  }
+}

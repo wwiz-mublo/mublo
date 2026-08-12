@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/sync-record-v1.schema.json",
+  "title": "Mublo sync record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "company_id",
+    "object_type",
+    "object_id",
+    "operation",
+    "version",
+    "updated_at",
+    "payload"
+  ],
+  "properties": {
+    "schema_version": { "const": "sync-record-v1" },
+    "company_id": { "type": "string", "format": "uuid" },
+    "object_type": {
+      "type": "string",
+      "enum": ["customer", "customer_phone", "customer_alias", "schedule"]
+    },
+    "object_id": { "type": "string", "format": "uuid" },
+    "operation": { "type": "string", "enum": ["UPSERT", "DELETE"] },
+    "version": { "type": "integer", "minimum": 1 },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "deleted_at": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "format": "date-time" }
+      ]
+    },
+    "idempotency_key": { "type": "string", "minLength": 8, "maxLength": 128 },
+    "payload": { "type": "object" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "operation": { "const": "DELETE" } } },
+      "then": { "required": ["deleted_at"], "properties": { "payload": { "maxProperties": 0 } } }
+    }
+  ]
+}

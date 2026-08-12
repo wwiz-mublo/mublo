@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/customer-directory-v1.schema.json",
+  "title": "Encrypted SaaS customer directory v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "customer_id", "display_name", "management_status", "customer_status", "version", "phones"],
+  "properties": {
+    "schema_version": { "const": "customer-directory-v1" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "display_name": { "type": "string", "minLength": 1, "maxLength": 190 },
+    "management_status": { "type": "string", "enum": ["MANAGED", "EXCLUDED", "BLOCKED"] },
+    "customer_status": { "type": "string", "maxLength": 64 },
+    "version": { "type": "integer", "minimum": 1 },
+    "phones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["customer_phone_id", "normalized_phone", "management_status", "is_primary", "version"],
+        "properties": {
+          "customer_phone_id": { "type": "string", "format": "uuid" },
+          "normalized_phone": { "type": "string", "pattern": "^\\+[1-9][0-9]{7,14}$" },
+          "management_status": { "type": "string", "enum": ["MANAGED", "EXCLUDED", "BLOCKED"] },
+          "is_primary": { "type": "boolean" },
+          "version": { "type": "integer", "minimum": 1 }
+        }
+      }
+    }
+  }
+}

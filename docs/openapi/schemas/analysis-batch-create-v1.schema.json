@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/analysis-batch-create-v1.schema.json",
+  "title": "Customer analysis batch create v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "purpose", "device_id", "consent_receipt_id", "selected_customer_set_sha256", "customers"],
+  "properties": {
+    "schema_version": { "const": "analysis-batch-create-v1" },
+    "purpose": { "type": "string", "enum": ["INITIAL_ONBOARDING", "INCREMENTAL", "REBUILD"] },
+    "device_id": { "type": "string", "format": "uuid" },
+    "consent_receipt_id": { "type": "string", "format": "uuid" },
+    "selected_customer_set_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "customers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/customerRequest" }
+    }
+  },
+  "$defs": {
+    "collectionWindow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "type": ["string", "null"], "format": "date-time" },
+        "to": { "type": "string", "format": "date-time" }
+      }
+    },
+    "channelInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["outcome", "count", "set_sha256"],
+      "properties": {
+        "outcome": { "type": "string", "enum": ["COMPLETED", "NO_DATA", "NOT_LINKED", "PERMISSION_DENIED", "UNSUPPORTED", "FAILED"] },
+        "count": { "type": "integer", "minimum": 0, "maximum": 20000 },
+        "set_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "channels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["CALL_TRANSCRIPT", "SMS", "KAKAO"],
+      "properties": {
+        "CALL_TRANSCRIPT": { "$ref": "#/$defs/channelInput" },
+        "SMS": { "$ref": "#/$defs/channelInput" },
+        "KAKAO": { "$ref": "#/$defs/channelInput" },
+        "VOICE_MEMO": { "$ref": "#/$defs/channelInput" }
+      }
+    },
+    "customerRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["customer_id", "mode", "collection_window", "channels"],
+      "properties": {
+        "customer_id": { "type": "string", "format": "uuid" },
+        "mode": { "type": "string", "enum": ["INITIAL", "INCREMENTAL", "REBUILD"] },
+        "base_analysis_id": { "type": ["string", "null"], "format": "uuid" },
+        "from_cursor": { "type": ["integer", "null"], "minimum": 0 },
+        "collection_window": { "$ref": "#/$defs/collectionWindow" },
+        "channels": { "$ref": "#/$defs/channels" }
+      }
+    }
+  }
+}

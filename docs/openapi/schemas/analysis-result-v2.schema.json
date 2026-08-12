@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/analysis-result-v2.schema.json",
+  "title": "Customer manifest analysis result v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "analysis_id", "run_id", "job_id", "company_id", "customer_id", "manifest_id", "manifest_sha256", "input_cursor", "mode", "terminal_status", "channel_counts", "facts", "inferences", "next_actions", "quality", "model_provider", "model", "model_version", "prompt_version", "created_at", "worker_id", "signing_key_id", "signature_algorithm", "worker_signature"],
+  "properties": {
+    "schema_version": { "const": "analysis-result-v2" },
+    "analysis_id": { "type": "string", "format": "uuid" },
+    "run_id": { "type": "string", "format": "uuid" },
+    "job_id": { "type": "string", "format": "uuid" },
+    "company_id": { "type": "string", "format": "uuid" },
+    "customer_id": { "type": "string", "format": "uuid" },
+    "manifest_id": { "type": "string", "format": "uuid" },
+    "manifest_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "input_cursor": { "type": "integer", "minimum": 0 },
+    "base_analysis_id": { "type": ["string", "null"], "format": "uuid" },
+    "mode": { "type": "string", "enum": ["INITIAL", "INCREMENTAL", "REBUILD"] },
+    "terminal_status": { "type": "string", "enum": ["COMPLETED", "INSUFFICIENT_DATA"] },
+    "insufficient_reason": { "type": ["string", "null"], "enum": ["NO_INTERACTIONS", "NO_USABLE_TEXT", "QUALITY_TOO_LOW", "INSUFFICIENT_CONTEXT", null] },
+    "overall_summary": { "type": ["string", "null"], "maxLength": 4000 },
+    "recent_summary": { "type": ["string", "null"], "maxLength": 4000 },
+    "stage": { "type": ["string", "null"], "maxLength": 64 },
+    "sentiment": { "type": ["string", "null"], "maxLength": 64 },
+    "risk": { "type": ["string", "null"], "maxLength": 64 },
+    "channel_counts": { "type": "object", "additionalProperties": { "$ref": "#/$defs/channelCount" }, "propertyNames": { "enum": ["CALL_TRANSCRIPT", "SMS", "KAKAO", "VOICE_MEMO"] } },
+    "facts": { "type": "array", "items": { "$ref": "#/$defs/evidenceItem" } },
+    "inferences": { "type": "array", "items": { "$ref": "#/$defs/inferenceItem" } },
+    "needs": { "type": "array", "items": { "type": "string", "maxLength": 1000 } },
+    "objections": { "type": "array", "items": { "type": "string", "maxLength": 1000 } },
+    "commitments": { "type": "array", "items": { "type": "string", "maxLength": 1000 } },
+    "open_questions": { "type": "array", "items": { "type": "string", "maxLength": 1000 } },
+    "next_actions": { "type": "array", "items": { "$ref": "#/$defs/nextAction" } },
+    "message_drafts": { "type": "array", "items": { "type": "string", "maxLength": 4000 } },
+    "quality": { "$ref": "#/$defs/quality" },
+    "model_provider": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "model": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "model_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "prompt_version": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "worker_id": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "signing_key_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+    "signature_algorithm": { "const": "Ed25519" },
+    "worker_signature": { "type": "string", "minLength": 80, "maxLength": 128 }
+  },
+  "$defs": {
+    "channelCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input", "usable", "skipped"],
+      "properties": {
+        "input": { "type": "integer", "minimum": 0 },
+        "usable": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "evidenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "evidence_ids"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "evidence_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "format": "uuid" } }
+      }
+    },
+    "inferenceItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "evidence_ids", "confidence"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "evidence_ids": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "format": "uuid" } },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "nextAction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "reason", "evidence_ids"],
+      "properties": {
+        "action": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "reason": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "recommended_at": { "type": ["string", "null"], "format": "date-time" },
+        "evidence_ids": { "type": "array", "uniqueItems": true, "items": { "type": "string", "format": "uuid" } }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["coverage", "warnings", "unsupported_claim_count"],
+      "properties": {
+        "coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+        "warnings": { "type": "array", "items": { "type": "string", "maxLength": 128 } },
+        "unsupported_claim_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/campaign-dispatch-policy-v1.schema.json",
+  "title": "Campaign dispatch policy v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "campaign_id", "channel", "message_class", "content_version", "approved_content_version", "timezone", "quiet_hours_start", "quiet_hours_end", "per_recipient_daily_limit", "version"],
+  "properties": {
+    "schema_version": { "const": "campaign-dispatch-policy-v1" },
+    "campaign_id": { "type": "string", "format": "uuid" },
+    "channel": { "type": "string", "enum": ["SMS", "KAKAO"] },
+    "message_class": { "type": "string", "enum": ["TRANSACTIONAL", "MARKETING"] },
+    "content_version": { "type": "integer", "minimum": 1 },
+    "approved_content_version": { "type": ["integer", "null"], "minimum": 1 },
+    "timezone": { "type": "string", "minLength": 1, "maxLength": 64 },
+    "quiet_hours_start": { "type": ["string", "null"], "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$" },
+    "quiet_hours_end": { "type": ["string", "null"], "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$" },
+    "per_recipient_daily_limit": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "version": { "type": "integer", "minimum": 1 }
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://api.mublo.ai/schemas/analysis-batch-status-v1.schema.json",
+  "title": "Customer analysis batch status v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "batch_id", "purpose", "status", "total_customers", "terminal_customers", "runs", "created_at", "updated_at"],
+  "properties": {
+    "schema_version": { "const": "analysis-batch-status-v1" },
+    "batch_id": { "type": "string", "format": "uuid" },
+    "purpose": { "type": "string", "enum": ["INITIAL_ONBOARDING", "INCREMENTAL", "REBUILD"] },
+    "status": { "type": "string", "enum": ["CREATING", "IN_PROGRESS", "ACTION_REQUIRED", "COMPLETED", "CANCELLED"] },
+    "total_customers": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "terminal_customers": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "poll_after_seconds": { "type": "integer", "minimum": 1, "maximum": 300 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "runs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/runStatus" }
+    }
+  },
+  "$defs": {
+    "runStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["run_id", "customer_id", "status", "stage", "progress", "retryable", "updated_at"],
+      "properties": {
+        "run_id": { "type": "string", "format": "uuid" },
+        "customer_id": { "type": "string", "format": "uuid" },
+        "status": { "type": "string", "enum": ["VALIDATING_INPUTS", "QUEUED", "LEASED", "DECRYPTING", "NORMALIZING", "ANALYZING", "VALIDATING_RESULT", "COMPLETED", "INSUFFICIENT_DATA", "RETRY_WAIT", "ACTION_REQUIRED", "FAILED_FINAL", "CANCELLED"] },
+        "stage": { "type": "string", "enum": ["VALIDATING_INPUTS", "WAITING_WORKER", "DOWNLOADING", "DECRYPTING", "NORMALIZING", "ANALYZING", "VALIDATING_RESULT", "COMPLETED"] },
+        "progress": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["processed", "total", "sequence"],
+          "properties": {
+            "processed": { "type": ["integer", "null"], "minimum": 0 },
+            "total": { "type": ["integer", "null"], "minimum": 0 },
+            "sequence": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "retryable": { "type": "boolean" },
+        "reason_code": { "type": ["string", "null"], "pattern": "^[A-Z0-9_]{3,64}$" },
+        "analysis_id": { "type": ["string", "null"], "format": "uuid" },
+        "updated_at": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}
