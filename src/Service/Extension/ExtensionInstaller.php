@@ -107,9 +107,15 @@ class ExtensionInstaller
                 );
             }
 
-            if (!is_dir($basePath) || !is_writable($basePath)) {
-                $dirLabel = $type === 'plugin' ? 'plugins/' : 'packages/';
-                return Result::failure("{$dirLabel} 디렉토리에 쓰기 권한이 없습니다. 서버 퍼미션을 확인하세요.");
+            // 부재와 권한 없음을 한 메시지로 묶으면 엉뚱한 퍼미션 조정을 하게 된다
+            $dirLabel = $type === 'plugin' ? 'plugins/' : 'packages/';
+            if (!is_dir($basePath)) {
+                return Result::failure("{$dirLabel} 디렉토리를 찾을 수 없습니다. 설치본이 온전한지 확인하세요.");
+            }
+            if (!is_writable($basePath)) {
+                return Result::failure(
+                    "{$dirLabel} 디렉토리에 PHP 가 쓸 수 없습니다. 그룹 쓰기 권한(775)을 열거나, 확장을 FTP 로 직접 올리세요."
+                );
             }
 
             return $this->extract(
