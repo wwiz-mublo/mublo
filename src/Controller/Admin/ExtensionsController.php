@@ -8,6 +8,7 @@ use Mublo\Core\Context\Context;
 use Mublo\Core\Container\DependencyContainer;
 use Mublo\Service\Extension\ExtensionService;
 use Mublo\Service\Extension\ExtensionInstaller;
+use Mublo\Service\Extension\ExtensionDirectoryProbe;
 use Mublo\Service\Auth\AuthService;
 use Mublo\Infrastructure\Storage\UploadPolicy;
 
@@ -93,6 +94,23 @@ class ExtensionsController
         } catch (\Exception $e) {
             return JsonResponse::error('확장 기능 저장 중 오류가 발생했습니다: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * 확장 설치 디렉토리 쓰기 가능 여부 사전 타전 (AJAX)
+     *
+     * POST /admin/extensions/writability
+     *
+     * zip 을 고르고 업로드를 누른 뒤에야 퍼미션 실패를 알게 되는 흐름을 앞당긴다.
+     * 실제 파일을 만들고 지우는 확인이라 비용이 있으므로 모달을 열 때만 호출한다.
+     */
+    public function writability(array $params, Context $context): JsonResponse
+    {
+        if (!($this->authService?->isSuper() ?? false)) {
+            return JsonResponse::forbidden('확장 업로드는 최고 관리자만 할 수 있습니다.');
+        }
+
+        return JsonResponse::success((new ExtensionDirectoryProbe())->check());
     }
 
     /**

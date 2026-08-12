@@ -338,6 +338,7 @@ foreach ($plugins as $pname => $pmanifest) {
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
             </div>
             <div class="modal-body">
+                <div id="extension_writability_notice" class="alert alert-warning small mb-3 d-none"></div>
                 <div class="mb-3">
                     <label class="form-label" for="extension_type">확장 종류</label>
                     <select class="form-select" name="extension_type" id="extension_type">
@@ -535,10 +536,81 @@ MubloRequest.registerCallback('extensionsSaved', function(response) {
 
 MubloRequest.registerCallback('extensionUploaded', function(response) {
     if (response.result === 'success') {
-        MubloRequest.showToast(response.message || '확장이 설치되었습니다.', 'success');
-        setTimeout(function() { location.reload(); }, 800);
+        // 설치 결과는 서명 여부·활성화 방법까지 담고 있어 읽을 시간이 필요하다.
+        // 토스트 + 지연 리로드는 메시지를 잘라먹으므로 확인을 받고 새로고침한다.
+        MubloRequest.showConfirm(
+            response.message || '확장이 설치되었습니다.',
+            function() { location.reload(); },
+            { title: '설치 완료', confirmText: '목록 새로고침', cancelText: '나중에', type: 'success' }
+        );
     } else {
         MubloRequest.showAlert(response.message || '업로드에 실패했습니다.', 'error');
     }
 });
+
+// 확장 업로드 사전 타전 — zip 을 고르고 버튼을 누른 뒤에야 퍼미션 실패를 알게 되는 흐름을 앞당긴다.
+// probe 는 실제 파일 생성·삭제라 비용이 있으므로 모달을 열 때만 호출한다.
+(function() {
+    var modal = document.getElementById('extension_upload_modal');
+    if (!modal) return;
+
+    var typeSelect = document.getElementById('extension_type');
+    var fileInput = document.getElementById('extension_zip');
+    var submitButton = document.querySelector('#extension_upload_form .mublo-submit');
+    var notice = document.getElementById('extension_writability_notice');
+    var probe = null;
+
+    function setBlocked(info) {
+        notice.textContent = '';
+
+        var headline = document.createElement('div');
+        headline.className = 'fw-semibold mb-1';
+        headline.textContent = info.directory + ' 디렉토리에 PHP 가 쓸 수 없어 업로드할 수 없습니다.'
+            + (info.reason ? ' (' + info.reason + ')' : '');
+
+        var guidance = document.createElement('div');
+        guidance.textContent = info.guidance;
+
+        notice.append(headline, guidance);
+        notice.classList.remove('d-none');
+
+        fileInput.disabled = true;
+        submitButton.disabled = true;
+    }
+
+    function setAllowed() {
+        notice.classList.add('d-none');
+        notice.textContent = '';
+        fileInput.disabled = false;
+        submitButton.disabled = false;
+    }
+
+    function applyProbe() {
+        // 타전 전이거나 타전 자체가 실패한 상태에서는 막지 않는다 — 서버 검증이 최종 방어선이다.
+        var info = probe ? probe[typeSelect.value] : null;
+        if (!info || info.writable) {
+            setAllowed();
+            return;
+        }
+        setBlocked(info);
+    }
+
+    modal.addEventListener('show.bs.modal', function() {
+        // 퍼미션을 고치고 바로 다시 여는 흐름을 막지 않도록 열 때마다 새로 잰다.
+        probe = null;
+        setAllowed();
+
+        MubloRequest.requestJson('/admin/extensions/writability', {})
+            .then(function(response) {
+                probe = (response && response.data) || null;
+                applyProbe();
+            })
+            .catch(function() {
+                probe = null;
+                setAllowed();
+            });
+    });
+
+    typeSelect.addEventListener('change', applyProbe);
+})();
 </script>
