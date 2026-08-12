@@ -2,7 +2,7 @@
     "name": "Shop",
     "label": "Mublo Shop",
     "description": "상품, 장바구니, 주문, 결제 기능을 제공하는 쇼핑몰 패키지",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",

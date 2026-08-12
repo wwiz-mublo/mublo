@@ -6,10 +6,11 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-12
+
 ### Added
 - 에디터: `data-toolbar-mobile`·`data-toolbar-items-mobile`·`data-toolbar-breakpoint`로 모바일 툴바를 따로 구성할 수 있습니다. Board 기본·갤러리 글쓰기는 768px 이하에서 필수 편집 버튼만 표시합니다
 - 에디터: 툴바 프리셋에 `compact`(7개 — 되돌리기·되돌리기 취소·굵게·기울임·밑줄·링크·이미지)를 추가했습니다. 기존 `minimal`(3개)과 `basic`(20개) 사이가 비어 있어 좁은 화면이나 좁은 칸에 쓸 프리셋이 없었습니다. 320px 폭에서 한 줄에 들어가며, `toolbar` 와 `toolbarMobile` 양쪽에서 쓸 수 있으므로 스킨이 버튼 이름을 나열하지 않아도 됩니다
-
 - Core: `MemberUpdatedEvent` 계열에 `getPreviousLevelValue()` 를 추가했습니다. 수정 **전** 등급값을 스칼라로 돌려주므로, 옛 등급을 알기 위해 회원 엔티티를 관통할 필요가 없습니다. 변경 **후** 등급은 이 이벤트가 들고 있지 않습니다 — 커밋된 값이므로 `MemberQueryInterface` 로 조회하세요
 - Core: `DomainDeletedEvent::getDomainName()`·`DomainUpdatedEvent::getPreviousValues()`·`BlockPageRenderingEvent` 의 페이지 접근자(`getPageId()`·`getDomainId()`·`getPageCode()`·`getPageTitle()`·`getPageConfig()`)를 추가했습니다. 아래에서 제거한 엔티티 게터의 자리를 대신합니다 — 삭제된 도메인 이름과 수정 전 도메인 값은 이벤트가 지나가면 다시 조회할 수 없으므로 그대로 실어 보냅니다
 - 개발 도구: `phpunit.xml.dist` 가 패키지 테스트도 플러그인처럼 와일드카드로 수집합니다. 패키지를 추가할 때 이 파일을 고칠 필요가 없고, 중첩 Plugin(`packages/*/Plugins/*/tests`)의 테스트도 함께 수집됩니다 — 이전에는 어느 경로에도 걸리지 않아 작성해도 실행되지 않았습니다. 새 패키지는 `composer.json` 의 autoload-dev 에 `Tests\<이름>\` 만 등록하면 됩니다
@@ -116,7 +117,8 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/wwiz-mublo/mublo/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/wwiz-mublo/mublo/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/wwiz-mublo/mublo/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/wwiz-mublo/mublo/releases/tag/v1.0.0

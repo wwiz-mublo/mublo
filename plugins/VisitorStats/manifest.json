@@ -2,7 +2,7 @@
     "name": "VisitorStats",
     "label": "방문자 통계",
     "description": "서버 사이드 방문자 접속 통계 수집/분석 플러그인",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",
