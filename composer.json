@@ -18,7 +18,6 @@
             "Tests\\": "tests/",
             "Tests\\Board\\": "packages/Board/tests/",
             "Tests\\Shop\\": "packages/Shop/tests/",
-            "Tests\\AiAssistant\\": "packages/AiAssistant/tests/",
             "Tests\\Banner\\": "plugins/Banner/tests/",
             "Tests\\EmailNotify\\": "plugins/EmailNotify/tests/",
             "Tests\\Faq\\": "plugins/Faq/tests/",
