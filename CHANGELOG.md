@@ -13,10 +13,14 @@
 - Core: `MemberUpdatedEvent` 계열에 `getPreviousLevelValue()` 를 추가했습니다. 수정 **전** 등급값을 스칼라로 돌려주므로, 옛 등급을 알기 위해 회원 엔티티를 관통할 필요가 없습니다. 변경 **후** 등급은 이 이벤트가 들고 있지 않습니다 — 커밋된 값이므로 `MemberQueryInterface` 로 조회하세요
 - Core: `DomainDeletedEvent::getDomainName()`·`DomainUpdatedEvent::getPreviousValues()`·`BlockPageRenderingEvent` 의 페이지 접근자(`getPageId()`·`getDomainId()`·`getPageCode()`·`getPageTitle()`·`getPageConfig()`)를 추가했습니다. 아래에서 제거한 엔티티 게터의 자리를 대신합니다 — 삭제된 도메인 이름과 수정 전 도메인 값은 이벤트가 지나가면 다시 조회할 수 없으므로 그대로 실어 보냅니다
 - 개발 도구: `phpunit.xml.dist` 가 패키지 테스트도 플러그인처럼 와일드카드로 수집합니다. 패키지를 추가할 때 이 파일을 고칠 필요가 없고, 중첩 Plugin(`packages/*/Plugins/*/tests`)의 테스트도 함께 수집됩니다 — 이전에는 어느 경로에도 걸리지 않아 작성해도 실행되지 않았습니다. 새 패키지는 `composer.json` 의 autoload-dev 에 `Tests\<이름>\` 만 등록하면 됩니다
+- 관리자: 확장 업로드 모달이 열릴 때 `plugins/`·`packages/` 에 실제로 쓸 수 있는지 미리 확인합니다. 쓸 수 없으면 파일 선택과 업로드 버튼이 비활성화되고 원인과 해법(그룹 쓰기 권한 또는 FTP 직접 배치)을 그 자리에서 안내하므로, zip 을 고르고 업로드를 누른 뒤에야 실패를 알게 되던 흐름이 사라집니다. 확인은 퍼미션 숫자가 아니라 실제 파일 생성·삭제라 ACL·open_basedir 까지 반영되며, 비용이 있으므로 모달을 열 때 한 번만 수행합니다
+- 설치: 환경 체크에 `plugins/`·`packages/` 쓰기 권한 항목이 추가되었습니다. 다만 **설치를 막지 않는 WARNING** 입니다 — 이 디렉토리에 쓰지 못해도 확장을 FTP 로 올리면 그대로 동작하므로, 필수로 취급하면 모든 설치본에 코드 디렉토리 상시 쓰기 권한을 강요하게 됩니다. 같은 이유로 안내도 `707` 대신 그룹 쓰기(`775`)나 FTP 직접 배치를 권합니다
 - 개발 도구: 이벤트 payload 누출을 양쪽에서 검사합니다. 이벤트는 정책상 안정 API 라 기존 확장 API 검사가 무조건 통과시켰고, 그 탓에 이벤트가 반환하는 내부 타입을 타고 들어가는 의존(`$event->getMember()->getLevelValue()`)은 `use` 문이 없어 검사에 보이지 않았습니다. 생산자 쪽은 새 검사(`composer check-event-payload`)가 이벤트 정의를 보고, 소비자 쪽은 `check-extension-api` 가 이벤트 클래스를 찾아가 게터의 반환 타입을 읽어 판정합니다. 확장이 자기 소유 타입을 자기 이벤트로 주고받는 것은 내부 응집이므로 양쪽 모두 통과시킵니다. 두 검사 모두 동결분 0건에서 시작합니다
 
 ### Changed
 - **VisitorStats**: 전환 통계가 폼 확장의 테이블(`form_submissions`·`forms`)을 직접 조회하지 않고, `ConversionRecordedEvent` 로 통보된 전환만 집계합니다. 전환의 갈래는 계약이 실어 온 `sourceType`·`sourceLabel` 로 구분하므로 주문·상담·가입·폼 접수가 한 화면에서 같은 축으로 보입니다. 이에 따라 "폼별 전환"은 "소스별 전환"이 되고, 전환 목록의 필터도 폼 선택에서 소스 선택으로 바뀌며, 목록에서 IP 열이 빠집니다(이벤트 계약에 없는 값입니다). 관리자 API 응답도 함께 바뀌었습니다 — `/api/conversion-stats` 는 `byForm`·`topForm` 대신 `bySource`·`topSource` 를, `submissions` 대신 `recorded` 를 돌려주고, `/api/conversions` 는 요청 필드가 `form_id` → `source_type` 이며 항목이 `submission_id`·`created_at`·`form_name`·`ip_address` 대신 `conversion_id`·`occurred_at`·`source_type`·`source_label`·`status` 를 담습니다
+- 관리자: 확장 업로드 성공 메시지가 토스트에서 확인 모달로 바뀌었습니다. 설치 결과에는 서명 확인 여부와 활성화 방법이 담기는데, 기존에는 0.8초 뒤 새로고침이 메시지를 잘라 읽을 수 없었습니다. 이제 확인을 눌러야 목록을 새로고침합니다
+- 관리자: 확장 업로드가 퍼미션으로 실패했을 때의 메시지가 `777` 을 연상시키는 "서버 퍼미션을 확인하세요" 대신 그룹 쓰기 권한과 FTP 직접 배치를 안내합니다
 - Core: 전환 소스 타입(`ConversionSourceTypes`)은 **코어 자신의 개념만** 담습니다. 확장이 발행하는 타입은 그 확장이 소유하며 코어에 등재하지 않습니다. 등재는 강제가 아니어서 어떤 문자열이든 그대로 집계되고, 표시 이름은 발행 쪽이 `ConversionRecordedEvent::$sourceLabel` 로 실어 보내는 값이 우선합니다 — 한 타입 안의 갈래(폼 제목·상품군 등)는 이 값으로 구분하며, 통계 화면도 타입+라벨 단위로 나눠 집계합니다
 
 ### Removed
@@ -28,6 +32,7 @@
 - Core: 보안 파일 다운로드 권한 검증에서 `autoform` 파일 카테고리 하드코딩을 제거했습니다. 코어가 확장의 카테고리 이름을 알던 분기로, 확장용 위임 경로(`SecureFileAccessEvent`)가 이미 있는데도 그 앞을 가로채고 있었습니다. 이벤트를 거쳐도 grant 하는 구독자가 없으면 안전 기본값인 관리자 전용으로 판정하므로 접근 허용 범위는 그대로이며, 거부 시 남는 경고 로그 문구만 달라집니다. 이 카테고리를 관리자 외에게 열려면 `SecureFileAccessEvent` 를 구독해 grant 하세요
 
 ### Fixed
+- 관리자: 확장 업로드가 `plugins/`·`packages/` 디렉토리 **부재**까지 "쓰기 권한이 없습니다" 로 표시하던 문제를 수정했습니다. 두 원인이 한 메시지로 묶여 있어, 설치본이 온전하지 않은 경우에도 엉뚱하게 퍼미션을 조정하게 됐습니다
 - **Shop**: 등급 변경 쿠폰(`LEVEL` 트리거)이 변경 **전** 등급으로 발행 대상을 판정하던 문제를 수정했습니다. 허용 등급을 지정한 정책에서 승급한 회원은 쿠폰을 받지 못하고, 강등된 회원이 오히려 상위 등급 쿠폰을 받았습니다. 이제 커밋된 등급을 `MemberQueryInterface` 로 재조회해 판정합니다. 허용 등급을 비워 둔 정책은 이전에도 등급을 보지 않았으므로 영향이 없습니다
 
 ## [1.1.0] - 2026-08-07

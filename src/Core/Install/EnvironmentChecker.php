@@ -47,6 +47,17 @@ class EnvironmentChecker
     ];
 
     /**
+     * 디렉토리 쓰기 권한의 용도 등급
+     *
+     * install/runtime 은 없으면 설치·운영이 불가능하므로 실패 시 FAIL 이지만,
+     * optional 은 "있으면 되는 편의"라 실패해도 WARNING 에 그친다.
+     * 확장 zip 업로드(plugins/·packages/)가 여기 해당한다 — 쓰기가 막혀 있어도
+     * FTP 로 직접 배치하면 되므로, FAIL 로 올려 설치 자체를 막으면
+     * 모든 설치자에게 코드 디렉토리 상시 쓰기 권한을 강요하는 보안 역행이 된다.
+     */
+    public const PURPOSE_OPTIONAL = 'optional';
+
+    /**
      * 쓰기 권한이 필요한 디렉토리
      */
     private array $writableDirectories = [];
@@ -68,6 +79,8 @@ class EnvironmentChecker
                 'config' => ['path' => MUBLO_CONFIG_PATH, 'purpose' => 'install'],
                 'storage' => ['path' => MUBLO_STORAGE_PATH, 'purpose' => 'runtime'],
                 $publicDirName . '/storage' => ['path' => MUBLO_PUBLIC_STORAGE_PATH, 'purpose' => 'runtime'],
+                'plugins' => ['path' => MUBLO_PLUGIN_PATH, 'purpose' => self::PURPOSE_OPTIONAL],
+                'packages' => ['path' => MUBLO_PACKAGE_PATH, 'purpose' => self::PURPOSE_OPTIONAL],
             ];
         }
 
@@ -160,8 +173,11 @@ class EnvironmentChecker
 
     /**
      * 디렉토리 권한 체크
+     *
+     * 설치 화면 외에 특정 디렉토리 한두 개만 사전 타전하는 곳에서도 쓰므로 public.
+     * 실제 파일을 만들고 지우는 probe 라 호출 비용이 있다 — 페이지뷰마다 부르지 말 것.
      */
-    private function checkPermissions(): array
+    public function checkPermissions(): array
     {
         $result = [];
 
@@ -178,20 +194,24 @@ class EnvironmentChecker
             $identity = $this->inspectIdentity($path);
 
             if (!$exists) {
-                $status  = 'FAIL';
-                $message = '디렉토리가 존재하지 않음';
+                $failure = '디렉토리가 존재하지 않음';
             } elseif (!$isDirectory) {
-                $status  = 'FAIL';
-                $message = '디렉토리가 아닌 경로';
+                $failure = '디렉토리가 아닌 경로';
             } elseif (!$readable) {
-                $status  = 'FAIL';
-                $message = '읽기 권한 없음';
+                $failure = '읽기 권한 없음';
             } elseif (!$writable) {
-                $status  = 'FAIL';
-                $message = '실제 파일 생성/삭제 불가';
+                $failure = '실제 파일 생성/삭제 불가';
             } else {
+                $failure = null;
+            }
+
+            if ($failure === null) {
                 $status  = 'OK';
                 $message = '실제 파일 생성/삭제 가능';
+            } else {
+                // optional 은 설치·운영을 막지 않는 편의 기능이므로 등급을 낮춘다
+                $status  = $purpose === self::PURPOSE_OPTIONAL ? 'WARNING' : 'FAIL';
+                $message = $failure;
             }
 
             $result[$label] = [
@@ -343,6 +363,22 @@ class EnvironmentChecker
 
     private function permissionGuidance(string $purpose, string $status, string $accessClass): string
     {
+        // 코드 디렉토리(plugins/·packages/)는 상시 쓰기가 필수가 아니므로 안내가 다르다.
+        // 여기에 707 을 권하면 웹 유저가 실행 코드를 상시 덮어쓸 수 있게 되어
+        // 얻는 편의보다 잃는 안전이 크다 — 그룹 쓰기(775) 또는 FTP 직접 배치를 권한다.
+        if ($purpose === self::PURPOSE_OPTIONAL) {
+            if ($status === 'OK') {
+                return '관리자 화면에서 확장 zip 을 업로드해 설치할 수 있습니다.';
+            }
+
+            return match ($accessClass) {
+                'owner' => 'PHP가 소유자인데도 쓰지 못합니다. ACL·open_basedir·디스크 용량을 확인하세요. 해결이 어려우면 확장을 FTP로 직접 올리면 됩니다.',
+                'group' => 'PHP가 디렉토리 그룹으로 실행됩니다. 호스팅이 허용하면 775를 적용하세요. 그대로 두고 FTP로 확장을 올려도 됩니다.',
+                'other' => 'PHP가 소유자도 그룹도 아닙니다. 그룹 쓰기를 열거나(chgrp 로 PHP 그룹을 지정한 뒤 775) 확장을 FTP로 직접 올리세요. 코드 디렉토리에 707은 권하지 않습니다.',
+                default => '확장을 관리자 화면에서 업로드하려면 이 디렉토리에 PHP 쓰기 권한이 필요합니다. 어려우면 FTP로 직접 올리세요.',
+            };
+        }
+
         if ($status === 'OK') {
             return $purpose === 'install'
                 ? '설치 중에만 쓰기가 필요합니다. 설치 완료 후 config 디렉토리는 755로 되돌리세요.'
@@ -379,6 +415,12 @@ class EnvironmentChecker
         }
 
         foreach ($checks['extensions']['recommended'] as $info) {
+            if ($info['status'] === 'WARNING') {
+                return 'WARNING';
+            }
+        }
+
+        foreach ($checks['permissions'] as $info) {
             if ($info['status'] === 'WARNING') {
                 return 'WARNING';
             }

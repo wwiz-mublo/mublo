@@ -112,8 +112,8 @@ class EnvironmentCheckerTest extends TestCase
             $this->assertArrayHasKey('message', $info);
             $this->assertArrayHasKey('guidance', $info);
 
-            $this->assertContains($info['status'], ['OK', 'FAIL'],
-                "상태는 OK 또는 FAIL이어야 합니다");
+            $this->assertContains($info['status'], ['OK', 'WARNING', 'FAIL'],
+                "상태는 OK, WARNING 또는 FAIL이어야 합니다");
         }
     }
 
@@ -152,6 +152,50 @@ class EnvironmentCheckerTest extends TestCase
         $this->assertTrue($permission['writable']);
         $this->assertSame('OK', $permission['status']);
         $this->assertStringContainsString('설치 완료 후', $permission['guidance']);
+    }
+
+    public function testOptionalPermissionFailureIsWarningAndDoesNotBlockInstall(): void
+    {
+        $checker = new EnvironmentChecker(
+            ['plugins' => ['path' => sys_get_temp_dir(), 'purpose' => EnvironmentChecker::PURPOSE_OPTIONAL]],
+            static fn (string $path): bool => false
+        );
+
+        $checks = $checker->checkAll();
+        $permission = $checks['permissions']['plugins'];
+
+        $this->assertFalse($permission['writable']);
+        $this->assertSame('WARNING', $permission['status'], 'optional 은 실패해도 FAIL 이 아니어야 합니다');
+        $this->assertSame('WARNING', $checks['overall_status']);
+        $this->assertTrue($checker->canInstall(), '확장 업로드 불가는 설치를 막지 않아야 합니다');
+        // 코드 디렉토리에 707 을 권하면 웹 유저가 실행 코드를 상시 덮어쓰게 된다.
+        // install/runtime 안내와 달리 707 을 해법으로 제시하지 않아야 한다.
+        $this->assertStringNotContainsString('707로 설정', $permission['guidance']);
+        $this->assertStringContainsString('FTP', $permission['guidance']);
+    }
+
+    public function testOptionalPermissionSuccessIsOk(): void
+    {
+        $checker = new EnvironmentChecker(
+            ['plugins' => ['path' => sys_get_temp_dir(), 'purpose' => EnvironmentChecker::PURPOSE_OPTIONAL]],
+            static fn (string $path): bool => true
+        );
+
+        $permission = $checker->checkPermissions()['plugins'];
+
+        $this->assertSame('OK', $permission['status']);
+        $this->assertStringContainsString('확장 zip', $permission['guidance']);
+    }
+
+    public function testRequiredPermissionFailureStillBlocksInstall(): void
+    {
+        $checker = new EnvironmentChecker(
+            ['config' => ['path' => sys_get_temp_dir(), 'purpose' => 'install']],
+            static fn (string $path): bool => false
+        );
+
+        $this->assertSame('FAIL', $checker->checkAll()['overall_status']);
+        $this->assertFalse($checker->canInstall());
     }
 
     public function testRealPermissionProbeLeavesNoDiagnosticFile(): void

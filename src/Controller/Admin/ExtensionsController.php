@@ -6,6 +6,7 @@ use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Container\DependencyContainer;
+use Mublo\Core\Install\EnvironmentChecker;
 use Mublo\Service\Extension\ExtensionService;
 use Mublo\Service\Extension\ExtensionInstaller;
 use Mublo\Service\Auth\AuthService;
@@ -93,6 +94,39 @@ class ExtensionsController
         } catch (\Exception $e) {
             return JsonResponse::error('확장 기능 저장 중 오류가 발생했습니다: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * 확장 설치 디렉토리 쓰기 가능 여부 사전 타전 (AJAX)
+     *
+     * POST /admin/extensions/writability
+     *
+     * zip 을 고르고 업로드를 누른 뒤에야 퍼미션 실패를 알게 되는 흐름을 앞당긴다.
+     * 판정 기준은 퍼미션 숫자가 아니라 실제 파일 생성·삭제라 ACL·open_basedir 까지 잡히고,
+     * 그만큼 비용이 있으므로 호출자는 모달을 열 때 한 번만 부른다(페이지뷰마다 금지).
+     */
+    public function writability(array $params, Context $context): JsonResponse
+    {
+        if (!($this->authService?->isSuper() ?? false)) {
+            return JsonResponse::forbidden('확장 업로드는 최고 관리자만 할 수 있습니다.');
+        }
+
+        $checker = new EnvironmentChecker([
+            'plugin' => ['path' => MUBLO_PLUGIN_PATH, 'purpose' => EnvironmentChecker::PURPOSE_OPTIONAL],
+            'package' => ['path' => MUBLO_PACKAGE_PATH, 'purpose' => EnvironmentChecker::PURPOSE_OPTIONAL],
+        ]);
+
+        $result = [];
+        foreach ($checker->checkPermissions() as $type => $info) {
+            $result[$type] = [
+                'directory' => $type === 'plugin' ? 'plugins/' : 'packages/',
+                'writable' => $info['writable'],
+                'reason' => $info['writable'] ? '' : $info['message'],
+                'guidance' => $info['guidance'],
+            ];
+        }
+
+        return JsonResponse::success($result);
     }
 
     /**

@@ -13,6 +13,28 @@ $requiresOtherWrite = array_filter(
     $permissionFailures,
     static fn (array $info): bool => $info['access_class'] === 'other'
 );
+// optional(plugins/·packages/)은 못 써도 설치를 막지 않는다 — 확장 zip 업로드만 못 쓸 뿐이라
+// FAIL 목록과 분리해 "이것만 안 됩니다" 로 안내한다.
+$permissionWarnings = array_filter(
+    $checks['permissions'],
+    static fn (array $info): bool => $info['status'] === 'WARNING'
+);
+
+// "www-data (GID 33)" 처럼 라벨에 GID 가 붙어 오므로 명령 예시에는 이름만 쓴다.
+$phpGroupHint = '<PHP 그룹>';
+foreach ($permissionWarnings as $info) {
+    if (!empty($info['php_group'])) {
+        $phpGroupHint = trim((string) preg_replace('/\s*\(GID \d+\)$/', '', $info['php_group']));
+        break;
+    }
+}
+
+$purposeLabels = [
+    'install' => '설치 중 쓰기',
+    'optional' => '확장 업로드에만 필요',
+];
+$statusClasses = ['OK' => 'ok', 'WARNING' => 'warning', 'FAIL' => 'fail'];
+$statusIcons = ['OK' => '✓', 'WARNING' => '!', 'FAIL' => '✗'];
 ?>
 
 <div class="content">
@@ -63,13 +85,13 @@ $requiresOtherWrite = array_filter(
     <h3>디렉토리 권한</h3>
     <ul class="check-list">
         <?php foreach ($checks['permissions'] as $label => $info): ?>
-        <li class="check-item <?= $info['status'] === 'OK' ? 'ok' : 'fail' ?>">
-            <div class="icon"><?= $info['status'] === 'OK' ? '✓' : '✗' ?></div>
+        <li class="check-item <?= $statusClasses[$info['status']] ?? 'fail' ?>">
+            <div class="icon"><?= $statusIcons[$info['status']] ?? '✗' ?></div>
             <div class="info">
                 <strong>
                     <?= htmlspecialchars($label) ?>
                     <small class="permission-purpose">
-                        <?= $info['purpose'] === 'install' ? '설치 중 쓰기' : '운영 중 계속 쓰기' ?>
+                        <?= $purposeLabels[$info['purpose']] ?? '운영 중 계속 쓰기' ?>
                     </small>
                 </strong>
                 <span><?= htmlspecialchars($info['message']) ?> - <?= htmlspecialchars($info['path']) ?></span>
@@ -116,6 +138,22 @@ $requiresOtherWrite = array_filter(
             <strong>권한 확인 완료</strong><br>
             숫자 퍼미션이 아니라 PHP가 실제 파일을 생성하고 삭제한 결과입니다.
             <code>storage</code>와 <code>public/storage</code>는 설치 후에도 현재 쓰기 권한을 유지하세요.
+        </div>
+    <?php endif; ?>
+
+    <?php if ($permissionWarnings !== []): ?>
+        <div class="alert alert-warning permission-help" style="margin-top: 16px;">
+            <strong>확장 zip 업로드는 사용할 수 없습니다 (설치는 그대로 진행됩니다)</strong>
+            <p>
+                <?= htmlspecialchars(implode(', ', array_keys($permissionWarnings))) ?>
+                디렉토리에 PHP가 쓸 수 없어, 관리자 화면의 <b>확장 업로드</b> 기능만 막힙니다.
+                플러그인·패키지는 FTP로 직접 올려도 똑같이 동작합니다.
+            </p>
+            <p>
+                업로드 기능까지 쓰려면 해당 디렉토리에 그룹 쓰기를 여세요.
+                (예: <code>chgrp <?= htmlspecialchars($phpGroupHint) ?> plugins &amp;&amp; chmod 775 plugins</code>)
+                실행 코드가 들어가는 디렉토리이므로 <code>707</code>·<code>777</code>은 권하지 않습니다.
+            </p>
         </div>
     <?php endif; ?>
 

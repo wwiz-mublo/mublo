@@ -48,6 +48,10 @@ class UploadConfigTest extends TestCase
             . "define('MUBLO_ROOT_PATH', \$argv[3]);\n"
             . "define('MUBLO_PUBLIC_PATH', \$argv[3] . '/public');\n"
             . "define('MUBLO_PUBLIC_STORAGE_PATH', \$argv[3] . '/public/storage');\n"
+            // bootstrap.php 가 정의하는 상수 집합을 그대로 맞춘다 —
+            // EnvironmentChecker 가 확장 디렉토리 쓰기 여부까지 보므로 여기에도 필요하다
+            . "define('MUBLO_PLUGIN_PATH', \$argv[3] . '/plugins');\n"
+            . "define('MUBLO_PACKAGE_PATH', \$argv[3] . '/packages');\n"
             . "require \$argv[2];\n"
             . "use Mublo\\Core\\ConfigFile;\n"
             . "use Mublo\\Core\\UploadConfig;\n"
