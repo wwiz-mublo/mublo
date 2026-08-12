@@ -2,7 +2,7 @@
     "name": "Board",
     "label": "Mublo Board",
     "description": "게시판, 커뮤니티 기능을 제공하는 기본 패키지",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",
