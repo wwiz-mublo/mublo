@@ -62,6 +62,29 @@ class ProductTest extends TestCase
         $this->assertSame(45000, $product->getDisplayPrice());
     }
 
+    public function testFromArrayDecodesLevelSettingsJson(): void
+    {
+        $data = $this->makeProductData([
+            'discount_level_settings' => json_encode([5 => ['type' => 'FIXED', 'value' => 2000]]),
+            'reward_level_settings'   => [3 => ['type' => 'PERCENTAGE', 'value' => 5]],
+        ]);
+
+        $product = Product::fromArray($data);
+
+        $this->assertSame('FIXED', $product->getDiscountLevelSettings()[5]['type']);
+        $this->assertSame(5, $product->getRewardLevelSettings()[3]['value']);
+    }
+
+    public function testFromArrayTreatsMissingOrBrokenLevelSettingsAsEmpty(): void
+    {
+        $product = Product::fromArray($this->makeProductData([
+            'discount_level_settings' => 'not-json',
+        ]));
+
+        $this->assertSame([], $product->getDiscountLevelSettings());
+        $this->assertSame([], $product->getRewardLevelSettings());
+    }
+
     public function testFromArrayMapsEnumFields(): void
     {
         $data = $this->makeProductData([
