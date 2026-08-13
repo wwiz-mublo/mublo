@@ -233,7 +233,7 @@ class ProductController
 
         // item_code 조기 생성 (신규 상품, 미입력 시)
         if ($goodsId <= 0 && empty($data['item_code'])) {
-            $data['item_code'] = $this->generateItemCode();
+            $data['item_code'] = $this->productService->generateItemCode();
         }
 
         // 상품별 저장 경로 구성: shop/product/{category_code}/{item_code}
@@ -481,18 +481,6 @@ class ProductController
         );
 
         return $params ? $base . '?' . http_build_query($params) : $base;
-    }
-
-    /**
-     * 상품 코드 자동 생성
-     *
-     * @return string 상품 코드 (예: G-20260210-0001)
-     */
-    private function generateItemCode(): string
-    {
-        $date = date('Ymd');
-        $random = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-        return "G-{$date}-{$random}";
     }
 
     /**

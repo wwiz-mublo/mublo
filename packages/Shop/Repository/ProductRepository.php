@@ -234,6 +234,41 @@ class ProductRepository extends BaseRepository
     }
 
     /**
+     * 주어진 접두사로 시작하는 상품코드 중 가장 큰 것
+     *
+     * item_code 는 도메인 무관 전역 유니크(uk_item_code)이므로 도메인으로 좁히지 않는다.
+     * 좁히면 다른 도메인이 이미 쓴 번호를 다시 만들어 낸다.
+     *
+     * @return string|null 없으면 null
+     */
+    public function maxItemCodeWithPrefix(string $prefix): ?string
+    {
+        $sql = "SELECT item_code FROM {$this->table}
+                WHERE item_code LIKE ?
+                ORDER BY LENGTH(item_code) DESC, item_code DESC
+                LIMIT 1";
+
+        // LIKE 와일드카드(_, %)가 접두사에 섞여도 리터럴로 취급되게 이스케이프한다
+        $escaped = str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $prefix);
+        $rows = $this->getDb()->select($sql, [$escaped . '%']);
+
+        return $rows[0]['item_code'] ?? null;
+    }
+
+    /**
+     * 상품코드 사용 여부 (전역 유니크 기준)
+     */
+    public function itemCodeExists(string $itemCode): bool
+    {
+        $row = $this->getDb()->table($this->table)
+            ->select(['item_code'])
+            ->where('item_code', '=', $itemCode)
+            ->first();
+
+        return $row !== null;
+    }
+
+    /**
      * 상품 대표 이미지 배치 조회
      *
      * N+1 방지: 목록 조회 후 한 번의 WHERE IN 쿼리로 일괄 조회
