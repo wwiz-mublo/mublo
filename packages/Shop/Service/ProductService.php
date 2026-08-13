@@ -780,9 +780,13 @@ class ProductService
     /**
      * 상품 코드 자동 생성
      *
-     * @return string 상품 코드 (예: G-20260207-xxxx)
+     * 상품을 만들기 전에 저장 경로(shop/product/{category}/{item_code})를 정해야 하는
+     * 화면이 있어 public 이다 — 그 자리에서 만든 코드를 그대로 create() 에 넘기면
+     * 경로와 저장된 코드가 어긋나지 않는다.
+     *
+     * @return string 상품 코드 (예: G-20260207-0001)
      */
-    private function generateItemCode(): string
+    public function generateItemCode(): string
     {
         $date = date('Ymd');
         $random = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
