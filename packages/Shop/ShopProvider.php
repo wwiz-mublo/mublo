@@ -76,7 +76,6 @@ use Mublo\Packages\Shop\Repository\ProductInfoTemplateRepository;
 use Mublo\Packages\Shop\Repository\ReviewRepository;
 use Mublo\Packages\Shop\Repository\InquiryRepository;
 use Mublo\Packages\Shop\Repository\WishlistRepository;
-use Mublo\Packages\Shop\Repository\LevelPricingRepository;
 use Mublo\Packages\Shop\Repository\PointLogRepository;
 use Mublo\Packages\Shop\Repository\ExhibitionRepository;
 use Mublo\Packages\Shop\Repository\ShipmentRepository;
@@ -112,7 +111,6 @@ use Mublo\Packages\Shop\Service\ProductInfoTemplateService;
 use Mublo\Packages\Shop\Service\ReviewService;
 use Mublo\Packages\Shop\Service\InquiryService;
 use Mublo\Packages\Shop\Service\WishlistService;
-use Mublo\Packages\Shop\Service\LevelPricingService;
 use Mublo\Packages\Shop\Service\PointLogService;
 use Mublo\Packages\Shop\Service\DashboardService;
 use Mublo\Packages\Shop\Service\ExhibitionService;
@@ -140,7 +138,6 @@ use Mublo\Packages\Shop\Controller\Admin\ProductInfoTemplateController;
 use Mublo\Packages\Shop\Controller\Admin\WishlistController as AdminWishlistController;
 use Mublo\Packages\Shop\Controller\Admin\ReviewController as AdminReviewController;
 use Mublo\Packages\Shop\Controller\Admin\InquiryController;
-use Mublo\Packages\Shop\Controller\Admin\LevelPricingController;
 use Mublo\Packages\Shop\Controller\Admin\DashboardController;
 use Mublo\Packages\Shop\Controller\Admin\ExhibitionController as AdminExhibitionController;
 use Mublo\Packages\Shop\Controller\Admin\ExchangeController;
@@ -254,9 +251,6 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         );
         $container->singleton(WishlistRepository::class, fn(DependencyContainer $c) =>
             new WishlistRepository($c->get(Database::class))
-        );
-        $container->singleton(LevelPricingRepository::class, fn(DependencyContainer $c) =>
-            new LevelPricingRepository($c->get(Database::class))
         );
         $container->singleton(PointLogRepository::class, fn(DependencyContainer $c) =>
             new PointLogRepository($c->get(Database::class))
@@ -507,11 +501,6 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductRepository::class)
             )
         );
-        $container->singleton(LevelPricingService::class, fn(DependencyContainer $c) =>
-            new LevelPricingService(
-                $c->get(LevelPricingRepository::class)
-            )
-        );
         $container->singleton(PointLogService::class, fn(DependencyContainer $c) =>
             new PointLogService(
                 $c->get(PointLogRepository::class)
@@ -670,12 +659,6 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             new InquiryController(
                 $c->get(AuthContextInterface::class),
                 $c->get(InquiryService::class)
-            )
-        );
-        $container->singleton(LevelPricingController::class, fn(DependencyContainer $c) =>
-            new LevelPricingController(
-                $c->get(LevelPricingService::class),
-                $c->get(MemberLevelCatalogInterface::class)
             )
         );
         $container->singleton(DashboardController::class, fn(DependencyContainer $c) =>

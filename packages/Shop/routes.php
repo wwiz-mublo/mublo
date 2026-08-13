@@ -38,7 +38,6 @@ use Mublo\Packages\Shop\Controller\Admin\OrderFieldController;
 use Mublo\Packages\Shop\Controller\Admin\ProductInfoTemplateController;
 use Mublo\Packages\Shop\Controller\Admin\ReviewController as AdminReviewController;
 use Mublo\Packages\Shop\Controller\Admin\InquiryController;
-use Mublo\Packages\Shop\Controller\Admin\LevelPricingController;
 use Mublo\Packages\Shop\Controller\Admin\DashboardController;
 use Mublo\Packages\Shop\Controller\Admin\ExhibitionController;
 use Mublo\Packages\Shop\Controller\Admin\WishlistController as AdminWishlistController;
@@ -929,25 +928,6 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRoute('POST', '/admin/inquiries/list-delete', [
         'controller' => InquiryController::class,
         'method'     => 'listDelete',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
-    // --- 회원등급 할인/혜택 설정 ---
-    $r->addRoute('GET', '/admin/level-pricing', [
-        'controller' => LevelPricingController::class,
-        'method'     => 'index',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
-    $r->addRoute('POST', '/admin/level-pricing/store', [
-        'controller' => LevelPricingController::class,
-        'method'     => 'store',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
-    $r->addRoute('POST', '/admin/level-pricing/delete', [
-        'controller' => LevelPricingController::class,
-        'method'     => 'delete',
         'middleware' => [AdminMiddleware::class],
     ]);
 
