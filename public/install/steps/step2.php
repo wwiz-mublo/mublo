@@ -67,7 +67,7 @@ $dbConfig = $_SESSION['db_config'] ?? [
 
 <div class="content">
     <h2>Step 2. 데이터베이스 설정</h2>
-    <p>데이터베이스 연결 정보를 입력하세요. 데이터베이스가 없으면 자동으로 생성됩니다.</p>
+    <p>데이터베이스 연결 정보를 입력하세요. 이미 만들어 둔 데이터베이스가 있으면 그 이름을 입력하시면 됩니다.</p>
     <p class="help-text">
         최소 MySQL 5.7.8 또는 MariaDB 10.3이 필요합니다.
         신규 운영은 MySQL 8.4 LTS 또는 MariaDB 10.11 LTS 이상을 권장합니다.
@@ -85,34 +85,54 @@ $dbConfig = $_SESSION['db_config'] ?? [
     </div>
     <?php endif; ?>
 
-    <form method="POST" id="dbForm">
+    <?php
+    // 이 폼이 받는 값은 사람의 로그인 자격증명이 아니라 서버 설정값이다. 브라우저와
+    // 암호관리자는 "아이디+비밀번호" 모양만 보고 로그인 폼으로 판정해, 사이트 계정을
+    // 채워 넣거나 설치가 끝난 뒤 "비밀번호를 저장할까요?" 를 띄운다. 그렇게 저장된
+    // 항목은 이 사이트의 로그인 정보로 남아 나중에 엉뚱한 곳에 채워진다.
+    //
+    // autocomplete 만으로는 부족하다 — 브라우저는 비밀번호 필드에서 off 를 무시하므로
+    // 채우기를 막는 표준 값인 new-password 를 쓰고, 주요 암호관리자가 각자 문서화한
+    // 무시 속성을 함께 단다. 관리자 계정을 만드는 step5 는 반대로 저장되는 편이
+    // 이득이라 그대로 둔다.
+    $ignoreManagers = 'data-1p-ignore data-lpignore="true" data-bwignore data-form-type="other"';
+    $plainField = 'autocomplete="off" spellcheck="false" autocapitalize="off" autocorrect="off"';
+    ?>
+    <form method="POST" id="dbForm" autocomplete="off">
         <input type="hidden" name="action" value="save">
 
         <div class="two-column">
             <div class="form-group">
                 <label>DB 호스트 *</label>
-                <input type="text" name="db_host" value="<?= htmlspecialchars($dbConfig['host']) ?>" required>
+                <input type="text" name="db_host" value="<?= htmlspecialchars($dbConfig['host']) ?>"
+                       required <?= $plainField ?>>
                 <small>일반적으로 localhost 또는 127.0.0.1</small>
             </div>
 
             <div class="form-group">
                 <label>DB 포트 *</label>
-                <input type="number" name="db_port" value="<?= htmlspecialchars($dbConfig['port']) ?>" required>
+                <input type="number" name="db_port" value="<?= htmlspecialchars($dbConfig['port']) ?>"
+                       required autocomplete="off">
                 <small>MySQL 기본 포트는 3306</small>
             </div>
         </div>
 
         <div class="form-group">
             <label>데이터베이스명 *</label>
-            <input type="text" name="db_database" value="<?= htmlspecialchars($dbConfig['database']) ?>" required>
-            <small>설치할 데이터베이스 이름입니다. 없으면 만들어 드립니다 — 다만 계정에 데이터베이스 생성 권한이 있어야 합니다.</small>
+            <input type="text" name="db_database" value="<?= htmlspecialchars($dbConfig['database']) ?>"
+                   required <?= $plainField ?>>
+            <small>
+                설치할 데이터베이스 이름입니다. 공유호스팅이라면 호스팅 관리 페이지에서 발급받은 이름을 그대로 입력하세요.
+                없는 이름을 넣으면 만들어 드리지만, 그러려면 계정에 데이터베이스 생성 권한이 있어야 합니다.
+            </small>
         </div>
 
         <div class="two-column">
             <div class="form-group">
                 <label>DB 사용자명 *</label>
                 <input type="text" name="db_username" id="dbUsername"
-                       value="<?= htmlspecialchars($dbConfig['username']) ?>" required autocomplete="off">
+                       value="<?= htmlspecialchars($dbConfig['username']) ?>"
+                       required <?= $plainField ?> <?= $ignoreManagers ?>>
                 <small id="dbUsernameWarning" class="install-warning" style="display:none; color:#b45309;">
                     실제 운영에서는 이 사이트 전용 계정을 만들어 쓰시는 편이 안전합니다.
                     개발이나 테스트 용도라면 그대로 진행하셔도 됩니다.
@@ -121,7 +141,8 @@ $dbConfig = $_SESSION['db_config'] ?? [
 
             <div class="form-group">
                 <label>DB 비밀번호</label>
-                <input type="password" name="db_password" value="<?= htmlspecialchars($dbConfig['password'] ?? '') ?>">
+                <input type="password" name="db_password" value="<?= htmlspecialchars($dbConfig['password'] ?? '') ?>"
+                       autocomplete="new-password" <?= $ignoreManagers ?>>
             </div>
         </div>
 
