@@ -48,6 +48,65 @@ class OptionPresetRepository extends BaseRepository
     }
 
     /**
+     * 현재 도메인 소유 프리셋만 조회한다.
+     */
+    public function findInDomain(int $domainId, int $presetId): ?OptionPreset
+    {
+        $row = $this->getDb()->table($this->table)
+            ->where($this->primaryKey, '=', $presetId)
+            ->where('domain_id', '=', $domainId)
+            ->first();
+
+        return $row ? $this->toEntity($row) : null;
+    }
+
+    /**
+     * 현재 도메인 소유 프리셋만 수정한다.
+     */
+    public function updateInDomain(int $domainId, int $presetId, array $data): int
+    {
+        unset($data['domain_id']);
+        $data['updated_at'] = date('Y-m-d H:i:s');
+
+        return $this->getDb()->table($this->table)
+            ->where($this->primaryKey, '=', $presetId)
+            ->where('domain_id', '=', $domainId)
+            ->update($data);
+    }
+
+    /**
+     * 현재 도메인 소유 프리셋만 삭제한다.
+     */
+    public function deleteInDomain(int $domainId, int $presetId): int
+    {
+        return $this->getDb()->table($this->table)
+            ->where($this->primaryKey, '=', $presetId)
+            ->where('domain_id', '=', $domainId)
+            ->delete();
+    }
+
+    /**
+     * 주어진 프리셋 ID 중 현재 도메인 소유만 남긴다.
+     *
+     * @param int[] $presetIds
+     * @return int[]
+     */
+    public function filterByDomain(array $presetIds, int $domainId): array
+    {
+        if (empty($presetIds)) {
+            return [];
+        }
+
+        $rows = $this->getDb()->table($this->table)
+            ->select([$this->primaryKey])
+            ->whereIn($this->primaryKey, $presetIds)
+            ->where('domain_id', '=', $domainId)
+            ->get();
+
+        return array_map('intval', array_column($rows, $this->primaryKey));
+    }
+
+    /**
      * 프리셋 옵션 + 값 조회
      *
      * 프리셋에 속한 옵션 목록과 각 옵션의 값을 JOIN하여 반환
