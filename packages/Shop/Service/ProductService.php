@@ -777,6 +777,9 @@ class ProductService
         return trim($slug, '-');
     }
 
+    /** 상품코드 충돌 시 다음 번호를 시도하는 횟수 */
+    private const ITEM_CODE_MAX_ATTEMPTS = 20;
+
     /**
      * 상품 코드 자동 생성
      *
@@ -784,13 +787,42 @@ class ProductService
      * 화면이 있어 public 이다 — 그 자리에서 만든 코드를 그대로 create() 에 넘기면
      * 경로와 저장된 코드가 어긋나지 않는다.
      *
+     * item_code 는 전역 유니크라 충돌하면 상품 생성이 통째로 실패한다. 4자리 난수로
+     * 뽑던 때는 생일 문제로 하루 118건이면 충돌 확률이 50%에 달했으므로, 그날의
+     * 마지막 번호 다음을 쓰고 이미 있으면 다음 번호로 넘어간다.
+     *
      * @return string 상품 코드 (예: G-20260207-0001)
      */
     public function generateItemCode(): string
     {
-        $date = date('Ymd');
-        $random = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
-        return "G-{$date}-{$random}";
+        $prefix = 'G-' . date('Ymd') . '-';
+        $next = $this->nextItemCodeSequence($prefix);
+
+        for ($i = 0; $i < self::ITEM_CODE_MAX_ATTEMPTS; $i++) {
+            $candidate = $prefix . str_pad((string) ($next + $i), 4, '0', STR_PAD_LEFT);
+            if (!$this->productRepository->itemCodeExists($candidate)) {
+                return $candidate;
+            }
+        }
+
+        // 여기까지 왔다면 동시 생성이 몰린 상황 — 겹칠 자리를 넓혀 한 번 더 시도한다
+        return $prefix . str_pad((string) ($next + random_int(self::ITEM_CODE_MAX_ATTEMPTS, 99999)), 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * 그날 마지막 상품코드의 다음 시퀀스 (없으면 1)
+     */
+    private function nextItemCodeSequence(string $prefix): int
+    {
+        $last = $this->productRepository->maxItemCodeWithPrefix($prefix);
+        if ($last === null) {
+            return 1;
+        }
+
+        $tail = substr($last, strlen($prefix));
+
+        // 옛 난수 코드가 섞여 있어도 숫자로 읽히면 그 다음부터 이어 간다
+        return ctype_digit($tail) ? ((int) $tail) + 1 : 1;
     }
 
     /**
