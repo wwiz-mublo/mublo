@@ -8,6 +8,7 @@ use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Event\EventInterface;
 use Mublo\Packages\Shop\Repository\OptionPresetRepository;
 use Mublo\Packages\Shop\Repository\ProductOptionRepository;
+use Mublo\Packages\Shop\Repository\ProductRepository;
 
 /**
  * OptionPreset Service
@@ -28,15 +29,18 @@ class OptionPresetService
     private OptionPresetRepository $presetRepository;
     private ProductOptionRepository $productOptionRepository;
     private ?EventDispatcher $eventDispatcher;
+    private ?ProductRepository $productRepository;
 
     public function __construct(
         OptionPresetRepository $presetRepository,
         ProductOptionRepository $productOptionRepository,
-        ?EventDispatcher $eventDispatcher = null
+        ?EventDispatcher $eventDispatcher = null,
+        ?ProductRepository $productRepository = null
     ) {
         $this->presetRepository = $presetRepository;
         $this->productOptionRepository = $productOptionRepository;
         $this->eventDispatcher = $eventDispatcher;
+        $this->productRepository = $productRepository;
     }
 
     /**
@@ -69,18 +73,17 @@ class OptionPresetService
      * 옵션 프리셋 상세 조회 (옵션 + 값 포함)
      *
      * @param int $presetId 프리셋 ID
+     * @param int $domainId 현재 도메인 ID (도메인 경계 검증용)
      * @return Result
      */
-    public function getDetail(int $presetId): Result
+    public function getDetail(int $presetId, int $domainId): Result
     {
-        $preset = $this->presetRepository->find($presetId);
+        $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
             return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
         }
 
-        $presetData = $preset instanceof \Mublo\Packages\Shop\Entity\OptionPreset
-            ? $preset->toArray()
-            : (array) $preset;
+        $presetData = $preset->toArray();
 
         // 프리셋에 속한 옵션 + 값 (이미 그룹핑되어 반환)
         $presetData['options'] = $this->presetRepository->getPresetOptions($presetId);
@@ -145,11 +148,12 @@ class OptionPresetService
      *
      * @param int $presetId 프리셋 ID
      * @param array $data 수정 데이터
+     * @param int $domainId 현재 도메인 ID (도메인 경계 검증용)
      * @return Result
      */
-    public function update(int $presetId, array $data): Result
+    public function update(int $presetId, array $data, int $domainId): Result
     {
-        $preset = $this->presetRepository->find($presetId);
+        $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
             return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
         }
@@ -171,7 +175,7 @@ class OptionPresetService
                 $updateData['option_mode'] = $data['option_mode'];
             }
             if (!empty($updateData)) {
-                $this->presetRepository->update($presetId, $updateData);
+                $this->presetRepository->updateInDomain($domainId, $presetId, $updateData);
             }
 
             // 옵션 재구성 (기존 옵션+값 전체 삭제 → 새로 생성)
@@ -193,11 +197,12 @@ class OptionPresetService
      * 옵션 프리셋 삭제
      *
      * @param int $presetId 프리셋 ID
+     * @param int $domainId 현재 도메인 ID (도메인 경계 검증용)
      * @return Result
      */
-    public function delete(int $presetId): Result
+    public function delete(int $presetId, int $domainId): Result
     {
-        $preset = $this->presetRepository->find($presetId);
+        $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
             return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
         }
@@ -211,7 +216,7 @@ class OptionPresetService
             $this->presetRepository->deletePresetOptions($presetId);
 
             // 프리셋 삭제
-            $this->presetRepository->delete($presetId);
+            $this->presetRepository->deleteInDomain($domainId, $presetId);
 
             $db->commit();
 
@@ -229,13 +234,20 @@ class OptionPresetService
      *
      * @param int $presetId 프리셋 ID
      * @param int $goodsId 상품 ID
+     * @param int $domainId 현재 도메인 ID (프리셋·상품 양쪽 검증용)
      * @return Result
      */
-    public function applyToProduct(int $presetId, int $goodsId): Result
+    public function applyToProduct(int $presetId, int $goodsId, int $domainId): Result
     {
-        $preset = $this->presetRepository->find($presetId);
+        $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
             return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
+        }
+
+        // 프리셋만 확인하면 남의 도메인 상품에 내 프리셋을 심을 수 있으므로 상품도 본다
+        if ($this->productRepository !== null
+            && $this->productRepository->findInDomain($domainId, $goodsId) === null) {
+            return Result::failure('상품을 찾을 수 없습니다.');
         }
 
         // 프리셋 옵션 + 값 조회 (values 중첩 포함)

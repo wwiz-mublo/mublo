@@ -336,7 +336,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             new OptionPresetService(
                 $c->get(OptionPresetRepository::class),
                 $c->get(ProductOptionRepository::class),
-                $c->get(EventDispatcher::class)
+                $c->get(EventDispatcher::class),
+                $c->get(ProductRepository::class)
             )
         );
         $container->singleton(MemberLevelResolver::class, fn(DependencyContainer $c) =>

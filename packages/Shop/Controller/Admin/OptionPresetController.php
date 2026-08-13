@@ -73,7 +73,7 @@ class OptionPresetController
                 ->withData(['message' => '옵션 프리셋을 찾을 수 없습니다.']);
         }
 
-        $result = $this->optionPresetService->getDetail($presetId);
+        $result = $this->optionPresetService->getDetail($presetId, $context->getDomainId() ?? 1);
 
         if ($result->isFailure()) {
             return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Error/404')
@@ -110,7 +110,7 @@ class OptionPresetController
         $presetId = (int) ($data['preset_id'] ?? 0);
 
         if ($presetId > 0) {
-            $result = $this->optionPresetService->update($presetId, $data);
+            $result = $this->optionPresetService->update($presetId, $data, $domainId);
         } else {
             $result = $this->optionPresetService->create($domainId, $data);
         }
@@ -139,7 +139,7 @@ class OptionPresetController
             return JsonResponse::error('프리셋 ID가 필요합니다.');
         }
 
-        $result = $this->optionPresetService->getDetail($presetId);
+        $result = $this->optionPresetService->getDetail($presetId, $context->getDomainId() ?? 1);
 
         if ($result->isFailure()) {
             return JsonResponse::error($result->getMessage());
@@ -160,7 +160,7 @@ class OptionPresetController
             return JsonResponse::error('프리셋 ID가 필요합니다.');
         }
 
-        $result = $this->optionPresetService->delete($presetId);
+        $result = $this->optionPresetService->delete($presetId, $context->getDomainId() ?? 1);
 
         if ($result->isSuccess()) {
             return JsonResponse::success(null, $result->getMessage());
@@ -174,6 +174,7 @@ class OptionPresetController
      */
     public function listDelete(array $params, Context $context): JsonResponse
     {
+        $domainId = $context->getDomainId() ?? 1;
         $request = $context->getRequest();
         $ids = array_values(array_filter(
             array_map('intval', (array) ($request->input('chk') ?? [])),
@@ -186,7 +187,7 @@ class OptionPresetController
 
         $deleted = 0;
         foreach ($ids as $id) {
-            if ($this->optionPresetService->delete($id)->isSuccess()) {
+            if ($this->optionPresetService->delete($id, $domainId)->isSuccess()) {
                 $deleted++;
             }
         }
