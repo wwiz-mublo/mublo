@@ -530,19 +530,6 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    // 상품 이미지/상세 삭제
-    $r->addRoute('POST', '/admin/products/delete-image', [
-        'controller' => AdminProductController::class,
-        'method'     => 'deleteImage',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
-    $r->addRoute('POST', '/admin/products/delete-detail', [
-        'controller' => AdminProductController::class,
-        'method'     => 'deleteDetail',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
     // --- 주문 관리 ---
     $r->addRoute('GET', '/admin/exchanges', [
         'controller' => ExchangeController::class,
