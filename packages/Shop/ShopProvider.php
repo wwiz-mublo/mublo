@@ -349,7 +349,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductRepository::class),
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
-                $c->get(\Mublo\Core\Session\SessionInterface::class)
+                $c->get(\Mublo\Core\Session\SessionInterface::class),
+                $c->get(ShopConfigService::class)
             )
         );
         $container->singleton(CartCheckoutService::class, fn(DependencyContainer $c) =>
@@ -359,7 +360,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(ProductOptionRepository::class),
-                $c->get(\Mublo\Core\Session\SessionInterface::class)
+                $c->get(\Mublo\Core\Session\SessionInterface::class),
+                $c->get(ShopConfigService::class)
             )
         );
         $container->singleton(CartService::class, fn(DependencyContainer $c) =>
@@ -370,7 +372,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(DirectBuyService::class),
-                $c->get(\Mublo\Core\Session\SessionInterface::class)
+                $c->get(\Mublo\Core\Session\SessionInterface::class),
+                $c->get(ShopConfigService::class)
             )
         );
         $container->singleton(OrderService::class, fn(DependencyContainer $c) =>

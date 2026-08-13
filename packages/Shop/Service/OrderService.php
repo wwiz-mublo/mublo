@@ -90,6 +90,9 @@ class OrderService
     private ?ShopConfigService $shopConfigService;
     private ?CouponService $couponService;
 
+    /** @var array<int,array> 도메인별 쇼핑몰 설정 캐시 */
+    private array $shopConfigCache = [];
+
     /** 암호화 대상 필드 (주문인 + 수령인 + 배송지) */
     private const ENCRYPTED_FIELDS = [
         'orderer_name',
@@ -715,11 +718,22 @@ class OrderService
      */
     private function autoConfirmDays(int $domainId): int
     {
+        return max(0, (int) ($this->shopConfig($domainId)['auto_confirm_days'] ?? 0));
+    }
+
+    /**
+     * 도메인 쇼핑몰 설정 (요청 단위 메모이제이션)
+     *
+     * 가격 계산에 넘겨야 하므로 주문 항목마다 조회되는 자리에서 쓰인다.
+     */
+    private function shopConfig(int $domainId): array
+    {
         if ($this->shopConfigService === null) {
-            return 0;
+            return [];
         }
-        $config = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        return max(0, (int) ($config['auto_confirm_days'] ?? 0));
+
+        return $this->shopConfigCache[$domainId]
+            ??= $this->shopConfigService->getConfig($domainId)->get('config', []);
     }
 
     /**
@@ -1550,10 +1564,15 @@ class OrderService
         }
 
         // 할인 적용 판매가 계산
+        // 쇼핑몰 설정을 함께 넘긴다 — 넘기지 않으면 "쇼핑몰 기본설정 적용" 상품의
+        // 할인이 상품 화면에만 걸리고 주문 금액에는 빠져 표시가와 결제가가 갈라진다.
+        $shopConfig = $this->shopConfig($domainId);
+
         $priceResult = $this->priceCalculator->calculateSalesPrice(
             $product->getDisplayPrice(),
             $product->getDiscountType(),
-            $product->getDiscountValue()
+            $product->getDiscountValue(),
+            $shopConfig
         );
         $goodsPrice = $priceResult['sales_price'];
         $itemTotal = ($goodsPrice + $optionPrice) * $quantity;
@@ -1562,7 +1581,8 @@ class OrderService
         $rewardResult = $this->priceCalculator->calculateRewardPoints(
             $goodsPrice,
             $product->getRewardType(),
-            $product->getRewardValue()
+            $product->getRewardValue(),
+            $shopConfig
         );
 
         return Result::success('', [

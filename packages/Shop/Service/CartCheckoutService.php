@@ -30,6 +30,10 @@ class CartCheckoutService
     private ShippingFeeCalculator $shippingFeeCalculator;
     private ProductOptionRepository $productOptionRepository;
     private ?SessionInterface $sessionManager;
+    private ?ShopConfigService $shopConfigService;
+
+    /** @var array<int,array> 도메인별 쇼핑몰 설정 캐시 */
+    private array $shopConfigCache = [];
 
     public function __construct(
         CartRepository $cartRepository,
@@ -37,7 +41,8 @@ class CartCheckoutService
         PriceCalculator $priceCalculator,
         ShippingFeeCalculator $shippingFeeCalculator,
         ProductOptionRepository $productOptionRepository,
-        ?SessionInterface $sessionManager = null
+        ?SessionInterface $sessionManager = null,
+        ?ShopConfigService $shopConfigService = null
     ) {
         $this->cartRepository = $cartRepository;
         $this->productRepository = $productRepository;
@@ -45,6 +50,20 @@ class CartCheckoutService
         $this->shippingFeeCalculator = $shippingFeeCalculator;
         $this->productOptionRepository = $productOptionRepository;
         $this->sessionManager = $sessionManager;
+        $this->shopConfigService = $shopConfigService;
+    }
+
+    /**
+     * 도메인 쇼핑몰 설정 (요청 단위 메모이제이션)
+     */
+    private function shopConfig(int $domainId): array
+    {
+        if ($this->shopConfigService === null) {
+            return [];
+        }
+
+        return $this->shopConfigCache[$domainId]
+            ??= $this->shopConfigService->getConfig($domainId)->get('config', []);
     }
 
     /**
@@ -98,7 +117,8 @@ class CartCheckoutService
                 $priceResult = $this->priceCalculator->calculateSalesPrice(
                     $product->getDisplayPrice(),
                     $product->getDiscountType(),
-                    $product->getDiscountValue()
+                    $product->getDiscountValue(),
+                    $this->shopConfig($domainId)
                 );
                 if ($cartItem->getGoodsPrice() !== $priceResult['sales_price']) {
                     $unavailableItems[] = $product->getGoodsName() . ' (가격 변동)';
