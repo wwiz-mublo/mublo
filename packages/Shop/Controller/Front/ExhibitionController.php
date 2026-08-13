@@ -6,6 +6,7 @@ namespace Mublo\Packages\Shop\Controller\Front;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Context\Context;
 use Mublo\Packages\Shop\Service\ExhibitionService;
+use Mublo\Packages\Shop\Service\MemberLevelResolver;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\WishlistService;
 use Mublo\Packages\Shop\Service\ProductService;
@@ -24,6 +25,7 @@ class ExhibitionController
     private WishlistService $wishlistService;
     private ProductService $productService;
     private AuthContextInterface $authService;
+    private ?MemberLevelResolver $memberLevelResolver;
 
     public function __construct(
         ExhibitionService $exhibitionService,
@@ -31,7 +33,8 @@ class ExhibitionController
         ReviewService $reviewService,
         WishlistService $wishlistService,
         ProductService $productService,
-        AuthContextInterface $authService
+        AuthContextInterface $authService,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->exhibitionService = $exhibitionService;
         $this->shopConfigService = $shopConfigService;
@@ -39,6 +42,19 @@ class ExhibitionController
         $this->wishlistService   = $wishlistService;
         $this->productService    = $productService;
         $this->authService       = $authService;
+        $this->memberLevelResolver = $memberLevelResolver;
+    }
+
+    /**
+     * 보고 있는 회원의 등급 ID (비회원이면 null)
+     */
+    private function viewerLevelId(): ?int
+    {
+        $levelValue = $this->authService->currentUser()?->levelValue;
+
+        return $levelValue === null
+            ? null
+            : $this->memberLevelResolver?->levelIdForValue($levelValue);
     }
 
     /** 기획전 목록 페이지 */
@@ -133,7 +149,7 @@ class ExhibitionController
         $reviewStats = $this->reviewService->getStatsByGoodsIds($domainId, $orderedIds);
 
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter  = new ProductPresenter($shopConfig);
+        $presenter  = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
 
         return $presenter->toList($ordered, $mainImages, $reviewStats);
     }

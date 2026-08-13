@@ -8,6 +8,8 @@ use Mublo\Core\Block\Renderer\SkinRendererTrait;
 use Mublo\Contract\Block\BlockColumnView;
 use Mublo\Packages\Shop\Helper\ProductPresenter;
 use Mublo\Packages\Shop\Repository\ProductRepository;
+use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Packages\Shop\Service\MemberLevelResolver;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 
 /**
@@ -32,13 +34,29 @@ class ProductRenderer implements RendererInterface
 
     private ProductRepository $productRepository;
     private ShopConfigService $shopConfigService;
+    private ?AuthContextInterface $authService;
+    private ?MemberLevelResolver $memberLevelResolver;
 
     public function __construct(
         ProductRepository $productRepository,
-        ShopConfigService $shopConfigService
+        ShopConfigService $shopConfigService,
+        ?AuthContextInterface $authService = null,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->productRepository = $productRepository;
         $this->shopConfigService = $shopConfigService;
+        $this->authService = $authService;
+        $this->memberLevelResolver = $memberLevelResolver;
+    }
+
+    /** 보고 있는 회원의 등급 ID (비회원이면 null) */
+    private function viewerLevelId(): ?int
+    {
+        $levelValue = $this->authService?->currentUser()?->levelValue;
+
+        return $levelValue === null
+            ? null
+            : $this->memberLevelResolver?->levelIdForValue($levelValue);
     }
 
     protected function getSkinType(): string
@@ -140,7 +158,7 @@ class ProductRenderer implements RendererInterface
 
         // ProductPresenter 적용
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig);
+        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
 
         return $presenter->toList($items, $mainImages);
     }

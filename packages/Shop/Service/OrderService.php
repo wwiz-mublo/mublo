@@ -89,6 +89,7 @@ class OrderService
     private ?CacheInterface $cache;
     private ?ShopConfigService $shopConfigService;
     private ?CouponService $couponService;
+    private ?MemberLevelResolver $memberLevelResolver;
 
     /** @var array<int,array> 도메인별 쇼핑몰 설정 캐시 */
     private array $shopConfigCache = [];
@@ -124,7 +125,8 @@ class OrderService
         ?SensitiveValueCodecInterface $encryptionService = null,
         ?CacheInterface $cache = null,
         ?ShopConfigService $shopConfigService = null,
-        ?CouponService $couponService = null
+        ?CouponService $couponService = null,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->orderRepository = $orderRepository;
         $this->cartRepository = $cartRepository;
@@ -137,6 +139,7 @@ class OrderService
         $this->cache = $cache;
         $this->shopConfigService = $shopConfigService;
         $this->couponService = $couponService;
+        $this->memberLevelResolver = $memberLevelResolver;
     }
 
     /**
@@ -173,7 +176,7 @@ class OrderService
         $totalPrice = 0;
 
         foreach ($items as $item) {
-            $itemResult = $this->validateAndBuildOrderItem($item, '', $domainId);
+            $itemResult = $this->validateAndBuildOrderItem($item, '', $domainId, $memberId);
             if ($itemResult->isFailure()) {
                 return $itemResult;
             }
@@ -1486,7 +1489,7 @@ class OrderService
      * @param string $orderNo 주문번호
      * @return Result 성공 시 order_item, item_total 포함
      */
-    private function validateAndBuildOrderItem(array $item, string $orderNo, int $domainId): Result
+    private function validateAndBuildOrderItem(array $item, string $orderNo, int $domainId, int $memberId = 0): Result
     {
         $goodsId = (int) ($item['goods_id'] ?? 0);
         $quantity = (int) ($item['quantity'] ?? 1);
@@ -1567,12 +1570,15 @@ class OrderService
         // 쇼핑몰 설정을 함께 넘긴다 — 넘기지 않으면 "쇼핑몰 기본설정 적용" 상품의
         // 할인이 상품 화면에만 걸리고 주문 금액에는 빠져 표시가와 결제가가 갈라진다.
         $shopConfig = $this->shopConfig($domainId);
+        $levelId = $this->memberLevelResolver?->levelIdFor($memberId);
 
         $priceResult = $this->priceCalculator->calculateSalesPrice(
             $product->getDisplayPrice(),
             $product->getDiscountType(),
             $product->getDiscountValue(),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $product->getDiscountLevelSettings()
         );
         $goodsPrice = $priceResult['sales_price'];
         $itemTotal = ($goodsPrice + $optionPrice) * $quantity;
@@ -1582,7 +1588,9 @@ class OrderService
             $goodsPrice,
             $product->getRewardType(),
             $product->getRewardValue(),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $product->getRewardLevelSettings()
         );
 
         return Result::success('', [

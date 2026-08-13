@@ -17,15 +17,24 @@ class PriceCalculator
      * 할인으로 뒤집혔다.
      *
      *  - PERCENTAGE / FIXED : 넘어온 값을 그 방식으로 적용
+     *  - LEVEL              : 회원 등급(levelId)에 해당하는 설정을 적용
      *  - DEFAULT            : 쇼핑몰 설정의 유형·값으로 한 번 재해석
      *  - BASIC              : 값 크기로 방식을 추정하던 옛 규칙 (@deprecated, 하위호환용)
      *  - NONE               : 할인 없음
      *
+     * @param int|null $levelId       회원 등급 ID. 비회원이거나 알 수 없으면 null — LEVEL 은 할인 없음이 된다.
+     * @param array    $levelSettings 상품의 등급별 할인 설정 (levelId => ['type', 'value'])
      * @return array ['sales_price', 'discount_amount', 'discount_percent']
      */
-    public function calculateSalesPrice(int $displayPrice, DiscountType $type, float $value, array $shopConfig = []): array
-    {
-        $resolved = $this->resolveDiscount($type, $value, $shopConfig);
+    public function calculateSalesPrice(
+        int $displayPrice,
+        DiscountType $type,
+        float $value,
+        array $shopConfig = [],
+        ?int $levelId = null,
+        array $levelSettings = []
+    ): array {
+        $resolved = $this->resolveDiscount($type, $value, $shopConfig, $levelId, $levelSettings);
 
         if ($resolved === null) {
             return ['sales_price' => $displayPrice, 'discount_amount' => 0, 'discount_percent' => 0];
@@ -56,11 +65,19 @@ class PriceCalculator
      * 방식 결정 규칙은 calculateSalesPrice()와 같다 — 적립 유형이 정하며,
      * 값의 크기로 추정하지 않는다.
      *
+     * @param int|null $levelId       회원 등급 ID (비회원이면 null)
+     * @param array    $levelSettings 상품의 등급별 적립 설정
      * @return array ['point_amount', 'reward_percent']
      */
-    public function calculateRewardPoints(int $salesPrice, RewardType $type, float $value, array $shopConfig = []): array
-    {
-        $resolved = $this->resolveReward($type, $value, $shopConfig);
+    public function calculateRewardPoints(
+        int $salesPrice,
+        RewardType $type,
+        float $value,
+        array $shopConfig = [],
+        ?int $levelId = null,
+        array $levelSettings = []
+    ): array {
+        $resolved = $this->resolveReward($type, $value, $shopConfig, $levelId, $levelSettings);
 
         if ($resolved === null) {
             return ['point_amount' => 0, 'reward_percent' => 0];
@@ -92,20 +109,29 @@ class PriceCalculator
      * @return array{0: DiscountType, 1: float}|null 할인이 없으면 null.
      *         0번은 항상 PERCENTAGE 또는 FIXED — 나머지 유형은 여기서 다 풀린다.
      */
-    private function resolveDiscount(DiscountType $type, float $value, array $shopConfig): ?array
-    {
+    private function resolveDiscount(
+        DiscountType $type,
+        float $value,
+        array $shopConfig,
+        ?int $levelId = null,
+        array $levelSettings = []
+    ): ?array {
         return match ($type) {
             DiscountType::NONE => null,
             DiscountType::PERCENTAGE,
             DiscountType::FIXED => $value > 0 ? [$type, $value] : null,
-            DiscountType::DEFAULT => $this->resolveShopDefaultDiscount($shopConfig),
+            DiscountType::DEFAULT => $this->resolveShopDefaultDiscount($shopConfig, $levelId),
             DiscountType::BASIC => $this->resolveBySize(
                 (float) ($shopConfig['discount_value'] ?? 0),
                 DiscountType::PERCENTAGE,
                 DiscountType::FIXED
             ),
-            // 등급별 설정이 전달되지 않았으므로 할인 없음
-            DiscountType::LEVEL => null,
+            DiscountType::LEVEL => $this->resolveLevelSetting(
+                $levelSettings,
+                $levelId,
+                DiscountType::PERCENTAGE,
+                DiscountType::FIXED
+            ),
         };
     }
 
@@ -114,19 +140,29 @@ class PriceCalculator
      *
      * @return array{0: RewardType, 1: float}|null
      */
-    private function resolveReward(RewardType $type, float $value, array $shopConfig): ?array
-    {
+    private function resolveReward(
+        RewardType $type,
+        float $value,
+        array $shopConfig,
+        ?int $levelId = null,
+        array $levelSettings = []
+    ): ?array {
         return match ($type) {
             RewardType::NONE => null,
             RewardType::PERCENTAGE,
             RewardType::FIXED => $value > 0 ? [$type, $value] : null,
-            RewardType::DEFAULT => $this->resolveShopDefaultReward($shopConfig),
+            RewardType::DEFAULT => $this->resolveShopDefaultReward($shopConfig, $levelId),
             RewardType::BASIC => $this->resolveBySize(
                 (float) ($shopConfig['reward_value'] ?? 0),
                 RewardType::PERCENTAGE,
                 RewardType::FIXED
             ),
-            RewardType::LEVEL => null,
+            RewardType::LEVEL => $this->resolveLevelSetting(
+                $levelSettings,
+                $levelId,
+                RewardType::PERCENTAGE,
+                RewardType::FIXED
+            ),
         };
     }
 
@@ -135,7 +171,7 @@ class PriceCalculator
      *
      * 설정이 다시 DEFAULT를 가리키면 자기참조이므로 할인 없음으로 본다.
      */
-    private function resolveShopDefaultDiscount(array $shopConfig): ?array
+    private function resolveShopDefaultDiscount(array $shopConfig, ?int $levelId): ?array
     {
         $configType = DiscountType::tryFrom((string) ($shopConfig['discount_type'] ?? ''))
             ?? DiscountType::NONE;
@@ -144,14 +180,17 @@ class PriceCalculator
             return null;
         }
 
+        // 설정이 등급별이면 등급표도 설정 쪽 것을 쓴다 (상품이 아니라 쇼핑몰 기본값이므로)
         return $this->resolveDiscount(
             $configType,
             (float) ($shopConfig['discount_value'] ?? 0),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $this->levelSettingsFrom($shopConfig, 'discount_level_settings')
         );
     }
 
-    private function resolveShopDefaultReward(array $shopConfig): ?array
+    private function resolveShopDefaultReward(array $shopConfig, ?int $levelId): ?array
     {
         $configType = RewardType::tryFrom((string) ($shopConfig['reward_type'] ?? ''))
             ?? RewardType::NONE;
@@ -163,8 +202,64 @@ class PriceCalculator
         return $this->resolveReward(
             $configType,
             (float) ($shopConfig['reward_value'] ?? 0),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $this->levelSettingsFrom($shopConfig, 'reward_level_settings')
         );
+    }
+
+    /**
+     * 등급별 설정에서 이 회원의 등급에 해당하는 [방식, 값]을 꺼낸다
+     *
+     * 등급을 모르거나(비회원) 해당 등급에 설정이 없으면 적용하지 않는다.
+     *
+     * @template T of DiscountType|RewardType
+     * @param T $percentage
+     * @param T $fixed
+     * @return array{0: T, 1: float}|null
+     */
+    private function resolveLevelSetting(
+        array $levelSettings,
+        ?int $levelId,
+        DiscountType|RewardType $percentage,
+        DiscountType|RewardType $fixed
+    ): ?array {
+        if ($levelId === null || $levelSettings === []) {
+            return null;
+        }
+
+        $setting = $levelSettings[$levelId] ?? $levelSettings[(string) $levelId] ?? null;
+        if (!is_array($setting)) {
+            return null;
+        }
+
+        $amount = (float) ($setting['value'] ?? 0);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        return ($setting['type'] ?? 'PERCENTAGE') === 'FIXED'
+            ? [$fixed, $amount]
+            : [$percentage, $amount];
+    }
+
+    /**
+     * 쇼핑몰 설정의 등급별 설정 컬럼 해석 (DB에는 JSON 문자열로 저장된다)
+     */
+    private function levelSettingsFrom(array $shopConfig, string $key): array
+    {
+        $raw = $shopConfig[$key] ?? null;
+
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
     }
 
     /**

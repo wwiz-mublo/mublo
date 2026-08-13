@@ -31,6 +31,7 @@ class CartCheckoutService
     private ProductOptionRepository $productOptionRepository;
     private ?SessionInterface $sessionManager;
     private ?ShopConfigService $shopConfigService;
+    private ?MemberLevelResolver $memberLevelResolver;
 
     /** @var array<int,array> 도메인별 쇼핑몰 설정 캐시 */
     private array $shopConfigCache = [];
@@ -42,7 +43,8 @@ class CartCheckoutService
         ShippingFeeCalculator $shippingFeeCalculator,
         ProductOptionRepository $productOptionRepository,
         ?SessionInterface $sessionManager = null,
-        ?ShopConfigService $shopConfigService = null
+        ?ShopConfigService $shopConfigService = null,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->cartRepository = $cartRepository;
         $this->productRepository = $productRepository;
@@ -51,6 +53,7 @@ class CartCheckoutService
         $this->productOptionRepository = $productOptionRepository;
         $this->sessionManager = $sessionManager;
         $this->shopConfigService = $shopConfigService;
+        $this->memberLevelResolver = $memberLevelResolver;
     }
 
     /**
@@ -118,7 +121,9 @@ class CartCheckoutService
                     $product->getDisplayPrice(),
                     $product->getDiscountType(),
                     $product->getDiscountValue(),
-                    $this->shopConfig($domainId)
+                    $this->shopConfig($domainId),
+                    $this->memberLevelResolver?->levelIdFor($memberId),
+                    $product->getDiscountLevelSettings()
                 );
                 if ($cartItem->getGoodsPrice() !== $priceResult['sales_price']) {
                     $unavailableItems[] = $product->getGoodsName() . ' (가격 변동)';

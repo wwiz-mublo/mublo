@@ -40,6 +40,7 @@ class CartService
     private DirectBuyService $directBuyService;
     private ?SessionInterface $sessionManager;
     private ?ShopConfigService $shopConfigService;
+    private ?MemberLevelResolver $memberLevelResolver;
 
     /** @var array<int,array> 도메인별 쇼핑몰 설정 캐시 */
     private array $shopConfigCache = [];
@@ -52,7 +53,8 @@ class CartService
         ShippingFeeCalculator $shippingFeeCalculator,
         DirectBuyService $directBuyService,
         ?SessionInterface $sessionManager = null,
-        ?ShopConfigService $shopConfigService = null
+        ?ShopConfigService $shopConfigService = null,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->cartRepository = $cartRepository;
         $this->productRepository = $productRepository;
@@ -62,6 +64,15 @@ class CartService
         $this->directBuyService = $directBuyService;
         $this->sessionManager = $sessionManager;
         $this->shopConfigService = $shopConfigService;
+        $this->memberLevelResolver = $memberLevelResolver;
+    }
+
+    /**
+     * 회원 등급 ID (비회원이거나 해석 불가면 null → 등급 할인 없음)
+     */
+    private function levelId(int $memberId): ?int
+    {
+        return $this->memberLevelResolver?->levelIdFor($memberId);
     }
 
     /**
@@ -287,7 +298,9 @@ class CartService
                             $product->getDisplayPrice(),
                             $product->getDiscountType(),
                             $product->getDiscountValue(),
-                            $this->shopConfig($domainId)
+                            $this->shopConfig($domainId),
+                            $this->levelId($memberId),
+                            $product->getDiscountLevelSettings()
                         )['sales_price'];
                     $priceChanged = $cartItem->getGoodsPrice() !== $currentGoodsPrice;
                 }
@@ -349,7 +362,9 @@ class CartService
                 $product->getDisplayPrice(),
                 $product->getDiscountType(),
                 $product->getDiscountValue(),
-                $this->shopConfig($domainId)
+                $this->shopConfig($domainId),
+                $this->levelId($memberId),
+                $product->getDiscountLevelSettings()
             );
 
             // getByProduct()는 [{ option: ProductOption entity, values: [...] }] 형태
@@ -431,16 +446,19 @@ class CartService
         }
 
         $shopConfig = $this->shopConfig($domainId);
+        $levelId = $this->levelId($memberId);
         $priceResult = $this->priceCalculator->calculateSalesPrice(
             $product->getDisplayPrice(),
             $product->getDiscountType(),
             $product->getDiscountValue(),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $product->getDiscountLevelSettings()
         );
         $salesPrice = $priceResult['sales_price'];
 
         $data['goods_id'] = $goodsId;
-        $newItems = $this->buildCartItems($data, $product, $salesPrice, $shopConfig);
+        $newItems = $this->buildCartItems($data, $product, $salesPrice, $shopConfig, $levelId);
         if (empty($newItems)) {
             return Result::failure('옵션을 선택해주세요.');
         }
@@ -517,16 +535,19 @@ class CartService
         }
 
         $shopConfig = $this->shopConfig($domainId);
+        $levelId = $this->levelId($memberId);
         $priceResult = $this->priceCalculator->calculateSalesPrice(
             $product->getDisplayPrice(),
             $product->getDiscountType(),
             $product->getDiscountValue(),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $product->getDiscountLevelSettings()
         );
         $salesPrice = $priceResult['sales_price'];
 
         // 새 옵션 데이터로 DB 행 빌드
-        $cartItems = $this->buildCartItems($data, $product, $salesPrice, $shopConfig);
+        $cartItems = $this->buildCartItems($data, $product, $salesPrice, $shopConfig, $levelId);
         if (empty($cartItems)) {
             return Result::failure('옵션을 선택해주세요.');
         }
@@ -603,16 +624,19 @@ class CartService
 
         // 할인 적용된 판매가
         $shopConfig = $this->shopConfig($domainId);
+        $levelId = $this->levelId($memberId);
         $priceResult = $this->priceCalculator->calculateSalesPrice(
             $product->getDisplayPrice(),
             $product->getDiscountType(),
             $product->getDiscountValue(),
-            $shopConfig
+            $shopConfig,
+            $levelId,
+            $product->getDiscountLevelSettings()
         );
         $salesPrice = $priceResult['sales_price'];
 
         // JS getSubmitData() → DB 행 배열 변환
-        $cartItems = $this->buildCartItems($data, $product, $salesPrice, $shopConfig);
+        $cartItems = $this->buildCartItems($data, $product, $salesPrice, $shopConfig, $levelId);
         if (empty($cartItems)) {
             // 옵션상품인데 결과가 비면 실제 원인은 '옵션 미선택' → 안내를 명확히.
             // (장바구니/바로구매 공통. 다른 경로(415·500)와 문구 일치)
@@ -780,7 +804,9 @@ class CartService
             $product->getDisplayPrice(),
             $product->getDiscountType(),
             $product->getDiscountValue(),
-            $this->shopConfig($domainId)
+            $this->shopConfig($domainId),
+            $this->levelId($memberId),
+            $product->getDiscountLevelSettings()
         )['sales_price'];
 
         if ($currentPrice === $cartItem->getGoodsPrice()) {
@@ -924,7 +950,7 @@ class CartService
     /**
      * JS getSubmitData() 구조를 DB 행 배열로 변환
      */
-    private function buildCartItems(array $data, Product $product, int $salesPrice, array $shopConfig = []): array
+    private function buildCartItems(array $data, Product $product, int $salesPrice, array $shopConfig = [], ?int $levelId = null): array
     {
         $optionMode = $data['option_mode'] ?? 'NONE';
         $goodsId = $product->getGoodsId();
@@ -938,7 +964,8 @@ class CartService
             }
 
             $rewardResult = $this->priceCalculator->calculateRewardPoints(
-                $salesPrice, $product->getRewardType(), $product->getRewardValue(), $shopConfig
+                $salesPrice, $product->getRewardType(), $product->getRewardValue(),
+                $shopConfig, $levelId, $product->getRewardLevelSettings()
             );
 
             $items[] = [
@@ -959,7 +986,7 @@ class CartService
 
         // BASIC 옵션 (selectedOptions)
         foreach (($data['selectedOptions'] ?? []) as $opt) {
-            $item = $this->resolveOptionCartItem($product, $salesPrice, $optionMode, $opt, 'BASIC', $shopConfig);
+            $item = $this->resolveOptionCartItem($product, $salesPrice, $optionMode, $opt, 'BASIC', $shopConfig, $levelId);
             if ($item) {
                 $items[] = $item;
             }
@@ -967,7 +994,7 @@ class CartService
 
         // EXTRA 옵션 (selectedExtras)
         foreach (($data['selectedExtras'] ?? []) as $ext) {
-            $item = $this->resolveOptionCartItem($product, $salesPrice, 'SINGLE', $ext, 'EXTRA', $shopConfig);
+            $item = $this->resolveOptionCartItem($product, $salesPrice, 'SINGLE', $ext, 'EXTRA', $shopConfig, $levelId);
             if ($item) {
                 $items[] = $item;
             }
@@ -979,7 +1006,7 @@ class CartService
     /**
      * 단일 옵션 항목을 DB 행으로 변환
      */
-    private function resolveOptionCartItem(Product $product, int $salesPrice, string $optionMode, array $opt, string $optionType, array $shopConfig = []): ?array
+    private function resolveOptionCartItem(Product $product, int $salesPrice, string $optionMode, array $opt, string $optionType, array $shopConfig = [], ?int $levelId = null): ?array
     {
         $optionCode = $opt['optionCode'] ?? '';
         $quantity = max(1, (int) ($opt['quantity'] ?? 1));
@@ -1036,7 +1063,8 @@ class CartService
         $pointAmount = 0;
         if ($optionType !== 'EXTRA') {
             $rewardResult = $this->priceCalculator->calculateRewardPoints(
-                $unitPrice, $product->getRewardType(), $product->getRewardValue(), $shopConfig
+                $unitPrice, $product->getRewardType(), $product->getRewardValue(),
+                $shopConfig, $levelId, $product->getRewardLevelSettings()
             );
             $pointAmount = $rewardResult['point_amount'] * $quantity;
         }

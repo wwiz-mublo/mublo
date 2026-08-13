@@ -84,6 +84,7 @@ use Mublo\Packages\Shop\Repository\ActionExecutionRepository;
 use Mublo\Packages\Shop\Repository\ClaimRepository;
 
 // Service
+use Mublo\Packages\Shop\Service\MemberLevelResolver;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\CategoryService;
 use Mublo\Packages\Shop\Service\ProductService;
@@ -344,13 +345,20 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(EventDispatcher::class)
             )
         );
+        $container->singleton(MemberLevelResolver::class, fn(DependencyContainer $c) =>
+            new MemberLevelResolver(
+                $c->get(MemberQueryInterface::class),
+                $c->get(MemberLevelCatalogInterface::class)
+            )
+        );
         $container->singleton(DirectBuyService::class, fn(DependencyContainer $c) =>
             new DirectBuyService(
                 $c->get(ProductRepository::class),
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(\Mublo\Core\Session\SessionInterface::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(CartCheckoutService::class, fn(DependencyContainer $c) =>
@@ -361,7 +369,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(ProductOptionRepository::class),
                 $c->get(\Mublo\Core\Session\SessionInterface::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(CartService::class, fn(DependencyContainer $c) =>
@@ -373,7 +382,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(DirectBuyService::class),
                 $c->get(\Mublo\Core\Session\SessionInterface::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(OrderService::class, fn(DependencyContainer $c) =>
@@ -388,7 +398,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(SensitiveValueCodecInterface::class),
                 $c->get(\Mublo\Infrastructure\Cache\CacheInterface::class),
                 $c->get(ShopConfigService::class),
-                $c->get(CouponService::class)
+                $c->get(CouponService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(OrderPointService::class, fn(DependencyContainer $c) =>
@@ -697,7 +708,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(InquiryService::class),
                 $c->get(ProductInfoTemplateService::class),
                 $c->get(WishlistService::class),
-                $c->get(AuthContextInterface::class)
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(CartController::class, fn(DependencyContainer $c) =>
@@ -778,7 +790,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ReviewService::class),
                 $c->get(WishlistService::class),
                 $c->get(ProductService::class),
-                $c->get(AuthContextInterface::class)
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
 
@@ -824,7 +837,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $container->singleton(ProductRenderer::class, function (DependencyContainer $c) {
             $renderer = new ProductRenderer(
                 $c->get(ProductRepository::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             );
             $renderer->assetManager = $c->get(AssetManager::class);
             return $renderer;
@@ -835,7 +850,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             $renderer = new ProductAutoRenderer(
                 $c->get(ProductRepository::class),
                 $c->get(CategoryRepository::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             );
             $renderer->assetManager = $c->get(AssetManager::class);
             return $renderer;

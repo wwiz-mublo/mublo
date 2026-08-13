@@ -10,6 +10,7 @@ use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Registry\CategoryProviderRegistry;
 use Mublo\Packages\Shop\Service\ProductService;
+use Mublo\Packages\Shop\Service\MemberLevelResolver;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\WishlistService;
 use Mublo\Packages\Shop\Service\ReviewService;
@@ -36,6 +37,7 @@ class ProductController
     private ProductInfoTemplateService $templateService;
     private WishlistService $wishlistService;
     private AuthContextInterface $authService;
+    private ?MemberLevelResolver $memberLevelResolver;
 
     public function __construct(
         ProductService $productService,
@@ -45,7 +47,8 @@ class ProductController
         InquiryService $inquiryService,
         ProductInfoTemplateService $templateService,
         WishlistService $wishlistService,
-        AuthContextInterface $authService
+        AuthContextInterface $authService,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->productService = $productService;
         $this->categoryRegistry = $categoryRegistry;
@@ -55,6 +58,21 @@ class ProductController
         $this->templateService = $templateService;
         $this->wishlistService = $wishlistService;
         $this->authService = $authService;
+        $this->memberLevelResolver = $memberLevelResolver;
+    }
+
+    /**
+     * 보고 있는 회원의 등급 ID (비회원이면 null)
+     *
+     * 로그인 사용자는 levelValue 를 이미 들고 있으므로 회원 조회 없이 등급 ID만 해석한다.
+     */
+    private function viewerLevelId(): ?int
+    {
+        $levelValue = $this->authService->currentUser()?->levelValue;
+
+        return $levelValue === null
+            ? null
+            : $this->memberLevelResolver?->levelIdForValue($levelValue);
     }
 
     /**
@@ -120,7 +138,7 @@ class ProductController
 
         // ProductPresenter 적용
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig);
+        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
         $products = $presenter->toList($items, $mainImages, $reviewStats);
 
         // 회원 찜 상태 매핑
@@ -196,7 +214,7 @@ class ProductController
             : [];
 
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig);
+        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
         $products = $presenter->toList($items, $mainImages, $reviewStats);
 
         $memberId = $this->authService->id() ?? 0;
@@ -271,7 +289,7 @@ class ProductController
 
         // ProductPresenter 적용
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig);
+        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
         $product = $presenter->toView($productData, $reviewStat, 0, $inquiryCount);
 
         $memberId = $this->authService->id() ?? 0;

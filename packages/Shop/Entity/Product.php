@@ -45,6 +45,11 @@ final class Product
     protected int $rewardReview;
     protected bool $allowedCoupon;
 
+    /** @var array<int|string,array> 등급(levelId)별 할인 설정 — discount_type=LEVEL 일 때 사용 */
+    protected array $discountLevelSettings = [];
+    /** @var array<int|string,array> 등급(levelId)별 적립 설정 — reward_type=LEVEL 일 때 사용 */
+    protected array $rewardLevelSettings = [];
+
     // 재고/옵션
     protected ?int $stockQuantity;
     protected OptionMode $optionMode;
@@ -100,6 +105,8 @@ final class Product
         $entity->rewardType = RewardType::tryFrom($data['reward_type'] ?? 'NONE') ?? RewardType::NONE;
         $entity->rewardValue = (float) ($data['reward_value'] ?? 0);
         $entity->rewardReview = (int) ($data['reward_review'] ?? 0);
+        $entity->discountLevelSettings = self::decodeLevelSettings($data['discount_level_settings'] ?? null);
+        $entity->rewardLevelSettings = self::decodeLevelSettings($data['reward_level_settings'] ?? null);
         $entity->allowedCoupon = (bool) ($data['allowed_coupon'] ?? true);
 
         // 재고/옵션
@@ -275,6 +282,39 @@ final class Product
     public function getRewardReview(): int
     {
         return $this->rewardReview;
+    }
+
+    /**
+     * 등급별 할인 설정 (levelId => ['type' => 'PERCENTAGE'|'FIXED', 'value' => float])
+     */
+    public function getDiscountLevelSettings(): array
+    {
+        return $this->discountLevelSettings;
+    }
+
+    /**
+     * 등급별 적립 설정 (levelId => ['type' => 'PERCENTAGE'|'FIXED', 'value' => float])
+     */
+    public function getRewardLevelSettings(): array
+    {
+        return $this->rewardLevelSettings;
+    }
+
+    /**
+     * 등급별 설정 컬럼 해석 — DB에는 JSON 문자열로 저장된다
+     */
+    private static function decodeLevelSettings(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
     }
 
     public function isAllowedCoupon(): bool
