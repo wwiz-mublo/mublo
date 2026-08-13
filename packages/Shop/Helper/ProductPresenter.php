@@ -42,10 +42,14 @@ class ProductPresenter
     private array $shopConfig;
     private PriceCalculator $priceCalculator;
 
-    public function __construct(array $shopConfig = [], ?PriceCalculator $priceCalculator = null)
+    /** 보고 있는 회원의 등급 ID — 등급별 할인·적립을 표시가에 반영한다 (비회원이면 null) */
+    private ?int $levelId;
+
+    public function __construct(array $shopConfig = [], ?PriceCalculator $priceCalculator = null, ?int $levelId = null)
     {
         $this->shopConfig = $shopConfig;
         $this->priceCalculator = $priceCalculator ?? new PriceCalculator();
+        $this->levelId = $levelId;
     }
 
     /* =========================================================
@@ -275,6 +279,25 @@ class ProductPresenter
      * ========================================================= */
 
     /**
+     * 상품 행의 등급별 설정 컬럼 해석 (DB에는 JSON 문자열로 저장된다)
+     */
+    private function levelSettings(array $item, string $key): array
+    {
+        $raw = $item[$key] ?? null;
+
+        if (is_array($raw)) {
+            return $raw;
+        }
+
+        if (is_string($raw) && $raw !== '') {
+            $decoded = json_decode($raw, true);
+            return is_array($decoded) ? $decoded : [];
+        }
+
+        return [];
+    }
+
+    /**
      * 가격 필드 생성 (PriceCalculator 활용)
      */
     private function buildPriceFields(array $item): array
@@ -291,7 +314,9 @@ class ProductPresenter
             $displayPrice,
             $discountType,
             $discountValue,
-            $this->shopConfig
+            $this->shopConfig,
+            $this->levelId,
+            $this->levelSettings($item, 'discount_level_settings')
         );
 
         $salesPrice = $priceResult['sales_price'];
@@ -304,7 +329,9 @@ class ProductPresenter
             $salesPrice,
             $rewardType,
             $rewardValue,
-            $this->shopConfig
+            $this->shopConfig,
+            $this->levelId,
+            $this->levelSettings($item, 'reward_level_settings')
         );
 
         return [

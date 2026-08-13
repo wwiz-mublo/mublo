@@ -76,7 +76,6 @@ use Mublo\Packages\Shop\Repository\ProductInfoTemplateRepository;
 use Mublo\Packages\Shop\Repository\ReviewRepository;
 use Mublo\Packages\Shop\Repository\InquiryRepository;
 use Mublo\Packages\Shop\Repository\WishlistRepository;
-use Mublo\Packages\Shop\Repository\LevelPricingRepository;
 use Mublo\Packages\Shop\Repository\PointLogRepository;
 use Mublo\Packages\Shop\Repository\ExhibitionRepository;
 use Mublo\Packages\Shop\Repository\ShipmentRepository;
@@ -84,6 +83,7 @@ use Mublo\Packages\Shop\Repository\ActionExecutionRepository;
 use Mublo\Packages\Shop\Repository\ClaimRepository;
 
 // Service
+use Mublo\Packages\Shop\Service\MemberLevelResolver;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\CategoryService;
 use Mublo\Packages\Shop\Service\ProductService;
@@ -111,7 +111,6 @@ use Mublo\Packages\Shop\Service\ProductInfoTemplateService;
 use Mublo\Packages\Shop\Service\ReviewService;
 use Mublo\Packages\Shop\Service\InquiryService;
 use Mublo\Packages\Shop\Service\WishlistService;
-use Mublo\Packages\Shop\Service\LevelPricingService;
 use Mublo\Packages\Shop\Service\PointLogService;
 use Mublo\Packages\Shop\Service\DashboardService;
 use Mublo\Packages\Shop\Service\ExhibitionService;
@@ -139,7 +138,6 @@ use Mublo\Packages\Shop\Controller\Admin\ProductInfoTemplateController;
 use Mublo\Packages\Shop\Controller\Admin\WishlistController as AdminWishlistController;
 use Mublo\Packages\Shop\Controller\Admin\ReviewController as AdminReviewController;
 use Mublo\Packages\Shop\Controller\Admin\InquiryController;
-use Mublo\Packages\Shop\Controller\Admin\LevelPricingController;
 use Mublo\Packages\Shop\Controller\Admin\DashboardController;
 use Mublo\Packages\Shop\Controller\Admin\ExhibitionController as AdminExhibitionController;
 use Mublo\Packages\Shop\Controller\Admin\ExchangeController;
@@ -254,9 +252,6 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $container->singleton(WishlistRepository::class, fn(DependencyContainer $c) =>
             new WishlistRepository($c->get(Database::class))
         );
-        $container->singleton(LevelPricingRepository::class, fn(DependencyContainer $c) =>
-            new LevelPricingRepository($c->get(Database::class))
-        );
         $container->singleton(PointLogRepository::class, fn(DependencyContainer $c) =>
             new PointLogRepository($c->get(Database::class))
         );
@@ -344,12 +339,20 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(EventDispatcher::class)
             )
         );
+        $container->singleton(MemberLevelResolver::class, fn(DependencyContainer $c) =>
+            new MemberLevelResolver(
+                $c->get(MemberQueryInterface::class),
+                $c->get(MemberLevelCatalogInterface::class)
+            )
+        );
         $container->singleton(DirectBuyService::class, fn(DependencyContainer $c) =>
             new DirectBuyService(
                 $c->get(ProductRepository::class),
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
-                $c->get(\Mublo\Core\Session\SessionInterface::class)
+                $c->get(\Mublo\Core\Session\SessionInterface::class),
+                $c->get(ShopConfigService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(CartCheckoutService::class, fn(DependencyContainer $c) =>
@@ -359,7 +362,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(ProductOptionRepository::class),
-                $c->get(\Mublo\Core\Session\SessionInterface::class)
+                $c->get(\Mublo\Core\Session\SessionInterface::class),
+                $c->get(ShopConfigService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(CartService::class, fn(DependencyContainer $c) =>
@@ -370,7 +375,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(PriceCalculator::class),
                 $c->get(ShippingFeeCalculator::class),
                 $c->get(DirectBuyService::class),
-                $c->get(\Mublo\Core\Session\SessionInterface::class)
+                $c->get(\Mublo\Core\Session\SessionInterface::class),
+                $c->get(ShopConfigService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(OrderService::class, fn(DependencyContainer $c) =>
@@ -385,7 +392,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(SensitiveValueCodecInterface::class),
                 $c->get(\Mublo\Infrastructure\Cache\CacheInterface::class),
                 $c->get(ShopConfigService::class),
-                $c->get(CouponService::class)
+                $c->get(CouponService::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(OrderPointService::class, fn(DependencyContainer $c) =>
@@ -491,11 +499,6 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             new WishlistService(
                 $c->get(WishlistRepository::class),
                 $c->get(ProductRepository::class)
-            )
-        );
-        $container->singleton(LevelPricingService::class, fn(DependencyContainer $c) =>
-            new LevelPricingService(
-                $c->get(LevelPricingRepository::class)
             )
         );
         $container->singleton(PointLogService::class, fn(DependencyContainer $c) =>
@@ -658,12 +661,6 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(InquiryService::class)
             )
         );
-        $container->singleton(LevelPricingController::class, fn(DependencyContainer $c) =>
-            new LevelPricingController(
-                $c->get(LevelPricingService::class),
-                $c->get(MemberLevelCatalogInterface::class)
-            )
-        );
         $container->singleton(DashboardController::class, fn(DependencyContainer $c) =>
             new DashboardController(
                 $c->get(DashboardService::class)
@@ -694,7 +691,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(InquiryService::class),
                 $c->get(ProductInfoTemplateService::class),
                 $c->get(WishlistService::class),
-                $c->get(AuthContextInterface::class)
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
         $container->singleton(CartController::class, fn(DependencyContainer $c) =>
@@ -775,7 +773,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ReviewService::class),
                 $c->get(WishlistService::class),
                 $c->get(ProductService::class),
-                $c->get(AuthContextInterface::class)
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             )
         );
 
@@ -821,7 +820,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $container->singleton(ProductRenderer::class, function (DependencyContainer $c) {
             $renderer = new ProductRenderer(
                 $c->get(ProductRepository::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             );
             $renderer->assetManager = $c->get(AssetManager::class);
             return $renderer;
@@ -832,7 +833,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             $renderer = new ProductAutoRenderer(
                 $c->get(ProductRepository::class),
                 $c->get(CategoryRepository::class),
-                $c->get(ShopConfigService::class)
+                $c->get(ShopConfigService::class),
+                $c->get(AuthContextInterface::class),
+                $c->get(MemberLevelResolver::class)
             );
             $renderer->assetManager = $c->get(AssetManager::class);
             return $renderer;

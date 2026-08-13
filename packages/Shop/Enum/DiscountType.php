@@ -43,6 +43,23 @@ enum DiscountType: string
         ];
     }
 
+    /**
+     * 쇼핑몰 설정 폼용 옵션
+     *
+     * DEFAULT("쇼핑몰 기본설정 적용")와 BASIC 은 쇼핑몰 설정 **자신**을 가리키므로
+     * 여기서 고를 수 없다 — 자기참조라 어떤 할인으로도 풀리지 않는다.
+     * (기존에 BASIC 으로 저장된 설정은 계산기가 하위호환으로 계속 처리한다.)
+     */
+    public static function configOptions(): array
+    {
+        return [
+            self::NONE->value => self::NONE->label(),
+            self::LEVEL->value => self::LEVEL->label(),
+            self::PERCENTAGE->value => self::PERCENTAGE->label(),
+            self::FIXED->value => self::FIXED->label(),
+        ];
+    }
+
     public static function options(): array
     {
         $options = [];

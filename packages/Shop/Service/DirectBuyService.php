@@ -25,17 +25,39 @@ class DirectBuyService
     private PriceCalculator $priceCalculator;
     private ShippingFeeCalculator $shippingFeeCalculator;
     private ?SessionInterface $sessionManager;
+    private ?ShopConfigService $shopConfigService;
+    private ?MemberLevelResolver $memberLevelResolver;
+
+    /** @var array<int,array> 도메인별 쇼핑몰 설정 캐시 */
+    private array $shopConfigCache = [];
 
     public function __construct(
         ProductRepository $productRepository,
         PriceCalculator $priceCalculator,
         ShippingFeeCalculator $shippingFeeCalculator,
-        ?SessionInterface $sessionManager = null
+        ?SessionInterface $sessionManager = null,
+        ?ShopConfigService $shopConfigService = null,
+        ?MemberLevelResolver $memberLevelResolver = null
     ) {
         $this->productRepository = $productRepository;
         $this->priceCalculator = $priceCalculator;
         $this->shippingFeeCalculator = $shippingFeeCalculator;
         $this->sessionManager = $sessionManager;
+        $this->shopConfigService = $shopConfigService;
+        $this->memberLevelResolver = $memberLevelResolver;
+    }
+
+    /**
+     * 도메인 쇼핑몰 설정 (요청 단위 메모이제이션)
+     */
+    private function shopConfig(int $domainId): array
+    {
+        if ($this->shopConfigService === null) {
+            return [];
+        }
+
+        return $this->shopConfigCache[$domainId]
+            ??= $this->shopConfigService->getConfig($domainId)->get('config', []);
     }
 
     /**
@@ -141,10 +163,14 @@ class DirectBuyService
                     if (($item['option_type'] ?? '') === 'EXTRA') {
                         continue;
                     }
+                    // 담을 당시의 회원으로 다시 계산해야 등급 할인이 같은 기준으로 비교된다
                     $priceResult = $this->priceCalculator->calculateSalesPrice(
                         $product->getDisplayPrice(),
                         $product->getDiscountType(),
-                        $product->getDiscountValue()
+                        $product->getDiscountValue(),
+                        $this->shopConfig($domainId),
+                        $this->memberLevelResolver?->levelIdFor((int) ($data['member_id'] ?? 0)),
+                        $product->getDiscountLevelSettings()
                     );
                     if ((int) ($item['goods_price'] ?? 0) !== $priceResult['sales_price']) {
                         $this->sessionManager->remove('shop_direct_buy');
