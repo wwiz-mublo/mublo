@@ -83,4 +83,84 @@ class ProductServiceItemCodeTest extends TestCase
 
         $this->assertSame($this->todayPrefix() . '10000', $this->service($products)->generateItemCode());
     }
+
+    // =========================================================
+    // 직접 입력한 상품코드의 중복 검사
+    // =========================================================
+
+    public function testCreateRejectsDuplicateItemCodeWithAClearMessage(): void
+    {
+        // 다른 상품(도메인 무관)이 이미 쓰는 코드
+        $products = $this->createMock(ProductRepository::class);
+        $products->method('findGoodsIdByItemCode')->with('SHIRT-001')->willReturn(42);
+        // 저장 단계까지 가지 않아야 한다 — 유니크 위반으로 롤백되면 원인이 안 보인다
+        $products->expects($this->never())->method('create');
+
+        $result = $this->service($products)->create(1, [
+            'goods_name' => '셔츠',
+            'display_price' => 10000,
+            'item_code' => 'SHIRT-001',
+        ]);
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('이미 사용 중인 상품코드', $result->getMessage());
+        // 어느 도메인이 쓰는지는 알려주지 않는다
+        $this->assertStringNotContainsString('도메인', $result->getMessage());
+    }
+
+    public function testCreateAcceptsUnusedItemCode(): void
+    {
+        $products = $this->createMock(ProductRepository::class);
+        $products->method('findGoodsIdByItemCode')->willReturn(null);
+        $products->method('create')->willReturn(0); // 이후 단계는 관심 밖
+
+        $result = $this->service($products)->create(1, [
+            'goods_name' => '셔츠',
+            'display_price' => 10000,
+            'item_code' => 'SHIRT-002',
+        ]);
+
+        $this->assertStringNotContainsString('상품코드', $result->getMessage());
+    }
+
+    public function testUpdateAllowsKeepingOwnItemCode(): void
+    {
+        // 자기 자신이 쓰던 코드를 그대로 두고 저장하는 것은 충돌이 아니다
+        $products = $this->createMock(ProductRepository::class);
+        $products->method('findInDomain')->willReturn(
+            \Mublo\Packages\Shop\Entity\Product::fromArray(['goods_id' => 42, 'domain_id' => 1])
+        );
+        $products->method('findGoodsIdByItemCode')->with('SHIRT-001')->willReturn(42);
+
+        $result = $this->service($products)->update(42, ['item_code' => 'SHIRT-001'], 1);
+
+        $this->assertStringNotContainsString('이미 사용 중인 상품코드', $result->getMessage());
+    }
+
+    public function testUpdateRejectsItemCodeOwnedByAnotherProduct(): void
+    {
+        $products = $this->createMock(ProductRepository::class);
+        $products->method('findInDomain')->willReturn(
+            \Mublo\Packages\Shop\Entity\Product::fromArray(['goods_id' => 42, 'domain_id' => 1])
+        );
+        $products->method('findGoodsIdByItemCode')->with('SHIRT-001')->willReturn(7);
+        $products->expects($this->never())->method('updateInDomain');
+
+        $result = $this->service($products)->update(42, ['item_code' => 'SHIRT-001'], 1);
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('이미 사용 중인 상품코드', $result->getMessage());
+    }
+
+    public function testBlankItemCodeIsNotTreatedAsDuplicate(): void
+    {
+        // 비워 두면 자동 생성 대상이므로 중복 검사를 하지 않는다
+        $products = $this->createMock(ProductRepository::class);
+        $products->expects($this->never())->method('findGoodsIdByItemCode');
+        $products->method('findInDomain')->willReturn(
+            \Mublo\Packages\Shop\Entity\Product::fromArray(['goods_id' => 42, 'domain_id' => 1])
+        );
+
+        $this->service($products)->update(42, ['item_code' => '   '], 1);
+    }
 }

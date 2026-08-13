@@ -258,6 +258,12 @@ class ProductService
             }
         }
 
+        // 직접 입력한 상품코드 중복 확인 (미입력이면 아래에서 자동 생성한다)
+        $itemCodeError = $this->validateItemCode($data['item_code'] ?? null);
+        if ($itemCodeError !== null) {
+            return Result::failure($itemCodeError);
+        }
+
         $db = $this->productRepository->getDb();
 
         try {
@@ -341,6 +347,12 @@ class ProductService
             if (!$this->categoryRepository->existsByCategoryCode($domainId, $data['category_code'])) {
                 return Result::failure('선택한 카테고리가 존재하지 않습니다.');
             }
+        }
+
+        // 상품코드 변경 시 중복 확인 (자기 자신은 제외)
+        $itemCodeError = $this->validateItemCode($data['item_code'] ?? null, $goodsId);
+        if ($itemCodeError !== null) {
+            return Result::failure($itemCodeError);
         }
 
         $db = $this->productRepository->getDb();
@@ -779,6 +791,35 @@ class ProductService
 
     /** 상품코드 충돌 시 다음 번호를 시도하는 횟수 */
     private const ITEM_CODE_MAX_ATTEMPTS = 20;
+
+    /**
+     * 직접 입력한 상품코드의 중복 검사
+     *
+     * item_code 는 uk_item_code 로 전역 유니크라, 저장 단계까지 가면 유니크 위반으로
+     * 트랜잭션이 롤백되고 "상품 생성에 실패했습니다"라는 원인 불명 메시지만 남는다.
+     * 저장 전에 걸러 무엇을 고쳐야 하는지 알려 준다.
+     *
+     * 코드를 이미 쓰는 상품이 **다른 도메인**에 있어도 충돌이지만, 메시지는 그 사실을
+     * 밝히지 않는다 — 다른 도메인의 코드 사용 여부를 확인해 주는 통로가 되면 안 된다.
+     *
+     * @param mixed    $itemCode 입력값. 비어 있으면 자동 생성 대상이라 검사하지 않는다.
+     * @param int|null $goodsId  수정 중인 상품 ID (자기 자신은 충돌이 아니다)
+     * @return string|null 문제가 없으면 null, 있으면 사용자에게 보일 메시지
+     */
+    private function validateItemCode(mixed $itemCode, ?int $goodsId = null): ?string
+    {
+        $code = trim((string) ($itemCode ?? ''));
+        if ($code === '') {
+            return null;
+        }
+
+        $ownerId = $this->productRepository->findGoodsIdByItemCode($code);
+        if ($ownerId === null || $ownerId === $goodsId) {
+            return null;
+        }
+
+        return '이미 사용 중인 상품코드입니다. 다른 코드를 입력하거나, 비워 두면 자동으로 생성됩니다.';
+    }
 
     /**
      * 상품 코드 자동 생성
