@@ -247,6 +247,7 @@ $columns = $this->columns()
                             class="btn btn-sm btn-default mublo-submit"
                             data-target="/admin/shop/products/listDelete"
                             data-callback="afterBulkDelete"
+                            data-confirm="선택한 상품을 삭제하시겠습니까?"
                         >
                             <i class="d-inline d-md-none bi bi-trash"></i>
                             <span class="d-none d-md-inline">선택 삭제</span>
