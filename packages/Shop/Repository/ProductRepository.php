@@ -256,16 +256,27 @@ class ProductRepository extends BaseRepository
     }
 
     /**
+     * 상품코드를 쓰고 있는 상품 ID (전역 유니크 기준, 없으면 null)
+     *
+     * 도메인으로 좁히지 않는다 — uk_item_code 가 전역이라 다른 도메인이 쓰는 코드도
+     * 충돌 대상이다. 수정 시 자기 자신을 걸러내려면 반환된 ID 를 비교하면 된다.
+     */
+    public function findGoodsIdByItemCode(string $itemCode): ?int
+    {
+        $row = $this->getDb()->table($this->table)
+            ->select([$this->primaryKey])
+            ->where('item_code', '=', $itemCode)
+            ->first();
+
+        return $row === null ? null : (int) $row[$this->primaryKey];
+    }
+
+    /**
      * 상품코드 사용 여부 (전역 유니크 기준)
      */
     public function itemCodeExists(string $itemCode): bool
     {
-        $row = $this->getDb()->table($this->table)
-            ->select(['item_code'])
-            ->where('item_code', '=', $itemCode)
-            ->first();
-
-        return $row !== null;
+        return $this->findGoodsIdByItemCode($itemCode) !== null;
     }
 
     /**
