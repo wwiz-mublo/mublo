@@ -67,7 +67,7 @@ $dbConfig = $_SESSION['db_config'] ?? [
 
 <div class="content">
     <h2>Step 2. 데이터베이스 설정</h2>
-    <p>데이터베이스 연결 정보를 입력하세요. 데이터베이스가 없으면 자동으로 생성됩니다.</p>
+    <p>데이터베이스 연결 정보를 입력하세요. 이미 만들어 둔 데이터베이스가 있으면 그 이름을 입력하시면 됩니다.</p>
     <p class="help-text">
         최소 MySQL 5.7.8 또는 MariaDB 10.3이 필요합니다.
         신규 운영은 MySQL 8.4 LTS 또는 MariaDB 10.11 LTS 이상을 권장합니다.
@@ -105,7 +105,10 @@ $dbConfig = $_SESSION['db_config'] ?? [
         <div class="form-group">
             <label>데이터베이스명 *</label>
             <input type="text" name="db_database" value="<?= htmlspecialchars($dbConfig['database']) ?>" required>
-            <small>설치할 데이터베이스 이름입니다. 없으면 만들어 드립니다 — 다만 계정에 데이터베이스 생성 권한이 있어야 합니다.</small>
+            <small>
+                설치할 데이터베이스 이름입니다. 공유호스팅이라면 호스팅 관리 페이지에서 발급받은 이름을 그대로 입력하세요.
+                없는 이름을 넣으면 만들어 드리지만, 그러려면 계정에 데이터베이스 생성 권한이 있어야 합니다.
+            </small>
         </div>
 
         <div class="two-column">
