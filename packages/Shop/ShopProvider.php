@@ -1085,6 +1085,10 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 'skinBasePath' => MUBLO_PACKAGE_PATH . '/Shop/views/Block',
                 'hasItems' => true,
                 'hasStyle' => true,
+                // 가격이 보는 회원의 등급에 따라 달라지므로 행 캐시에 담기면 안 된다.
+                // 행 캐시 키는 rowId(+브랜드 variant)뿐이라 회원 차원이 없어서,
+                // 먼저 들른 회원의 할인가 HTML 이 비회원에게까지 그대로 나간다.
+                'noCache' => true,
                 'adminScript' => '/serve/package/Shop/assets/js/block-product.js',
                 'adminScriptInit' => 'MubloBlockProduct',
             ]
