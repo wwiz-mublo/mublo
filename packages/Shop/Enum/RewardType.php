@@ -43,6 +43,21 @@ enum RewardType: string
         ];
     }
 
+    /**
+     * 쇼핑몰 설정 폼용 옵션
+     *
+     * DEFAULT·BASIC 은 쇼핑몰 설정 자신을 가리키는 자기참조라 제외한다.
+     */
+    public static function configOptions(): array
+    {
+        return [
+            self::NONE->value => self::NONE->label(),
+            self::LEVEL->value => self::LEVEL->label(),
+            self::PERCENTAGE->value => self::PERCENTAGE->label(),
+            self::FIXED->value => self::FIXED->label(),
+        ];
+    }
+
     public static function options(): array
     {
         $options = [];

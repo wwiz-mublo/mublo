@@ -40,7 +40,7 @@ $currentRewardType = $config['reward_type'] ?? 'NONE';
             <div class="col-12 col-sm-6 col-md-4">
                 <label for="discount_type" class="form-label">할인 유형</label>
                 <select name="formData[discount_type]" id="discount_type" class="form-select">
-                    <?php foreach (DiscountType::options() as $value => $label): ?>
+                    <?php foreach (DiscountType::configOptions() as $value => $label): ?>
                     <option value="<?= $value ?>" <?= $currentDiscountType === $value ? 'selected' : '' ?>><?= $label ?></option>
                     <?php endforeach; ?>
                 </select>
@@ -93,7 +93,7 @@ $currentRewardType = $config['reward_type'] ?? 'NONE';
             <div class="col-12 col-sm-6 col-md-4">
                 <label for="reward_type" class="form-label">적립 유형</label>
                 <select name="formData[reward_type]" id="reward_type" class="form-select">
-                    <?php foreach (RewardType::options() as $value => $label): ?>
+                    <?php foreach (RewardType::configOptions() as $value => $label): ?>
                     <option value="<?= $value ?>" <?= $currentRewardType === $value ? 'selected' : '' ?>><?= $label ?></option>
                     <?php endforeach; ?>
                 </select>
