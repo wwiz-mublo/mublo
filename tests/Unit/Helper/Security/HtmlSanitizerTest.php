@@ -284,8 +284,9 @@ class HtmlSanitizerTest extends TestCase
     }
 
     /**
-     * 완화는 block 프로파일 한정 — 게시판(rich)·폼(basic)에서는 background 계열
-     * 자체가 화이트리스트에 없어 同출처 url 도 함께 사라진다.
+     * url() 레이어는 block 한정 완화다. 게시판(rich)은 background 를 받지만
+     * 색·그라디언트까지이고, 폼(basic)은 background 자체가 없다.
+     * 회원 콘텐츠가 리소스를 참조하는 경로는 열지 않는다.
      */
     public function testSameOriginUrlStaysBlockedInRichAndBasic(): void
     {
@@ -293,21 +294,139 @@ class HtmlSanitizerTest extends TestCase
 
         $this->assertStringNotContainsString('url(', HtmlSanitizer::sanitize($html));
         $this->assertStringNotContainsString('url(', HtmlSanitizer::sanitizeBasic($html));
+
+        // 색·그라디언트는 rich 에서도 통과한다
+        $gradient = '<div style="background:linear-gradient(135deg,#e7f5ff,#f3f0ff)">x</div>';
+        $this->assertStringContainsString('linear-gradient', HtmlSanitizer::sanitize($gradient));
+        $this->assertStringNotContainsString('linear-gradient', HtmlSanitizer::sanitizeBasic($gradient));
     }
 
     /**
-     * 게시판(rich)·폼(basic)은 넓히지 않는다. 레이아웃 CSS 는 거기서 여전히 사라진다.
-     * 일반 회원 채널까지 함께 열리면 안 된다.
+     * 폼(basic)은 서식 수준을 유지한다. 에디터가 쓰지 않는 채널이므로
+     * 레이아웃 CSS 를 함께 열 이유가 없다.
      */
-    public function testRichAndBasicProfilesStayNarrow(): void
+    public function testBasicProfileStaysNarrow(): void
     {
-        $style = '<div style="display:flex; line-height:1.6; color:red;">x</div>';
+        $result = HtmlSanitizer::sanitizeBasic('<div style="display:flex; line-height:1.6; border:1px solid #000; color:red;">x</div>');
 
-        foreach ([HtmlSanitizer::sanitize($style), HtmlSanitizer::sanitizeBasic($style)] as $result) {
-            $this->assertStringNotContainsString('display:flex', $result, '게시판/폼에 flex 가 새면 안 된다');
-            $this->assertStringNotContainsString('line-height', $result);
-            $this->assertStringContainsString('color:', $result, '기존 서식은 유지되어야 한다');
-        }
+        $this->assertStringNotContainsString('display:flex', $result, '폼에 flex 가 새면 안 된다');
+        $this->assertStringNotContainsString('line-height', $result);
+        $this->assertStringNotContainsString('border', $result);
+        $this->assertStringContainsString('color:', $result, '기존 서식은 유지되어야 한다');
+    }
+
+    // =========================================================================
+    // rich 프로파일 — MubloEditor 출력 보존
+    // =========================================================================
+
+    /**
+     * 에디터가 만든 인용구·카드·레이아웃은 저장 후에도 같은 모습이어야 한다.
+     * 이 CSS 가 떨어지면 정화기가 조용히 기능을 깨뜨리는 셈이다.
+     *
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('editorStyleProvider')]
+    public function testRichProfileKeepsEditorOutputCss(string $style, string $expectFragment): void
+    {
+        $result = HtmlSanitizer::sanitizeEditorContent('<div style="' . $style . '">x</div>');
+
+        $this->assertStringContainsString($expectFragment, $result);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function editorStyleProvider(): array
+    {
+        return [
+            '인용구 왼쪽 라인' => ['border-left:4px solid #adb5bd;', 'border-left:4px solid #adb5bd'],
+            '인용구 배경'     => ['background:#e7f5ff;', 'background:#e7f5ff'],
+            '알림박스 테두리' => ['border:1px solid #a5d8ff;', 'border:1px solid #a5d8ff'],
+            '둥근 모서리'     => ['border-radius:6px;', 'border-radius:6px'],
+            '섀도 카드'       => ['box-shadow:0 4px 12px rgba(0,0,0,.08);', 'box-shadow'],
+            '카드 플렉스'     => ['display:flex;gap:16px;align-items:flex-start;', 'display:flex'],
+            '레이아웃 비율'   => ['flex:0 0 40%;min-width:0;', 'flex:0 0 40%'],
+            '썸네일 크롭'     => ['object-fit:cover;', 'object-fit:cover'],
+            '체크리스트 마커' => ['list-style:none;', 'list-style:none'],
+            '행간'            => ['line-height:1.6;', 'line-height:1.6'],
+        ];
+    }
+
+    /** 체크리스트 항목은 체크 상태까지 본문에 남아야 뷰 페이지에서 유지된다. */
+    public function testRichProfileKeepsChecklistCheckbox(): void
+    {
+        $html = '<ul data-mublo-checklist><li><input type="checkbox" checked><span>할 일</span></li></ul>';
+
+        $result = HtmlSanitizer::sanitizeEditorContent($html);
+
+        $this->assertStringContainsString('data-mublo-checklist', $result);
+        $this->assertStringContainsString('type="checkbox"', $result);
+        $this->assertStringContainsString('checked', $result);
+    }
+
+    /**
+     * 열어준 것은 체크박스뿐이다. type 이 필수라 다른 input 은 요소째 사라진다 —
+     * 본문에 로그인 폼처럼 보이는 입력칸이 생길 여지를 남기지 않는다.
+     *
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('nonCheckboxInputProvider')]
+    public function testRichProfileDropsNonCheckboxInputs(string $html): void
+    {
+        $this->assertStringNotContainsString('<input', HtmlSanitizer::sanitizeEditorContent($html));
+    }
+
+    /** @return array<string, array{string}> */
+    public static function nonCheckboxInputProvider(): array
+    {
+        return [
+            '텍스트'   => ['<input type="text" name="id">'],
+            '비밀번호' => ['<input type="password" name="pw">'],
+            '숨김'     => ['<input type="hidden" name="csrf" value="x">'],
+            '타입없음' => ['<input>'],
+        ];
+    }
+
+    /** 마커는 지정한 요소에서만 살아남고, 값이 정해진 것은 값까지 검사한다. */
+    public function testRichProfileKeepsEditorMarkersOnlyWhereDefined(): void
+    {
+        $kept = HtmlSanitizer::sanitizeEditorContent(
+            '<nav data-mublo-toc><ul><li>목차</li></ul></nav>'
+            . '<figure data-mublo-card="og">카드</figure>'
+            . '<figure data-mublo-layout="img-left">레이아웃</figure>'
+        );
+        $this->assertStringContainsString('data-mublo-toc', $kept);
+        $this->assertStringContainsString('data-mublo-card="og"', $kept);
+        $this->assertStringContainsString('data-mublo-layout="img-left"', $kept);
+
+        // 다른 요소에 옮겨 붙인 마커 · 목록에 없는 값 · 임의 data-* 는 탈락
+        $dropped = HtmlSanitizer::sanitizeEditorContent(
+            '<div data-mublo-toc data-mublo-card="og">x</div>'
+            . '<figure data-mublo-card="evil" data-evil="1">y</figure>'
+        );
+        $this->assertStringNotContainsString('data-mublo-toc', $dropped);
+        $this->assertStringNotContainsString('data-mublo-card', $dropped);
+        $this->assertStringNotContainsString('data-evil', $dropped);
+    }
+
+    /**
+     * 넓힌 것은 레이아웃까지다. 겹치기(클릭재킹) 채널은 rich 에서도 닫혀 있다.
+     *
+     */
+    #[\PHPUnit\Framework\Attributes\DataProvider('overlayCssProvider')]
+    public function testRichProfileStillBlocksOverlayCss(string $style, string $mustNotContain): void
+    {
+        $result = HtmlSanitizer::sanitizeEditorContent('<div style="' . $style . '">x</div>');
+
+        $this->assertStringNotContainsString($mustNotContain, $result);
+    }
+
+    /** @return array<string, array{string, string}> */
+    public static function overlayCssProvider(): array
+    {
+        return [
+            'absolute'    => ['position:absolute;top:0;left:0;', 'position'],
+            'fixed'       => ['position:fixed;inset:0;', 'position'],
+            'z-index'     => ['z-index:9999;', 'z-index'],
+            'transform'   => ['transform:translate(-50%,-50%);', 'transform'],
+            'list 이미지' => ['list-style:url(https://evil.example/x.png);', 'url('],
+        ];
     }
 
     // =========================================================================

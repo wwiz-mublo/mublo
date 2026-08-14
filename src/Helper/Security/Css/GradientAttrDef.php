@@ -29,6 +29,16 @@ use HTMLPurifier_AttrDef_CSS_Color;
  */
 final class GradientAttrDef extends HTMLPurifier_AttrDef
 {
+    /**
+     * @param bool $allowSameOriginUrl 同출처 url() 레이어 허용 여부.
+     *                                 false 면 그라디언트·단색만 통과한다 —
+     *                                 회원 채널(rich)은 리소스 참조 없이
+     *                                 색·그라디언트 배경만 쓴다.
+     */
+    public function __construct(private readonly bool $allowSameOriginUrl = true)
+    {
+    }
+
     /** 외부 리소스·스크립트를 실을 수 있는 함수 — 그라디언트 레이어 내부 밀반입 차단용 */
     private const FORBIDDEN_FUNCTIONS = '/(?:url|expression|image-set|-webkit-image-set|element|attr|var|calc|counter|-moz-binding)\s*\(/i';
 
@@ -76,8 +86,8 @@ final class GradientAttrDef extends HTMLPurifier_AttrDef
         }
 
         foreach ($layers as $layer) {
-            // 同출처 url 레이어
-            if (preg_match(self::URL_LAYER, $layer) === 1) {
+            // 同출처 url 레이어 (허용된 프로파일에서만)
+            if ($this->allowSameOriginUrl && preg_match(self::URL_LAYER, $layer) === 1) {
                 continue;
             }
 
