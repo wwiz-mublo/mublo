@@ -1,0 +1,45 @@
+{
+  "name": "머블로봇",
+  "items": [
+    {
+      "file": "best.svg",
+      "label": "기분 최고!"
+    },
+    {
+      "file": "like.svg",
+      "label": "좋아요!"
+    },
+    {
+      "file": "party.svg",
+      "label": "축하해요!"
+    },
+    {
+      "file": "love.svg",
+      "label": "사랑해요"
+    },
+    {
+      "file": "sad.svg",
+      "label": "슬퍼요"
+    },
+    {
+      "file": "angry.svg",
+      "label": "화났어요"
+    },
+    {
+      "file": "surprise.svg",
+      "label": "놀랐어요"
+    },
+    {
+      "file": "sleepy.svg",
+      "label": "졸려요"
+    },
+    {
+      "file": "study.svg",
+      "label": "열공중"
+    },
+    {
+      "file": "fighting.svg",
+      "label": "파이팅!"
+    }
+  ]
+}

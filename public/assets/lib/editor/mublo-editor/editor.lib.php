@@ -149,6 +149,43 @@ function Mublo_editor_html(string $id, string $content = '', array $options = []
 }
 
 /**
+ * 공식 플러그인 목록 (툴바 항목 이름 → 코어 다음에 로드할 스크립트).
+ *
+ * 키는 툴바 항목 이름이다 — 뷰가 toolbarItems 에 적는 이름과 같아야
+ * 설정에서 켠 것과 화면에 뜨는 버튼이 어긋나지 않는다.
+ *
+ * @return array<string, list<string>>
+ */
+function _Mublo_editor_plugin_registry(): array
+{
+    return [
+        'layout'     => ['/plugins/MubloEditorLayouts.js'],
+        // 뷰어 + 기본 팩 등록 순서로 로드해야 팩이 붙는다
+        'sticker'    => ['/plugins/MubloEditorStickers.js', '/plugins/stickers/packs.js'],
+        'fileimport' => ['/plugins/MubloEditorFileImport.js'],
+        'export'     => ['/plugins/MubloEditorExport.js'],
+    ];
+}
+
+/**
+ * 설정에서 켠 플러그인만, 레지스트리 순서로 반환 (모르는 이름은 버린다)
+ *
+ * @return list<string>
+ */
+function _Mublo_editor_enabled_plugins(array $config): array
+{
+    $requested = $config['plugins'] ?? [];
+    if (!is_array($requested)) {
+        return [];
+    }
+
+    return array_values(array_intersect(
+        array_keys(_Mublo_editor_plugin_registry()),
+        array_map('strval', $requested)
+    ));
+}
+
+/**
  * 에디터 JS 출력 (body 끝)
  */
 function Mublo_editor_js(): string
@@ -158,25 +195,53 @@ function Mublo_editor_js(): string
     }
     $GLOBALS['_Mublo_editor_js_loaded'] = true;
 
+    $config = _Mublo_editor_get_config();
     $basePath = '/assets/lib/editor/mublo-editor';
-    $jsPath = $basePath . '/MubloEditor.js';
     // 프레임워크 런타임에서는 asset()로 mtime 캐시버스팅 적용 (standalone 사용 시 원본 경로)
-    if (function_exists('asset')) {
-        $jsPath = asset($jsPath);
-    }
+    $src = fn (string $path): string => function_exists('asset') ? asset($basePath . $path) : $basePath . $path;
 
-    $html = '<script src="' . $jsPath . '"></script>' . "\n";
+    $html = '<script src="' . $src('/MubloEditor.js') . '"></script>' . "\n";
+
+    // 플러그인은 코어가 만든 전역에 자기 툴바 항목을 등록하므로 코어 다음에 온다
+    $enabled = _Mublo_editor_enabled_plugins($config);
+    $registry = _Mublo_editor_plugin_registry();
+    foreach ($enabled as $plugin) {
+        foreach ($registry[$plugin] as $path) {
+            $html .= '<script src="' . $src($path) . '"></script>' . "\n";
+        }
+    }
 
     // 자동 초기화 스크립트
     $html .= '<script>' . "\n";
-    $html .= 'document.addEventListener("DOMContentLoaded", function() {' . "\n";
+    $html .= '(function() {' . "\n";
+    // 체크리스트·목차는 코어 툴바 항목이지만 full 프리셋에는 들어 있지 않다.
+    // 여기서 붙이지 않으면 슬래시 커맨드로만 닿을 수 있어 버튼이 없는 기능이 된다.
+    $extraItems = array_merge(['checklist', 'toc'], $enabled);
+
+    $html .= '    var extraItems = ' . json_encode($extraItems, JSON_UNESCAPED_SLASHES) . ';' . "\n";
+    // full 은 "쓸 수 있는 모든 도구" 프리셋이므로 켜 둔 플러그인 버튼도 함께 붙인다.
+    // minimal/compact 는 좁은 화면용이라 늘리지 않고, 항목을 직접 지정한 에디터도 건드리지 않는다.
+    //
+    // 코어가 DOMContentLoaded 에서 스스로 초기화하고 그 리스너가 먼저 등록돼 있으므로,
+    // 항목은 파싱 시점(이 스크립트는 본문 끝)에 미리 얹어야 첫 렌더에 반영된다.
     $html .= '    document.querySelectorAll(".mublo-editor").forEach(function(el) {' . "\n";
-    $html .= '        if (!el.dataset.MubloEditorInitialized) {' . "\n";
-    $html .= '            MubloEditor.create(el);' . "\n";
-    $html .= '            el.dataset.MubloEditorInitialized = "true";' . "\n";
-    $html .= '        }' . "\n";
+    $html .= '        if (el.dataset.toolbarItems || (el.dataset.toolbar || "full") !== "full") return;' . "\n";
+    $html .= '        var preset = MubloEditor.TOOLBAR_PRESETS.full || [];' . "\n";
+    // 코어 프리셋이 나중에 같은 항목을 품어도 중복되지 않게 걸러 낸다
+    $html .= '        var add = extraItems.filter(function(n) { return preset.indexOf(n) === -1; });' . "\n";
+    $html .= '        if (preset.length && add.length) el.dataset.toolbarItems = preset.concat("separator", add).join(",");' . "\n";
     $html .= '    });' . "\n";
-    $html .= '});' . "\n";
+    // 코어 autoInit 이 이미 만든 에디터는 create() 가 기존 인스턴스를 돌려준다.
+    // 이 루프는 코어가 놓친 요소(늦게 붙은 폼 등)를 위한 보강이다.
+    $html .= '    document.addEventListener("DOMContentLoaded", function() {' . "\n";
+    $html .= '        document.querySelectorAll(".mublo-editor").forEach(function(el) {' . "\n";
+    $html .= '            if (!el.dataset.MubloEditorInitialized) {' . "\n";
+    $html .= '                MubloEditor.create(el);' . "\n";
+    $html .= '                el.dataset.MubloEditorInitialized = "true";' . "\n";
+    $html .= '            }' . "\n";
+    $html .= '        });' . "\n";
+    $html .= '    });' . "\n";
+    $html .= '})();' . "\n";
     $html .= '</script>' . "\n";
 
     return $html;
