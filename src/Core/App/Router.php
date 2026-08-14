@@ -1067,6 +1067,31 @@ class Router
         ]);
 
         // --------------------------------------------
+        // 에디터 문서 가져오기 API
+        //
+        // DOCX/XLSX 를 본문 HTML 로 변환 (파일은 저장하지 않는다)
+        // CSRF 미들웨어를 경유하므로 X-CSRF-Token 헤더 필요
+        // --------------------------------------------
+        $r->addRoute('POST', '/api/v1/editor/convert', [
+            'controller' => \Mublo\Controller\Api\EditorConvertController::class,
+            'method'     => 'convert',
+            'middleware' => [],
+        ]);
+
+        // --------------------------------------------
+        // 에디터 링크 카드 메타 API
+        //
+        // 붙여넣은 링크의 OG 메타를 서버가 대신 읽어 온다.
+        // 읽기 전용(GET)이라 CSRF 검증 대상이 아니며, 나가는 요청의
+        // 안전은 OgMetaFetcher 가 책임진다.
+        // --------------------------------------------
+        $r->addRoute('GET', '/api/v1/editor/og', [
+            'controller' => \Mublo\Controller\Api\EditorOgController::class,
+            'method'     => 'fetch',
+            'middleware' => [],
+        ]);
+
+        // --------------------------------------------
         // 정적 파일 서빙 (ServeController)
         //
         // Plugin, Package, Views의 정적 파일 제공

@@ -186,6 +186,65 @@ function _Mublo_editor_enabled_plugins(array $config): array
 }
 
 /**
+ * 서버 기능(문서 변환 · 링크 메타)을 에디터에 물리는 스크립트.
+ *
+ * 두 기능 모두 프레임워크가 라우트를 주입했을 때만 살아난다. 주입이 없으면
+ * 문서 가져오기는 브라우저에서 되는 형식(TXT·MD·HTML·CSV)만, 붙여넣기는
+ * 링크 카드 선택지 없이 동작한다 — 없는 채로도 완결되게 둔다.
+ */
+function _Mublo_editor_server_handlers_js(array $config): string
+{
+    $convertUrl = (string) ($config['convert_url'] ?? '');
+    $ogUrl = (string) ($config['og_url'] ?? '');
+    $csrfToken = (string) ($config['csrf_token'] ?? '');
+
+    if ($convertUrl === '' && $ogUrl === '') {
+        return '';
+    }
+
+    $js = '';
+    $enc = static fn (string $v): string => json_encode($v, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+    // 응답 봉투({result, message, data})를 벗겨 주는 공용 헬퍼.
+    // 실패 메시지는 서버가 준 한국어 문장을 그대로 쓴다 — 플러그인이 들고 있는
+    // 코드별 안내문은 다른 서버 구현을 전제로 한 문구라 여기선 맞지 않는다.
+    $js .= '    var mubloEditorCsrf = ' . $enc($csrfToken) . ';' . "\n";
+    $js .= '    function mubloEditorUnwrap(res) {' . "\n";
+    $js .= '        return res.json().catch(function() { return {}; }).then(function(json) {' . "\n";
+    $js .= '            if (res.ok && json && (json.result === "success" || json.success)) return json.data || {};' . "\n";
+    $js .= '            throw new Error((json && json.message) || "요청을 처리하지 못했습니다.");' . "\n";
+    $js .= '        });' . "\n";
+    $js .= '    }' . "\n";
+
+    if ($convertUrl !== '') {
+        $js .= '    if (window.MubloEditorFileImport) {' . "\n";
+        $js .= '        MubloEditorFileImport.setConvertHandler(function(file) {' . "\n";
+        $js .= '            var form = new FormData();' . "\n";
+        $js .= '            form.append("file", file);' . "\n";
+        $js .= '            return fetch(' . $enc($convertUrl) . ', {' . "\n";
+        $js .= '                method: "POST", body: form, credentials: "same-origin",' . "\n";
+        $js .= '                headers: mubloEditorCsrf ? { "X-CSRF-Token": mubloEditorCsrf } : {}' . "\n";
+        $js .= '            }).then(mubloEditorUnwrap).then(function(data) { return data.html || ""; });' . "\n";
+        $js .= '        });' . "\n";
+        $js .= '    }' . "\n";
+    }
+
+    if ($ogUrl !== '') {
+        // 인스턴스마다 붙여야 하는 핸들러이므로 플러그인으로 등록한다 —
+        // 나중에 만들어지는 에디터에도 코어가 알아서 걸어 준다.
+        $js .= '    MubloEditor.registerPlugin("mublo-og-meta", function(editor) {' . "\n";
+        $js .= '        editor.setOgFetchHandler(function(url) {' . "\n";
+        $js .= '            return fetch(' . $enc($ogUrl) . ' + "?url=" + encodeURIComponent(url), {' . "\n";
+        $js .= '                credentials: "same-origin", headers: { "Accept": "application/json" }' . "\n";
+        $js .= '            }).then(mubloEditorUnwrap);' . "\n";
+        $js .= '        });' . "\n";
+        $js .= '    });' . "\n";
+    }
+
+    return $js;
+}
+
+/**
  * 에디터 JS 출력 (body 끝)
  */
 function Mublo_editor_js(): string
@@ -231,6 +290,8 @@ function Mublo_editor_js(): string
     $html .= '        var add = extraItems.filter(function(n) { return preset.indexOf(n) === -1; });' . "\n";
     $html .= '        if (preset.length && add.length) el.dataset.toolbarItems = preset.concat("separator", add).join(",");' . "\n";
     $html .= '    });' . "\n";
+    $html .= _Mublo_editor_server_handlers_js($config);
+
     // 코어 autoInit 이 이미 만든 에디터는 create() 가 기존 인스턴스를 돌려준다.
     // 이 루프는 코어가 놓친 요소(늦게 붙은 폼 등)를 위한 보강이다.
     $html .= '    document.addEventListener("DOMContentLoaded", function() {' . "\n";
