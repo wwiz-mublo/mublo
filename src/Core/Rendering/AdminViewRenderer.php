@@ -133,8 +133,10 @@ class AdminViewRenderer implements ViewRendererInterface
         // 에디터 런타임 설정 주입 (업로드 URL + CSRF)
         EditorHelper::setEditor($context->getDomainInfo()?->getSiteConfig()['editor'] ?? 'mublo-editor');
         EditorHelper::configure([
-            'upload_url' => '/api/v1/editor/upload',
-            'csrf_token' => $csrfToken,
+            'upload_url'  => '/api/v1/editor/upload',
+            'convert_url' => '/api/v1/editor/convert',
+            'og_url'      => '/api/v1/editor/og',
+            'csrf_token'  => $csrfToken,
         ]);
 
         /* =====================================================

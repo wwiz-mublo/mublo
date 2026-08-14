@@ -210,8 +210,10 @@ class FrontViewRenderer implements ViewRendererInterface
          * ===================================================== */
         EditorHelper::setEditor($context->getDomainInfo()?->getSiteConfig()['editor'] ?? 'mublo-editor');
         EditorHelper::configure([
-            'upload_url' => '/api/v1/editor/upload',
-            'csrf_token' => $this->csrfManager->getToken(),
+            'upload_url'  => '/api/v1/editor/upload',
+            'convert_url' => '/api/v1/editor/convert',
+            'og_url'      => '/api/v1/editor/og',
+            'csrf_token'  => $this->csrfManager->getToken(),
         ]);
 
         /* =====================================================
