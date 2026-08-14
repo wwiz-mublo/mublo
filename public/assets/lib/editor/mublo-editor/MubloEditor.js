@@ -68,6 +68,7 @@
  * MubloEditor.getAll()                   - 모든 에디터 인스턴스
  * MubloEditor.destroy(id)                - 에디터 제거
  * MubloEditor.registerPlugin(name, fn)   - 플러그인 등록
+ * MubloEditor.addToolbarItem(name, def)  - 전역 커스텀 툴바 항목 등록 (v1.4)
  *
  * [인스턴스 메서드]
  * editor.getHTML()                      - HTML 콘텐츠 반환
@@ -86,13 +87,24 @@
  * editor.off(event, callback)           - 이벤트 리스너 제거
  * editor.fire(event, data)              - 이벤트 발생
  *
+ * [플러그인 확장 API (v1.4)]
+ * editor.registerToolbarButton(name, {icon, title, onClick})
+ *                                       - 인스턴스 커스텀 툴바 버튼 등록
+ * editor.openModal(title, body, btnText, onPrimary)
+ *                                       - 에디터 표준 모달 열기
+ * editor.insertHTML(html, {sanitize})   - 커서 위치 HTML 삽입
+ * editor.getSelectedText()              - 선택 영역 텍스트
+ * editor.replaceSelection(html)         - 선택 영역 교체
+ * editor.saveSelection() / restoreSelection()
+ *                                       - 모달 전후 선택 영역 저장/복원
+ *
  * ============================================================
  */
 
 const MubloEditor = (() => {
     'use strict';
 
-    const VERSION = '1.4.0';
+    const VERSION = '1.7.1';
     const EDITOR_CLASS = 'mublo-editor';
     const EDITOR_WRAPPER_CLASS = 'mublo-editor-wrapper';
     const EDITOR_TOOLBAR_CLASS = 'mublo-editor-toolbar';
@@ -173,6 +185,37 @@ const MubloEditor = (() => {
             tableMerge: '셀 병합', tableSplit: '셀 분할', tableDelete: '테이블 삭제',
             // 코드 블록
             codeLanguage: '언어', codeBlockInsert: '코드 블록',
+            // 인용구 갤러리
+            quoteGallery: '인용구 스타일', quoteSample: '인용문 텍스트',
+            quoteTabBasic: '기본', quoteTabColor: '컬러', quoteTabIcon: '아이콘',
+            quoteTabAlert: '알림박스', quoteTabSpecial: '특수',
+            quoteGalleryHint: '스타일 클릭 시 즉시 삽입 · 선택된 텍스트가 있으면 감쌉니다',
+            // 테이블 스타일
+            tableStyle: '테이블 스타일', tableStyleSpacing: '테이블 간격',
+            tableCellPadding: '셀 패딩', tableCellSpacing: '셀 간격', tableWidth: '테이블 너비',
+            tableBorderSection: '테두리 스타일', tableBorderWidth: '테두리 굵기',
+            tableBorderColor: '테두리 색상', tableBorderStyle: '테두리 스타일',
+            borderSolid: '실선', borderDashed: '파선', borderDotted: '점선',
+            borderDouble: '이중선', borderNone: '없음',
+            tableCellBg: '셀 배경색', tableBgClear: '지우기', tableRecentColors: '최근 사용',
+            tableStyleHint: '간격/테두리는 테이블 전체, 배경색은 선택한 셀에 적용됩니다.',
+            apply: '적용',
+            // 스마트 붙여넣기 (v1.5)
+            pasteVideoTitle: '동영상 링크 붙여넣기', pasteLinkTitle: '링크 붙여넣기',
+            pasteThumbCard: '썸네일 카드', pasteThumbCardDesc: '이미지 카드로 삽입, 클릭 시 이동',
+            pasteEmbed: '플레이어 임베드', pasteEmbedDesc: '에디터에 동영상 플레이어 직접 삽입',
+            pastePlainLink: '단순 링크', pastePlainLinkDesc: 'URL 텍스트 링크로 삽입',
+            pasteOgCard: 'OG 카드로 삽입', pasteOgCardDesc: '링크 미리보기 카드로 삽입',
+            pasteRemember: '이번 세션 동안 이 선택 기억',
+            pasteFetching: '링크 정보를 가져오는 중...',
+            // v1.7
+            checklist: '체크리스트',
+            toc: '목차 삽입', tocTitle: '목차', tocEmpty: '목차로 만들 제목(H1~H3)이 없습니다',
+            slashHint: '입력하여 검색, ↑↓ 이동, Enter 선택',
+            slashParagraph: '본문', slashH1: '제목 1', slashH2: '제목 2', slashH3: '제목 3',
+            slashBullet: '글머리 목록', slashNumber: '번호 목록', slashChecklist: '체크리스트',
+            slashQuote: '인용구', slashCode: '코드 블록', slashTable: '테이블',
+            slashImage: '이미지', slashVideo: '동영상', slashHr: '수평선', slashToc: '목차',
         },
         en: {
             bold: 'Bold (Ctrl+B)', italic: 'Italic (Ctrl+I)', underline: 'Underline (Ctrl+U)',
@@ -232,6 +275,37 @@ const MubloEditor = (() => {
             tableMerge: 'Merge cells', tableSplit: 'Split cell', tableDelete: 'Delete table',
             // Code block
             codeLanguage: 'Language', codeBlockInsert: 'Code block',
+            // Quote gallery
+            quoteGallery: 'Quote Styles', quoteSample: 'Quotation text',
+            quoteTabBasic: 'Basic', quoteTabColor: 'Color', quoteTabIcon: 'Icon',
+            quoteTabAlert: 'Alert Box', quoteTabSpecial: 'Special',
+            quoteGalleryHint: 'Click a style to insert · wraps selected text if any',
+            // Table style
+            tableStyle: 'Table Style', tableStyleSpacing: 'Table Spacing',
+            tableCellPadding: 'Cell padding', tableCellSpacing: 'Cell spacing', tableWidth: 'Table width',
+            tableBorderSection: 'Border Style', tableBorderWidth: 'Border width',
+            tableBorderColor: 'Border color', tableBorderStyle: 'Border style',
+            borderSolid: 'Solid', borderDashed: 'Dashed', borderDotted: 'Dotted',
+            borderDouble: 'Double', borderNone: 'None',
+            tableCellBg: 'Cell Background', tableBgClear: 'Clear', tableRecentColors: 'Recent',
+            tableStyleHint: 'Spacing/border apply to the whole table, background to selected cells.',
+            apply: 'Apply',
+            // Smart paste (v1.5)
+            pasteVideoTitle: 'Paste Video Link', pasteLinkTitle: 'Paste Link',
+            pasteThumbCard: 'Thumbnail card', pasteThumbCardDesc: 'Insert as image card, opens on click',
+            pasteEmbed: 'Player embed', pasteEmbedDesc: 'Insert playable video player',
+            pastePlainLink: 'Plain link', pastePlainLinkDesc: 'Insert as text link',
+            pasteOgCard: 'OG card', pasteOgCardDesc: 'Insert as link preview card',
+            pasteRemember: 'Remember for this session',
+            pasteFetching: 'Fetching link info...',
+            // v1.7
+            checklist: 'Checklist',
+            toc: 'Insert TOC', tocTitle: 'Table of Contents', tocEmpty: 'No headings (H1-H3) found',
+            slashHint: 'Type to search, ↑↓ to move, Enter to select',
+            slashParagraph: 'Paragraph', slashH1: 'Heading 1', slashH2: 'Heading 2', slashH3: 'Heading 3',
+            slashBullet: 'Bullet list', slashNumber: 'Numbered list', slashChecklist: 'Checklist',
+            slashQuote: 'Quote', slashCode: 'Code block', slashTable: 'Table',
+            slashImage: 'Image', slashVideo: 'Video', slashHr: 'Horizontal rule', slashToc: 'TOC',
         }
     };
 
@@ -352,7 +426,7 @@ const MubloEditor = (() => {
             table: { icon: TOOLBAR_ICONS.table, title: _t('table'), type: 'table' },
             hr: { icon: TOOLBAR_ICONS.hr, title: _t('hr'), command: 'insertHorizontalRule' },
             video: { icon: TOOLBAR_ICONS.video, title: _t('video'), type: 'video' },
-            blockquote: { icon: TOOLBAR_ICONS.blockquote, title: _t('blockquote'), command: 'formatBlock', value: 'blockquote' },
+            blockquote: { icon: TOOLBAR_ICONS.blockquote, title: _t('blockquote'), type: 'quotegallery' },
             code: { icon: TOOLBAR_ICONS.code, title: _t('code'), type: 'codeblock' },
             removeformat: { icon: TOOLBAR_ICONS.removeformat, title: _t('removeformat'), command: 'removeFormat' },
             selectall: { icon: TOOLBAR_ICONS.selectall, title: _t('selectall'), command: 'selectAll' },
@@ -361,7 +435,15 @@ const MubloEditor = (() => {
             redo: { icon: TOOLBAR_ICONS.redo, title: _t('redo'), command: 'redo' },
             fullscreen: { icon: TOOLBAR_ICONS.fullscreen, iconExit: TOOLBAR_ICONS.fullscreenExit, title: _t('fullscreen'), type: 'fullscreen' },
             source: { icon: TOOLBAR_ICONS.source, title: _t('source'), type: 'source' },
-            findreplace: { icon: TOOLBAR_ICONS.findreplace, title: _t('findreplace'), type: 'findreplace' }
+            findreplace: { icon: TOOLBAR_ICONS.findreplace, title: _t('findreplace'), type: 'findreplace' },
+            checklist: {
+                icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 4.5 7.5 7 5"/><polyline points="3 12 4.5 13.5 7 11"/><polyline points="3 18 4.5 19.5 7 17"/><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/></svg>',
+                title: _t('checklist'), type: 'checklist'
+            },
+            toc: {
+                icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="5" x2="20" y2="5"/><line x1="8" y1="10" x2="20" y2="10"/><line x1="8" y1="15" x2="20" y2="15"/><line x1="4" y1="20" x2="20" y2="20"/></svg>',
+                title: _t('toc'), type: 'toc'
+            }
         };
     }
 
@@ -383,8 +465,98 @@ const MubloEditor = (() => {
     // 코드 블록 언어 목록 (data-language 속성 저장 + 구문 강조 대상)
     const CODE_LANGUAGES = ['text', 'html', 'css', 'javascript', 'php', 'sql', 'python', 'json', 'bash'];
 
+    // =========================================================
+    // 인용구 스타일 갤러리 데이터
+    // - style: blockquote 인라인 스타일 (뷰 페이지에서 CSS 없이 렌더링되도록 완결)
+    // - icon: 내용 앞에 붙는 이모지/문자 (없으면 생략)
+    // - label: 갤러리 카드 라벨 (ko/en)
+    // =========================================================
+    const QUOTE_STYLES = {
+        basic: [
+            { id: 'classic-line', label: { ko: '클래식 라인', en: 'Classic line' },
+              style: 'margin:1em 0;padding:.6em 1em;border-left:4px solid #adb5bd;color:#495057;' },
+            { id: 'simple-bg', label: { ko: '심플 배경', en: 'Simple background' },
+              style: 'margin:1em 0;padding:.8em 1em;background:#f1f3f5;border-radius:4px;color:#495057;' },
+            { id: 'double-line', label: { ko: '더블 라인', en: 'Double line' },
+              style: 'margin:1em 0;padding:.6em 1em;border-left:4px double #495057;border-right:4px double #495057;color:#495057;' },
+            { id: 'top-bottom', label: { ko: '상하 라인', en: 'Top & bottom' },
+              style: 'margin:1em 0;padding:.8em .5em;border-top:2px solid #343a40;border-bottom:2px solid #343a40;color:#343a40;' },
+            { id: 'thick-left', label: { ko: '왼쪽 굵은 라인', en: 'Thick left' },
+              style: 'margin:1em 0;padding:.6em 1em;border-left:8px solid #343a40;background:#f8f9fa;color:#343a40;' },
+            { id: 'italic-accent', label: { ko: '이탤릭 강조', en: 'Italic accent' },
+              style: 'margin:1em 0;padding:.6em 1em;border-left:3px solid #7048e8;color:#7048e8;font-style:italic;' },
+            { id: 'dashed-left', label: { ko: '점선 왼쪽', en: 'Dashed left' },
+              style: 'margin:1em 0;padding:.6em 1em;border-left:3px dashed #868e96;color:#495057;' },
+            { id: 'gradient-line', label: { ko: '그라데이션 라인', en: 'Gradient line' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #7048e8;background:linear-gradient(90deg,#f3f0ff,#ffffff);color:#5f3dc4;' },
+            { id: 'round-box', label: { ko: '둥근 박스', en: 'Rounded box' },
+              style: 'margin:1em 0;padding:.8em 1.2em;border:1px solid #dee2e6;border-radius:12px;color:#495057;' },
+            { id: 'dashed-box', label: { ko: '점선 박스', en: 'Dashed box' },
+              style: 'margin:1em 0;padding:.8em 1.2em;border:2px dashed #adb5bd;border-radius:8px;color:#495057;' }
+        ],
+        color: [
+            { id: 'blue', label: { ko: '블루', en: 'Blue' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #339af0;background:#e7f5ff;color:#1971c2;border-radius:0 4px 4px 0;' },
+            { id: 'green', label: { ko: '그린', en: 'Green' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #51cf66;background:#ebfbee;color:#2b8a3e;border-radius:0 4px 4px 0;' },
+            { id: 'red', label: { ko: '레드', en: 'Red' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #ff6b6b;background:#fff5f5;color:#c92a2a;border-radius:0 4px 4px 0;' },
+            { id: 'orange', label: { ko: '오렌지', en: 'Orange' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #ff922b;background:#fff4e6;color:#d9480f;border-radius:0 4px 4px 0;' },
+            { id: 'purple', label: { ko: '퍼플', en: 'Purple' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #9775fa;background:#f3f0ff;color:#6741d9;border-radius:0 4px 4px 0;' },
+            { id: 'teal', label: { ko: '틸', en: 'Teal' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #20c997;background:#e6fcf5;color:#087f5b;border-radius:0 4px 4px 0;' },
+            { id: 'pink', label: { ko: '핑크', en: 'Pink' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #f06595;background:#fff0f6;color:#c2255c;border-radius:0 4px 4px 0;' },
+            { id: 'dark', label: { ko: '다크', en: 'Dark' },
+              style: 'margin:1em 0;padding:.8em 1em;background:#343a40;color:#f1f3f5;border-radius:6px;' }
+        ],
+        icon: [
+            { id: 'idea', icon: '💡', label: { ko: '아이디어', en: 'Idea' },
+              style: 'margin:1em 0;padding:.8em 1em;background:#fff9db;border-radius:6px;color:#5c5028;' },
+            { id: 'pin', icon: '📌', label: { ko: '핀 고정', en: 'Pinned' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #ffc9c9;background:#fff5f5;border-radius:6px;color:#495057;' },
+            { id: 'star', icon: '⭐', label: { ko: '별점 강조', en: 'Star' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #ffe066;background:#fff9db;border-radius:6px;color:#495057;' },
+            { id: 'memo', icon: '📝', label: { ko: '메모', en: 'Memo' },
+              style: 'margin:1em 0;padding:.8em 1em;border-left:4px solid #74c0fc;background:#f8f9fa;color:#495057;' },
+            { id: 'quote-mark', icon: '❝', label: { ko: '인용 부호', en: 'Quote mark' },
+              style: 'margin:1em 0;padding:.8em 1em;background:#f8f9fa;border-radius:6px;color:#495057;font-style:italic;' }
+        ],
+        alert: [
+            { id: 'info', icon: 'ℹ️', label: { ko: '정보', en: 'Info' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #a5d8ff;background:#e7f5ff;border-radius:6px;color:#1864ab;' },
+            { id: 'success', icon: '✅', label: { ko: '성공', en: 'Success' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #b2f2bb;background:#ebfbee;border-radius:6px;color:#2b8a3e;' },
+            { id: 'warning', icon: '⚠️', label: { ko: '주의', en: 'Warning' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #ffec99;background:#fff9db;border-radius:6px;color:#e67700;' },
+            { id: 'danger', icon: '🚫', label: { ko: '위험', en: 'Danger' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #ffc9c9;background:#fff5f5;border-radius:6px;color:#c92a2a;' },
+            { id: 'note', icon: '🗒️', label: { ko: '노트', en: 'Note' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #d0bfff;background:#f3f0ff;border-radius:6px;color:#5f3dc4;' },
+            { id: 'tip', icon: '💬', label: { ko: '팁', en: 'Tip' },
+              style: 'margin:1em 0;padding:.8em 1em;border:1px solid #96f2d7;background:#e6fcf5;border-radius:6px;color:#087f5b;' }
+        ],
+        special: [
+            { id: 'big-quote', label: { ko: '큰 따옴표', en: 'Big quotes' },
+              style: 'margin:1.2em 0;padding:1em 1.2em .8em;background:#f8f9fa;border-radius:8px;color:#495057;position:relative;font-size:1.05em;',
+              icon: '❝', iconStyle: 'font-size:1.6em;color:#adb5bd;line-height:1;vertical-align:-0.2em;' },
+            { id: 'gradient-bg', label: { ko: '그라데이션 배경', en: 'Gradient background' },
+              style: 'margin:1em 0;padding:1em 1.2em;background:linear-gradient(135deg,#e7f5ff,#f3f0ff);border-radius:10px;color:#3b5bdb;' },
+            { id: 'shadow-card', label: { ko: '섀도 카드', en: 'Shadow card' },
+              style: 'margin:1em 0;padding:1em 1.2em;background:#ffffff;border:1px solid #e9ecef;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.08);color:#495057;' },
+            { id: 'center-quote', label: { ko: '가운데 정렬', en: 'Centered' },
+              style: 'margin:1.2em 0;padding:.8em 1em;text-align:center;border-top:1px solid #dee2e6;border-bottom:1px solid #dee2e6;color:#495057;font-style:italic;' },
+            { id: 'dark-terminal', label: { ko: '터미널', en: 'Terminal' },
+              style: 'margin:1em 0;padding:.8em 1em;background:#212529;color:#69db7c;border-radius:6px;font-family:monospace;' }
+        ]
+    };
+
     const instances = new Map();
     const plugins = new Map();
+    // 플러그인이 등록하는 전역 커스텀 툴바 항목 (이름 → def)
+    const customToolbarItems = new Map();
 
     // =========================================================
     // BlobInfo 클래스
@@ -608,6 +780,15 @@ const MubloEditor = (() => {
         return out;
     }
 
+    /** rgb(a) 문자열을 #hex 로 변환. 파싱 불가하면 '' */
+    function rgbToHex(rgb) {
+        if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return '';
+        if (rgb.startsWith('#')) return rgb;
+        const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
+        if (!m) return '';
+        return '#' + [m[1], m[2], m[3]].map(n => (+n).toString(16).padStart(2, '0')).join('');
+    }
+
     function sanitizeHtml(html) {
         if (!html) return '';
 
@@ -717,6 +898,34 @@ const MubloEditor = (() => {
             // data-toolbar-*-mobile 옵션이 있을 때만 생성하는 반응형 툴바 쿼리
             this._toolbarMedia = null;
 
+            // 인스턴스 전용 커스텀 툴바 항목 (registerToolbarButton)
+            this._customToolbarItems = new Map();
+            // 테이블 스타일 다이얼로그 최근 사용 색상
+            this._recentTableColors = [];
+
+            // 자체 실행취소 히스토리 (v1.7) — execCommand undo 대체
+            this._history = { stack: [], idx: -1, restoring: false, timer: null };
+
+            // 슬래시 커맨드 메뉴 (v1.7)
+            this._slashMenu = null;
+            this._slashIndex = 0;
+            this._slashBlock = null;
+
+            // 스마트 붙여넣기 (v1.5)
+            this._ogFetchHandler = null;
+            this._smartPasteChoice = { video: null, link: null }; // 세션 기억
+            if (this.options.ogProxyUrl) {
+                // 기본 핸들러: og 프록시 엔드포인트 (JSON {title, description, image, host})
+                const proxy = this.options.ogProxyUrl;
+                this._ogFetchHandler = async (url) => {
+                    const res = await fetch(proxy + (proxy.includes('?') ? '&' : '?') + 'url=' + encodeURIComponent(url));
+                    if (!res.ok) throw new Error('og fetch failed: ' + res.status);
+                    const data = await res.json();
+                    if (data.success === false) throw new Error(data.message || 'og fetch failed');
+                    return data;
+                };
+            }
+
             this._withLocale(() => this._build());
             this._withLocale(() => this._bindEvents());
             this._initPlugins();
@@ -746,6 +955,8 @@ const MubloEditor = (() => {
             if (el.dataset.autosaveInterval) dataOptions.autosaveInterval = parseInt(el.dataset.autosaveInterval, 10);
             if (el.dataset.autosaveKey) dataOptions.autosaveKey = el.dataset.autosaveKey;
             if (el.dataset.locale) dataOptions.locale = el.dataset.locale;
+            if (el.dataset.ogProxy) dataOptions.ogProxyUrl = el.dataset.ogProxy;
+            if (el.dataset.smartPaste !== undefined) dataOptions.smartPaste = el.dataset.smartPaste === 'true';
 
             return {
                 toolbar: 'full',
@@ -764,6 +975,10 @@ const MubloEditor = (() => {
                 sanitize: true,
                 automatic_uploads: true,
                 images_upload_credentials: false,
+                // 스마트 붙여넣기: OG 메타 수집 프록시 URL (null 이면 OG 카드 옵션 숨김)
+                ogProxyUrl: null,
+                // URL 붙여넣기 선택 팝업 사용 여부
+                smartPaste: true,
                 // 콜백 (하위 호환성)
                 onChange: null,
                 onFocus: null,
@@ -843,6 +1058,75 @@ const MubloEditor = (() => {
 
         getImageUploadHandler() {
             return this._imageUploadHandler;
+        }
+
+        // =========================================================
+        // 플러그인 확장 API (v1.4+)
+        // =========================================================
+
+        /**
+         * 이 인스턴스에만 커스텀 툴바 버튼 등록.
+         * def: { icon: '<svg…>', title: '툴팁', onClick: (editor) => {} }
+         * 버튼 노출은 toolbarItems(data-toolbar-items)에 name을 포함해야 한다.
+         */
+        registerToolbarButton(name, def) {
+            if (!name || typeof def?.onClick !== 'function') {
+                console.error('[MubloEditor] registerToolbarButton: name과 onClick이 필요합니다');
+                return this;
+            }
+            this._customToolbarItems.set(name, def);
+            // 이미 툴바에 노출 대상이면 다시 그린다
+            if (this._resolveToolbarItems().includes(name)) this._renderResponsiveToolbar();
+            return this;
+        }
+
+        /**
+         * 에디터 표준 모달 열기 (플러그인용 공개 래핑).
+         * onPrimary(modal)가 false를 반환하면 닫히지 않는다.
+         */
+        openModal(title, bodyHtml, primaryText = null, onPrimary = null) {
+            return this._withLocale(() => this._createModal(title, bodyHtml, primaryText, onPrimary));
+        }
+
+        /** 커서 위치에 HTML 삽입. 기본 sanitize 적용, { sanitize:false }로 해제(신뢰 소스 전용). */
+        insertHTML(html, { sanitize = true } = {}) {
+            return sanitize ? this.insertContent(html) : this.insertTrustedContent(html);
+        }
+
+        /** 현재(또는 저장된) 선택 영역의 텍스트 */
+        getSelectedText() {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0 && this.contentArea.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                return sel.toString();
+            }
+            return this.savedRange ? this.savedRange.toString() : '';
+        }
+
+        /** 선택 영역을 HTML로 교체 (sanitize 적용) */
+        replaceSelection(html) {
+            return this.insertContent(html);
+        }
+
+        /** 선택 영역 저장/복원 — 모달을 띄우기 전/후에 사용 */
+        saveSelection() { this._saveSelection(); return this; }
+        restoreSelection() { this._restoreSelection(); return this; }
+
+        /**
+         * OG 메타 수집 핸들러 설정 (v1.5 스마트 붙여넣기).
+         * handler: (url) => Promise<{title, description, image, host}>
+         * 설정 시 일반 URL 붙여넣기에 "OG 카드" 옵션이 나타난다.
+         */
+        setOgFetchHandler(handler) {
+            if (typeof handler !== 'function') {
+                console.error('[MubloEditor] OG fetch handler must be a function');
+                return this;
+            }
+            this._ogFetchHandler = handler;
+            return this;
+        }
+
+        getOgFetchHandler() {
+            return this._ogFetchHandler;
         }
 
         // =========================================================
@@ -929,6 +1213,7 @@ const MubloEditor = (() => {
         _buildToolbar() {
             const toolbar = document.createElement('div');
             toolbar.className = EDITOR_TOOLBAR_CLASS;
+            toolbar.setAttribute('role', 'toolbar');
             const items = this._resolveToolbarItems();
 
             items.forEach(name => {
@@ -938,7 +1223,10 @@ const MubloEditor = (() => {
                     toolbar.appendChild(sep);
                     return;
                 }
-                const def = _getToolbarItems()[name];
+                // 조회 우선순위: 인스턴스 커스텀 → 전역 커스텀(플러그인) → 내장
+                const def = this._customToolbarItems.get(name)
+                    || customToolbarItems.get(name)
+                    || _getToolbarItems()[name];
                 if (!def) return;
                 const btn = this._createButton(name, def);
                 if (btn) toolbar.appendChild(btn);
@@ -1083,6 +1371,7 @@ const MubloEditor = (() => {
             btn.type = 'button';
             btn.className = 'mublo-editor-btn';
             btn.title = def.title;
+            btn.setAttribute('aria-label', def.title || name);
             btn.innerHTML = def.icon;
             btn.dataset.cmd = name;
             btn.addEventListener('click', e => {
@@ -1206,7 +1495,16 @@ const MubloEditor = (() => {
 
         _handleCommand(name, def) {
             this.contentArea.focus();
+            // 플러그인 버튼: onClick(editor) 형태
+            if (typeof def.onClick === 'function') {
+                this._saveSelection();
+                this._withLocale(() => def.onClick(this));
+                return;
+            }
             this._withLocale(() => { switch (def.type) {
+                case 'quotegallery': this._openQuoteGallery(); break;
+                case 'checklist': this._insertChecklist(); break;
+                case 'toc': this._insertToc(); break;
                 case 'link': this._insertLink(); break;
                 case 'image': this._openImageDialog(); break;
                 case 'video': this._insertVideo(); break;
@@ -1221,6 +1519,10 @@ const MubloEditor = (() => {
         }
 
         _exec(cmd, val = null) {
+            // 실행취소/다시실행은 자체 히스토리 사용 (v1.7)
+            if (cmd === 'undo') { this._historyUndo(); return; }
+            if (cmd === 'redo') { this._historyRedo(); return; }
+
             this._restoreSelection();
 
             if (cmd === 'fontSize') {
@@ -1507,6 +1809,9 @@ const MubloEditor = (() => {
             const modal = document.createElement('div');
             modal.id = 'mublo-editor-modal';
             modal.className = 'mublo-editor-modal';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-label', String(title).replace(/<[^>]*>/g, ''));
             modal.innerHTML = `
                 <div class="mublo-editor-modal-backdrop"></div>
                 <div class="mublo-editor-modal-dialog">
@@ -1550,11 +1855,27 @@ const MubloEditor = (() => {
                 });
             }
 
-            // ESC 닫기
+            // ESC 닫기 + Tab 포커스 트랩 (v1.7 a11y)
             const escHandler = (e) => {
                 if (e.key === 'Escape') {
                     closeModal();
                     document.removeEventListener('keydown', escHandler);
+                    return;
+                }
+                if (e.key === 'Tab' && document.body.contains(modal)) {
+                    const focusables = Array.from(modal.querySelectorAll(
+                        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                    )).filter(el => !el.disabled && el.offsetParent !== null);
+                    if (!focusables.length) return;
+                    const first = focusables[0];
+                    const last = focusables[focusables.length - 1];
+                    if (e.shiftKey && document.activeElement === first) {
+                        e.preventDefault(); last.focus();
+                    } else if (!e.shiftKey && document.activeElement === last) {
+                        e.preventDefault(); first.focus();
+                    } else if (!modal.contains(document.activeElement)) {
+                        e.preventDefault(); first.focus();
+                    }
                 }
             };
             document.addEventListener('keydown', escHandler);
@@ -2119,6 +2440,176 @@ const MubloEditor = (() => {
             return null;
         }
 
+        // =========================================================
+        // 스마트 붙여넣기 (v1.5)
+        // 단일 URL 붙여넣기 → 삽입 방식 선택 (썸네일 카드 / 임베드 / OG 카드 / 단순 링크)
+        // =========================================================
+
+        /** YouTube 영상 ID 추출 (썸네일 카드용). 아니면 null */
+        _getYouTubeId(url) {
+            const embed = this._parseVideoUrl(url);
+            const m = embed && embed.match(/youtube(?:-nocookie)?\.com\/embed\/([a-zA-Z0-9_-]{11})/);
+            return m ? m[1] : null;
+        }
+
+        /** 붙여넣은 내용이 단일 URL 이면 선택 팝업 처리. 처리했으면 true */
+        _trySmartPaste(e) {
+            const text = (e.clipboardData?.getData('text/plain') || '').trim();
+            if (!/^https?:\/\/\S+$/.test(text)) return false;
+            if (this._getClosestCodeBlock()) return false; // 코드 블록 안은 그대로 붙여넣기
+
+            const videoEmbed = this._parseVideoUrl(text);
+            const hasOg = typeof this._ogFetchHandler === 'function';
+
+            // 일반 URL 인데 OG 핸들러가 없으면 선택지가 하나뿐 → 기본 동작 유지
+            if (!videoEmbed && !hasOg) return false;
+
+            e.preventDefault();
+            this._saveSelection();
+
+            // 세션 기억 선택이 있으면 즉시 적용
+            const kind = videoEmbed ? 'video' : 'link';
+            const remembered = this._smartPasteChoice[kind];
+            if (remembered) {
+                this._applySmartPaste(remembered, text, videoEmbed);
+                return true;
+            }
+
+            this._withLocale(() => this._openSmartPasteDialog(text, videoEmbed, hasOg));
+            return true;
+        }
+
+        _openSmartPasteDialog(url, videoEmbed, hasOg) {
+            const ytId = videoEmbed ? this._getYouTubeId(url) : null;
+            const options = [];
+            if (videoEmbed) {
+                // 썸네일 카드는 서버 없이 썸네일을 얻을 수 있는 YouTube 만 제공
+                if (ytId) options.push({ id: 'card', icon: '🖼️', label: _t('pasteThumbCard'), desc: _t('pasteThumbCardDesc') });
+                options.push({ id: 'embed', icon: '▶️', label: _t('pasteEmbed'), desc: _t('pasteEmbedDesc') });
+            } else if (hasOg) {
+                options.push({ id: 'og', icon: '🪧', label: _t('pasteOgCard'), desc: _t('pasteOgCardDesc') });
+            }
+            options.push({ id: 'link', icon: '🔗', label: _t('pastePlainLink'), desc: _t('pastePlainLinkDesc') });
+
+            const optionsHtml = options.map((o, i) => `
+                <button type="button" class="mublo-editor-paste-opt${i === 0 ? ' selected' : ''}" data-choice="${o.id}">
+                    <span class="mublo-editor-paste-opt-icon">${o.icon}</span>
+                    <span class="mublo-editor-paste-opt-text">
+                        <strong>${o.label}</strong>
+                        <small>${o.desc}</small>
+                    </span>
+                </button>`).join('');
+
+            const body = `
+                <div class="mublo-editor-paste-url">${escapeHtml(url)}</div>
+                <div class="mublo-editor-paste-opts">${optionsHtml}</div>
+                <div class="mublo-editor-modal-check">
+                    <input type="checkbox" id="mublo-editor-paste-remember">
+                    <label for="mublo-editor-paste-remember">${_t('pasteRemember')}</label>
+                </div>
+            `;
+
+            const modal = this._createModal(
+                videoEmbed ? _t('pasteVideoTitle') : _t('pasteLinkTitle'),
+                body, _t('insert'),
+                (m) => {
+                    const choice = m.querySelector('.mublo-editor-paste-opt.selected')?.dataset.choice || 'link';
+                    if (m.querySelector('#mublo-editor-paste-remember').checked) {
+                        this._smartPasteChoice[videoEmbed ? 'video' : 'link'] = choice;
+                    }
+                    this._withLocale(() => this._applySmartPaste(choice, url, videoEmbed));
+                }
+            );
+
+            modal.querySelectorAll('.mublo-editor-paste-opt').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modal.querySelectorAll('.mublo-editor-paste-opt').forEach(b => b.classList.toggle('selected', b === btn));
+                });
+                btn.addEventListener('dblclick', () => {
+                    modal.querySelector('#mublo-editor-modal-confirm').click();
+                });
+            });
+        }
+
+        _applySmartPaste(choice, url, videoEmbed) {
+            switch (choice) {
+                case 'card': this._insertVideoThumbCard(url); break;
+                case 'embed': this.insertVideo(url); break;
+                case 'og': this._insertOgCard(url); break;
+                default: this._insertPlainLink(url);
+            }
+        }
+
+        _insertPlainLink(url) {
+            this._restoreSelection();
+            const safe = escapeHtml(url);
+            this._exec('insertHTML', `<a href="${safe}" target="_blank" rel="noopener noreferrer">${safe}</a>`);
+        }
+
+        /** YouTube 썸네일 카드 삽입. OG 핸들러가 있으면 제목도 가져온다 */
+        async _insertVideoThumbCard(url) {
+            const ytId = this._getYouTubeId(url);
+            if (!ytId) { this._insertPlainLink(url); return; }
+            const thumb = `https://img.youtube.com/vi/${ytId}/hqdefault.jpg`;
+
+            let title = '';
+            if (typeof this._ogFetchHandler === 'function') {
+                try {
+                    const og = await this._ogFetchHandler(url);
+                    title = og?.title || '';
+                } catch (err) { /* 제목 없이 진행 */ }
+            }
+
+            const safeUrl = escapeHtml(url);
+            const label = escapeHtml(title || url);
+            const html =
+                `<figure data-mublo-card="video" contenteditable="false" style="margin:1em 0;">` +
+                `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="display:block;max-width:480px;border:1px solid #dee2e6;border-radius:8px;overflow:hidden;text-decoration:none;background:#fff;">` +
+                `<span style="position:relative;display:block;"><img src="${thumb}" alt="${label}" loading="lazy" style="display:block;width:100%;height:auto;">` +
+                `<span style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:48px;height:48px;border-radius:50%;background:rgba(0,0,0,.65);color:#fff;font-size:20px;line-height:48px;text-align:center;">▶</span></span>` +
+                `<span style="display:block;padding:.55em .8em;color:#495057;font-size:.875em;word-break:break-all;">${label}</span>` +
+                `</a></figure><p><br></p>`;
+            this._restoreSelection();
+            this._exec('insertHTML', html);
+        }
+
+        /** OG 카드 삽입. 메타 수집 실패 시 단순 링크로 폴백 */
+        async _insertOgCard(url) {
+            let og = null;
+            try {
+                og = await this._ogFetchHandler(url);
+            } catch (err) {
+                console.warn('[MubloEditor] OG fetch failed, fallback to plain link:', err);
+            }
+            if (!og || (!og.title && !og.description && !og.image)) {
+                this._insertPlainLink(url);
+                return;
+            }
+
+            const safeUrl = escapeHtml(url);
+            let host = '';
+            try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (err) { /* 무시 */ }
+            const title = escapeHtml(og.title || host || url);
+            const desc = escapeHtml((og.description || '').slice(0, 160));
+            // 이미지는 http(s) URL 만 허용
+            const image = (typeof og.image === 'string' && /^https?:\/\//i.test(og.image)) ? escapeHtml(og.image) : '';
+
+            const imgHtml = image
+                ? `<span style="flex:0 0 96px;align-self:stretch;overflow:hidden;"><img src="${image}" alt="" loading="lazy" style="display:block;width:96px;height:100%;min-height:72px;object-fit:cover;"></span>`
+                : '';
+            const html =
+                `<figure data-mublo-card="og" contenteditable="false" style="margin:1em 0;">` +
+                `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="display:flex;max-width:560px;border:1px solid #dee2e6;border-radius:8px;overflow:hidden;text-decoration:none;background:#fff;">` +
+                imgHtml +
+                `<span style="display:block;flex:1;min-width:0;padding:.7em .9em;">` +
+                `<span style="display:block;color:#212529;font-weight:600;font-size:.9em;line-height:1.35;overflow:hidden;">${title}</span>` +
+                (desc ? `<span style="display:block;margin-top:.25em;color:#6c757d;font-size:.8em;line-height:1.4;overflow:hidden;">${desc}</span>` : '') +
+                `<span style="display:block;margin-top:.35em;color:#adb5bd;font-size:.75em;">${escapeHtml(host)}</span>` +
+                `</span></a></figure><p><br></p>`;
+            this._restoreSelection();
+            this._exec('insertHTML', html);
+        }
+
         _insertTable() {
             this._saveSelection();
             const body = `
@@ -2518,6 +3009,7 @@ const MubloEditor = (() => {
                 this._enforceMaxLength();
                 this._onChange();
                 this._maybeScheduleHighlight();
+                this._updateSlashMenu();
             });
             this.contentArea.addEventListener('focus', () => {
                 this.wrapper.classList.add('focused');
@@ -2528,6 +3020,8 @@ const MubloEditor = (() => {
             this.contentArea.addEventListener('blur', () => {
                 this.wrapper.classList.remove('focused');
                 this.sync();
+                // 메뉴 클릭(mousedown preventDefault)이 아닌 실제 포커스 이탈 시 슬래시 메뉴 닫기
+                setTimeout(() => { if (document.activeElement !== this.contentArea) this._hideSlashMenu(); }, 150);
                 this.options.onBlur?.(this);
                 this.fire('blur');
             });
@@ -2558,6 +3052,7 @@ const MubloEditor = (() => {
             this._initImageResizer();
             this._initTableEditing();
             this._initCodeBlockEditing();
+            this._initChecklistToggle();
             this.options.onReady?.(this);
         }
 
@@ -2667,6 +3162,9 @@ const MubloEditor = (() => {
             // IME 조합 중에는 단축키 처리 안 함
             if (this._isComposing || e.isComposing) return;
 
+            // 슬래시 메뉴가 열려 있으면 방향키/Enter/Escape 우선 처리 (v1.7)
+            if (this._handleSlashKeydown(e)) return;
+
             // 이미지 선택 상태에서 Delete/Backspace → 이미지 삭제
             if (this._selectedImage && (e.key === 'Delete' || e.key === 'Backspace')) {
                 e.preventDefault();
@@ -2698,6 +3196,11 @@ const MubloEditor = (() => {
                 if (key === 'y') { e.preventDefault(); this._exec('redo'); }
             }
             if (e.key === 'Tab') {
+                // 표 안: 셀 이동 (마지막 셀 Tab → 행 추가) (v1.7)
+                if (this._handleTableTab(e)) {
+                    this.fire('keydown', { originalEvent: e });
+                    return;
+                }
                 e.preventDefault();
                 // 코드 블록 내부에서는 2스페이스 들여쓰기 / 내어쓰기
                 if (this._getClosestCodeBlock()) {
@@ -2708,6 +3211,344 @@ const MubloEditor = (() => {
                 }
             }
             this.fire('keydown', { originalEvent: e });
+        }
+
+        // =========================================================
+        // 실행취소 히스토리 (v1.7) — 스냅샷 기반, execCommand undo 대체
+        // =========================================================
+        /** 현재 선택 위치를 contentArea 기준 경로로 저장 */
+        _selectionToPath() {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return null;
+            const range = sel.getRangeAt(0);
+            if (!this.contentArea.contains(range.startContainer)) return null;
+            const path = [];
+            let node = range.startContainer;
+            while (node && node !== this.contentArea) {
+                const parent = node.parentNode;
+                if (!parent) return null;
+                path.unshift(Array.prototype.indexOf.call(parent.childNodes, node));
+                node = parent;
+            }
+            return { path, offset: range.startOffset };
+        }
+
+        _pathToSelection(saved) {
+            if (!saved) return;
+            let node = this.contentArea;
+            for (const idx of saved.path) {
+                if (!node.childNodes[idx]) break;
+                node = node.childNodes[idx];
+            }
+            try {
+                const range = document.createRange();
+                const max = node.nodeType === 3 ? node.textContent.length : node.childNodes.length;
+                range.setStart(node, Math.min(saved.offset, max));
+                range.collapse(true);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            } catch (e) { /* 위치 복원 실패는 무시 */ }
+        }
+
+        /** 변경 debounce 후 스냅샷 저장 */
+        _historyScheduleCapture() {
+            if (this._history.restoring) return;
+            clearTimeout(this._history.timer);
+            this._history.timer = setTimeout(() => this._historyCapture(), 400);
+        }
+
+        _historyCapture() {
+            if (this._history.restoring || this.isSourceMode) return;
+            const html = this.contentArea.innerHTML;
+            const h = this._history;
+            if (h.idx >= 0 && h.stack[h.idx]?.html === html) return; // 변화 없음
+            // 현재 위치 이후(redo 분기) 폐기
+            h.stack = h.stack.slice(0, h.idx + 1);
+            h.stack.push({ html, sel: this._selectionToPath() });
+            if (h.stack.length > 100) h.stack.shift();
+            h.idx = h.stack.length - 1;
+        }
+
+        _historyRestore(state) {
+            const h = this._history;
+            h.restoring = true;
+            try {
+                this.contentArea.innerHTML = state.html;
+                this._highlightAllCodeBlocks();
+                this._pathToSelection(state.sel);
+                this._saveSelection();
+                this._syncLight();
+                this._updateWordCount();
+                this.fire('change', { content: this.getHTML() });
+            } finally {
+                h.restoring = false;
+            }
+        }
+
+        _historyUndo() {
+            // 대기 중인 스냅샷 먼저 확정
+            clearTimeout(this._history.timer);
+            this._historyCapture();
+            const h = this._history;
+            if (h.idx <= 0) return;
+            h.idx--;
+            this._historyRestore(h.stack[h.idx]);
+        }
+
+        _historyRedo() {
+            const h = this._history;
+            if (h.idx >= h.stack.length - 1) return;
+            h.idx++;
+            this._historyRestore(h.stack[h.idx]);
+        }
+
+        // =========================================================
+        // 슬래시 커맨드 (v1.7) — 빈 블록에서 '/' 입력 → 삽입 메뉴
+        // =========================================================
+        _slashItems() {
+            const items = [
+                { key: 'paragraph', icon: '¶', label: _t('slashParagraph'), run: () => this._exec('formatBlock', 'p') },
+                { key: 'h1', icon: 'H1', label: _t('slashH1'), run: () => this._exec('formatBlock', 'h1') },
+                { key: 'h2', icon: 'H2', label: _t('slashH2'), run: () => this._exec('formatBlock', 'h2') },
+                { key: 'h3', icon: 'H3', label: _t('slashH3'), run: () => this._exec('formatBlock', 'h3') },
+                { key: 'bullet', icon: '•', label: _t('slashBullet'), run: () => this._exec('insertUnorderedList') },
+                { key: 'number', icon: '1.', label: _t('slashNumber'), run: () => this._exec('insertOrderedList') },
+                { key: 'checklist', icon: '☑', label: _t('slashChecklist'), run: () => this._insertChecklist() },
+                { key: 'quote', icon: '❝', label: _t('slashQuote'), run: () => this._openQuoteGallery() },
+                { key: 'code', icon: '</>', label: _t('slashCode'), run: () => this._insertCodeBlock() },
+                { key: 'table', icon: '⊞', label: _t('slashTable'), run: () => this._insertTable() },
+                { key: 'image', icon: '🖼', label: _t('slashImage'), run: () => this._openImageDialog() },
+                { key: 'video', icon: '▶', label: _t('slashVideo'), run: () => this._insertVideo() },
+                { key: 'hr', icon: '—', label: _t('slashHr'), run: () => this._exec('insertHorizontalRule') },
+                { key: 'toc', icon: '≡', label: _t('slashToc'), run: () => this._insertToc() },
+            ];
+            // 플러그인 커스텀 툴바 버튼도 메뉴에 노출
+            const appendCustom = (map) => map.forEach((def, name) => {
+                if (typeof def.onClick === 'function') {
+                    items.push({ key: name, icon: '＋', label: def.title || name, run: () => def.onClick(this) });
+                }
+            });
+            appendCustom(customToolbarItems);
+            appendCustom(this._customToolbarItems);
+            return items;
+        }
+
+        /** input 시점: 현재 블록이 '/…' 로 시작하면 메뉴 표시/갱신 */
+        _updateSlashMenu() {
+            if (this.isSourceMode || this._isComposing) { this._hideSlashMenu(); return; }
+            const block = this._getCurrentBlock();
+            if (!block || /^(TD|TH|PRE|LI)$/.test(block.tagName)) { this._hideSlashMenu(); return; }
+            const text = block.textContent || '';
+            if (!text.startsWith('/') || text.length > 24 || /\s/.test(text)) { this._hideSlashMenu(); return; }
+
+            const query = text.slice(1).toLowerCase();
+            const matches = this._slashItems().filter(it =>
+                !query || it.label.toLowerCase().includes(query) || it.key.includes(query));
+            if (!matches.length) { this._hideSlashMenu(); return; }
+
+            this._slashBlock = block;
+            this._slashMatches = matches;
+            if (this._slashIndex >= matches.length) this._slashIndex = 0;
+
+            if (!this._slashMenu) {
+                this._slashMenu = document.createElement('div');
+                this._slashMenu.className = 'mublo-editor-slash-menu';
+                this._slashMenu.setAttribute('role', 'listbox');
+                document.body.appendChild(this._slashMenu);
+            }
+            this._slashMenu.innerHTML = matches.map((it, i) =>
+                `<button type="button" role="option" class="mublo-editor-slash-item${i === this._slashIndex ? ' active' : ''}" data-idx="${i}">
+                    <span class="mublo-editor-slash-icon">${it.icon}</span><span>${escapeHtml(it.label)}</span>
+                </button>`).join('') + `<div class="mublo-editor-slash-hint">${_t('slashHint')}</div>`;
+
+            this._slashMenu.querySelectorAll('.mublo-editor-slash-item').forEach(btn => {
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // 에디터 포커스 유지
+                    this._runSlashItem(parseInt(btn.dataset.idx, 10));
+                });
+            });
+
+            // 블록 근처에 위치
+            const rect = block.getBoundingClientRect();
+            const menu = this._slashMenu;
+            menu.style.left = Math.min(rect.left, window.innerWidth - 240) + 'px';
+            const mh = menu.offsetHeight || 300;
+            menu.style.top = (rect.bottom + mh > window.innerHeight - 8 ? rect.top - mh - 4 : rect.bottom + 4) + 'px';
+        }
+
+        _hideSlashMenu() {
+            if (this._slashMenu) { this._slashMenu.remove(); this._slashMenu = null; }
+            this._slashBlock = null;
+            this._slashIndex = 0;
+        }
+
+        /** 메뉴 열림 상태의 키 처리. true 반환 시 기본 동작 취소 */
+        _handleSlashKeydown(e) {
+            if (!this._slashMenu) return false;
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                const n = this._slashMatches.length;
+                this._slashIndex = (this._slashIndex + (e.key === 'ArrowDown' ? 1 : n - 1)) % n;
+                this._slashMenu.querySelectorAll('.mublo-editor-slash-item').forEach((b, i) => {
+                    b.classList.toggle('active', i === this._slashIndex);
+                    if (i === this._slashIndex) b.scrollIntoView({ block: 'nearest' });
+                });
+                return true;
+            }
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this._runSlashItem(this._slashIndex);
+                return true;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                this._hideSlashMenu();
+                return true;
+            }
+            return false;
+        }
+
+        _runSlashItem(idx) {
+            const item = this._slashMatches?.[idx];
+            const block = this._slashBlock;
+            this._hideSlashMenu();
+            if (!item) return;
+            // '/query' 텍스트 제거 후 커서를 블록에 위치
+            if (block && this.contentArea.contains(block)) {
+                block.textContent = '';
+                if (!block.firstChild) block.appendChild(document.createElement('br'));
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.setStart(block, 0);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                this._saveSelection();
+            }
+            this._withLocale(() => item.run());
+        }
+
+        // =========================================================
+        // 표 Tab 네비게이션 (v1.7)
+        // =========================================================
+        /** Tab/Shift+Tab: 다음/이전 셀. 마지막 셀에서 Tab → 행 추가. true 반환 시 처리됨 */
+        _handleTableTab(e) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return false;
+            let node = sel.getRangeAt(0).startContainer;
+            if (node.nodeType === 3) node = node.parentNode;
+            const cell = node.closest && node.closest('td, th');
+            if (!cell || !this.contentArea.contains(cell)) return false;
+
+            const table = cell.closest('table');
+            const cells = Array.from(table.querySelectorAll('td, th'));
+            const idx = cells.indexOf(cell);
+            if (idx === -1) return false;
+
+            e.preventDefault();
+            let target;
+            if (e.shiftKey) {
+                if (idx === 0) return true; // 첫 셀에서는 이동 없음
+                target = cells[idx - 1];
+            } else if (idx === cells.length - 1) {
+                // 마지막 셀 → 아래 행 추가 후 새 행 첫 셀로
+                this._insertTableRow(cell, true);
+                const newCells = Array.from(table.querySelectorAll('td, th'));
+                target = newCells[idx + 1] || newCells[newCells.length - 1];
+            } else {
+                target = cells[idx + 1];
+            }
+            if (target) {
+                const range = document.createRange();
+                range.selectNodeContents(target);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                this._saveSelection();
+            }
+            return true;
+        }
+
+        // =========================================================
+        // 체크리스트 (v1.7)
+        // =========================================================
+        _insertChecklist() {
+            this._restoreSelection();
+            const li = '<li style="display:flex;align-items:flex-start;gap:.5em;margin:.3em 0;"><input type="checkbox" contenteditable="false" style="margin-top:.32em;flex:0 0 auto;"><span>&nbsp;</span></li>';
+            const html = `<ul data-mublo-checklist style="list-style:none;padding-left:.25em;margin:1em 0;">${li}</ul>`;
+            this._exec('insertHTML', html);
+            // 커서를 첫 항목 텍스트로
+            const list = this.contentArea.querySelector('ul[data-mublo-checklist]:last-of-type');
+            const span = list?.querySelector('li:first-child span');
+            if (span) {
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(span);
+                range.collapse(false);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                this._saveSelection();
+            }
+        }
+
+        /** 체크박스 토글을 checked 속성으로 영속화 (뷰 페이지에서도 상태 유지) */
+        _initChecklistToggle() {
+            this.contentArea.addEventListener('click', (e) => {
+                const box = e.target;
+                if (box.matches && box.matches('ul[data-mublo-checklist] input[type="checkbox"]')) {
+                    if (box.checked) box.setAttribute('checked', '');
+                    else box.removeAttribute('checked');
+                    this._onChange();
+                }
+            });
+        }
+
+        // =========================================================
+        // 목차(TOC) 삽입 (v1.7)
+        // =========================================================
+        _insertToc() {
+            this._restoreSelection();
+            const headings = Array.from(this.contentArea.querySelectorAll('h1, h2, h3'))
+                .filter(h => !h.closest('[data-mublo-toc]') && h.textContent.trim());
+            if (!headings.length) {
+                alert(_t('tocEmpty'));
+                return;
+            }
+            // 제목마다 앵커 id 부여 (없을 때만)
+            headings.forEach((h, i) => {
+                if (!h.id) h.id = 'mublo-h-' + (i + 1) + '-' + h.textContent.trim().slice(0, 20).replace(/[^\w가-힣]+/g, '-');
+            });
+            const items = headings.map(h => {
+                const level = parseInt(h.tagName[1], 10);
+                const indent = (level - 1) * 1.1;
+                return `<li style="margin:.25em 0;padding-left:${indent}em;list-style:none;">` +
+                    `<a href="#${escapeHtml(h.id)}" style="color:#4263eb;text-decoration:none;">${escapeHtml(h.textContent.trim())}</a></li>`;
+            }).join('');
+            const html =
+                `<nav data-mublo-toc contenteditable="false" style="margin:1em 0;padding:.9em 1.1em;border:1px solid #dee2e6;border-radius:8px;background:#f8f9fa;">` +
+                `<strong style="display:block;margin-bottom:.5em;color:#343a40;font-size:.9em;">${_t('tocTitle')}</strong>` +
+                `<ul style="margin:0;padding:0;">${items}</ul></nav>`;
+
+            // 기존 TOC 가 있으면 교체
+            const existing = this.contentArea.querySelector('nav[data-mublo-toc]');
+            if (existing) {
+                existing.outerHTML = html;
+                this._onChange();
+                return;
+            }
+
+            // 블록 사이에 DOM 직접 삽입 (p 내부에 nav 가 끼는 것 방지)
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            const nav = temp.firstChild;
+            const block = this._getCurrentBlock();
+            if (block && block.parentNode === this.contentArea) {
+                this.contentArea.insertBefore(nav, block.nextSibling);
+            } else {
+                this.contentArea.insertBefore(nav, this.contentArea.firstChild);
+            }
+            this._onChange();
         }
 
         // =========================================================
@@ -2810,9 +3651,23 @@ const MubloEditor = (() => {
                 '*': ['insertUnorderedList', null],
                 '1.': ['insertOrderedList', null],
                 '>': ['formatBlock', 'blockquote'],
+                '[]': ['checklist', null],
             };
             const rule = MAP[before];
             if (!rule) return false;
+
+            // 체크리스트는 별도 삽입 경로 (v1.7)
+            if (rule[0] === 'checklist') {
+                e.preventDefault();
+                const del = document.createRange();
+                del.setStart(block, 0);
+                del.setEnd(node, offset);
+                del.deleteContents();
+                this._saveSelection();
+                this._insertChecklist();
+                this._flashMarkdown();
+                return true;
+            }
 
             e.preventDefault();
             // 토큰 텍스트 제거
@@ -3203,6 +4058,110 @@ const MubloEditor = (() => {
         }
 
         // =========================================================
+        // 인용구 스타일 갤러리
+        // =========================================================
+        _getClosestBlockquote() {
+            const sel = window.getSelection();
+            let node = (sel && sel.rangeCount > 0) ? sel.getRangeAt(0).commonAncestorContainer
+                : this.savedRange?.commonAncestorContainer;
+            while (node && node !== this.contentArea) {
+                if (node.nodeType === 1 && node.tagName === 'BLOCKQUOTE') return node;
+                node = node.parentNode;
+            }
+            return null;
+        }
+
+        _quoteIconHtml(def) {
+            if (!def.icon) return '';
+            const extra = def.iconStyle ? escapeHtml(def.iconStyle) : '';
+            return `<span data-quote-icon contenteditable="false" style="margin-right:.5em;${extra}">${def.icon}</span>`;
+        }
+
+        _openQuoteGallery() {
+            this._saveSelection();
+            const tabs = [
+                { key: 'basic', label: _t('quoteTabBasic') },
+                { key: 'color', label: _t('quoteTabColor') },
+                { key: 'icon', label: _t('quoteTabIcon') },
+                { key: 'alert', label: _t('quoteTabAlert') },
+                { key: 'special', label: _t('quoteTabSpecial') }
+            ];
+            const sample = escapeHtml(_t('quoteSample'));
+            const loc = (this._locale || _globalLocale) === 'en' ? 'en' : 'ko';
+
+            const tabsHtml = tabs.map((t, i) =>
+                `<button type="button" class="mublo-editor-quote-tab${i === 0 ? ' active' : ''}" data-tab="${t.key}">${t.label}</button>`
+            ).join('');
+
+            const gridsHtml = tabs.map((t, i) => {
+                const cards = QUOTE_STYLES[t.key].map(s =>
+                    `<button type="button" class="mublo-editor-quote-card" data-cat="${t.key}" data-id="${s.id}">
+                        <blockquote style="${escapeHtml(s.style)}">${this._quoteIconHtml(s)}${sample}</blockquote>
+                        <span class="mublo-editor-quote-card-label">${escapeHtml(s.label[loc])}</span>
+                    </button>`
+                ).join('');
+                return `<div class="mublo-editor-quote-grid" data-tab="${t.key}"${i === 0 ? '' : ' style="display:none"'}>${cards}</div>`;
+            }).join('');
+
+            const body = `
+                <div class="mublo-editor-quote-tabs">${tabsHtml}</div>
+                ${gridsHtml}
+                <div class="mublo-editor-quote-hint">${_t('quoteGalleryHint')}</div>
+            `;
+
+            const modal = this._createModal(_t('quoteGallery'), body);
+            modal.querySelector('.mublo-editor-modal-dialog').classList.add('mublo-editor-modal-wide');
+            // 즉시 삽입 방식 — 확인 버튼 숨기고 취소는 닫기로
+            modal.querySelector('#mublo-editor-modal-confirm').style.display = 'none';
+            modal.querySelector('#mublo-editor-modal-cancel').textContent = _t('findClose');
+
+            modal.querySelectorAll('.mublo-editor-quote-tab').forEach(tab => {
+                tab.addEventListener('click', () => {
+                    modal.querySelectorAll('.mublo-editor-quote-tab').forEach(t => t.classList.toggle('active', t === tab));
+                    modal.querySelectorAll('.mublo-editor-quote-grid').forEach(g => {
+                        g.style.display = g.dataset.tab === tab.dataset.tab ? '' : 'none';
+                    });
+                });
+            });
+
+            modal.querySelectorAll('.mublo-editor-quote-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    const def = (QUOTE_STYLES[card.dataset.cat] || []).find(s => s.id === card.dataset.id);
+                    if (def) this._withLocale(() => this._applyQuoteStyle(def));
+                    modal.querySelector('#mublo-editor-modal-cancel').click();
+                });
+            });
+        }
+
+        _applyQuoteStyle(def) {
+            const existing = this._getClosestBlockquote();
+            const iconHtml = this._quoteIconHtml(def);
+
+            if (existing) {
+                // 커서가 이미 인용구 안 → 스타일 교체
+                existing.style.cssText = def.style;
+                existing.setAttribute('data-quote-style', def.id);
+                const oldIcon = existing.querySelector('[data-quote-icon]');
+                if (oldIcon) oldIcon.remove();
+                if (iconHtml) existing.insertAdjacentHTML('afterbegin', iconHtml);
+                this._onChange();
+                return;
+            }
+
+            this._restoreSelection();
+            const sel = window.getSelection();
+            let content = '';
+            if (sel && sel.rangeCount > 0 && !sel.getRangeAt(0).collapsed
+                && this.contentArea.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+                content = escapeHtml(sel.toString());
+            }
+            if (!content) content = escapeHtml(_t('quoteSample'));
+
+            const html = `<blockquote data-quote-style="${def.id}" style="${escapeHtml(def.style)}">${iconHtml}${content}</blockquote><p><br></p>`;
+            this._exec('insertHTML', html);
+        }
+
+        // =========================================================
         // 테이블 셀 편집 (컨텍스트 메뉴 · 행열 추가/삭제 · 병합/분할)
         // =========================================================
         _initTableEditing() {
@@ -3249,6 +4208,9 @@ const MubloEditor = (() => {
             document.addEventListener('mouseup', this._handlers.docMouseup);
             document.addEventListener('mousedown', this._handlers.docCloseTableMenu);
             document.addEventListener('scroll', this._handlers.docScrollCloseMenu, true);
+
+            // 열 경계 드래그 리사이즈
+            this._initTableColumnResize();
         }
 
         /** 표를 그리드(2차원 셀 참조 맵)로 전개 — colspan/rowspan 반영 */
@@ -3343,6 +4305,7 @@ const MubloEditor = (() => {
                 { label: _t('tableMerge'), fn: () => this._mergeCells(), disabled: !canMerge },
                 { label: _t('tableSplit'), fn: () => this._splitCell(cell), disabled: !canSplit },
                 { sep: true },
+                { label: _t('tableStyle'), fn: () => this._withLocale(() => this._openTableStyleDialog(cell)) },
                 { label: _t('tableDelete'), fn: () => this._deleteTable(cell), danger: true },
             ];
 
@@ -3560,6 +4523,249 @@ const MubloEditor = (() => {
             }
             this._clearCellSelection();
             this._onChange();
+        }
+
+        // =========================================================
+        // 테이블 스타일 다이얼로그 (v1.4)
+        // =========================================================
+        _openTableStyleDialog(cell) {
+            const table = cell.closest('table');
+            if (!table) return;
+            this._saveSelection();
+
+            // 배경색 적용 대상: 드래그로 선택한 셀들, 없으면 우클릭한 셀
+            const targetCells = this._getSelectedCells();
+            const bgCells = targetCells.length ? targetCells : [cell];
+
+            // 현재 값 읽기
+            const probe = table.querySelector('td, th') || cell;
+            const pcs = getComputedStyle(probe);
+            const curPadding = parseInt(pcs.paddingTop, 10) || 0;
+            const curSpacing = parseInt(table.style.borderSpacing, 10) || 0;
+            const widthMatch = /^(\d+(?:\.\d+)?)%$/.exec(table.style.width || '');
+            const curWidth = widthMatch ? Math.round(parseFloat(widthMatch[1])) : 100;
+            const bwParsed = parseInt(pcs.borderTopWidth, 10);
+            const curBorderW = Number.isFinite(bwParsed) ? bwParsed : 1;
+            const curBorderColor = rgbToHex(pcs.borderTopColor) || '#dee2e6';
+            const knownStyles = ['solid', 'dashed', 'dotted', 'double', 'none'];
+            const curBorderStyle = knownStyles.includes(pcs.borderTopStyle) ? pcs.borderTopStyle : 'solid';
+            const curBg = rgbToHex(cell.style.backgroundColor) || '';
+
+            const styleLabels = {
+                solid: _t('borderSolid'), dashed: _t('borderDashed'), dotted: _t('borderDotted'),
+                double: _t('borderDouble'), none: _t('borderNone')
+            };
+            const paletteHtml = (colors) => colors.map(c =>
+                `<button type="button" class="mublo-editor-color-btn" data-color="${c}" style="background-color:${c}" title="${c}"></button>`
+            ).join('');
+
+            const body = `
+                <div class="mublo-editor-tstyle-section">
+                    <div class="mublo-editor-tstyle-section-title">${_t('tableStyleSpacing')}</div>
+                    <div class="mublo-editor-tstyle-row">
+                        <label>${_t('tableCellPadding')}</label>
+                        <input type="range" id="mublo-ts-padding" min="0" max="24" value="${curPadding}">
+                        <span class="mublo-editor-tstyle-val" id="mublo-ts-padding-val">${curPadding}px</span>
+                    </div>
+                    <div class="mublo-editor-tstyle-row">
+                        <label>${_t('tableCellSpacing')}</label>
+                        <input type="range" id="mublo-ts-spacing" min="0" max="12" value="${curSpacing}">
+                        <span class="mublo-editor-tstyle-val" id="mublo-ts-spacing-val">${curSpacing}px</span>
+                    </div>
+                    <div class="mublo-editor-tstyle-row">
+                        <label>${_t('tableWidth')}</label>
+                        <input type="range" id="mublo-ts-width" min="30" max="100" value="${curWidth}">
+                        <span class="mublo-editor-tstyle-val" id="mublo-ts-width-val">${curWidth}%</span>
+                    </div>
+                </div>
+                <div class="mublo-editor-tstyle-section">
+                    <div class="mublo-editor-tstyle-section-title">${_t('tableBorderSection')}</div>
+                    <div class="mublo-editor-tstyle-row">
+                        <label>${_t('tableBorderWidth')}</label>
+                        <input type="range" id="mublo-ts-bwidth" min="0" max="5" value="${curBorderW}">
+                        <span class="mublo-editor-tstyle-val" id="mublo-ts-bwidth-val">${curBorderW}px</span>
+                    </div>
+                    <div class="mublo-editor-tstyle-row">
+                        <label>${_t('tableBorderColor')}</label>
+                        <input type="color" class="mublo-editor-tstyle-color-swatch" id="mublo-ts-bcolor" value="${curBorderColor}">
+                        <input type="text" id="mublo-ts-bcolor-hex" value="${curBorderColor}" size="9">
+                    </div>
+                    <div class="mublo-editor-tstyle-row">
+                        <label>${_t('tableBorderStyle')}</label>
+                        <select id="mublo-ts-bstyle">
+                            ${knownStyles.map(s => `<option value="${s}"${s === curBorderStyle ? ' selected' : ''}>${styleLabels[s]}</option>`).join('')}
+                        </select>
+                    </div>
+                </div>
+                <div class="mublo-editor-tstyle-section">
+                    <div class="mublo-editor-tstyle-section-title">${_t('tableCellBg')}</div>
+                    <div class="mublo-editor-tstyle-row">
+                        <input type="color" class="mublo-editor-tstyle-color-swatch" id="mublo-ts-bg" value="${curBg || '#ffffff'}">
+                        <input type="text" id="mublo-ts-bg-hex" value="${curBg}" size="9" placeholder="#RRGGBB">
+                        <button type="button" class="mublo-editor-modal-btn mublo-editor-modal-btn-secondary" id="mublo-ts-bg-clear">${_t('tableBgClear')}</button>
+                    </div>
+                    <div class="mublo-editor-tstyle-palette" id="mublo-ts-palette">${paletteHtml(this.options.colors)}</div>
+                    ${this._recentTableColors.length ? `
+                    <div class="mublo-editor-tstyle-section-title" style="margin-top:.625rem">${_t('tableRecentColors')}</div>
+                    <div class="mublo-editor-tstyle-palette" id="mublo-ts-recent">${paletteHtml(this._recentTableColors)}</div>` : ''}
+                </div>
+                <div class="mublo-editor-tstyle-hint">${_t('tableStyleHint')}</div>
+            `;
+
+            const modal = this._createModal(_t('tableStyle'), body, _t('apply'), (m) => {
+                const val = id => m.querySelector('#' + id).value;
+                const padding = parseInt(val('mublo-ts-padding'), 10);
+                const spacing = parseInt(val('mublo-ts-spacing'), 10);
+                const width = parseInt(val('mublo-ts-width'), 10);
+                const bw = parseInt(val('mublo-ts-bwidth'), 10);
+                const bstyle = val('mublo-ts-bstyle');
+                const bcolor = val('mublo-ts-bcolor-hex').trim() || val('mublo-ts-bcolor');
+                const bg = val('mublo-ts-bg-hex').trim();
+
+                table.style.width = width + '%';
+                if (spacing > 0) {
+                    table.style.borderCollapse = 'separate';
+                    table.style.borderSpacing = spacing + 'px';
+                } else {
+                    table.style.borderCollapse = 'collapse';
+                    table.style.removeProperty('border-spacing');
+                }
+                table.querySelectorAll('td, th').forEach(c => {
+                    c.style.padding = padding + 'px';
+                    c.style.border = (bstyle === 'none' || bw === 0) ? 'none' : `${bw}px ${bstyle} ${bcolor}`;
+                });
+                bgCells.forEach(c => {
+                    if (bg) c.style.backgroundColor = bg;
+                    else c.style.removeProperty('background-color');
+                });
+                if (bg) {
+                    this._recentTableColors = [bg, ...this._recentTableColors.filter(c => c !== bg)].slice(0, 8);
+                }
+                this._clearCellSelection();
+                this._onChange();
+            });
+
+            // 슬라이더 값 표시
+            [['mublo-ts-padding', 'px'], ['mublo-ts-spacing', 'px'], ['mublo-ts-width', '%'], ['mublo-ts-bwidth', 'px']].forEach(([id, unit]) => {
+                const input = modal.querySelector('#' + id);
+                input.addEventListener('input', () => {
+                    modal.querySelector(`#${id}-val`).textContent = input.value + unit;
+                });
+            });
+            // 색상 피커 ↔ hex 입력 동기화
+            [['mublo-ts-bcolor', 'mublo-ts-bcolor-hex'], ['mublo-ts-bg', 'mublo-ts-bg-hex']].forEach(([picker, hex]) => {
+                const p = modal.querySelector('#' + picker);
+                const h = modal.querySelector('#' + hex);
+                p.addEventListener('input', () => { h.value = p.value; });
+                h.addEventListener('input', () => { if (/^#[0-9a-fA-F]{6}$/.test(h.value.trim())) p.value = h.value.trim(); });
+            });
+            // 팔레트 클릭 → 셀 배경 hex 에 반영
+            modal.querySelectorAll('#mublo-ts-palette .mublo-editor-color-btn, #mublo-ts-recent .mublo-editor-color-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    modal.querySelector('#mublo-ts-bg-hex').value = btn.dataset.color;
+                    modal.querySelector('#mublo-ts-bg').value = btn.dataset.color;
+                });
+            });
+            modal.querySelector('#mublo-ts-bg-clear').addEventListener('click', () => {
+                modal.querySelector('#mublo-ts-bg-hex').value = '';
+            });
+        }
+
+        // =========================================================
+        // 테이블 열 리사이즈 (열 경계 드래그, v1.4)
+        // =========================================================
+        _initTableColumnResize() {
+            const EDGE = 5; // 경계 감지 픽셀
+
+            const edgeInfo = (e) => {
+                const cell = e.target.closest && e.target.closest('td, th');
+                if (!cell || !this.contentArea.contains(cell)) return null;
+                const rect = cell.getBoundingClientRect();
+                if (rect.right - e.clientX <= EDGE) return { cell, side: 'right' };
+                if (e.clientX - rect.left <= EDGE) return { cell, side: 'left' };
+                return null;
+            };
+
+            this.contentArea.addEventListener('mousemove', (e) => {
+                if (this._colDrag) return;
+                this.contentArea.style.cursor = edgeInfo(e) ? 'col-resize' : '';
+            });
+
+            // capture 단계에서 처리해 셀 다중선택(mousedown)보다 먼저 가로챈다
+            this.contentArea.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                const info = edgeInfo(e);
+                if (!info) return;
+
+                const table = info.cell.closest('table');
+                if (!table) return;
+                const grid = this._buildTableGrid(table);
+                const coord = this._getCellCoord(grid, info.cell);
+                if (!coord) return;
+
+                // 드래그 대상 경계의 왼쪽 열 인덱스
+                let colIndex = info.side === 'right'
+                    ? coord.c + (info.cell.colSpan || 1) - 1
+                    : coord.c - 1;
+                const colCount = this._tableColumnCount(grid);
+                if (colIndex < 0 || colIndex >= colCount - 1) return; // 표의 양 끝 경계는 제외
+
+                e.preventDefault();
+                e.stopPropagation();
+
+                const cg = this._ensureColgroup(table, grid, colCount);
+                const cols = Array.from(cg.children);
+                const tableWidth = table.getBoundingClientRect().width || 1;
+                const startA = parseFloat(cols[colIndex].style.width) || (100 / colCount);
+                const startB = parseFloat(cols[colIndex + 1].style.width) || (100 / colCount);
+                const startX = e.clientX;
+                this._colDrag = true;
+                this.contentArea.classList.add('mublo-editor-col-resizing');
+
+                const onMove = (ev) => {
+                    const deltaPct = (ev.clientX - startX) / tableWidth * 100;
+                    const MIN = 5;
+                    let a = Math.min(Math.max(startA + deltaPct, MIN), startA + startB - MIN);
+                    cols[colIndex].style.width = a.toFixed(2) + '%';
+                    cols[colIndex + 1].style.width = (startA + startB - a).toFixed(2) + '%';
+                };
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    this._colDrag = false;
+                    this.contentArea.classList.remove('mublo-editor-col-resizing');
+                    this.contentArea.style.cursor = '';
+                    this._onChange();
+                };
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            }, true);
+        }
+
+        /** colgroup 이 없거나 열 수가 다르면 현재 렌더 폭 기준으로 생성 */
+        _ensureColgroup(table, grid, colCount) {
+            let cg = table.querySelector(':scope > colgroup');
+            if (cg && cg.children.length === colCount) return cg;
+            if (cg) cg.remove();
+
+            cg = document.createElement('colgroup');
+            const tableWidth = table.getBoundingClientRect().width || 1;
+            for (let c = 0; c < colCount; c++) {
+                // 해당 열을 단독 점유하는 셀을 찾아 실제 렌더 폭 사용
+                let w = null;
+                for (let r = 0; r < grid.length; r++) {
+                    const gc = grid[r] && grid[r][c];
+                    if (gc && (gc.colSpan || 1) === 1) { w = gc.getBoundingClientRect().width; break; }
+                }
+                if (w === null) w = tableWidth / colCount;
+                const col = document.createElement('col');
+                col.style.width = (w / tableWidth * 100).toFixed(2) + '%';
+                cg.appendChild(col);
+            }
+            table.insertBefore(cg, table.firstChild);
+            table.style.tableLayout = 'fixed';
+            if (!table.style.width) table.style.width = '100%';
+            return cg;
         }
 
         // =========================================================
@@ -3793,6 +4999,8 @@ const MubloEditor = (() => {
                     }
                 }
             }
+            // 스마트 붙여넣기: 클립보드가 단일 URL 이면 삽입 방식 선택 (v1.5)
+            if (this.options.smartPaste && this._trySmartPaste(e)) return;
             if (this.options.sanitize) {
                 const html = e.clipboardData?.getData('text/html');
                 if (html) {
@@ -3852,6 +5060,7 @@ const MubloEditor = (() => {
             // (getHTML()은 _normalizeFormattingMarkup()으로 DOM을 수정해서 커서가 날아감)
             this._syncLight();
             this._updateWordCount();
+            this._historyScheduleCapture();
             // 콜백은 debounce로 지연 실행 (입력 중 커서 보호)
             clearTimeout(this._changeDebounce);
             this._changeDebounce = setTimeout(() => {
@@ -3943,6 +5152,8 @@ const MubloEditor = (() => {
             this._highlightAllCodeBlocks();
             this.sourceArea.value = this.contentArea.innerHTML;
             this.sync();
+            // 히스토리 기준점 (v1.7)
+            this._historyCapture();
             return this;
         }
         
@@ -4049,6 +5260,7 @@ const MubloEditor = (() => {
             // 부유 UI 정리
             this._hideTableContextMenu();
             this._hideImageTooltip();
+            this._hideSlashMenu();
 
             this.wrapper.remove();
             instances.delete(this.id);
@@ -4099,6 +5311,20 @@ const MubloEditor = (() => {
             plugins.set(name, fn);
             // 이미 생성된 에디터에도 적용
             instances.forEach(e => { try { fn(e); } catch (err) { console.error(err); } });
+            return true;
+        },
+
+        /**
+         * 전역 커스텀 툴바 항목 등록 (모든 인스턴스에서 사용 가능).
+         * def: { icon, title, onClick(editor) }
+         * data-toolbar-items에 name을 넣으면 버튼이 노출된다.
+         */
+        addToolbarItem(name, def) {
+            if (!name || typeof def?.onClick !== 'function') return false;
+            customToolbarItems.set(name, def);
+            instances.forEach(e => {
+                if (e._resolveToolbarItems().includes(name)) e._renderResponsiveToolbar();
+            });
             return true;
         },
         
