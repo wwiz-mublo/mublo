@@ -25,17 +25,28 @@ use Mublo\Helper\Security\Css\ShadowAttrDef;
  * 안전한 서식/미디어는 보존한다.
  *
  * 프로파일:
- * - rich  : 에디터/게시판 본문 — YouTube/Vimeo 임베드 허용, 좁은 CSS
- * - basic : 폼 HTML 필드 — iframe 불가, 좁은 CSS
- * - block : 블록 HTML — 관리자가 조판하는 채널이므로 레이아웃 CSS까지 허용
+ * - rich  : 에디터/게시판 본문 — YouTube/Vimeo 임베드 + 에디터 출력 CSS 허용
+ * - basic : 폼 HTML 필드 — iframe 불가, 서식 CSS 만
+ * - block : 블록 HTML — 관리자가 조판하는 채널이므로 표현 CSS까지 허용
  *
- * ## 왜 블록만 CSS 를 넓히는가
+ * ## 어느 선까지 넓히는가
  *
- * 게시판 본문은 일반 회원이 쓰는 채널이라 서식 정도면 충분하다. 블록 HTML 은
- * 관리자(스태프 이상)가 화면을 조판하는 채널이므로 flex 레이아웃·그림자·둥근
- * 모서리까지 필요하다. 그러나 **넓히는 것은 CSS 뿐이다.** 스크립트 채널
- * (script 태그, on* 핸들러, javascript: URL)은 세 프로파일 모두 똑같이 막는다.
- * 경계는 "누가 편집하느냐" 가 아니라 "이 값이 스크립트를 실을 수 있느냐" 다.
+ * 경계는 "누가 편집하느냐" 가 아니라 **"이 값이 스크립트·외부요청을 실을 수
+ * 있느냐"** 다. 스크립트 채널(script 태그, on* 핸들러, javascript: URL)은 세
+ * 프로파일 모두 똑같이 막는다.
+ *
+ * rich 가 EDITOR_CSS_PROPERTIES 까지 받는 이유는 MubloEditor 자신이 그 CSS 를
+ * 출력하기 때문이다. 인용구 갤러리·체크리스트·목차·이미지 레이아웃·링크 카드는
+ * 뷰 페이지에 별도 CSS 가 없어도 렌더되도록 완결된 인라인 스타일로 저장된다.
+ * 여기서 border/background/flex 를 떨어뜨리면 회원이 에디터에서 만든 것과
+ * 저장 후 보이는 것이 달라진다 — 정화기가 조용히 기능을 깨뜨리는 셈이다.
+ * 값은 길이·숫자·색·그라디언트·키워드로 제한되므로 스크립트는 실리지 않는다.
+ *
+ * rich 에서 끝까지 막는 두 가지가 프로파일 차이의 핵심이다.
+ *  - position/z-index: 회원 콘텐츠가 페이지 UI 위에 겹칠 수 있다(클릭재킹).
+ *    block 도 같은 이유로 막는다.
+ *  - background 의 url(): 리소스 참조는 관리자 조판(block)에만 연다.
+ *    rich 는 GradientAttrDef 를 url 금지 모드로 받아 색·그라디언트만 통과한다.
  *
  * 사용:
  * HtmlSanitizer::sanitize('<div onclick="alert(1)">Hello</div>');
@@ -44,7 +55,7 @@ use Mublo\Helper\Security\Css\ShadowAttrDef;
 class HtmlSanitizer
 {
     /**
-     * rich / basic 프로파일의 인라인 style 화이트리스트 (서식 수준).
+     * 모든 프로파일이 공유하는 인라인 style 화이트리스트 (서식 수준).
      */
     private const BASE_CSS_PROPERTIES = [
         'color', 'background-color',
@@ -57,26 +68,33 @@ class HtmlSanitizer
     ];
 
     /**
-     * block 프로파일이 추가로 허용하는 CSS 속성 (레이아웃 수준).
+     * rich·block 이 추가로 허용하는 CSS 속성 (에디터가 출력하는 레이아웃·장식).
      *
-     * 이 중 다수는 HTMLPurifier 코어 CSS 정의에 없어, buildBlockCssDefinition()
+     * 이 중 다수는 HTMLPurifier 코어 CSS 정의에 없어, buildExtendedCssDefinition()
      * 에서 값 검증기를 직접 붙인다. 검증기 없이 이름만 넣으면 조용히 무시된다.
      *
      * 값이 숫자·키워드·길이·색·그라디언트뿐이라 스크립트를 실을 수 없는 것만 골랐다.
-     * position / z-index (클릭재킹)는 뺐다. background 는 GradientAttrDef 로
-     * 그라디언트·단색·同출처 상대 경로 url() 만 통과시킨다 — 외부요청 url()
-     * (스킴·프로토콜 상대)은 거기서 막힌다.
+     * position / z-index (클릭재킹)는 어느 프로파일에도 넣지 않는다. background 는
+     * GradientAttrDef 로 그라디언트·단색만 통과시키고, 同출처 상대 경로 url() 은
+     * block 에서만 연다 — 외부요청 url()(스킴·프로토콜 상대)은 거기서도 막힌다.
      */
-    private const BLOCK_EXTRA_CSS_PROPERTIES = [
-        'line-height', 'letter-spacing', 'word-break', 'white-space',
-        'text-transform', 'vertical-align', 'opacity',
+    private const EDITOR_CSS_PROPERTIES = [
+        'line-height', 'word-break', 'vertical-align', 'list-style', 'list-style-type',
         'min-width', 'min-height', 'max-height',
         'background', 'background-image',
-        'border', 'border-radius', 'box-shadow', 'text-shadow',
+        'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+        'border-radius', 'box-shadow', 'object-fit',
         'overflow', 'overflow-x', 'overflow-y',
         'display', 'gap', 'row-gap', 'column-gap',
         'flex', 'flex-direction', 'flex-wrap', 'flex-grow', 'flex-shrink', 'flex-basis',
         'justify-content', 'align-items', 'align-content', 'align-self',
+    ];
+
+    /**
+     * block 프로파일만 추가로 허용하는 CSS 속성 (관리자 조판용 표현).
+     */
+    private const BLOCK_EXTRA_CSS_PROPERTIES = [
+        'letter-spacing', 'white-space', 'text-transform', 'opacity', 'text-shadow',
     ];
 
     /**
@@ -89,6 +107,18 @@ class HtmlSanitizer
         'table', 'inline-table', 'table-cell', 'table-row', 'table-row-group',
         'table-header-group', 'table-footer-group', 'table-caption',
         'table-column', 'table-column-group',
+    ];
+
+    /**
+     * list-style / list-style-type 으로 허용하는 마커 키워드.
+     * 코어 단축 검증기가 품고 있는 list-style-image(url) 경로를 닫기 위한 목록이다.
+     */
+    private const LIST_STYLE_KEYWORDS = [
+        'none', 'disc', 'circle', 'square',
+        'decimal', 'decimal-leading-zero',
+        'lower-roman', 'upper-roman', 'lower-alpha', 'upper-alpha',
+        'lower-latin', 'upper-latin', 'lower-greek',
+        'inside', 'outside',
     ];
 
     /**
@@ -135,6 +165,22 @@ class HtmlSanitizer
         'data-mo-slide-cover' => 'Enum#true,false',
         'data-pc-autoplay'    => 'Number',
         'data-mo-autoplay'    => 'Number',
+    ];
+
+    /**
+     * rich·block 이 허용하는 MubloEditor 콘텐츠 마커 (요소 → 속성 → 값 검증기).
+     *
+     * 에디터가 자기 출력물을 다시 찾을 때 쓰는 표식이다. 체크리스트는 CSS 훅과
+     * 토글 핸들러가, 목차는 "이미 있으면 교체" 판정이 이 속성에 걸려 있다.
+     * 값은 표시되지 않고 셀렉터로만 쓰이므로 스크립트 채널이 아니다.
+     */
+    private const EDITOR_MARKER_ATTRIBUTES = [
+        'ul'     => ['data-mublo-checklist' => 'Text'],
+        'nav'    => ['data-mublo-toc' => 'Text'],
+        'figure' => [
+            'data-mublo-card'   => 'Enum#og,video',
+            'data-mublo-layout' => 'Text',
+        ],
     ];
 
     /**
@@ -220,8 +266,10 @@ class HtmlSanitizer
      */
     private static function buildConfig(string $profile): HTMLPurifier_Config
     {
-        // rich·block 은 신뢰 iframe(YouTube/Vimeo)을 허용한다. basic(폼)만 막는다.
-        $allowIframe = ($profile !== 'basic');
+        // rich·block 은 신뢰 iframe(YouTube/Vimeo)과 에디터 출력 CSS 를 허용한다.
+        // basic(폼)만 둘 다 막는다.
+        $isEditorChannel = ($profile !== 'basic');
+        $allowIframe = $isEditorChannel;
         $isBlock = ($profile === 'block');
 
         $config = HTMLPurifier_Config::createDefault();
@@ -245,11 +293,17 @@ class HtmlSanitizer
         $config->set('HTML.TargetNoopener', true);
         $config->set('HTML.TargetNoreferrer', true);
 
-        // 인라인 style 화이트리스트. block 은 레이아웃 CSS 까지, 나머지는 서식만.
+        // 인라인 style 화이트리스트. rich·block 은 에디터 출력 CSS 까지,
+        // block 은 조판용 표현까지, basic(폼)은 서식만.
         // position / expression 등 위험 값은 어느 프로파일에서도 자동 차단된다.
-        $config->set('CSS.AllowedProperties', $isBlock
-            ? [...self::BASE_CSS_PROPERTIES, ...self::BLOCK_EXTRA_CSS_PROPERTIES]
-            : self::BASE_CSS_PROPERTIES);
+        $cssProperties = self::BASE_CSS_PROPERTIES;
+        if ($isEditorChannel) {
+            $cssProperties = [...$cssProperties, ...self::EDITOR_CSS_PROPERTIES];
+        }
+        if ($isBlock) {
+            $cssProperties = [...$cssProperties, ...self::BLOCK_EXTRA_CSS_PROPERTIES];
+        }
+        $config->set('CSS.AllowedProperties', $cssProperties);
 
         // 신뢰 iframe만 허용 (rich·block 프로파일)
         if ($allowIframe) {
@@ -269,8 +323,9 @@ class HtmlSanitizer
         // HTML5 요소 추가 (프로파일별 정의 ID 분리)
         $config->set('HTML.DefinitionID', 'mublo-' . $profile);
         // 정의 변경 시 반드시 rev 를 올린다 — 안 올리면 직렬화 캐시가 살아서
-        // 새 요소/속성 등록이 조용히 무시된다. (rev 2: 레이아웃 data-* 허용)
-        $config->set('HTML.DefinitionRev', 2);
+        // 새 요소/속성 등록이 조용히 무시된다.
+        // (rev 2: 레이아웃 data-*, rev 3: 에디터 마커·체크박스·img loading)
+        $config->set('HTML.DefinitionRev', 3);
 
         // maybeGetRawHTMLDefinition() 은 직렬화 캐시가 유효하면 null 을 반환한다.
         // 따라서 모든 addElement/addAttribute 는 이 가드 안에서만 호출해야 한다.
@@ -281,6 +336,27 @@ class HtmlSanitizer
             // <time datetime="...">
             $def->addAttribute('time', 'datetime', 'Text');
 
+            // 에디터 출력 마커 + 체크리스트 체크박스 — rich·block 한정.
+            if ($isEditorChannel) {
+                foreach (self::EDITOR_MARKER_ATTRIBUTES as $element => $attributes) {
+                    foreach ($attributes as $attr => $type) {
+                        $def->addAttribute($element, $attr, $type);
+                    }
+                }
+
+                // 체크리스트 항목. type 을 필수(*)로 두었으므로 checkbox 가 아닌
+                // input 은 속성이 탈락하면서 요소째 사라진다 — 본문에 텍스트
+                // 입력칸이 생길 여지를 남기지 않는다. name/value 는 열지 않는다.
+                $def->addElement('input', 'Inline', 'Empty', 'Common', [
+                    'type*'    => 'Enum#checkbox',
+                    'checked'  => 'Bool#checked',
+                    'disabled' => 'Bool#disabled',
+                ]);
+
+                // 카드·레이아웃 이미지의 지연 로딩 힌트
+                $def->addAttribute('img', 'loading', 'Enum#lazy,eager');
+            }
+
             // 블록 조판용 레이아웃 data-* — block 프로파일 한정.
             // DefinitionID 가 프로파일별로 분리돼 있어 rich/basic 정의를 오염시키지 않는다.
             if ($isBlock) {
@@ -290,15 +366,15 @@ class HtmlSanitizer
             }
         }
 
-        if ($isBlock) {
-            self::buildBlockCssDefinition($config);
+        if ($isEditorChannel) {
+            self::buildExtendedCssDefinition($config, $isBlock);
         }
 
         return $config;
     }
 
     /**
-     * block 프로파일의 확장 CSS 속성에 값 검증기를 붙인다.
+     * rich·block 의 확장 CSS 속성에 값 검증기를 붙인다.
      *
      * HTMLPurifier 코어 CSS 정의에 없는 속성(display·opacity·flex 등)은 여기서
      * AttrDef 를 직접 등록해야 한다. 등록하지 않으면 AllowedProperties 에 이름이
@@ -307,9 +383,14 @@ class HtmlSanitizer
      * 검증기의 핵심은 **값이 스크립트·외부 리소스를 실을 수 없게** 하는 것이다.
      * 길이·숫자·색·그라디언트·키워드만 통과시키므로, url()·position:fixed·잘못된
      * 키워드는 어느 토큰도 검증기를 통과하지 못해 자동 제거된다.
+     *
+     * @param bool $allowUrlBackground background 에 同출처 url() 레이어를 허용할지
+     *                                 (block 전용 — 회원 채널은 색·그라디언트만)
      */
-    private static function buildBlockCssDefinition(HTMLPurifier_Config $config): void
-    {
+    private static function buildExtendedCssDefinition(
+        HTMLPurifier_Config $config,
+        bool $allowUrlBackground
+    ): void {
         // raw=true, optimized=false 로 얻어야 CSS.DefinitionID 없이 원본 정의를 수정할 수 있다.
         $css = $config->getCSSDefinition(true, false);
         if ($css === null) {
@@ -333,6 +414,11 @@ class HtmlSanitizer
             'text-transform' => new HTMLPurifier_AttrDef_Enum(['none', 'capitalize', 'uppercase', 'lowercase']),
             'flex-direction' => new HTMLPurifier_AttrDef_Enum(['row', 'row-reverse', 'column', 'column-reverse']),
             'flex-wrap' => new HTMLPurifier_AttrDef_Enum(['nowrap', 'wrap', 'wrap-reverse']),
+            'object-fit' => new HTMLPurifier_AttrDef_Enum(['fill', 'contain', 'cover', 'none', 'scale-down']),
+            // 코어의 list-style 단축은 list-style-image(임의 url) 를 품는다.
+            // 마커 키워드만 받는 검증기로 덮어 그 경로를 닫는다.
+            'list-style' => new HTMLPurifier_AttrDef_Enum(self::LIST_STYLE_KEYWORDS),
+            'list-style-type' => new HTMLPurifier_AttrDef_Enum(self::LIST_STYLE_KEYWORDS),
             'justify-content' => new HTMLPurifier_AttrDef_Enum(['flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly', 'start', 'end', 'left', 'right']),
             'align-items' => new HTMLPurifier_AttrDef_Enum(['stretch', 'flex-start', 'flex-end', 'center', 'baseline', 'start', 'end']),
             'align-content' => new HTMLPurifier_AttrDef_Enum(['stretch', 'flex-start', 'flex-end', 'center', 'space-between', 'space-around', 'space-evenly']),
@@ -354,11 +440,14 @@ class HtmlSanitizer
                 new HTMLPurifier_AttrDef_Enum(['auto', 'content']),
             ]),
 
-            // 복합: flex 단축 = <number>{0,2} <length|auto|none>?
+            // 복합: flex 단축 = <number>{0,2} <length|percentage|auto|none>?
+            // 퍼센트가 빠지면 `flex:0 0 40%` 의 40% 만 조용히 사라져 칸 비율이
+            // 무너진다 — 이미지+텍스트 레이아웃이 실제로 그 형태를 쓴다.
             'flex' => new HTMLPurifier_AttrDef_CSS_Multiple(
                 new HTMLPurifier_AttrDef_CSS_Composite([
                     new HTMLPurifier_AttrDef_CSS_Number(true),
                     new HTMLPurifier_AttrDef_CSS_Length('0'),
+                    new HTMLPurifier_AttrDef_CSS_Percentage(),
                     new HTMLPurifier_AttrDef_Enum(['auto', 'none', 'content']),
                 ]),
                 3
@@ -369,10 +458,11 @@ class HtmlSanitizer
             'box-shadow' => ShadowAttrDef::boxShadow(),
             'text-shadow' => ShadowAttrDef::textShadow(),
 
-            // 배경 = 그라디언트·단색·同출처 상대 경로 url() 만. 스킴/프로토콜 상대
-            // url()·image-set() 등 외부 리소스 함수는 거부된다 (GradientAttrDef).
-            'background' => new GradientAttrDef(),
-            'background-image' => new GradientAttrDef(),
+            // 배경 = 그라디언트·단색 (+ block 에서만 同출처 상대 경로 url()).
+            // 스킴/프로토콜 상대 url()·image-set() 등 외부 리소스 함수는
+            // 어느 프로파일에서도 거부된다 (GradientAttrDef).
+            'background' => new GradientAttrDef($allowUrlBackground),
+            'background-image' => new GradientAttrDef($allowUrlBackground),
         ];
 
         // setup() 전후로 두 번 얹는다.

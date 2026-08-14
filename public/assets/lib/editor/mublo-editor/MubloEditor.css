@@ -866,3 +866,260 @@ body.mublo-editor-noscroll {
     0% { box-shadow: inset 0 0 0 2px rgba(13, 110, 253, .4); }
     100% { box-shadow: inset 0 0 0 2px rgba(13, 110, 253, 0); }
 }
+
+/* =========================================================
+ * 인용구 스타일 갤러리 (v1.4)
+ * ========================================================= */
+.mublo-editor-modal-dialog.mublo-editor-modal-wide { max-width: 760px; }
+.mublo-editor-quote-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .375rem;
+    margin-bottom: .875rem;
+}
+.mublo-editor-quote-tab {
+    padding: .25rem .75rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: 999px;
+    background: transparent;
+    color: var(--foreground, var(--bs-body-color, #212529));
+    font-size: .8125rem;
+    cursor: pointer;
+}
+.mublo-editor-quote-tab:hover { border-color: var(--bs-primary, #0d6efd); }
+.mublo-editor-quote-tab.active {
+    border-color: var(--bs-primary, #0d6efd);
+    color: var(--bs-primary, #0d6efd);
+    background: rgba(13, 110, 253, .08);
+}
+.mublo-editor-quote-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: .625rem;
+}
+.mublo-editor-quote-card {
+    display: flex;
+    flex-direction: column;
+    padding: 0;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .5rem;
+    /* 미리보기는 뷰 페이지(라이트) 기준 인라인 스타일이므로 다크모드에서도 흰 배경 고정 */
+    background: #fff;
+    cursor: pointer;
+    overflow: hidden;
+    text-align: left;
+    transition: border-color .12s ease, box-shadow .12s ease;
+}
+.mublo-editor-quote-card:hover {
+    border-color: var(--bs-primary, #0d6efd);
+    box-shadow: 0 2px 8px rgba(13, 110, 253, .15);
+}
+.mublo-editor-quote-card > blockquote {
+    flex: 1;
+    pointer-events: none;
+    font-size: .8125rem;
+    /* 카드 안 미리보기 여백 통일 — 인라인 margin은 유지되므로 카드 패딩으로 감싼다 */
+    margin-left: .625rem !important;
+    margin-right: .625rem !important;
+}
+.mublo-editor-quote-card-label {
+    padding: .375rem .625rem;
+    border-top: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    font-size: .75rem;
+    text-align: center;
+}
+.mublo-editor-quote-hint {
+    margin-top: .875rem;
+    padding: .5rem .75rem;
+    border-radius: .375rem;
+    background: rgba(13, 110, 253, .06);
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    font-size: .75rem;
+}
+
+/* =========================================================
+ * 테이블 스타일 다이얼로그 (v1.4)
+ * ========================================================= */
+.mublo-editor-tstyle-section {
+    margin-bottom: 1rem;
+    padding-bottom: .75rem;
+    border-bottom: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+}
+.mublo-editor-tstyle-section:last-of-type { border-bottom: 0; margin-bottom: 0; }
+.mublo-editor-tstyle-section-title {
+    margin-bottom: .625rem;
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+}
+.mublo-editor-tstyle-row {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    margin-bottom: .5rem;
+}
+.mublo-editor-tstyle-row label {
+    flex: 0 0 72px;
+    font-size: .8125rem;
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-tstyle-row input[type="range"] { flex: 1; }
+.mublo-editor-tstyle-val {
+    flex: 0 0 44px;
+    text-align: right;
+    font-size: .8125rem;
+    font-weight: 600;
+    color: var(--bs-primary, #0d6efd);
+}
+.mublo-editor-tstyle-row select,
+.mublo-editor-tstyle-row input[type="text"] {
+    padding: .25rem .5rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .25rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    color: var(--foreground, var(--bs-body-color, #212529));
+    font-size: .8125rem;
+}
+.mublo-editor-tstyle-color-swatch {
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .25rem;
+    padding: 0;
+    cursor: pointer;
+}
+.mublo-editor-tstyle-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: .375rem;
+}
+.mublo-editor-tstyle-palette .mublo-editor-color-btn {
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(0, 0, 0, .15);
+    border-radius: 4px;
+    cursor: pointer;
+}
+.mublo-editor-tstyle-palette .mublo-editor-color-btn:hover {
+    transform: scale(1.15);
+}
+.mublo-editor-tstyle-hint {
+    margin-top: .75rem;
+    padding: .5rem .75rem;
+    border-radius: .375rem;
+    background: rgba(13, 110, 253, .06);
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    font-size: .75rem;
+}
+
+/* =========================================================
+ * 테이블 열 리사이즈 (v1.4)
+ * ========================================================= */
+.mublo-editor-content.mublo-editor-col-resizing,
+.mublo-editor-content.mublo-editor-col-resizing * { cursor: col-resize !important; }
+.mublo-editor-col-resize-hover { cursor: col-resize; }
+
+/* =========================================================
+ * 스마트 붙여넣기 선택 팝업 (v1.5)
+ * ========================================================= */
+.mublo-editor-paste-url {
+    margin-bottom: .875rem;
+    padding: .5rem .75rem;
+    border-radius: .375rem;
+    background: var(--muted, var(--bs-tertiary-bg, #f8f9fa));
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+    font-size: .8125rem;
+    word-break: break-all;
+}
+.mublo-editor-paste-opts {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    margin-bottom: .875rem;
+}
+.mublo-editor-paste-opt {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    padding: .7rem .9rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .5rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    cursor: pointer;
+    text-align: left;
+    transition: border-color .12s ease, background .12s ease;
+}
+.mublo-editor-paste-opt:hover { border-color: var(--bs-primary, #0d6efd); }
+.mublo-editor-paste-opt.selected {
+    border-color: var(--bs-primary, #0d6efd);
+    background: rgba(13, 110, 253, .06);
+}
+.mublo-editor-paste-opt-icon { font-size: 1.25rem; flex: 0 0 auto; }
+.mublo-editor-paste-opt-text { display: flex; flex-direction: column; gap: .125rem; min-width: 0; }
+.mublo-editor-paste-opt-text strong {
+    font-size: .875rem;
+    color: var(--foreground, var(--bs-body-color, #212529));
+}
+.mublo-editor-paste-opt-text small {
+    font-size: .75rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+}
+
+/* =========================================================
+ * 슬래시 커맨드 메뉴 (v1.7)
+ * ========================================================= */
+.mublo-editor-slash-menu {
+    position: fixed;
+    z-index: 10060;
+    width: 232px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: .25rem;
+    border: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    border-radius: .5rem;
+    background: var(--background, var(--bs-body-bg, #fff));
+    box-shadow: 0 .5rem 1.25rem rgba(0, 0, 0, .18);
+}
+.mublo-editor-slash-item {
+    display: flex;
+    align-items: center;
+    gap: .625rem;
+    width: 100%;
+    padding: .4rem .625rem;
+    border: none;
+    border-radius: .375rem;
+    background: transparent;
+    color: var(--foreground, var(--bs-body-color, #212529));
+    font-size: .8438rem;
+    text-align: left;
+    cursor: pointer;
+}
+.mublo-editor-slash-item:hover,
+.mublo-editor-slash-item.active {
+    background: rgba(13, 110, 253, .1);
+    color: var(--bs-primary, #0d6efd);
+}
+.mublo-editor-slash-icon {
+    flex: 0 0 26px;
+    text-align: center;
+    font-size: .75rem;
+    font-weight: 700;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+}
+.mublo-editor-slash-hint {
+    padding: .375rem .625rem .25rem;
+    border-top: 1px solid var(--border, var(--bs-border-color, #dee2e6));
+    margin-top: .25rem;
+    font-size: .6875rem;
+    color: var(--muted-foreground, var(--bs-secondary-color, #6c757d));
+}
+
+/* 체크리스트 (v1.7) — 에디터 안 표시 보정 */
+.mublo-editor-content ul[data-mublo-checklist] input[type="checkbox"] {
+    cursor: pointer;
+    width: 1em;
+    height: 1em;
+}

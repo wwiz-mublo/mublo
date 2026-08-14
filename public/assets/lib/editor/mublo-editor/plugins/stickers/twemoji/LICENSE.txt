@@ -1,0 +1,14 @@
+Twemoji graphics in this folder
+================================
+
+Copyright 2020 Twitter, Inc and other contributors.
+Currently maintained at https://github.com/jdecked/twemoji (v15.1.0).
+
+Graphics licensed under CC-BY 4.0:
+https://creativecommons.org/licenses/by/4.0/
+
+Attribution required. When using these graphics on a public site,
+include a notice such as:
+
+  "Emoji graphics by Twemoji (https://github.com/jdecked/twemoji),
+   licensed under CC-BY 4.0"

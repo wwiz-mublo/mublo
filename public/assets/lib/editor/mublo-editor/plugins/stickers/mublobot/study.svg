@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- 안테나 -->
+  <line x1="60" y1="14" x2="60" y2="24" stroke="#c7d2fe" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="60" cy="11" r="5" fill="#4263eb"/>
+  <!-- 귀 -->
+  <rect x="8" y="48" width="8" height="16" rx="4" fill="#4263eb"/>
+  <rect x="104" y="48" width="8" height="16" rx="4" fill="#4263eb"/>
+  <!-- 팔 -->
+  
+    <ellipse cx="18" cy="78" rx="8" ry="12" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2" transform="rotate(18 18 78)"/>
+    <ellipse cx="102" cy="78" rx="8" ry="12" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2" transform="rotate(-18 102 78)"/>
+  <!-- 머리+몸 셸 -->
+  <rect x="16" y="24" width="88" height="72" rx="30" fill="#eef2ff" stroke="#c7d2fe" stroke-width="3"/>
+  <!-- 얼굴 스크린 -->
+  <rect x="28" y="38" width="64" height="40" rx="18" fill="#1e2430"/>
+  
+    <circle cx="46" cy="54" r="8" fill="none" stroke="#ffd43b" stroke-width="3"/>
+    <circle cx="74" cy="54" r="8" fill="none" stroke="#ffd43b" stroke-width="3"/>
+    <line x1="54" y1="54" x2="66" y2="54" stroke="#ffd43b" stroke-width="3"/>
+    <circle cx="46" cy="54" r="3" fill="#8ecbff"/><circle cx="74" cy="54" r="3" fill="#8ecbff"/>
+    <path d="M 54 68 L 66 68" stroke="#8ecbff" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- 다리 -->
+  <rect x="40" y="96" width="12" height="12" rx="5" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2"/>
+  <rect x="68" y="96" width="12" height="12" rx="5" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2"/>
+  
+    <g transform="translate(88 100)">
+      <path d="M -14 0 Q -14 -6 0 -6 Q 14 -6 14 0 L 14 4 Q 14 -2 0 -2 Q -14 -2 -14 4 Z" fill="#4263eb"/>
+      <path d="M -12 -1 Q -12 -5 0 -5 L 0 -1 Q -12 -1 -12 3 Z" fill="#fff"/>
+      <path d="M 12 -1 Q 12 -5 0 -5 L 0 -1 Q 12 -1 12 3 Z" fill="#e9ecef"/>
+    </g>
+</svg>
