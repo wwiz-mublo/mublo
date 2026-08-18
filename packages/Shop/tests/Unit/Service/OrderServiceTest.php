@@ -487,11 +487,8 @@ class OrderServiceTest extends TestCase
             ->method('updateStatus')
             ->with($orderNo, 'shipping', 'paid')
             ->willReturn(true);
-        $this->stateResolver->method('canTransition')->willReturn(true);
-        $this->stateResolver->method('getLabel')->willReturnMap([
-            [1, 'paid', '결제완료'],
-            [1, 'shipping', '배송중'],
-        ]);
+        // 품목 상태 변경은 그래프를 걸어가므로 상태 정의가 필요하다
+        $this->stubDefaultStateGraph();
 
         $result = $service->updateItemStatus($orderNo, 10, 'shipping', 1);
 
@@ -534,8 +531,7 @@ class OrderServiceTest extends TestCase
         $this->orderRepo->method('getItems')->willReturn([['status' => 'shipping']]);
         $this->orderRepo->method('find')->willReturn($order);
         $this->orderRepo->method('updateStatus')->willReturn(false);
-        $this->stateResolver->method('canTransition')->willReturn(true);
-        $this->stateResolver->method('getLabel')->willReturn('상태');
+        $this->stubDefaultStateGraph();
 
         $result = $service->updateItemStatus($orderNo, 10, 'shipping', 1);
 
@@ -1089,6 +1085,130 @@ class OrderServiceTest extends TestCase
             ->willReturn(true);
 
         $this->assertTrue($this->service->updateStatus($orderNo, 'shipping', 1)->isSuccess());
+    }
+
+
+    public function testItemStatusChangeWalksMultipleHopsInOneCall(): void
+    {
+        // 결제완료 상품을 배송완료로 옮기는 데 네 번 눌러야 했던 동작을 한 번으로.
+        // 일괄 변경과 같은 규칙(그래프 전진 경로)을 개별 변경도 쓴다.
+        $orderNo = 'ORD2026040500001';
+        $order = Order::fromArray($this->makeOrderData(['order_no' => $orderNo, 'order_status' => 'paid']));
+        $logs = [];
+
+        $this->orderRepo->method('getItemInDomain')->willReturn([
+            'order_no' => $orderNo, 'order_detail_id' => 10, 'status' => 'paid',
+        ]);
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => $orderNo, 'status' => 'delivered'],
+        ]);
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->orderRepo->method('insertOrderLog')->willReturnCallback(
+            function (array $log) use (&$logs): int {
+                $logs[] = $log;
+                return count($logs);
+            }
+        );
+        $this->stubDefaultStateGraph();
+
+        $this->orderRepo->expects($this->once())
+            ->method('updateItemStatus')
+            ->with(10, 'delivered')
+            ->willReturn(true);
+
+        $this->assertTrue($this->service->updateItemStatus($orderNo, 10, 'delivered', 1)->isSuccess());
+        $this->assertStringContainsString('경유', (string) $logs[0]['reason']);
+        $this->assertStringContainsString('배송준비', (string) $logs[0]['reason']);
+    }
+
+    public function testItemStatusChangeStillRejectsBackwardTransition(): void
+    {
+        $orderNo = 'ORD2026040500001';
+        $this->orderRepo->method('getItemInDomain')->willReturn([
+            'order_no' => $orderNo, 'order_detail_id' => 10, 'status' => 'delivered',
+        ]);
+        $this->stubDefaultStateGraph();
+        $this->orderRepo->expects($this->never())->method('updateItemStatus');
+
+        $result = $this->service->updateItemStatus($orderNo, 10, 'paid', 1);
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('변경할 수 없습니다', $result->getMessage());
+    }
+
+    // =========================================================
+    // 품목 단위 구매확정
+    // =========================================================
+
+    public function testDeliveredItemCanBeConfirmedEvenWhileOrderWaitsForOtherItems(): void
+    {
+        // 부분 배송: 헤더는 가장 뒤처진 상품을 따라 결제완료지만, 받은 상품은 확정할 수 있어야 한다
+        $this->stubDefaultStateGraph();
+
+        $this->assertTrue($this->service->canBuyerConfirmItem(1, ['status' => 'delivered'], 'paid'));
+    }
+
+    public function testItemFallsBackToOrderStatusWhenItStillLagsBehind(): void
+    {
+        $this->stubDefaultStateGraph();
+
+        $this->assertTrue($this->service->canBuyerConfirmItem(1, ['status' => 'paid'], 'delivered'));
+        $this->assertFalse($this->service->canBuyerConfirmItem(1, ['status' => 'paid'], 'paid'));
+    }
+
+    public function testAlreadyClosedOrClaimedItemsCannotBeConfirmed(): void
+    {
+        $this->stubDefaultStateGraph();
+
+        $this->assertFalse($this->service->canBuyerConfirmItem(1, ['status' => 'confirmed'], 'delivered'));
+        $this->assertFalse($this->service->canBuyerConfirmItem(1, ['status' => 'cancelled'], 'delivered'));
+        $this->assertFalse($this->service->canBuyerConfirmItem(
+            1,
+            ['status' => 'delivered', 'return_status' => 'COLLECTING'],
+            'delivered'
+        ));
+    }
+
+    public function testConfirmItemByBuyerAdvancesOnlyThatItem(): void
+    {
+        $orderNo = 'ORD2026040500001';
+        $order = Order::fromArray($this->makeOrderData(['order_no' => $orderNo, 'order_status' => 'paid']));
+
+        $this->orderRepo->method('getItemInDomain')->willReturn([
+            'order_no' => $orderNo, 'order_detail_id' => 10, 'status' => 'delivered',
+        ]);
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => $orderNo, 'status' => 'delivered'],
+            ['order_detail_id' => 11, 'order_no' => $orderNo, 'status' => 'paid'],
+        ]);
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->stubDefaultStateGraph();
+
+        // 같은 주문의 다른 상품(11)은 건드리지 않는다
+        $this->orderRepo->expects($this->once())
+            ->method('updateItemStatus')
+            ->with(10, 'confirmed')
+            ->willReturn(true);
+
+        $this->assertTrue($this->service->confirmItemByBuyer($orderNo, 10, 1)->isSuccess());
+    }
+
+    public function testConfirmItemByBuyerRejectsItemThatHasNotShipped(): void
+    {
+        $orderNo = 'ORD2026040500001';
+        $order = Order::fromArray($this->makeOrderData(['order_no' => $orderNo, 'order_status' => 'paid']));
+
+        $this->orderRepo->method('getItemInDomain')->willReturn([
+            'order_no' => $orderNo, 'order_detail_id' => 10, 'status' => 'paid',
+        ]);
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->stubDefaultStateGraph();
+        $this->orderRepo->expects($this->never())->method('updateItemStatus');
+
+        $result = $this->service->confirmItemByBuyer($orderNo, 10, 1);
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('배송이 시작된 후', $result->getMessage());
     }
 
     // ===== 헬퍼 =====

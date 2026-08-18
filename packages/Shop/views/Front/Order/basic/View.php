@@ -282,7 +282,9 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                             data-goods-name="<?= e($item['goods_name'] ?? '') ?>">후기 작성</button>
                                 <?php elseif ($meta['canConfirm']): ?>
                                     <button type="button" class="shop-order-view__review-btn shop-order-view__confirm-btn"
-                                            data-confirm-order title="구매확정하면 후기를 작성할 수 있습니다">구매확정</button>
+                                            data-confirm-detail="<?= $did ?>"
+                                            data-goods-name="<?= e($item['goods_name'] ?? '') ?>"
+                                            title="구매확정하면 후기를 작성할 수 있습니다">구매확정</button>
                                 <?php endif; ?>
                                 <?php // 아직 쓸 수 없는 후기의 자리를 비활성 버튼으로 잡아두지 않는다.
                                       // 교환·반품이 같은 줄에 들어오면서, 지금 할 수 있는 일과

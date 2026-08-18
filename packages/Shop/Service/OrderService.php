@@ -683,6 +683,83 @@ class OrderService
     }
 
     /**
+     * 주문상품 하나를 구매확정할 수 있는지 — 프론트 버튼과 서버 처리의 단일 규칙.
+     *
+     * 부분 배송에서는 먼저 도착한 상품만 확정할 수 있어야 한다. 주문 헤더는 가장
+     * 뒤처진 상품을 따라가므로(4개 중 1개만 배송완료면 헤더는 결제완료), 헤더만 보면
+     * 받은 상품조차 확정하지 못한다. 품목을 우선 보고, 아직 따라오지 못한 품목만
+     * 헤더로 폴백한다 — 송장을 쓰지 않는 상점에서는 헤더가 유일한 신호이기 때문이다.
+     */
+    public function canBuyerConfirmItem(int $domainId, array $item, string $orderStatus): bool
+    {
+        // 클레임이 걸린 상품은 클레임이 끝나야 확정할 수 있다
+        if (ClaimStatus::tryFrom((string) ($item['return_status'] ?? ''))?->isActive()) {
+            return false;
+        }
+
+        $itemAction = $this->resolveStateAction($domainId, (string) ($item['status'] ?? ''));
+        if (in_array($itemAction, [
+            OrderAction::CONFIRMED,
+            OrderAction::CANCEL_REQUESTED,
+            OrderAction::CANCELLED,
+            OrderAction::RETURN_REQUESTED,
+            OrderAction::RETURNED,
+        ], true)) {
+            return false;
+        }
+        if (in_array($itemAction, [OrderAction::SHIPPING, OrderAction::DELIVERED], true)) {
+            return true;
+        }
+        return in_array(
+            $this->resolveStateAction($domainId, $orderStatus),
+            [OrderAction::SHIPPING, OrderAction::DELIVERED],
+            true
+        );
+    }
+
+    /**
+     * 구매자 품목 단위 구매확정.
+     *
+     * 상품을 구매확정 상태까지 전진시키고, 전 품목이 확정되면 종합이 주문 헤더를
+     * 구매확정으로 올린다 — 적립 같은 확정 후처리는 종전대로 그 주문 이벤트가
+     * 한 번만 실행한다. 여기서 따로 지급하지 않는다.
+     */
+    public function confirmItemByBuyer(string $orderNo, int $detailId, int $domainId): Result
+    {
+        $item = $this->orderRepository->getItemInDomain($domainId, $detailId);
+        if (!$item || (string) ($item['order_no'] ?? '') !== $orderNo) {
+            return Result::failure('주문 상품을 찾을 수 없습니다.');
+        }
+
+        $order = $this->orderRepository->find($orderNo);
+        if (!$order) {
+            return Result::failure('주문을 찾을 수 없습니다.');
+        }
+        $orderStatus = (string) ($order->getOrderStatusRaw() ?? '');
+
+        if (($this->resolveStateAction($domainId, (string) ($item['status'] ?? ''))) === OrderAction::CONFIRMED) {
+            return Result::success('이미 구매확정된 상품입니다.', ['detail_id' => $detailId]);
+        }
+        if (!$this->canBuyerConfirmItem($domainId, $item, $orderStatus)) {
+            return Result::failure('배송이 시작된 후 구매확정할 수 있습니다.');
+        }
+
+        $changed = $this->advanceItemsToAction(
+            $orderNo,
+            $domainId,
+            OrderAction::CONFIRMED,
+            [$detailId],
+            '구매자 구매확정',
+            'CUSTOMER',
+        );
+        if ($changed === 0) {
+            return Result::failure('구매확정 처리에 실패했습니다.');
+        }
+
+        return Result::success('구매확정되었습니다.', ['detail_id' => $detailId]);
+    }
+
+    /**
      * 접점 기반 자동 구매확정 스윕 (관리자 주문관리 / 사용자 주문내역 진입 시 호출).
      *
      * shop_config.auto_confirm_days(발송 후 N일)가 설정돼 있으면, 발송 시각이 그만큼
@@ -896,17 +973,25 @@ class OrderService
             return Result::failure('교환이 진행 중인 상품은 교환 관리에서 처리해주세요.');
         }
 
-        $currentId = $item['status'] ?? '';
+        $currentId = (string) ($item['status'] ?? '');
 
-        // FSM 전이 검증
-        if ($currentId !== '' && !$this->stateResolver->canTransition($domainId, $currentId, $newStateId)) {
+        // FSM 경로 검증. 한 칸씩만 허용하면 결제완료 상품을 배송완료로 옮기는 데 네 번을
+        // 눌러야 하므로, 그래프가 인정하는 전진 경로가 있으면 목표까지 한 번에 걸어간다
+        // (일괄 변경과 같은 규칙). 경유 상태는 이력에만 남는다.
+        if ($currentId === $newStateId) {
+            return Result::failure('이미 그 상태입니다.');
+        }
+        $path = $currentId === ''
+            ? [$newStateId]
+            : $this->findStatePath($domainId, $currentId, $newStateId);
+        if (empty($path)) {
             $currentLabel = $this->stateResolver->getLabel($domainId, $currentId);
             $newLabel = $this->stateResolver->getLabel($domainId, $newStateId);
             return Result::failure("'{$currentLabel}'에서 '{$newLabel}'(으)로 변경할 수 없습니다.");
         }
 
         // 상태·플래그·이력을 원자적으로 기록(중간 실패 시 부분 커밋 방지). 이벤트·주문 동기화는 커밋 후.
-        if (!$this->applyItemStatus($orderNo, $domainId, $item, $newStateId, [$newStateId], $reason, 'STAFF', true)) {
+        if (!$this->applyItemStatus($orderNo, $domainId, $item, $newStateId, $path, $reason, 'STAFF', true)) {
             return Result::failure('상품 상태 변경에 실패했습니다.');
         }
 

@@ -417,6 +417,32 @@ class OrderController
             : JsonResponse::error($result->getMessage());
     }
 
+    /**
+     * 품목 단위 구매확정 (AJAX)
+     *
+     * 부분 배송에서는 주문 헤더가 가장 뒤처진 상품을 따라가므로, 주문 단위로만
+     * 확정할 수 있으면 먼저 도착한 상품조차 확정하지 못한다.
+     */
+    public function confirmItem(array $params, Context $context): JsonResponse
+    {
+        $orderNo = (string) ($params['orderNo'] ?? '');
+        $detailId = (int) ($params['detailId'] ?? 0);
+
+        $access = $this->resolveAccessibleOrder($orderNo, $context);
+        if (!$access['ok']) {
+            return JsonResponse::error($access['message'] ?? '주문 정보에 접근할 수 없습니다.');
+        }
+        if ($detailId <= 0) {
+            return JsonResponse::error('상품 정보가 필요합니다.');
+        }
+
+        $result = $this->orderService->confirmItemByBuyer($orderNo, $detailId, $access['domainId']);
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
+    }
+
     /** 고객 교환 신청 (회원 및 소유권을 확인한 비회원). */
     public function exchangeItem(array $params, Context $context): JsonResponse
     {
@@ -660,7 +686,9 @@ class OrderController
 
             $meta[$detailId] = [
                 'confirmed'  => $this->isReviewable($orderAction, $itemAction),
-                'canConfirm' => $this->canBuyerConfirm($orderAction, $itemAction),
+                // 확정 가능 판정은 OrderService 가 단독으로 소유한다 — 버튼을 띄우는
+                // 규칙과 서버가 처리하는 규칙이 갈리면 눌리는데 거절당하는 버튼이 생긴다
+                'canConfirm' => $this->orderService->canBuyerConfirmItem($domainId, $item, $orderStatus),
                 'pending'    => $this->isReviewPending($orderAction, $itemAction),
                 'reviewed'   => $reviewId > 0,
                 'review'     => $review,
@@ -727,16 +755,4 @@ class OrderController
         ], true);
     }
 
-    /**
-     * 구매자가 지금 구매확정 버튼을 누를 수 있는지.
-     * 주문이 배송중/배송완료(아직 미확정)이고 항목이 취소/반품 계열이 아니면 가능.
-     * (확정하면 후기 작성 버튼이 노출된다)
-     */
-    private function canBuyerConfirm(?OrderAction $orderAction, ?OrderAction $itemAction): bool
-    {
-        if ($this->isReviewExcludedAction($itemAction)) {
-            return false;
-        }
-        return in_array($orderAction, [OrderAction::SHIPPING, OrderAction::DELIVERED], true);
-    }
 }

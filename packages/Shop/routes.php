@@ -192,6 +192,12 @@ return function (PrefixedRouteCollector $r): void {
         'method'     => 'confirm',
     ]);
 
+    // 품목 단위 구매확정 — 부분 배송에서 먼저 도착한 상품만 확정할 수 있어야 한다
+    $r->addRoute('POST', '/order/{orderNo}/items/{detailId}/confirm', [
+        'controller' => OrderController::class,
+        'method'     => 'confirmItem',
+    ]);
+
     $r->addRoute('POST', '/order/{orderNo}/items/{detailId}/exchange', [
         'controller' => OrderController::class,
         'method'     => 'exchangeItem',

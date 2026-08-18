@@ -103,13 +103,16 @@
         catch (e) { return ''; }
     })();
 
+    // 구매확정은 상품 단위다. 부분 배송에서 먼저 도착한 상품만 확정할 수 있어야 하고,
+    // 주문 전체는 그 상품들이 다 확정되면 따라 올라간다.
     document.addEventListener('click', function (e) {
-        var btn = e.target.closest('[data-confirm-order]');
+        var btn = e.target.closest('[data-confirm-detail]');
         if (!btn || !orderNo) return;
 
-        MubloRequest.showConfirm('이 주문을 구매확정하시겠습니까?\n확정하면 구매후기를 작성할 수 있습니다.', function () {
+        var name = btn.dataset.goodsName || '이 상품';
+        MubloRequest.showConfirm(name + '을(를) 구매확정하시겠습니까?\n확정하면 구매후기를 작성할 수 있습니다.', function () {
             btn.disabled = true;
-            MubloRequest.requestJson('/shop/order/' + encodeURIComponent(orderNo) + '/confirm', {})
+            MubloRequest.requestJson('/shop/order/' + encodeURIComponent(orderNo) + '/items/' + btn.dataset.confirmDetail + '/confirm', {})
                 .then(function (res) {
                     MubloRequest.showToast(res.message || '구매확정되었습니다.', 'success');
                     setTimeout(function () { location.reload(); }, 700);
