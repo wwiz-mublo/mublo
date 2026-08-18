@@ -314,8 +314,10 @@ class OrderController
         if ($this->exchangeService !== null) {
             foreach ($items as $item) {
                 $detailId = (int) ($item['order_detail_id'] ?? 0);
-                $itemAction = $this->resolveAction($domainId, (string) ($item['status'] ?? $currentStatus));
-                $exchangeOptionsByDetail[$detailId] = $itemAction === \Mublo\Packages\Shop\Enum\OrderAction::DELIVERED
+                // 신청 가능 판정은 ExchangeService가 단독으로 소유한다 —
+                // 버튼을 띄우는 규칙과 서버가 접수하는 규칙이 갈리면
+                // 눌리는데 거절당하는 버튼이 생긴다.
+                $exchangeOptionsByDetail[$detailId] = $this->exchangeService->isExchangeable($domainId, $item, $currentStatus)
                     ? $this->exchangeService->getExchangeOptions($domainId, $detailId)
                     : [];
             }
@@ -326,6 +328,9 @@ class OrderController
 
         // 배송(운송장) 정보 — 택배사·송장번호·추적링크 표시용
         $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo) : [];
+        // 배송비를 따로 받은 묶음은 따로 나간다. 어느 송장에 어느 상품이 실렸는지
+        // 고객이 알 수 있어야 "왜 일부만 왔지"가 의문으로 남지 않는다.
+        $shipmentItemNames = $this->shipmentService ? $this->shipmentService->itemNamesByShipment($orderNo, $shipments) : [];
 
         // 목록으로 복귀할 때 페이지/검색어 보존 (목록에서 ?page=N&keyword=... 로 진입한 경우)
         $req = $context->getRequest();
@@ -341,6 +346,7 @@ class OrderController
                 'allStates'         => $allStates,
                 'orderLogs'         => $orderLogs,
                 'shipments'         => $shipments,
+                'shipmentItemNames' => $shipmentItemNames,
                 'reviewMeta'        => $reviewMeta,
                 'exchangeClaimsByDetail' => $exchangeClaimsByDetail,
                 'exchangeOptionsByDetail' => $exchangeOptionsByDetail,

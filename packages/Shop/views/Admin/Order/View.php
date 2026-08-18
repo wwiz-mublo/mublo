@@ -40,6 +40,9 @@ $paymentTransactions = $paymentTransactions ?? [];
 $shipments = $shipments ?? [];
 $deliveryCompanies = $deliveryCompanies ?? [];
 $deliveryEditable = $deliveryEditable ?? false;
+// 배송비 그룹이 둘 이상인 주문만 그룹 단위 송장 입력을 노출한다 (쪼갤 게 없으면 선택을 시키지 않는다)
+$shippingGroups = $shippingGroups ?? [];
+$shipmentItemNames = $shipmentItemNames ?? [];
 // 배송 상태 라벨
 $shipmentStatusLabels = [
     'READY' => '준비', 'PICKED_UP' => '집화', 'IN_TRANSIT' => '배송중',
@@ -484,6 +487,7 @@ foreach ($orderReturns as $ret) {
                         <tr>
                             <th>택배사</th>
                             <th>송장번호</th>
+                            <?php if ($shippingGroups !== []): ?><th>포함 상품</th><?php endif; ?>
                             <th>상태</th>
                             <?php if ($deliveryEditable): ?><th class="text-end">관리</th><?php endif; ?>
                         </tr>
@@ -505,6 +509,12 @@ foreach ($orderReturns as $ret) {
                                     <?= htmlspecialchars($sh['invoice_no'] ?? '') ?>
                                 <?php endif; ?>
                             </td>
+                            <?php if ($shippingGroups !== []): ?>
+                            <td class="small text-muted">
+                                <?php $shItems = $shipmentItemNames[(int) ($sh['shipment_id'] ?? 0)] ?? []; ?>
+                                <?= $shItems === [] ? '-' : htmlspecialchars(implode(', ', $shItems)) ?>
+                            </td>
+                            <?php endif; ?>
                             <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= htmlspecialchars($shipmentStatusLabels[$sh['shipment_status'] ?? ''] ?? ($sh['shipment_status'] ?? '')) ?></span></td>
                             <?php if ($deliveryEditable): ?>
                             <td class="text-end text-nowrap">
@@ -529,6 +539,31 @@ foreach ($orderReturns as $ret) {
                 <hr class="my-3">
                 <div id="shipmentFormTitle" class="fw-semibold mb-2 small">운송장 등록</div>
                 <input type="hidden" id="shipmentEditId" value="">
+                <?php if ($shippingGroups !== []): ?>
+                    <?php
+                    // 이미 송장이 붙은 그룹을 표시해 두면, 무엇이 남았는지 목록을 다시 훑지 않아도 된다.
+                    $shippedGroupKeys = [];
+                    foreach ($shipments as $sh) {
+                        if (empty($sh['claim_id']) && ($sh['shipping_group_key'] ?? null) !== null) {
+                            $shippedGroupKeys[(string) $sh['shipping_group_key']] = true;
+                        }
+                    }
+                    ?>
+                    <div class="mb-2" id="shipmentGroupWrap">
+                        <select id="shipmentGroup" class="form-select">
+                            <option value="">주문 전체 (한 번에 발송)</option>
+                            <?php foreach ($shippingGroups as $group): ?>
+                                <?php if ($group['key'] === null) { continue; } ?>
+                                <option value="<?= htmlspecialchars((string) $group['key']) ?>">
+                                    <?= htmlspecialchars($group['label']) ?>
+                                    · <?= htmlspecialchars(implode(', ', $group['item_names'])) ?>
+                                    <?= isset($shippedGroupKeys[(string) $group['key']]) ? ' (송장 등록됨)' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">배송비를 따로 받은 묶음은 따로 나갑니다. 묶음별로 송장을 등록하면 그 상품만 배송 상태가 움직입니다.</div>
+                    </div>
+                <?php endif; ?>
                 <div class="row g-2">
                     <div class="col-md-4">
                         <select id="shipmentCompany" class="form-select">
@@ -1237,6 +1272,12 @@ function resetShipmentForm() {
     document.getElementById('shipmentFormTitle').textContent = '운송장 등록';
     document.getElementById('shipmentSubmit').innerHTML = '<i class="bi bi-plus-lg"></i> 등록';
     document.getElementById('shipmentCancelEdit').classList.add('d-none');
+    // 등록 모드에서만 배송 묶음을 고른다 (수정은 송장 정보만 바꾼다)
+    var groupWrap = document.getElementById('shipmentGroupWrap');
+    if (groupWrap) {
+        groupWrap.classList.remove('d-none');
+        document.getElementById('shipmentGroup').value = '';
+    }
 }
 
 function editShipment(id, companyId, invoiceNo, memo) {
@@ -1247,6 +1288,8 @@ function editShipment(id, companyId, invoiceNo, memo) {
     document.getElementById('shipmentFormTitle').textContent = '운송장 수정 (#' + id + ')';
     document.getElementById('shipmentSubmit').innerHTML = '<i class="bi bi-check-lg"></i> 수정';
     document.getElementById('shipmentCancelEdit').classList.remove('d-none');
+    var groupWrapEdit = document.getElementById('shipmentGroupWrap');
+    if (groupWrapEdit) { groupWrapEdit.classList.add('d-none'); }
     document.getElementById('shipmentInvoice').focus();
 }
 
@@ -1266,6 +1309,10 @@ function submitShipment() {
         invoice_no: invoiceNo,
         admin_memo: memo
     };
+    var groupEl = document.getElementById('shipmentGroup');
+    if (!editId && groupEl) {
+        data.shipping_group_key = groupEl.value;
+    }
     var url = editId
         ? '/admin/shop/orders/' + ORDER_NO + '/shipments/' + editId
         : '/admin/shop/orders/' + ORDER_NO + '/shipments';

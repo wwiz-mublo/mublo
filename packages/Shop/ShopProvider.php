@@ -115,6 +115,7 @@ use Mublo\Packages\Shop\Service\PointLogService;
 use Mublo\Packages\Shop\Service\DashboardService;
 use Mublo\Packages\Shop\Service\ExhibitionService;
 use Mublo\Packages\Shop\Service\ShipmentService;
+use Mublo\Packages\Shop\Service\ShipmentGroupResolver;
 use Mublo\Packages\Shop\Service\ActionExecutionService;
 use Mublo\Packages\Shop\Service\ClaimStateMachine;
 use Mublo\Packages\Shop\Service\ExchangeStockService;
@@ -164,6 +165,7 @@ use Mublo\Contract\Balance\BalanceGatewayInterface;
 use Mublo\Packages\Shop\EventSubscriber\ConfigurableActionSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\ConfigurableItemActionSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\ConfigurableClaimActionSubscriber;
+use Mublo\Packages\Shop\EventSubscriber\ShipmentItemStatusSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\CouponRestoreSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PaymentMismatchSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PointPaymentSubscriber;
@@ -521,11 +523,13 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(EventDispatcher::class)
             )
         );
+        $container->singleton(ShipmentGroupResolver::class, fn() => new ShipmentGroupResolver());
         $container->singleton(ShipmentService::class, fn(DependencyContainer $c) =>
             new ShipmentService(
                 $c->get(ShipmentRepository::class),
                 $c->get(OrderRepository::class),
-                $c->get(EventDispatcher::class)
+                $c->get(EventDispatcher::class),
+                $c->get(ShipmentGroupResolver::class)
             )
         );
         $container->singleton(ExchangeStockService::class, fn(DependencyContainer $c) =>
@@ -994,6 +998,16 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             $container->get(ShopConfigService::class),
             $container->get(ActionTypeRegistry::class),
             $container->has(\Mublo\Infrastructure\Log\Logger::class) ? $container->get(\Mublo\Infrastructure\Log\Logger::class) : null
+        ));
+
+        // 송장이 주문상품 상태를 끌고 간다 (송장 등록 → 배송중, 배송완료 → 배송완료)
+        $eventDispatcher->addSubscriber(new ShipmentItemStatusSubscriber(
+            $container->get(OrderService::class),
+            $container->get(OrderRepository::class),
+            $container->get(ShipmentGroupResolver::class),
+            $container->has(\Mublo\Infrastructure\Log\Logger::class)
+                ? $container->get(\Mublo\Infrastructure\Log\Logger::class)
+                : null,
         ));
 
         $eventDispatcher->addSubscriber(new ConfigurableClaimActionSubscriber(

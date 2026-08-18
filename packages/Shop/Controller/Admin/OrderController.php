@@ -193,6 +193,9 @@ class OrderController
         $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo) : [];
         $deliveryCompanies = $this->shipmentService ? $this->shipmentService->getDeliveryCompanies() : [];
         $deliveryEditable = $this->stateResolver->isDeliveryEditable($domainId, $currentStatusId);
+        // 배송비 그룹 = 출고 단위. 둘 이상이면 송장을 그룹별로 따로 받는다.
+        $shippingGroups = $this->shipmentService ? $this->shipmentService->getShippingGroups($orderNo) : [];
+        $shipmentItemNames = $this->shipmentService ? $this->shipmentService->itemNamesByShipment($orderNo, $shipments) : [];
 
         // 관리자 메모
         $orderMemos = $this->memoService->getMemos($orderNo);
@@ -226,6 +229,8 @@ class OrderController
                 'shipments' => $shipments,
                 'deliveryCompanies' => $deliveryCompanies,
                 'deliveryEditable' => $deliveryEditable,
+                'shippingGroups' => $shippingGroups,
+                'shipmentItemNames' => $shipmentItemNames,
                 'orderMemos' => $orderMemos,
                 'memoTypeLabels' => OrderMemoService::TYPE_LABELS,
                 'domainId' => $domainId,
@@ -537,6 +542,7 @@ class OrderController
             'company_id'  => $request->json('company_id', null),
             'invoice_no'  => trim((string) $request->json('invoice_no', '')),
             'admin_memo'  => trim((string) $request->json('admin_memo', '')) ?: null,
+            'shipping_group_key' => trim((string) ($request->json('shipping_group_key', '') ?? '')),
         ]);
 
         return $result->isSuccess()

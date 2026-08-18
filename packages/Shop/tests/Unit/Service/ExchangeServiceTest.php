@@ -123,6 +123,63 @@ final class ExchangeServiceTest extends TestCase
         $this->assertStringContainsString('교환 가능한 수량', $result->getMessage());
     }
 
+    // =========================================================
+    // isExchangeable() — 프론트 버튼과 서버 접수의 단일 규칙
+    // =========================================================
+
+    /** 상태 id를 그대로 액션으로 해석하는 resolver 스텁 */
+    private function passthroughResolver(): OrderStateResolver
+    {
+        $resolver = $this->createMock(OrderStateResolver::class);
+        $resolver->method('getState')
+            ->willReturnCallback(static fn(int $d, string $id): ?array => $id !== '' ? ['id' => $id, 'action' => $id] : null);
+        $resolver->method('getAction')
+            ->willReturnCallback(static fn(string $id, array $def): ?OrderAction => OrderAction::tryFrom($def['action'] ?? ''));
+        return $resolver;
+    }
+
+    public function testDeliveredItemIsExchangeableRegardlessOfOrderHeader(): void
+    {
+        // 부분 배송: 먼저 도착한 품목은 주문 헤더가 배송중이어도 교환할 수 있어야 한다
+        $service = $this->makeService(
+            $this->createMock(ClaimRepository::class),
+            $this->createMock(OrderRepository::class),
+            $this->passthroughResolver(),
+            new EventDispatcher(),
+        );
+
+        $this->assertTrue($service->isExchangeable(1, ['status' => 'delivered'], 'shipping'));
+    }
+
+    public function testItemFallsBackToOrderHeaderWhenItStillLagsBehind(): void
+    {
+        // 송장을 쓰지 않는 상점에서는 주문 헤더가 배송 완료를 아는 유일한 신호다
+        $service = $this->makeService(
+            $this->createMock(ClaimRepository::class),
+            $this->createMock(OrderRepository::class),
+            $this->passthroughResolver(),
+            new EventDispatcher(),
+        );
+
+        $this->assertTrue($service->isExchangeable(1, ['status' => 'received'], 'delivered'));
+        $this->assertFalse($service->isExchangeable(1, ['status' => 'received'], 'shipping'));
+    }
+
+    public function testConfirmedOrCancelledItemsAreNotExchangeable(): void
+    {
+        $service = $this->makeService(
+            $this->createMock(ClaimRepository::class),
+            $this->createMock(OrderRepository::class),
+            $this->passthroughResolver(),
+            new EventDispatcher(),
+        );
+
+        // 구매확정은 클레임이 닫힌 것으로 본다 — 헤더가 배송완료여도 열지 않는다
+        $this->assertFalse($service->isExchangeable(1, ['status' => 'confirmed'], 'delivered'));
+        $this->assertFalse($service->isExchangeable(1, ['status' => 'cancelled'], 'delivered'));
+        $this->assertFalse($service->isExchangeable(1, ['status' => 'return_requested'], 'delivered'));
+    }
+
     private function makeService(
         ClaimRepository $claims,
         OrderRepository $orders,

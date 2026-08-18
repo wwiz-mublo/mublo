@@ -39,6 +39,7 @@ $allStates = $allStates ?? [];
 $orderLogs = $orderLogs ?? [];
 $shipments = $shipments ?? [];
 $reviewMeta = $reviewMeta ?? [];
+$shipmentItemNames = $shipmentItemNames ?? [];
 $exchangeClaimsByDetail = $exchangeClaimsByDetail ?? [];
 $exchangeOptionsByDetail = $exchangeOptionsByDetail ?? [];
 
@@ -380,6 +381,14 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                 <a href="<?= e($shTrackUrl) ?>" target="_blank" rel="noopener"><?= e((string) ($sh['invoice_no'] ?? '')) ?> <i class="bi bi-box-arrow-up-right" style="font-size:0.8em"></i></a>
                             <?php else: ?>
                                 <?= e((string) ($sh['invoice_no'] ?? '')) ?>
+                            <?php endif; ?>
+                            <?php
+                            // 배송비를 따로 받은 묶음이 여러 개인 주문에서만 채워진다.
+                            // 어느 상품이 이 송장으로 오는지 밝혀야 "왜 일부만 왔지"가 남지 않는다.
+                            $shItems = $shipmentItemNames[(int) ($sh['shipment_id'] ?? 0)] ?? [];
+                            ?>
+                            <?php if ($shItems !== []): ?>
+                                <small style="display:block;color:#777"><?= e(implode(', ', $shItems)) ?></small>
                             <?php endif; ?>
                         </span>
                     </div>

@@ -80,6 +80,35 @@ final class ExchangeService
         return $this->claims->getActiveByDetailId($domainId, $detailId);
     }
 
+    /**
+     * 교환 신청 가능 여부 — 프론트 버튼 노출과 서버 접수가 함께 쓰는 단일 규칙.
+     *
+     * 주문상품 상태가 우선이고, 아직 배송완료로 따라오지 못한 품목은 주문 헤더로
+     * 폴백한다. 부분 배송에서는 먼저 도착한 품목만 교환할 수 있어야 하므로 품목
+     * 기준을 버릴 수 없고, 반대로 송장을 쓰지 않는 상점에서는 헤더가 유일한
+     * 신호이기 때문이다. 취소·반품·구매확정으로 넘어간 건은 어느 쪽이든 거부한다.
+     */
+    public function isExchangeable(int $domainId, array $item, string $orderStatus): bool
+    {
+        $itemAction = $this->resolveOrderAction($domainId, (string) ($item['status'] ?? ''));
+        if (in_array($itemAction, [
+            OrderAction::CONFIRMED,
+            OrderAction::CANCEL_REQUESTED,
+            OrderAction::CANCELLED,
+            OrderAction::RETURN_REQUESTED,
+            OrderAction::RETURNED,
+        ], true)) {
+            return false;
+        }
+        if ($itemAction === OrderAction::DELIVERED) {
+            return true;
+        }
+
+        // 품목이 배송 전이어도, 주문 전체가 배송완료면 배송이 끝난 것으로 본다.
+        // (구매확정된 주문은 클레임이 닫힌 것으로 보고 폴백을 열지 않는다)
+        return $this->resolveOrderAction($domainId, $orderStatus) === OrderAction::DELIVERED;
+    }
+
     /** 고객/관리자 선택용 동일 상품 교환 옵션. */
     public function getExchangeOptions(int $domainId, int $detailId): array
     {
@@ -177,7 +206,16 @@ final class ExchangeService
                 if ($item === null || (string) $item['order_no'] !== $orderNo) {
                     throw new \DomainException('주문 상품을 찾을 수 없습니다.');
                 }
-                if ($this->resolveOrderAction($domainId, (string) ($item['status'] ?? '')) !== OrderAction::DELIVERED) {
+                // 프론트 버튼과 같은 규칙으로 판정한다 (품목 우선 · 헤더 폴백).
+                // 품목만으로 결론이 나면 주문 헤더는 읽지 않는다.
+                $order = null;
+                $exchangeable = $this->isExchangeable($domainId, $item, '');
+                if (!$exchangeable) {
+                    $order = $this->orders->findByOrderNoInDomain($domainId, $orderNo);
+                    $exchangeable = $order !== null
+                        && $this->isExchangeable($domainId, $item, (string) ($order['order_status'] ?? ''));
+                }
+                if (!$exchangeable) {
                     throw new \DomainException('배송 완료된 상품만 교환을 신청할 수 있습니다.');
                 }
                 if ($this->claims->hasBlockingNonExchangeClaim($domainId, $detailId)) {
@@ -189,7 +227,7 @@ final class ExchangeService
                 }
 
                 $target = $this->resolveTarget($item, $data);
-                $order = $this->orders->findByOrderNoInDomain($domainId, $orderNo);
+                $order ??= $this->orders->findByOrderNoInDomain($domainId, $orderNo);
                 if ($order === null) {
                     throw new \DomainException('주문을 찾을 수 없습니다.');
                 }

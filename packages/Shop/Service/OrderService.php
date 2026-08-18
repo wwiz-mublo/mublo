@@ -595,6 +595,21 @@ class OrderService
 
         $this->dispatchStatusChanged($order, $currentId, $newStateId, $prevLabel, $newLabel, (int) $logId);
 
+        // 헤더 상태 변경은 곧 전 품목에 대한 벌크 지시다. 품목을 뒤에 남겨두면
+        // 품목 상태를 보는 자리(교환 게이트 등)가 헤더와 어긋난다.
+        // 고객 공지는 방금 발행한 주문 이벤트가 담당하므로 품목 이벤트는 발행하지 않고,
+        // 헤더는 이미 확정됐으므로 종합(롤업)도 돌리지 않는다.
+        $this->advanceItemsToState(
+            $orderNo,
+            $domainId,
+            $newStateId,
+            [],
+            '주문 상태 변경 반영',
+            $changedBy,
+            publishEvents: false,
+            syncOrder: false,
+        );
+
         return Result::success('주문 상태가 변경되었습니다.', [
             'order_no' => $orderNo,
             'status' => $newStateId,
@@ -890,43 +905,18 @@ class OrderService
             return Result::failure("'{$currentLabel}'에서 '{$newLabel}'(으)로 변경할 수 없습니다.");
         }
 
-        $prevLabel = $this->stateResolver->getLabel($domainId, $currentId);
-        $newLabel = $this->stateResolver->getLabel($domainId, $newStateId);
-
         // 상태·플래그·이력을 원자적으로 기록(중간 실패 시 부분 커밋 방지). 이벤트·주문 동기화는 커밋 후.
-        $db = $this->orderRepository->getDb();
-        $db->beginTransaction();
-        try {
-            $this->orderRepository->updateItemStatus($detailId, $newStateId);
-            $this->syncItemFlags($detailId, $newStateId, $domainId);
-            $this->orderRepository->insertOrderLog([
-                'order_no' => $orderNo,
-                'order_detail_id' => $detailId,
-                'prev_status' => $currentId,
-                'prev_status_label' => $prevLabel,
-                'new_status' => $newStateId,
-                'new_status_label' => $newLabel,
-                'change_type' => 'STATUS',
-                'changed_by' => 'STAFF',
-                'reason' => $reason ?: null,
-            ]);
-            $db->commit();
-        } catch (\Throwable $e) {
-            if ($db->inTransaction()) {
-                $db->rollBack();
-            }
+        if (!$this->applyItemStatus($orderNo, $domainId, $item, $newStateId, [$newStateId], $reason, 'STAFF', true)) {
             return Result::failure('상품 상태 변경에 실패했습니다.');
         }
 
-        $this->dispatchItemStatusChanged($item, $currentId, $newStateId, $prevLabel, $newLabel, $domainId);
-
-        // 모든 아이템 동일 상태 시 주문 자동 전이
+        // 주문상품 상태를 종합해 주문 헤더 갱신
         $this->autoSyncOrderStatus($orderNo, $domainId);
 
         return Result::success('상품 상태가 변경되었습니다.', [
             'detail_id' => $detailId,
             'status' => $newStateId,
-            'status_label' => $newLabel,
+            'status_label' => $this->stateResolver->getLabel($domainId, $newStateId),
         ]);
     }
 
@@ -1328,7 +1318,12 @@ class OrderService
     }
 
     /**
-     * 모든 아이템 동일 상태 시 주문 자동 전이
+     * 주문상품 상태를 종합해 주문 헤더를 갱신한다.
+     *
+     * 가장 뒤처진 활성 품목이 주문의 상태다. 3개 중 1개만 배송완료라면 주문은
+     * 여전히 배송중이어야 "아직 다 오지 않았다"가 고객에게 정확히 전달된다.
+     * (전 품목이 같은 상태일 때만 종합하던 시절에는, 개별배송이 시작되는 순간
+     *  — 정작 종합이 필요한 그 순간 — 종합이 멈췄다)
      */
     private function autoSyncOrderStatus(string $orderNo, int $domainId): void
     {
@@ -1337,28 +1332,34 @@ class OrderService
             return;
         }
 
-        $statuses = array_unique(array_column($items, 'status'));
-        if (count($statuses) !== 1) {
+        $rolledState = $this->rollupItemStates($domainId, $items);
+        if ($rolledState === null) {
             return;
         }
 
-        $unanimousState = $statuses[0];
         $order = $this->orderRepository->find($orderNo);
         if (!$order || (int) ($order->toArray()['domain_id'] ?? 0) !== $domainId
-            || $order->getOrderStatusRaw() === $unanimousState
+            || $order->getOrderStatusRaw() === $rolledState
         ) {
             return;
         }
 
         // 자동 전이 (아이템 상태 기반이므로 FSM 검증은 스킵하되 CAS는 유지)
         $previousState = $order->getOrderStatusRaw() ?? '';
+
+        // 종합 결과가 현재 헤더보다 뒤면 되돌리지 않는다. 뒤로 가는 주문 상태는
+        // 고객이 이해할 수 없고, 품목이 헤더를 따라오지 못한 과거 주문에서 특히
+        // 잘 생긴다.
+        if ($this->isBackwardTransition($domainId, $previousState, $rolledState)) {
+            return;
+        }
         $prevLabel = $this->stateResolver->getLabel($domainId, $previousState);
-        $newLabel = $this->stateResolver->getLabel($domainId, $unanimousState);
+        $newLabel = $this->stateResolver->getLabel($domainId, $rolledState);
 
         $db = $this->orderRepository->getDb();
         try {
             $db->beginTransaction();
-            if (!$this->orderRepository->updateStatus($orderNo, $unanimousState, $previousState)) {
+            if (!$this->orderRepository->updateStatus($orderNo, $rolledState, $previousState)) {
                 if ($db->inTransaction()) {
                     $db->rollBack();
                 }
@@ -1369,11 +1370,11 @@ class OrderService
                 'order_no' => $orderNo,
                 'prev_status' => $previousState,
                 'prev_status_label' => $prevLabel,
-                'new_status' => $unanimousState,
+                'new_status' => $rolledState,
                 'new_status_label' => $newLabel,
                 'change_type' => 'STATUS',
                 'changed_by' => 'SYSTEM',
-                'reason' => '전 상품 동일 상태 자동 전이',
+                'reason' => '주문상품 상태 종합',
             ]);
             $db->commit();
         } catch (\Throwable) {
@@ -1383,7 +1384,309 @@ class OrderService
             return;
         }
 
-        $this->dispatchStatusChanged($order, $previousState, $unanimousState, $prevLabel, $newLabel, (int) $logId);
+        $this->dispatchStatusChanged($order, $previousState, $rolledState, $prevLabel, $newLabel, (int) $logId);
+    }
+
+    /**
+     * 주문상품 상태 종합 결과 (헤더가 취해야 할 상태). 종합 불가면 null.
+     */
+    private function rollupItemStates(int $domainId, array $items): ?string
+    {
+        $active = [];
+        $closed = [];
+        foreach ($items as $item) {
+            $stateId = (string) ($item['status'] ?? '');
+            if ($stateId === '') {
+                return null; // 상태 미상 품목이 섞여 있으면 종합하지 않는다
+            }
+            // 취소·반품 완료 품목은 진행도 계산에서 뺀다. 1개 취소가 주문 전체를
+            // 취소로 되돌리면 안 되기 때문.
+            $action = $this->resolveStateAction($domainId, $stateId);
+            if (in_array($action, [OrderAction::CANCELLED, OrderAction::RETURNED], true)) {
+                $closed[] = $stateId;
+                continue;
+            }
+            $active[] = $stateId;
+        }
+
+        if ($active === []) {
+            // 전 품목이 종료된 주문은 종료 상태가 하나로 모일 때만 따라간다.
+            $unique = array_values(array_unique($closed));
+            return count($unique) === 1 ? $unique[0] : null;
+        }
+
+        // 전 품목이 같은 상태면 그대로 헤더가 된다 — 진행도 비교가 필요 없는
+        // 다수 케이스이고, 상태 그래프를 몰라도 판정할 수 있다.
+        $unique = array_values(array_unique($active));
+        return count($unique) === 1 ? $unique[0] : $this->leastAdvancedState($domainId, $unique);
+    }
+
+    /**
+     * 가장 뒤처진 상태 (order_states의 sort_order 기준).
+     *
+     * 진행도 비교에는 그래프 도달성이 아니라 상점이 선언한 sort_order를 쓴다.
+     * 분기가 있는 커스텀 그래프에서 "둘 중 누가 더 앞인가"는 도달성만으로
+     * 정해지지 않기 때문이다. 그래프 밖 상태가 섞이면 종합을 포기한다.
+     */
+    private function leastAdvancedState(int $domainId, array $stateIds): ?string
+    {
+        $ranks = [];
+        foreach ($this->stateResolver->getAllStates($domainId) as $index => $state) {
+            $id = (string) ($state['id'] ?? '');
+            if ($id !== '') {
+                $ranks[$id] = (int) ($state['sort_order'] ?? ($index + 1));
+            }
+        }
+
+        $best = null;
+        $bestRank = PHP_INT_MAX;
+        foreach (array_unique($stateIds) as $stateId) {
+            if (!isset($ranks[$stateId])) {
+                return null;
+            }
+            if ($ranks[$stateId] < $bestRank) {
+                $bestRank = $ranks[$stateId];
+                $best = (string) $stateId;
+            }
+        }
+        return $best;
+    }
+
+    /**
+     * FSM 전진 경로 탐색 (BFS).
+     *
+     * "도달 가능하면 앞이다"를 그대로 판정에 쓴다. 커스텀 상태가 중간에 끼어도
+     * 그래프가 인정하는 순서만 따르므로 별도 순위표가 필요 없고, 취소·반품처럼
+     * 되돌아갈 수 없는 상태는 경로가 없어 자연히 걸러진다.
+     *
+     * @return string[]|null 목표까지 거쳐야 할 상태 id (목표 포함). 경로 없으면 null
+     */
+    private function findStatePath(int $domainId, string $from, string $to): ?array
+    {
+        if ($from === $to) {
+            return [];
+        }
+
+        $edges = [];
+        foreach ($this->stateResolver->getAllStates($domainId) as $state) {
+            $id = (string) ($state['id'] ?? '');
+            if ($id !== '') {
+                $edges[$id] = array_map('strval', (array) ($state['to'] ?? []));
+            }
+        }
+        if (!isset($edges[$from], $edges[$to])) {
+            return null;
+        }
+
+        $queue = [[$from, []]];
+        $visited = [$from => true];
+        while ($queue !== []) {
+            [$current, $path] = array_shift($queue);
+            foreach ($edges[$current] ?? [] as $next) {
+                if (isset($visited[$next]) || !isset($edges[$next])) {
+                    continue;
+                }
+                $visited[$next] = true;
+                $nextPath = array_merge($path, [$next]);
+                if ($next === $to) {
+                    return $nextPath;
+                }
+                $queue[] = [$next, $nextPath];
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 뒤로 가는 전이인지.
+     *
+     * 상태 그래프가 두 상태를 모두 알 때만 판정한다. 모르는 상태를 뒤로 간다고
+     * 단정하면 상태 정의가 비어 있는 환경에서 종합이 통째로 멈춰버린다.
+     */
+    private function isBackwardTransition(int $domainId, string $from, string $to): bool
+    {
+        if ($from === '' || $from === $to) {
+            return false;
+        }
+        if ($this->stateResolver->getState($domainId, $from) === null
+            || $this->stateResolver->getState($domainId, $to) === null
+        ) {
+            return false;
+        }
+        return $this->findStatePath($domainId, $from, $to) === null;
+    }
+
+    /** 상태 id → 시스템 액션 (커스텀/미해석은 null). */
+    private function resolveStateAction(int $domainId, string $stateId): ?OrderAction
+    {
+        $state = $this->stateResolver->getState($domainId, $stateId);
+        return $state !== null
+            ? $this->stateResolver->getAction($stateId, $state)
+            : OrderAction::tryFrom($stateId);
+    }
+
+    /** 시스템 액션에 대응하는 상태 id (없으면 null). */
+    public function findStateIdByAction(int $domainId, OrderAction $action): ?string
+    {
+        foreach ($this->stateResolver->getAllStates($domainId) as $state) {
+            $id = (string) ($state['id'] ?? '');
+            if ($id !== '' && $this->stateResolver->getAction($id, $state) === $action) {
+                return $id;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 시스템 액션 기준으로 주문상품을 전진시킨다 (송장 연동 등 액션 기준 호출용).
+     *
+     * @param int[] $detailIds 빈 배열이면 주문 전체 품목
+     * @return int 실제로 바뀐 품목 수
+     */
+    public function advanceItemsToAction(
+        string $orderNo,
+        int $domainId,
+        OrderAction $action,
+        array $detailIds = [],
+        string $reason = '',
+        string $changedBy = 'SYSTEM',
+        bool $publishEvents = true,
+        bool $syncOrder = true,
+    ): int {
+        $stateId = $this->findStateIdByAction($domainId, $action);
+        if ($stateId === null) {
+            return 0;
+        }
+        return $this->advanceItemsToState(
+            $orderNo,
+            $domainId,
+            $stateId,
+            $detailIds,
+            $reason,
+            $changedBy,
+            $publishEvents,
+            $syncOrder,
+        );
+    }
+
+    /**
+     * 지정 품목을 목표 상태까지 전진시킨다.
+     *
+     * 목표가 현재보다 뒤에 있는 품목(경로 없음), 클레임이 걸린 품목은 건드리지
+     * 않는다. 여러 칸을 건너뛰어야 하면 경유 상태를 로그에만 남기고 최종 상태로
+     * 한 번에 이동한다 — 중간 상태마다 알림을 쏘면 같은 배송 건으로 고객에게
+     * 여러 번 연락이 가기 때문이다.
+     *
+     * @param int[] $detailIds 빈 배열이면 주문 전체 품목
+     * @return int 실제로 바뀐 품목 수
+     */
+    public function advanceItemsToState(
+        string $orderNo,
+        int $domainId,
+        string $targetStateId,
+        array $detailIds = [],
+        string $reason = '',
+        string $changedBy = 'SYSTEM',
+        bool $publishEvents = true,
+        bool $syncOrder = true,
+    ): int {
+        if ($this->stateResolver->getState($domainId, $targetStateId) === null) {
+            return 0;
+        }
+
+        $only = array_flip(array_map('intval', $detailIds));
+        $changed = 0;
+
+        foreach ($this->orderRepository->getItems($orderNo) as $item) {
+            $detailId = (int) ($item['order_detail_id'] ?? 0);
+            if ($detailId <= 0 || ($only !== [] && !isset($only[$detailId]))) {
+                continue;
+            }
+            // 클레임이 걸린 품목은 클레임 워크플로우가 소유한다.
+            if (ClaimStatus::tryFrom((string) ($item['return_status'] ?? ''))?->isActive()) {
+                continue;
+            }
+
+            $currentId = (string) ($item['status'] ?? '');
+            if ($currentId === $targetStateId) {
+                continue;
+            }
+            $path = $currentId === ''
+                ? [$targetStateId]
+                : $this->findStatePath($domainId, $currentId, $targetStateId);
+            if (empty($path)) {
+                continue;
+            }
+
+            if ($this->applyItemStatus($orderNo, $domainId, $item, $targetStateId, $path, $reason, $changedBy, $publishEvents)) {
+                $changed++;
+            }
+        }
+
+        if ($changed > 0 && $syncOrder) {
+            $this->autoSyncOrderStatus($orderNo, $domainId);
+        }
+        return $changed;
+    }
+
+    /**
+     * 품목 상태·플래그·이력을 원자적으로 기록한다 (이벤트는 커밋 후).
+     *
+     * @param string[] $path 목표까지의 상태 경로 (목표 포함)
+     */
+    private function applyItemStatus(
+        string $orderNo,
+        int $domainId,
+        array $item,
+        string $newStateId,
+        array $path,
+        string $reason,
+        string $changedBy,
+        bool $publishEvent,
+    ): bool {
+        $detailId = (int) ($item['order_detail_id'] ?? 0);
+        $currentId = (string) ($item['status'] ?? '');
+        $prevLabel = $this->stateResolver->getLabel($domainId, $currentId);
+        $newLabel = $this->stateResolver->getLabel($domainId, $newStateId);
+
+        $intermediate = array_slice($path, 0, -1);
+        if ($intermediate !== []) {
+            $labels = array_map(
+                fn(string $stateId): string => $this->stateResolver->getLabel($domainId, $stateId),
+                $intermediate
+            );
+            $reason = trim($reason . ' (경유: ' . implode(' → ', $labels) . ')');
+        }
+
+        $db = $this->orderRepository->getDb();
+        $db->beginTransaction();
+        try {
+            $this->orderRepository->updateItemStatus($detailId, $newStateId);
+            $this->syncItemFlags($detailId, $newStateId, $domainId);
+            $this->orderRepository->insertOrderLog([
+                'order_no' => $orderNo,
+                'order_detail_id' => $detailId,
+                'prev_status' => $currentId,
+                'prev_status_label' => $prevLabel,
+                'new_status' => $newStateId,
+                'new_status_label' => $newLabel,
+                'change_type' => 'STATUS',
+                'changed_by' => $changedBy,
+                'reason' => $reason !== '' ? $reason : null,
+            ]);
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('[SHOP][ORDER] item status advance failed: ' . $e->getMessage());
+            return false;
+        }
+
+        if ($publishEvent) {
+            $this->dispatchItemStatusChanged($item, $currentId, $newStateId, $prevLabel, $newLabel, $domainId);
+        }
+        return true;
     }
 
     /**

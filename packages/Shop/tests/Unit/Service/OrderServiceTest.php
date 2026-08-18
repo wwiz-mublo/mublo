@@ -27,6 +27,7 @@ use Mublo\Packages\Shop\Entity\Order;
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Packages\Shop\Event\OrderStatusChangedEvent;
+use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Packages\Shop\Service\CouponService;
 use Mublo\Core\Result\Result;
 
@@ -911,6 +912,183 @@ class OrderServiceTest extends TestCase
 
         $this->assertTrue($result->isFailure());
         $this->assertStringContainsString('지원하지 않습니다', $result->getMessage());
+    }
+
+
+    // =========================================================
+    // 주문상품 ↔ 주문 헤더 상태 동기화
+    // =========================================================
+
+    /** 기본 상태 그래프를 아는 resolver 스텁 (sort_order·to 필요) */
+    private function stubDefaultStateGraph(): void
+    {
+        $defaults = [];
+        foreach (OrderAction::defaultStates() as $state) {
+            $defaults[$state['id']] = $state;
+        }
+        $this->stateResolver->method('getAllStates')->willReturn(OrderAction::defaultStates());
+        $this->stateResolver->method('getState')
+            ->willReturnCallback(static fn(int $d, string $id): ?array => $defaults[$id] ?? null);
+        $this->stateResolver->method('getAction')
+            ->willReturnCallback(static fn(string $id, array $def): ?OrderAction => OrderAction::tryFrom($def['action'] ?? ''));
+        $this->stateResolver->method('getLabel')
+            ->willReturnCallback(static fn(int $d, string $id): string => $defaults[$id]['label'] ?? $id);
+    }
+
+    public function testRollupFollowsLeastAdvancedItemWhenStatesAreMixed(): void
+    {
+        // 3개 중 1개만 앞서 나갔으면 주문은 뒤처진 쪽을 따라가야 한다.
+        // 그래야 고객에게 "아직 다 오지 않았다"가 전달된다.
+        $orderNo = 'ORD2026040500001';
+        $order = Order::fromArray($this->makeOrderData(['order_no' => $orderNo, 'order_status' => 'paid']));
+
+        $this->orderRepo->method('getItemInDomain')->willReturn([
+            'order_no' => $orderNo, 'order_detail_id' => 10, 'status' => 'paid',
+        ]);
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'status' => 'shipping'],
+            ['order_detail_id' => 11, 'status' => 'preparing'],
+        ]);
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->stateResolver->method('canTransition')->willReturn(true);
+        $this->stubDefaultStateGraph();
+
+        $this->orderRepo->expects($this->once())
+            ->method('updateStatus')
+            ->with($orderNo, 'preparing', 'paid')
+            ->willReturn(true);
+
+        $this->assertTrue($this->service->updateItemStatus($orderNo, 10, 'shipping', 1)->isSuccess());
+    }
+
+    public function testRollupNeverMovesOrderStatusBackward(): void
+    {
+        // 품목이 헤더를 따라오지 못한 과거 주문에서 특히 잘 생기는 상황.
+        // 배송완료였던 주문이 결제완료로 되돌아가면 고객이 이해할 수 없다.
+        $orderNo = 'ORD2026040500001';
+        $order = Order::fromArray($this->makeOrderData(['order_no' => $orderNo, 'order_status' => 'delivered']));
+
+        $this->orderRepo->method('getItemInDomain')->willReturn([
+            'order_no' => $orderNo, 'order_detail_id' => 10, 'status' => 'received',
+        ]);
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'status' => 'paid'],
+            ['order_detail_id' => 11, 'status' => 'paid'],
+        ]);
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->stateResolver->method('canTransition')->willReturn(true);
+        $this->stubDefaultStateGraph();
+
+        $this->orderRepo->expects($this->never())->method('updateStatus');
+
+        $this->assertTrue($this->service->updateItemStatus($orderNo, 10, 'paid', 1)->isSuccess());
+    }
+
+    public function testAdvanceItemsWalksMultipleHopsAndRecordsPassedStates(): void
+    {
+        // 주문접수에 머물던 품목을 송장 등록 한 번으로 배송중까지 끌어올린다.
+        // 중간 상태는 이력에만 남기고 알림은 최종 상태 한 번으로 끝낸다.
+        $orderNo = 'ORD2026040500001';
+        $logs = [];
+
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => $orderNo, 'status' => 'received'],
+        ]);
+        $this->orderRepo->method('insertOrderLog')->willReturnCallback(
+            function (array $log) use (&$logs): int {
+                $logs[] = $log;
+                return count($logs);
+            }
+        );
+        $this->stubDefaultStateGraph();
+
+        $this->orderRepo->expects($this->once())
+            ->method('updateItemStatus')
+            ->with(10, 'shipping')
+            ->willReturn(true);
+
+        $changed = $this->service->advanceItemsToState(
+            $orderNo, 1, 'shipping', [], '송장 등록', 'SYSTEM', false, false
+        );
+
+        $this->assertSame(1, $changed);
+        $this->assertCount(1, $logs);
+        $this->assertSame('received', $logs[0]['prev_status']);
+        $this->assertSame('shipping', $logs[0]['new_status']);
+        $this->assertStringContainsString('경유', (string) $logs[0]['reason']);
+        $this->assertStringContainsString('배송준비', (string) $logs[0]['reason']);
+    }
+
+    public function testAdvanceItemsSkipsItemsThatWouldMoveBackward(): void
+    {
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => 'ORD1', 'status' => 'delivered'],
+            ['order_detail_id' => 11, 'order_no' => 'ORD1', 'status' => 'cancelled'],
+        ]);
+        $this->stubDefaultStateGraph();
+        $this->orderRepo->expects($this->never())->method('updateItemStatus');
+
+        $this->assertSame(
+            0,
+            $this->service->advanceItemsToState('ORD1', 1, 'shipping', [], '송장 등록', 'SYSTEM', false, false)
+        );
+    }
+
+    public function testAdvanceItemsSkipsItemsUnderActiveClaim(): void
+    {
+        // 클레임이 걸린 품목은 교환 워크플로우가 소유한다
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => 'ORD1', 'status' => 'preparing', 'return_status' => 'COLLECTING'],
+        ]);
+        $this->stubDefaultStateGraph();
+        $this->orderRepo->expects($this->never())->method('updateItemStatus');
+
+        $this->assertSame(
+            0,
+            $this->service->advanceItemsToState('ORD1', 1, 'shipping', [], '송장 등록', 'SYSTEM', false, false)
+        );
+    }
+
+    public function testAdvanceItemsHonoursDetailIdFilter(): void
+    {
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => 'ORD1', 'status' => 'preparing'],
+            ['order_detail_id' => 11, 'order_no' => 'ORD1', 'status' => 'preparing'],
+        ]);
+        $this->stubDefaultStateGraph();
+
+        // 배송비 그룹이 다른 품목(11)은 그 그룹 송장이 등록될 때 따로 움직인다
+        $this->orderRepo->expects($this->once())
+            ->method('updateItemStatus')
+            ->with(10, 'shipping')
+            ->willReturn(true);
+
+        $this->assertSame(
+            1,
+            $this->service->advanceItemsToState('ORD1', 1, 'shipping', [10], '송장 등록', 'SYSTEM', false, false)
+        );
+    }
+
+    public function testUpdateStatusPropagatesToOrderItems(): void
+    {
+        // 헤더 변경은 전 품목에 대한 벌크 지시다 — 품목을 뒤에 남기지 않는다
+        $orderNo = 'ORD2026040500001';
+        $order = Order::fromArray($this->makeOrderData(['order_no' => $orderNo, 'order_status' => 'preparing']));
+
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->orderRepo->method('getItems')->willReturn([
+            ['order_detail_id' => 10, 'order_no' => $orderNo, 'status' => 'preparing'],
+        ]);
+        $this->orderRepo->method('updateStatus')->willReturn(true);
+        $this->stateResolver->method('canTransition')->willReturn(true);
+        $this->stubDefaultStateGraph();
+
+        $this->orderRepo->expects($this->once())
+            ->method('updateItemStatus')
+            ->with(10, 'shipping')
+            ->willReturn(true);
+
+        $this->assertTrue($this->service->updateStatus($orderNo, 'shipping', 1)->isSuccess());
     }
 
     // ===== 헬퍼 =====
