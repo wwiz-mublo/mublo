@@ -82,7 +82,10 @@
     }
     document.querySelectorAll('#spvRvForm input[type=file]').forEach(bindSlot);
 
-    document.querySelectorAll('.shop-order-view__review-btn:not(.shop-order-view__review-btn--view):not(.shop-order-view__confirm-btn):not([disabled])').forEach(function(btn) {
+    // 후기 작성 버튼은 data-review-detail 로 찾는다.
+    // shop-order-view__review-btn 은 이 줄의 버튼들이 공유하는 표현용 클래스라
+    // 동작 선택자로 쓰면 나중에 붙는 버튼(교환 신청 등)까지 후기 모달을 연다.
+    document.querySelectorAll('[data-review-detail]:not([disabled])').forEach(function(btn) {
         btn.addEventListener('click', function() {
             openModal(this.dataset.reviewDetail, this.dataset.goodsName);
         });

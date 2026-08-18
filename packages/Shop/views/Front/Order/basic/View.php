@@ -283,10 +283,11 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                 <?php elseif ($meta['canConfirm']): ?>
                                     <button type="button" class="shop-order-view__review-btn shop-order-view__confirm-btn"
                                             data-confirm-order title="구매확정하면 후기를 작성할 수 있습니다">구매확정</button>
-                                <?php elseif ($meta['pending']): ?>
-                                    <button type="button" class="shop-order-view__review-btn shop-order-view__review-btn--disabled"
-                                            disabled title="배송 시작 후 구매확정하실 수 있습니다">후기 작성</button>
                                 <?php endif; ?>
+                                <?php // 아직 쓸 수 없는 후기의 자리를 비활성 버튼으로 잡아두지 않는다.
+                                      // 교환·반품이 같은 줄에 들어오면서, 지금 할 수 있는 일과
+                                      // 나중에 할 수 있는 일이 뒤섞여 읽히기 때문이다.
+                                      // ($meta['pending'] 은 스킨이 쓸 수 있도록 그대로 전달된다) ?>
                                 <div style="margin-top:4px">
                                 <?php if ($activeClaim): ?>
                                     <span style="display:inline-block;padding:5px 8px;border-radius:999px;background:#fff3cd;color:#856404;font-size:.78rem"><?= e($latestClaimStatus?->label() ?? '교환중') ?></span>
