@@ -301,8 +301,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                             data-detail-id="<?= $did ?>" data-max-quantity="<?= $remaining ?>"
                                             data-goods-name="<?= e($item['goods_name'] ?? '') ?>"
                                             data-options="<?= htmlspecialchars(json_encode($exchangeOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>">반품·교환</button>
-                                <?php elseif ($latestClaimStatus && !$activeClaim): ?>
-                                    <small style="display:block;color:#888;margin-top:4px">최근: <?= e($latestClaimStatus->label((string) ($latestClaim['return_type'] ?? 'EXCHANGE'))) ?></small>
+
                                 <?php endif; ?>
                                 </div>
                             </div>
@@ -310,21 +309,24 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                             // 클레임은 수량 단위라 한 상품에 여러 건이 생길 수 있다(3개 주문 →
                             // 2개 교환 + 1개 반품). 좁은 액션 칸에 쌓으면 읽을 수 없으므로
                             // 상품 행 아래 전폭 줄로 내린다.
-                            $activeRows = [];
+                            // 끝난 건도 남긴다. 신청부터 처리까지 보이다가 끝나는 순간
+                            // 사라지면, 고객은 자기 교환·반품이 어떻게 됐는지 확인할 곳을 잃는다.
+                            $claimRows = [];
                             foreach ($itemClaims as $claimRow) {
                                 $rowStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claimRow['return_status'] ?? ''));
-                                if ($rowStatus?->isActive()) {
-                                    $activeRows[] = [$claimRow, $rowStatus];
+                                if ($rowStatus !== null) {
+                                    $claimRows[] = [$claimRow, $rowStatus];
                                 }
                             }
                             ?>
-                            <?php if ($activeRows !== []): ?>
+                            <?php if ($claimRows !== []): ?>
                             <div class="shop-order-view__item-claims">
-                                <?php foreach ($activeRows as [$claimRow, $rowStatus]):
+                                <?php foreach ($claimRows as [$claimRow, $rowStatus]):
                                     $rowType = (string) ($claimRow['return_type'] ?? 'EXCHANGE');
                                     $isReturn = $rowType === 'RETURN';
+                                    $isDone = !$rowStatus->isActive();
                                 ?>
-                                <div class="shop-order-view__claim-row">
+                                <div class="shop-order-view__claim-row<?= $isDone ? ' shop-order-view__claim-row--done' : '' ?>">
                                     <span class="shop-order-view__claim-tag<?= $isReturn ? ' shop-order-view__claim-tag--return' : '' ?>"><?= $isReturn ? '반품' : '교환' ?></span>
                                     <span><?= max(1, (int) ($claimRow['quantity'] ?? 1)) ?>개</span>
                                     <span><?= e(\Mublo\Packages\Shop\Enum\ClaimReason::labelFor($claimRow['reason_type'] ?? '')) ?></span>

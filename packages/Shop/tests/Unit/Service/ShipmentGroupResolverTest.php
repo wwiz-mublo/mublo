@@ -130,6 +130,40 @@ class ShipmentGroupResolverTest extends TestCase
         $this->assertSame('1', $groups[1]['key']);
     }
 
+    public function testGroupsSplitByPerItemShippingAreMarked(): void
+    {
+        // 개별 배송 상품은 그룹 키에 상품 id가 붙는다. 같은 템플릿을 쓰는 일반 상품과
+        // 나란히 있어도(묶음 1·3이 같은 템플릿) 개별 배송인 쪽만 표시되어야 한다.
+        $order = [
+            'shipping_breakdown' => [
+                ['group_key' => 'tpl_1_g10', 'template_id' => 1, 'template_name' => '조건부 무료', 'base_fee' => 3000, 'goods_ids' => [10]],
+                ['group_key' => 'tpl_2', 'template_id' => 2, 'template_name' => '무료배송', 'base_fee' => 0, 'goods_ids' => [20]],
+                ['group_key' => 'tpl_1', 'template_id' => 1, 'template_name' => '조건부 무료', 'base_fee' => 3000, 'goods_ids' => [30]],
+            ],
+        ];
+
+        $groups = $this->resolver->resolve($order, $this->threeItems());
+
+        $this->assertTrue($groups[0]['separate'], '그룹 키에 상품 id가 붙은 쪽만 개별 배송입니다.');
+        $this->assertFalse($groups[1]['separate']);
+        $this->assertFalse($groups[2]['separate'], '같은 템플릿이어도 일반 상품이면 개별 배송이 아닙니다.');
+    }
+
+    public function testLegacyOrderWithoutGroupKeyIsNotMarkedSeparate(): void
+    {
+        // 키가 없으면 알 수 없다 — 잘못 붙이느니 표시하지 않는다
+        $order = [
+            'shipping_breakdown' => [
+                ['template_name' => '조건부 무료', 'base_fee' => 3000, 'goods_ids' => [10]],
+                ['template_name' => '무료배송', 'base_fee' => 0, 'goods_ids' => [20, 30]],
+            ],
+        ];
+
+        foreach ($this->resolver->resolve($order, $this->threeItems()) as $group) {
+            $this->assertFalse($group['separate']);
+        }
+    }
+
     public function testDetailIdsPrefersExplicitItemOverGroup(): void
     {
         $shipment = ['order_detail_id' => 3, 'shipping_group_key' => 'tpl_1'];

@@ -134,7 +134,7 @@ $deliveredRole = static function (string $role) use ($shipments): bool {
                                     <input name="invoice_no" class="form-control form-control-sm" value="<?= htmlspecialchars($shipment['invoice_no'] ?? '') ?>" placeholder="송장번호" required>
                                 </div>
                                 <div class="col-md-4">
-                                    <input name="admin_memo" class="form-control form-control-sm" value="<?= htmlspecialchars($shipment['admin_memo'] ?? '') ?>" placeholder="메모 (선택)">
+                                    <input name="admin_memo" class="form-control form-control-sm" value="<?= htmlspecialchars($shipment['admin_memo'] ?? '') ?>" placeholder="메모 (기타 선택 시 택배사명)">
                                 </div>
                                 <div class="col-md-2">
                                     <button class="btn btn-sm btn-primary w-100">저장</button>
@@ -255,7 +255,11 @@ $deliveredRole = static function (string $role) use ($shipments): bool {
    if(b.dataset.action==='inspect_reject'&&result==='SALEABLE'){
      MubloRequest.showAlert('검수 거절 시에는 정상 재판매를 선택할 수 없습니다. 회수품은 고객에게 반송됩니다.','error');return;
    }
-   const r=prompt('검수 메모 (선택)')??'';send({action:b.dataset.action,inspection_result:result,reason:r});
+   // prompt 취소는 null 이다. ?? '' 로 덮으면 취소와 '메모 없이 확인'이 구별되지 않아
+   // 되돌릴 수 없는 검수가 그대로 실행된다.
+   const r=prompt('검수 메모 (선택)');
+   if(r===null){ return; }
+   send({action:b.dataset.action,inspection_result:result,reason:r});
  }));
  document.querySelectorAll('.js-ship-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();send({action:f.dataset.action,company_id:f.querySelector('[name=company_id]').value,invoice_no:f.querySelector('[name=invoice_no]').value,admin_memo:f.querySelector('[name=admin_memo]').value});}));
  document.getElementById('refundMethod')?.addEventListener('change',function(){

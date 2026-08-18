@@ -342,6 +342,10 @@ foreach ($orderReturns as $ret) {
                                     <div class="d-flex flex-wrap align-items-center gap-2">
                                         <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">묶음 <?= $itemGroup['no'] ?></span>
                                         <span class="small text-muted"><?= htmlspecialchars($itemGroup['group']['label']) ?></span>
+                                        <?php if (!empty($itemGroup['group']['separate'])): ?>
+                                            <?php // 같은 배송 정책인데 나뉜 이유를 밝힌다 ?>
+                                            <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle" title="개별 배송 상품이라 따로 나갑니다">개별배송</span>
+                                        <?php endif; ?>
                                         <span class="ms-auto small d-flex flex-wrap align-items-center gap-2">
                                             <?php if ($gShipments !== []): ?>
                                                 <?php foreach ($gShipments as $gsh): ?>
@@ -356,13 +360,13 @@ foreach ($orderReturns as $ret) {
                                                     </span>
                                                 <?php endforeach; ?>
                                             <?php elseif ($wholeOrderShipments !== []): ?>
-                                                <span class="text-muted">주문 전체 송장으로 발송</span>
+                                                <span class="text-muted">주문 전체 운송장으로 발송</span>
                                             <?php else: ?>
-                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">송장 미등록</span>
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">운송장 미등록</span>
                                                 <?php if ($deliveryEditable && $gKey !== null): ?>
                                                     <button type="button" class="btn btn-sm btn-outline-primary py-0 js-group-shipment"
                                                             data-group-key="<?= htmlspecialchars((string) $gKey) ?>">
-                                                        <i class="bi bi-plus-lg"></i> 송장 등록
+                                                        <i class="bi bi-plus-lg"></i> 운송장 등록
                                                     </button>
                                                 <?php endif; ?>
                                             <?php endif; ?>
@@ -496,7 +500,7 @@ foreach ($orderReturns as $ret) {
                 <?php endif; ?>
             </div>
             <div class="card-body">
-                <!-- 등록된 송장 목록 -->
+                <!-- 등록된 운송장 목록 -->
                 <?php if (empty($shipments)): ?>
                     <p class="text-muted mb-0 text-center"><small>등록된 운송장이 없습니다.</small></p>
                 <?php else: ?>
@@ -574,13 +578,13 @@ foreach ($orderReturns as $ret) {
                             <?php foreach ($shippingGroups as $gi => $group): ?>
                                 <?php if ($group['key'] === null) { continue; } ?>
                                 <option value="<?= htmlspecialchars((string) $group['key']) ?>">
-                                    묶음 <?= $gi + 1 ?> · <?= htmlspecialchars($group['label']) ?>
+                                    묶음 <?= $gi + 1 ?> · <?= htmlspecialchars($group['label']) ?><?= !empty($group['separate']) ? ' (개별배송)' : '' ?>
                                     · <?= htmlspecialchars(implode(', ', $group['item_names'])) ?>
-                                    <?= isset($shippedGroupKeys[(string) $group['key']]) ? ' (송장 등록됨)' : '' ?>
+                                    <?= isset($shippedGroupKeys[(string) $group['key']]) ? ' (운송장 등록됨)' : '' ?>
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                        <div class="form-text">배송비를 따로 받은 묶음은 따로 나갑니다. 묶음별로 송장을 등록하면 그 상품만 배송 상태가 움직입니다.</div>
+                        <div class="form-text">배송비를 따로 받은 묶음은 따로 나갑니다. 묶음별로 운송장을 등록하면 그 상품만 배송 상태가 움직입니다.</div>
                     </div>
                 <?php endif; ?>
                 <div class="row g-2">

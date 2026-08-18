@@ -35,7 +35,7 @@ final class ShipmentGroupResolver
      *
      * @param array $order 주문 레코드 (shipping_breakdown 포함)
      * @param array $items 주문상품 목록
-     * @return array<int, array{key:?string, label:string, fee:int, detail_ids:int[], item_names:string[]}>
+     * @return array<int, array{key:?string, label:string, fee:int, separate:bool, detail_ids:int[], item_names:string[]}>
      */
     public function resolve(array $order, array $items): array
     {
@@ -75,6 +75,10 @@ final class ShipmentGroupResolver
                 'key' => (string) ($entry['group_key'] ?? $index),
                 'label' => $this->label($entry),
                 'fee' => (int) ($entry['base_fee'] ?? 0) + (int) ($entry['extra_fee'] ?? 0),
+                // 개별 배송 상품은 그룹 키에 상품 id가 붙는다(ShippingFeeCalculator::groupKey).
+                // 같은 템플릿을 쓰는 일반 상품과 나란히 있어도 이걸로만 정확히 갈린다.
+                // 키가 없는 옛 주문은 알 수 없으므로 표시하지 않는다 — 잘못 붙이는 것보다 낫다.
+                'separate' => (bool) preg_match('/_g\d+$/', (string) ($entry['group_key'] ?? '')),
                 'detail_ids' => $detailIds,
                 'item_names' => array_values(array_filter(array_map(
                     static fn(int $detailId): string => $nameByDetailId[$detailId] ?? '',
@@ -142,7 +146,7 @@ final class ShipmentGroupResolver
     /**
      * @param int[] $detailIds
      * @param array<int, string> $nameByDetailId
-     * @return array{key:null, label:string, fee:int, detail_ids:int[], item_names:string[]}
+     * @return array{key:null, label:string, fee:int, separate:bool, detail_ids:int[], item_names:string[]}
      */
     private function wholeOrderGroup(array $detailIds, array $nameByDetailId): array
     {
@@ -150,6 +154,7 @@ final class ShipmentGroupResolver
             'key' => null,
             'label' => '주문 전체',
             'fee' => 0,
+            'separate' => false,
             'detail_ids' => $detailIds,
             'item_names' => array_values(array_filter(array_map(
                 static fn(int $detailId): string => $nameByDetailId[$detailId] ?? '',

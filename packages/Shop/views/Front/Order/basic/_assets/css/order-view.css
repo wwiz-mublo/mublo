@@ -74,6 +74,9 @@ a.shop-order-view__item-name:hover { text-decoration: underline; }
     font-size: 0.78rem; color: var(--muted-foreground);
 }
 .shop-order-view__claim-row > span { flex: 0 0 auto; white-space: nowrap; }
+/* 끝난 건은 톤을 낮춰 진행 중인 건과 구분한다 (이력은 남기되 눈에 먼저 들어오지 않게) */
+.shop-order-view__claim-row--done { opacity: 0.65; }
+.shop-order-view__claim-row--done .shop-order-view__claim-tag { background: var(--muted); color: var(--muted-foreground); }
 .shop-order-view__claim-tag {
     padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
     background: var(--warning-subtle); color: var(--warning);

@@ -37,7 +37,9 @@ class ShipmentRepository
             "SELECT company_id, company_name, delivery_method, tracking_url
              FROM shop_delivery_companies
              WHERE is_active = 1
-             ORDER BY delivery_method ASC, company_name ASC"
+             -- 추적이 되는 택배사를 먼저, '기타'처럼 추적 URL 없는 항목을 뒤로.
+             -- 이름 순으로만 두면 '기타'가 목록 중간에 끼어 고르기 어렵다.
+             ORDER BY delivery_method ASC, (tracking_url IS NULL) ASC, company_name ASC"
         );
     }
 
