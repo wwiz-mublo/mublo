@@ -300,9 +300,17 @@ class OrderController
         $reviewMeta = $this->buildReviewMeta($domainId, $items, $currentStatus);
 
         $claimsByDetail = [];
+        $claimedQuantityByDetail = [];
         foreach ($this->claimService?->getByOrderNo($domainId, $orderNo) ?? [] as $claim) {
             $detailId = (int) ($claim['order_detail_id'] ?? 0);
             $claimsByDetail[$detailId][] = $claim;
+            // 3개 중 1개만 교환·반품한 주문이라면 나머지 2개는 아직 신청할 수 있다.
+            // 서버가 접수 때 세는 것과 같은 규칙으로 남은 수량을 미리 계산해 둔다.
+            $claimedStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
+            if ($claimedStatus?->consumesQuantity()) {
+                $claimedQuantityByDetail[$detailId] = ($claimedQuantityByDetail[$detailId] ?? 0)
+                    + max(1, (int) ($claim['quantity'] ?? 1));
+            }
             $claimStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
             if ($claimStatus?->isActive() && isset($reviewMeta[$detailId])) {
                 $reviewMeta[$detailId]['confirmed'] = false;
@@ -314,12 +322,15 @@ class OrderController
         // 서버가 접수하는 규칙이 갈리면 눌리는데 거절당하는 버튼이 생긴다.
         // 교환 옵션이 없어도 반품은 신청할 수 있으므로 둘을 따로 넘긴다.
         $claimableByDetail = [];
+        $claimableQuantityByDetail = [];
         $exchangeOptionsByDetail = [];
         if ($this->claimService !== null) {
             foreach ($items as $item) {
                 $detailId = (int) ($item['order_detail_id'] ?? 0);
-                $claimable = $this->claimService->isClaimable($domainId, $item, $currentStatus);
+                $remaining = max(0, (int) ($item['quantity'] ?? 0) - ($claimedQuantityByDetail[$detailId] ?? 0));
+                $claimable = $remaining > 0 && $this->claimService->isClaimable($domainId, $item, $currentStatus);
                 $claimableByDetail[$detailId] = $claimable;
+                $claimableQuantityByDetail[$detailId] = $remaining;
                 $exchangeOptionsByDetail[$detailId] = $claimable
                     ? $this->claimService->getExchangeOptions($domainId, $detailId)
                     : [];
@@ -353,6 +364,7 @@ class OrderController
                 'reviewMeta'        => $reviewMeta,
                 'claimsByDetail' => $claimsByDetail,
                 'claimableByDetail' => $claimableByDetail,
+                'claimableQuantityByDetail' => $claimableQuantityByDetail,
                 'exchangeOptionsByDetail' => $exchangeOptionsByDetail,
                 'isGuest'           => $isGuest,
                 'listPage'          => $listPage,

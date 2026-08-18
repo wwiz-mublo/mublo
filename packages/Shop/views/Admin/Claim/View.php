@@ -47,7 +47,12 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
 
             <div class="card mb-3"><div class="card-header fw-semibold">사유·비용·회수지</div><div class="card-body">
                 <dl class="row mb-0">
-                    <dt class="col-sm-3">사유</dt><dd class="col-sm-9"><?= htmlspecialchars(($claim['reason_type'] ?? '') . ' ' . ($claim['reason_detail'] ?? '')) ?></dd>
+                    <dt class="col-sm-3">사유</dt><dd class="col-sm-9">
+                        <strong><?= htmlspecialchars(\Mublo\Packages\Shop\Enum\ClaimReason::labelFor($claim['reason_type'] ?? '')) ?></strong>
+                        <?php if (trim((string) ($claim['reason_detail'] ?? '')) !== ''): ?>
+                            <div class="text-muted small"><?= nl2br(htmlspecialchars((string) $claim['reason_detail'])) ?></div>
+                        <?php endif; ?>
+                    </dd>
                     <dt class="col-sm-3">귀책</dt><dd class="col-sm-9"><?= htmlspecialchars($claim['responsibility'] ?? '') ?></dd>
                     <?php if ($isExchange): ?>
                     <dt class="col-sm-3">교환 배송비</dt><dd class="col-sm-9"><?= number_format((int) ($claim['exchange_shipping_fee'] ?? 0)) ?>원 · <?= htmlspecialchars($claim['fee_status'] ?? '') ?></dd>

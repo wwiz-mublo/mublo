@@ -188,20 +188,6 @@ class ClaimRepository
         return (int) ($row['claimed_quantity'] ?? 0);
     }
 
-    /** 같은 상품에 다른 유형의 클레임이 살아 있는지 (교환과 반품을 동시에 진행할 수는 없다). */
-    public function hasBlockingClaimOfOtherType(int $domainId, int $detailId, string $returnType): bool
-    {
-        $row = $this->db->selectOne(
-            "SELECT return_id
-             FROM shop_returns
-             WHERE domain_id = ? AND order_detail_id = ? AND return_type <> ?
-               AND return_status NOT IN ('REFUSED', 'CANCELLED', 'CLOSED')
-             LIMIT 1",
-            [$domainId, $detailId, $returnType]
-        );
-        return $row !== null && $row !== false;
-    }
-
     public function hasCompletedClaim(int $domainId, int $detailId, string $returnType): bool
     {
         $row = $this->db->selectOne(
@@ -212,6 +198,18 @@ class ClaimRepository
             [$domainId, $detailId, $returnType]
         );
         return $row !== null && $row !== false;
+    }
+
+    /** 완료된 클레임 수량 합계 (전량 반품인지 판정할 때 쓴다). */
+    public function getCompletedQuantity(int $domainId, int $detailId, string $returnType): int
+    {
+        $row = $this->db->selectOne(
+            "SELECT COALESCE(SUM(quantity), 0) AS completed_quantity
+             FROM shop_returns
+             WHERE domain_id = ? AND order_detail_id = ? AND return_type = ? AND return_status = 'COMPLETED'",
+            [$domainId, $detailId, $returnType]
+        );
+        return (int) ($row['completed_quantity'] ?? 0);
     }
 
     public function list(int $domainId, array $filters, int $page = 1, int $perPage = 20): array

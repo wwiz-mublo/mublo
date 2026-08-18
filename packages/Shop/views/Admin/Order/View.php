@@ -98,11 +98,11 @@ $memoTypeLabels = $memoTypeLabels ?? [];
 $listQuery = $listQuery ?? '';
 $orderNo = $order['order_no'] ?? '';
 
-// 반품 정보를 detail_id 기준으로 그룹핑
+// 클레임은 수량 단위라 한 품목에 여러 건이 붙는다(2개 교환 + 1개 반품).
+// 덮어쓰면 마지막 한 건만 남아 유형과 수량이 어긋나 보인다.
 $returnsByDetail = [];
 foreach ($orderReturns as $ret) {
-    $did = $ret['order_detail_id'] ?? 0;
-    $returnsByDetail[$did] = $ret;
+    $returnsByDetail[(int) ($ret['order_detail_id'] ?? 0)][] = $ret;
 }
 ?>
 
@@ -404,25 +404,32 @@ foreach ($orderReturns as $ret) {
                                 <?= $statusBadge($itemStatus, $itemStatusLabel) ?>
                             </td>
                             <td class="text-center text-nowrap">
-                                <?php if ($hasReturn): ?>
+                                <?php $itemClaimRows = $returnsByDetail[$detailId] ?? []; ?>
+                                <?php if ($itemClaimRows === []): ?>
+                                    <span class="text-muted">-</span>
+                                <?php else: ?>
+                                    <?php foreach ($itemClaimRows as $claimRow): ?>
                                     <?php
-                                        $rtLabel = $returnType === 'RETURN' ? '반품' : ($returnType === 'EXCHANGE' ? '교환' : $returnType);
-                                        $rsLabel = match($returnStatus) {
-                                            'REQUESTED' => '요청',
-                                            'COMPLETED' => '완료',
-                                            'REFUSED' => '거절',
-                                            default => $returnStatus,
-                                        };
-                                        $rsBg = match($returnStatus) {
-                                            'REQUESTED' => 'warning',
-                                            'COMPLETED' => 'success',
-                                            'REFUSED' => 'danger',
-                                            default => 'secondary',
+                                        $rowType = (string) ($claimRow['return_type'] ?? '');
+                                        $rowStatusId = (string) ($claimRow['return_status'] ?? '');
+                                        $rowStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($rowStatusId);
+                                        $rtLabel = $rowType === 'RETURN' ? '반품' : ($rowType === 'EXCHANGE' ? '교환' : ($rowType ?: '취소'));
+                                        $rsBg = match (true) {
+                                            $rowStatusId === 'COMPLETED' => 'success',
+                                            in_array($rowStatusId, ['REFUSED', 'CANCELLED', 'REJECTED'], true) => 'danger',
+                                            default => 'warning',
                                         };
                                     ?>
-                                    <span class="badge bg-<?= $rsBg ?>"><?= $rtLabel ?>/<?= $rsLabel ?></span>
-                                <?php else: ?>
-                                    <span class="text-muted">-</span>
+                                    <div class="mb-1">
+                                        <?php if (in_array($rowType, ['RETURN', 'EXCHANGE'], true)): ?>
+                                            <a href="/admin/shop/claims/<?= (int) ($claimRow['return_id'] ?? 0) ?>" class="badge bg-<?= $rsBg ?>-subtle text-<?= $rsBg ?>-emphasis border border-<?= $rsBg ?>-subtle text-decoration-none">
+                                                <?= $rtLabel ?> <?= max(1, (int) ($claimRow['quantity'] ?? 1)) ?>개 · <?= htmlspecialchars($rowStatus?->label($rowType) ?? $rowStatusId) ?>
+                                            </a>
+                                        <?php else: ?>
+                                            <span class="badge bg-<?= $rsBg ?>-subtle text-<?= $rsBg ?>-emphasis border border-<?= $rsBg ?>-subtle"><?= $rtLabel ?></span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php endforeach; ?>
                                 <?php endif; ?>
                             </td>
                             <td class="text-nowrap">
@@ -656,30 +663,25 @@ foreach ($orderReturns as $ret) {
                         <?php foreach ($orderReturns as $ret): ?>
                         <?php
                             $rtLabel = ($ret['return_type'] ?? '') === 'RETURN' ? '반품' : (($ret['return_type'] ?? '') === 'EXCHANGE' ? '교환' : ($ret['return_type'] ?? '취소'));
-                            $rsLabel = match($ret['return_status'] ?? '') {
-                                'REQUESTED' => '요청',
-                                'COMPLETED' => '완료',
-                                'REFUSED' => '거절',
-                                default => $ret['return_status'] ?? '-',
-                            };
-                            $rsBg = match($ret['return_status'] ?? '') {
-                                'REQUESTED' => 'warning',
-                                'COMPLETED' => 'success',
-                                'REFUSED' => 'danger',
-                                default => 'secondary',
+                            $retStatusId = (string) ($ret['return_status'] ?? '');
+                            $rsLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($retStatusId)?->label((string) ($ret['return_type'] ?? '')) ?? ($retStatusId ?: '-');
+                            $rsBg = match (true) {
+                                $retStatusId === 'COMPLETED' => 'success',
+                                in_array($retStatusId, ['REFUSED', 'CANCELLED', 'REJECTED'], true) => 'danger',
+                                default => 'warning',
                             };
                         ?>
                         <tr>
                             <td>
-                                <?php if (($ret['return_type'] ?? '') === 'EXCHANGE'): ?>
-                                    <a href="/admin/shop/claims/<?= (int) ($ret['return_id'] ?? 0) ?>"><?= $rtLabel ?> 상세</a>
+                                <?php if (in_array($ret['return_type'] ?? '', ['EXCHANGE', 'RETURN'], true)): ?>
+                                    <a href="/admin/shop/claims/<?= (int) ($ret['return_id'] ?? 0) ?>"><?= $rtLabel ?> <?= max(1, (int) ($ret['quantity'] ?? 1)) ?>개</a>
                                 <?php else: ?>
                                     <?= $rtLabel ?>
                                 <?php endif; ?>
                             </td>
-                            <td><span class="badge bg-<?= $rsBg ?>"><?= $rsLabel ?></span></td>
+                            <td><span class="badge bg-<?= $rsBg ?>-subtle text-<?= $rsBg ?>-emphasis border border-<?= $rsBg ?>-subtle"><?= $rsLabel ?></span></td>
                             <td>
-                                <?= htmlspecialchars($ret['reason_type'] ?? '') ?>
+                                <?= htmlspecialchars(\Mublo\Packages\Shop\Enum\ClaimReason::labelFor($ret['reason_type'] ?? '')) ?>
                                 <?php if (!empty($ret['reason_detail'])): ?>
                                     <br><small class="text-muted"><?= htmlspecialchars($ret['reason_detail']) ?></small>
                                 <?php endif; ?>
@@ -756,8 +758,8 @@ foreach ($orderReturns as $ret) {
                                 && ($tx['transaction_status'] ?? '') === 'SUCCESS';
                         ?>
                         <tr>
-                            <td><span class="badge bg-<?= $txTypeBg ?>"><?= $txTypeLabel ?></span></td>
-                            <td><span class="badge bg-<?= $txStatusBg ?>"><?= $txStatusLabel ?></span></td>
+                            <td><span class="badge bg-<?= $txTypeBg ?>-subtle text-<?= $txTypeBg ?>-emphasis border border-<?= $txTypeBg ?>-subtle"><?= $txTypeLabel ?></span></td>
+                            <td><span class="badge bg-<?= $txStatusBg ?>-subtle text-<?= $txStatusBg ?>-emphasis border border-<?= $txStatusBg ?>-subtle"><?= $txStatusLabel ?></span></td>
                             <td><?= htmlspecialchars($tx['pg_provider'] ?? '-') ?></td>
                             <td class="text-end"><?= $txType === 'PAYMENT' ? '' : '-' ?><?= number_format($txAmount) ?>원</td>
                             <td><small><?= $tx['created_at'] ?? '' ?></small></td>
@@ -1008,12 +1010,9 @@ foreach ($orderReturns as $ret) {
                     <label class="form-label">사유 유형</label>
                     <select id="returnReasonType" class="form-select">
                         <option value="">선택</option>
-                        <option value="CHANGE_MIND">단순변심</option>
-                        <option value="DEFECT">상품불량</option>
-                        <option value="WRONG_PRODUCT">오배송</option>
-                        <option value="WRONG_OPTION">옵션 오배송</option>
-                        <option value="LATE_DELIVERY">배송지연</option>
-                        <option value="OTHER">기타</option>
+                        <?php foreach (\Mublo\Packages\Shop\Enum\ClaimReason::options() as $reasonValue => $reasonLabel): ?>
+                        <option value="<?= htmlspecialchars($reasonValue) ?>"><?= htmlspecialchars($reasonLabel) ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="mb-3">

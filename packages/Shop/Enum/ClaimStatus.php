@@ -73,6 +73,18 @@ enum ClaimStatus: string
         return !in_array($this, [self::COMPLETED, self::REFUSED, self::CANCELLED, self::CLOSED], true);
     }
 
+    /**
+     * 이 클레임이 주문 수량을 잡아먹고 있는지.
+     *
+     * 거절·취소·종결된 건은 그 수량을 다시 신청할 수 있어야 하고, 완료된 건은
+     * 이미 처리됐으므로 다시 신청할 수 없다.
+     * (ClaimRepository::getActiveQuantityForUpdate 의 SQL 조건과 같은 규칙)
+     */
+    public function consumesQuantity(): bool
+    {
+        return !in_array($this, [self::REFUSED, self::CANCELLED, self::CLOSED], true);
+    }
+
     /** 이 상태가 해당 클레임 유형의 길에 있는지 (교환은 재출고로, 반품은 환불로 끝난다). */
     public function appliesTo(string $returnType): bool
     {

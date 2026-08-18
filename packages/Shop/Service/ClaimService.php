@@ -5,6 +5,7 @@ namespace Mublo\Packages\Shop\Service;
 
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Result\Result;
+use Mublo\Packages\Shop\Enum\ClaimReason;
 use Mublo\Packages\Shop\Enum\ClaimResponsibility;
 use Mublo\Packages\Shop\Enum\ClaimStatus;
 use Mublo\Packages\Shop\Enum\OrderAction;
@@ -16,9 +17,6 @@ use Mublo\Contract\Security\SensitiveValueCodecInterface;
 
 final class ClaimService
 {
-    private const REASON_TYPES = [
-        'CHANGE_MIND', 'DEFECT', 'WRONG_PRODUCT', 'WRONG_OPTION', 'LATE_DELIVERY', 'OTHER',
-    ];
 
     /** 이 서비스가 다루는 클레임 유형 (취소는 결제 취소 흐름이 따로 담당한다). */
     public const CLAIM_TYPES = ['EXCHANGE', 'RETURN'];
@@ -52,6 +50,7 @@ final class ClaimService
         private ShipmentService $shipments,
         private SensitiveValueCodecInterface $encryption,
         private ?EventDispatcher $events = null,
+        private ?OrderService $orderFlow = null,
     ) {}
 
     public function list(int $domainId, array $filters = [], int $page = 1, int $perPage = 20): array
@@ -198,14 +197,15 @@ final class ClaimService
             return Result::failure('유효하지 않은 클레임 유형입니다.');
         }
         $typeLabel = self::typeLabel($returnType);
-        $reasonType = strtoupper(trim((string) ($data['reason_type'] ?? 'OTHER')));
-        if (!in_array($reasonType, self::REASON_TYPES, true)) {
+        $reason = ClaimReason::tryFrom(strtoupper(trim((string) ($data['reason_type'] ?? 'OTHER'))));
+        if ($reason === null) {
             return Result::failure("유효하지 않은 {$typeLabel} 사유입니다.");
         }
+        $reasonType = $reason->value;
         $responsibilityValue = strtoupper((string) ($data['responsibility'] ?? 'MANUAL'));
         if ($changedBy === 'CUSTOMER') {
             // 고객 요청 값은 비용 회피에 악용될 수 있으므로 서버 정책으로 귀책을 확정한다.
-            $responsibilityValue = in_array($reasonType, ['DEFECT', 'WRONG_PRODUCT', 'LATE_DELIVERY'], true)
+            $responsibilityValue = $reason->isSellerFault()
                 ? ClaimResponsibility::SELLER->value
                 : ClaimResponsibility::CUSTOMER->value;
         }
@@ -239,9 +239,10 @@ final class ClaimService
                 if (!$claimable) {
                     throw new \DomainException("배송 완료된 상품만 {$typeLabel}을(를) 신청할 수 있습니다.");
                 }
-                if ($this->claims->hasBlockingClaimOfOtherType($domainId, $detailId, $returnType)) {
-                    throw new \DomainException('같은 상품에 다른 클레임이 진행 중입니다. 그 건이 끝난 뒤 신청해주세요.');
-                }
+                // 교환과 반품을 한 줄에 섞을 수 있다 — 3개 중 2개는 불량이라 교환하고
+                // 1개는 필요 없어져 반품하는 일은 실제로 일어난다. 서로 다른 개체이므로
+                // 충돌하지 않으며, 겹침은 아래 수량 회계가 막는다(취소는 늘 전량이라
+                // 그 수량이 통째로 잡히고 품목 상태도 취소로 바뀐다).
                 $claimedQuantity = $this->claims->getActiveQuantityForUpdate($domainId, $detailId);
                 if ($claimedQuantity + $quantity > (int) ($item['quantity'] ?? 0)) {
                     throw new \DomainException("{$typeLabel} 가능한 수량을 초과했습니다.");
@@ -668,9 +669,42 @@ final class ClaimService
             || $this->claims->hasCompletedClaim($domainId, $detailId, $returnType)
         ) {
             $this->orders->updateItemReturn($detailId, $returnType, ClaimStatus::COMPLETED->value);
+            $this->markFullyReturnedItem($domainId, $detailId, $returnType);
             return;
         }
         $this->orders->updateItemReturn($detailId, 'NONE', 'NONE');
+    }
+
+    /**
+     * 주문한 수량 전부가 반품 완료됐으면 주문상품도 반품완료로 옮긴다.
+     *
+     * 클레임은 수량 단위라 부분 반품에서는 줄 전체를 반품완료로 만들 수 없다. 하지만
+     * 전량이 돌아왔는데도 품목이 배송완료로 남으면, 돌려보낸 상품을 고객이 구매확정할
+     * 수 있고 주문 상태 종합도 그 품목을 살아 있는 것으로 센다.
+     * (부분 반품은 남은 수량이 있으므로 배송완료 그대로 둔다)
+     */
+    private function markFullyReturnedItem(int $domainId, int $detailId, string $returnType): void
+    {
+        if ($returnType !== 'RETURN' || $this->orderFlow === null) {
+            return;
+        }
+        $item = $this->orders->getItemInDomain($domainId, $detailId);
+        $orderedQuantity = (int) ($item['quantity'] ?? 0);
+        if ($orderedQuantity <= 0) {
+            return;
+        }
+        if ($this->claims->getCompletedQuantity($domainId, $detailId, 'RETURN') < $orderedQuantity) {
+            return;
+        }
+        // 상태 전이는 OrderService 를 거친다 — 이력·이벤트·주문 상태 종합이 함께 돌아야 한다
+        $this->orderFlow->advanceItemsToAction(
+            (string) ($item['order_no'] ?? ''),
+            $domainId,
+            OrderAction::RETURNED,
+            [$detailId],
+            '반품 완료',
+            'STAFF',
+        );
     }
 
     private function resolveTarget(array $item, array $data): array
@@ -750,7 +784,7 @@ final class ClaimService
         return [
             'name' => $plain['name'] !== '' ? $this->encryption->encrypt($plain['name']) : ($order['recipient_name'] ?? null),
             'phone' => $plain['phone'] !== '' ? $this->encryption->encrypt($plain['phone']) : ($order['recipient_phone'] ?? null),
-            'zipcode' => $plain['zipcode'] !== '' ? $plain['zipcode'] : ($order['shipping_zip'] ?? null),
+            'zipcode' => $plain['zipcode'] !== '' ? $this->encryption->encrypt($plain['zipcode']) : ($order['shipping_zip'] ?? null),
             'address1' => $plain['address1'] !== '' ? $this->encryption->encrypt($plain['address1']) : ($order['shipping_address1'] ?? null),
             'address2' => $plain['address2'] !== '' ? $this->encryption->encrypt($plain['address2']) : ($order['shipping_address2'] ?? null),
         ];
@@ -764,6 +798,17 @@ final class ClaimService
                     $claim[$field] = $this->encryption->decrypt((string) $claim[$field]) ?? '';
                 } catch (\Throwable) {
                     $claim[$field] = '';
+                }
+            }
+        }
+        // 우편번호는 암호화 정합을 맞추기 전에 평문으로 저장된 값이 남아 있을 수 있다.
+        // 복호화에 실패하면 지우지 말고 원본을 그대로 보여준다.
+        foreach (['pickup_zipcode', 'shipping_zip'] as $field) {
+            if (!empty($claim[$field])) {
+                try {
+                    $claim[$field] = $this->encryption->decrypt((string) $claim[$field]) ?: $claim[$field];
+                } catch (\Throwable) {
+                    // 평문 레거시 값 — 그대로 둔다
                 }
             }
         }

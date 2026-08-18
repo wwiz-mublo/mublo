@@ -549,7 +549,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ExchangeStockService::class),
                 $c->get(ShipmentService::class),
                 $c->get(SensitiveValueCodecInterface::class),
-                $c->get(EventDispatcher::class)
+                $c->get(EventDispatcher::class),
+                $c->get(OrderService::class)
             )
         );
 

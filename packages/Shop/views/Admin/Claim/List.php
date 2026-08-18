@@ -83,11 +83,11 @@ $notificationChannels = $notificationChannels ?? [];
             <table class="table table-hover align-middle mb-0">
                 <thead><tr>
                     <th>번호</th><th>유형</th><th>주문번호</th><th>상품</th><th>교환 옵션</th>
-                    <th class="text-center">수량</th><th>상태</th><th>귀책</th><th>신청일</th>
+                    <th class="text-center">수량</th><th>사유</th><th>상태</th><th>귀책</th><th>신청일</th>
                 </tr></thead>
                 <tbody>
                 <?php if ($claims === []): ?>
-                    <tr><td colspan="9" class="text-center text-muted py-5">교환·반품 내역이 없습니다.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-5">교환·반품 내역이 없습니다.</td></tr>
                 <?php endif; ?>
                 <?php foreach ($claims as $claim): ?>
                     <?php
@@ -108,6 +108,7 @@ $notificationChannels = $notificationChannels ?? [];
                         </td>
                         <td><?= $claimType === 'RETURN' ? '<span class="text-muted">-</span>' : htmlspecialchars($claim['target_option_name'] ?? '동일 상품') ?></td>
                         <td class="text-center"><?= (int) ($claim['exchange_quantity'] ?? $claim['quantity'] ?? 0) ?></td>
+                        <td class="small"><?= htmlspecialchars(\Mublo\Packages\Shop\Enum\ClaimReason::labelFor($claim['reason_type'] ?? '')) ?></td>
                         <td><span class="badge bg-<?= $badge ?>-subtle text-<?= $badge ?>-emphasis border border-<?= $badge ?>-subtle"><?= htmlspecialchars(\Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($claimType) ?? $status) ?></span></td>
                         <td><?= $resp ?></td>
                         <td class="text-nowrap"><?= htmlspecialchars($claim['requested_at'] ?? $claim['created_at'] ?? '') ?></td>

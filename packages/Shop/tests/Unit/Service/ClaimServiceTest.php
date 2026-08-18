@@ -33,7 +33,6 @@ final class ClaimServiceTest extends TestCase
             'quantity' => 2, 'status' => 'delivered', 'option_mode' => 'NONE',
             'option_id' => 0, 'option_code' => '', 'option_price' => 0,
         ]);
-        $claims->method('hasBlockingClaimOfOtherType')->willReturn(false);
         $claims->method('getActiveQuantityForUpdate')->willReturn(0);
         $claims->expects($this->once())->method('createClaim')->willReturnCallback(
             static function (array $data) use (&$capturedClaim): int {
@@ -110,7 +109,6 @@ final class ClaimServiceTest extends TestCase
             'order_no' => 'ORD1', 'order_detail_id' => 3, 'goods_id' => 10,
             'quantity' => 2, 'status' => 'delivered', 'option_mode' => 'NONE', 'option_price' => 0,
         ]);
-        $claims->method('hasBlockingClaimOfOtherType')->willReturn(false);
         $claims->method('getActiveQuantityForUpdate')->willReturn(2);
         $claims->expects($this->never())->method('createClaim');
         $resolver->method('getState')->willReturn(['id' => 'delivered', 'action' => 'delivered']);
@@ -197,7 +195,6 @@ final class ClaimServiceTest extends TestCase
             'quantity' => 2, 'status' => 'delivered', 'option_mode' => 'NONE',
             'goods_price' => 10000, 'option_price' => 0, 'option_id' => 0, 'option_code' => '',
         ]);
-        $claims->method('hasBlockingClaimOfOtherType')->willReturn(false);
         $claims->method('getActiveQuantityForUpdate')->willReturn(0);
         $orders->method('findByOrderNoInDomain')->willReturn([
             'order_no' => 'ORD1', 'member_id' => 5, 'order_status' => 'delivered',
@@ -242,7 +239,6 @@ final class ClaimServiceTest extends TestCase
             'quantity' => 2, 'status' => 'delivered', 'option_mode' => 'NONE',
             'goods_price' => 10000, 'option_price' => 500, 'option_id' => 0, 'option_code' => '',
         ]);
-        $claims->method('hasBlockingClaimOfOtherType')->willReturn(false);
         $claims->method('getActiveQuantityForUpdate')->willReturn(0);
         $orders->method('findByOrderNoInDomain')->willReturn([
             'order_no' => 'ORD1', 'member_id' => 5, 'order_status' => 'delivered',
@@ -282,11 +278,130 @@ final class ClaimServiceTest extends TestCase
         $this->assertStringContainsString('클레임 유형', $result->getMessage());
     }
 
+    public function testExchangeAndReturnCanCoexistOnTheSameOrderLine(): void
+    {
+        // 3개 중 2개는 불량이라 교환, 1개는 필요 없어져 반품 — 서로 다른 개체다
+        $claims = $this->createMock(ClaimRepository::class);
+        $orders = $this->createMock(OrderRepository::class);
+        $captured = null;
+
+        $claims->method('transaction')->willReturnCallback(static fn(callable $cb): mixed => $cb());
+        $claims->method('lockOrderDetailInDomain')->willReturn([
+            'order_no' => 'ORD1', 'order_detail_id' => 3, 'goods_id' => 10,
+            'quantity' => 3, 'status' => 'delivered', 'option_mode' => 'NONE',
+            'goods_price' => 10000, 'option_price' => 0, 'option_id' => 0, 'option_code' => '',
+        ]);
+        // 이미 교환 2개가 걸려 있다
+        $claims->method('getActiveQuantityForUpdate')->willReturn(2);
+        $orders->method('findByOrderNoInDomain')->willReturn([
+            'order_no' => 'ORD1', 'member_id' => 5, 'order_status' => 'delivered',
+            'shipping_breakdown' => json_encode([['goods_ids' => [10], 'return_cost' => 2500]]),
+        ]);
+        $claims->method('createClaim')->willReturnCallback(
+            static function (array $data) use (&$captured): int {
+                $captured = $data;
+                return 90;
+            }
+        );
+        $claims->method('addLog')->willReturn(1);
+
+        $service = $this->makeService($claims, $orders, $this->passthroughResolver(), new EventDispatcher());
+        $result = $service->request(
+            1, 'ORD1', 3, ['quantity' => 1, 'reason_type' => 'CHANGE_MIND'], 'CUSTOMER', 5, 'RETURN'
+        );
+
+        $this->assertTrue($result->isSuccess(), '남은 1개는 반품으로 신청할 수 있어야 합니다.');
+        $this->assertSame('RETURN', $captured['return_type']);
+        $this->assertSame(1, $captured['quantity']);
+    }
+
+    public function testClaimIsRejectedOnceTheWholeQuantityIsSpokenFor(): void
+    {
+        // 교환 2개 + 반품 1개로 3개가 다 찼으면 더 신청할 수 없다
+        $claims = $this->createMock(ClaimRepository::class);
+        $orders = $this->createMock(OrderRepository::class);
+
+        $claims->method('transaction')->willReturnCallback(static fn(callable $cb): mixed => $cb());
+        $claims->method('lockOrderDetailInDomain')->willReturn([
+            'order_no' => 'ORD1', 'order_detail_id' => 3, 'goods_id' => 10,
+            'quantity' => 3, 'status' => 'delivered', 'option_mode' => 'NONE',
+            'goods_price' => 10000, 'option_price' => 0, 'option_id' => 0, 'option_code' => '',
+        ]);
+        $claims->method('getActiveQuantityForUpdate')->willReturn(3);
+        $claims->expects($this->never())->method('createClaim');
+
+        $service = $this->makeService($claims, $orders, $this->passthroughResolver(), new EventDispatcher());
+        $result = $service->request(
+            1, 'ORD1', 3, ['quantity' => 1, 'reason_type' => 'CHANGE_MIND'], 'CUSTOMER', 5, 'RETURN'
+        );
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('수량을 초과', $result->getMessage());
+    }
+
+    // =========================================================
+    // 반품 완료 후 주문상품 상태
+    // =========================================================
+
+    /** 반품 완료 전이를 태우고, 주문상품에 어떤 상태 전이가 요청됐는지 돌려준다 */
+    private function runReturnCompletion(int $orderedQuantity, int $completedQuantity): ?array
+    {
+        $claim = [
+            'return_id' => 77, 'domain_id' => 1, 'order_no' => 'ORD1', 'order_detail_id' => 3,
+            'return_type' => 'RETURN', 'return_status' => 'READY_TO_REFUND', 'quantity' => $completedQuantity,
+        ];
+        $claims = $this->createMock(ClaimRepository::class);
+        $orders = $this->createMock(OrderRepository::class);
+        $orderFlow = $this->createMock(\Mublo\Packages\Shop\Service\OrderService::class);
+        $advanced = null;
+
+        $claims->method('transaction')->willReturnCallback(static fn(callable $cb): mixed => $cb());
+        $claims->method('findForUpdate')->willReturn($claim);
+        $claims->method('compareAndSetStatus')->willReturn(true);
+        $claims->method('addLog')->willReturn(1);
+        $claims->method('getActiveByDetailId')->willReturn([]);
+        $claims->method('hasCompletedClaim')->willReturn(true);
+        $claims->method('getCompletedQuantity')->willReturn($completedQuantity);
+        $claims->method('findInDomain')->willReturn($claim);
+        $orders->method('getItemInDomain')->willReturn([
+            'order_no' => 'ORD1', 'order_detail_id' => 3, 'quantity' => $orderedQuantity,
+        ]);
+        $orderFlow->method('advanceItemsToAction')->willReturnCallback(
+            static function (string $orderNo, int $domainId, $action, array $detailIds) use (&$advanced): int {
+                $advanced = ['action' => $action, 'detail_ids' => $detailIds];
+                return 1;
+            }
+        );
+
+        $service = $this->makeService($claims, $orders, $this->passthroughResolver(), new EventDispatcher(), $orderFlow);
+        $this->assertTrue($service->completeRefund(1, 77, 5)->isSuccess());
+
+        return $advanced;
+    }
+
+    public function testFullyReturnedItemMovesToReturned(): void
+    {
+        // 전량이 돌아왔으면 주문상품도 반품완료여야 한다 —
+        // 배송완료로 남으면 돌려보낸 상품을 고객이 구매확정할 수 있다
+        $advanced = $this->runReturnCompletion(orderedQuantity: 2, completedQuantity: 2);
+
+        $this->assertNotNull($advanced);
+        $this->assertSame(OrderAction::RETURNED, $advanced['action']);
+        $this->assertSame([3], $advanced['detail_ids']);
+    }
+
+    public function testPartiallyReturnedItemStaysDelivered(): void
+    {
+        // 3개 중 1개만 돌아왔으면 남은 2개가 살아 있으므로 줄 상태를 바꾸지 않는다
+        $this->assertNull($this->runReturnCompletion(orderedQuantity: 3, completedQuantity: 1));
+    }
+
     private function makeService(
         ClaimRepository $claims,
         OrderRepository $orders,
         OrderStateResolver $resolver,
         EventDispatcher $dispatcher,
+        ?\Mublo\Packages\Shop\Service\OrderService $orderFlow = null,
     ): ClaimService {
         $productOptions = $this->createMock(ProductOptionRepository::class);
         return new ClaimService(
@@ -303,6 +418,7 @@ final class ClaimServiceTest extends TestCase
             $this->createMock(ShipmentService::class),
             $this->createMock(SensitiveValueCodecInterface::class),
             $dispatcher,
+            $orderFlow,
         );
     }
 }
