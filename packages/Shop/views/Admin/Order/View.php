@@ -43,6 +43,49 @@ $deliveryEditable = $deliveryEditable ?? false;
 // 배송비 그룹이 둘 이상인 주문만 그룹 단위 송장 입력을 노출한다 (쪼갤 게 없으면 선택을 시키지 않는다)
 $shippingGroups = $shippingGroups ?? [];
 $shipmentItemNames = $shipmentItemNames ?? [];
+
+// 출고 단위(배송비 묶음)가 곧 관리 단위다. 주문 상품 표를 묶음으로 묶고 그 묶음의
+// 송장 상태와 등록 동선을 상품 바로 옆에 둔다 — 무엇을 어떻게 보내야 하는지는
+// 상품 목록에서 읽혀야지, 카드 다섯 개 아래에서 짜맞출 일이 아니다.
+$shipmentsByGroupKey = [];
+$wholeOrderShipments = [];
+foreach ($shipments as $sh) {
+    if (!empty($sh['claim_id'])) {
+        continue; // 교환 송장은 교환 관리가 소유한다
+    }
+    $shGroupKey = $sh['shipping_group_key'] ?? null;
+    if ($shGroupKey === null || $shGroupKey === '') {
+        $wholeOrderShipments[] = $sh;
+    } else {
+        $shipmentsByGroupKey[(string) $shGroupKey][] = $sh;
+    }
+}
+
+// 묶음이 하나뿐이거나 상품을 온전히 나눌 수 없으면 평면 목록으로 둔다
+$itemsByDetailId = [];
+foreach ($orderItems as $__item) {
+    $itemsByDetailId[(int) ($__item['order_detail_id'] ?? 0)] = $__item;
+}
+$itemGroups = [];
+if ($shippingGroups !== []) {
+    $coveredCount = 0;
+    foreach ($shippingGroups as $gi => $g) {
+        $rows = [];
+        foreach ($g['detail_ids'] as $gDetailId) {
+            if (isset($itemsByDetailId[(int) $gDetailId])) {
+                $rows[] = $itemsByDetailId[(int) $gDetailId];
+                $coveredCount++;
+            }
+        }
+        $itemGroups[] = ['no' => $gi + 1, 'group' => $g, 'items' => $rows];
+    }
+    if ($coveredCount !== count($itemsByDetailId)) {
+        $itemGroups = [];
+    }
+}
+if ($itemGroups === []) {
+    $itemGroups = [['no' => 0, 'group' => null, 'items' => $orderItems]];
+}
 // 배송 상태 라벨
 $shipmentStatusLabels = [
     'READY' => '준비', 'PICKED_UP' => '집화', 'IN_TRANSIT' => '배송중',
@@ -168,7 +211,47 @@ foreach ($orderReturns as $ret) {
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($orderItems as $item): ?>
+                        <?php foreach ($itemGroups as $itemGroup): ?>
+                        <?php if ($itemGroup['group'] !== null): ?>
+                            <?php
+                            $gKey = $itemGroup['group']['key'];
+                            $gShipments = $gKey !== null ? ($shipmentsByGroupKey[(string) $gKey] ?? []) : [];
+                            ?>
+                            <tr class="order-items-table__group">
+                                <td colspan="8" class="bg-body-secondary">
+                                    <div class="d-flex flex-wrap align-items-center gap-2">
+                                        <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">묶음 <?= $itemGroup['no'] ?></span>
+                                        <span class="small text-muted"><?= htmlspecialchars($itemGroup['group']['label']) ?></span>
+                                        <span class="ms-auto small d-flex flex-wrap align-items-center gap-2">
+                                            <?php if ($gShipments !== []): ?>
+                                                <?php foreach ($gShipments as $gsh): ?>
+                                                    <span>
+                                                        <?= htmlspecialchars($gsh['company_name'] ?? '택배') ?>
+                                                        <?php if (!empty($gsh['tracking_url'])): ?>
+                                                            <a href="<?= htmlspecialchars($gsh['tracking_url']) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($gsh['invoice_no'] ?? '') ?></a>
+                                                        <?php else: ?>
+                                                            <?= htmlspecialchars($gsh['invoice_no'] ?? '') ?>
+                                                        <?php endif; ?>
+                                                        <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= htmlspecialchars($shipmentStatusLabels[$gsh['shipment_status'] ?? ''] ?? ($gsh['shipment_status'] ?? '')) ?></span>
+                                                    </span>
+                                                <?php endforeach; ?>
+                                            <?php elseif ($wholeOrderShipments !== []): ?>
+                                                <span class="text-muted">주문 전체 송장으로 발송</span>
+                                            <?php else: ?>
+                                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">송장 미등록</span>
+                                                <?php if ($deliveryEditable && $gKey !== null): ?>
+                                                    <button type="button" class="btn btn-sm btn-outline-primary py-0 js-group-shipment"
+                                                            data-group-key="<?= htmlspecialchars((string) $gKey) ?>">
+                                                        <i class="bi bi-plus-lg"></i> 송장 등록
+                                                    </button>
+                                                <?php endif; ?>
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                        <?php foreach ($itemGroup['items'] as $item): ?>
                         <?php
                             $detailId = (int) ($item['order_detail_id'] ?? 0);
                             $itemStatus = $item['status'] ?? '';
@@ -257,9 +340,157 @@ foreach ($orderReturns as $ret) {
                             </td>
                         </tr>
                         <?php endforeach; ?>
+                        <?php endforeach; ?>
                     </tbody>
                 </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- 배송 정보 -->
+        <div class="card mb-4">
+            <div class="card-hero">
+                <i class="bi bi-truck text-pastel-green"></i>
+                <span>배송 정보</span>
+            </div>
+            <div class="card-body">
+                <div class="row mb-2">
+                    <div class="col-3 text-muted">수령인</div>
+                    <div class="col-9"><?= htmlspecialchars($order['recipient_name'] ?? '') ?></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-3 text-muted">연락처</div>
+                    <div class="col-9"><?= htmlspecialchars($order['recipient_phone'] ?? '') ?></div>
+                </div>
+                <div class="row mb-2">
+                    <div class="col-3 text-muted">주소</div>
+                    <div class="col-9">
+                        [<?= htmlspecialchars($order['shipping_zip'] ?? '') ?>]
+                        <?= htmlspecialchars($order['shipping_address1'] ?? '') ?>
+                        <?= htmlspecialchars($order['shipping_address2'] ?? '') ?>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 운송장 (배송 추적) -->
+        <div class="card mb-4">
+            <div class="card-hero">
+                <i class="bi bi-box-seam text-pastel-sky"></i>
+                <span>배송 운송장</span>
+                <?php if (!$deliveryEditable): ?>
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle ms-auto">현재 상태에서는 입력 불가</span>
+                <?php endif; ?>
+            </div>
+            <div class="card-body">
+                <!-- 등록된 송장 목록 -->
+                <?php if (empty($shipments)): ?>
+                    <p class="text-muted mb-0 text-center"><small>등록된 운송장이 없습니다.</small></p>
+                <?php else: ?>
+                <div class="table-responsive">
+                <table class="table mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th>택배사</th>
+                            <th>송장번호</th>
+                            <?php if ($shippingGroups !== []): ?><th>포함 상품</th><?php endif; ?>
+                            <th>상태</th>
+                            <?php if ($deliveryEditable): ?><th class="text-end">관리</th><?php endif; ?>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach ($shipments as $sh): ?>
+                        <tr>
+                            <td>
+                                <?php if (!empty($sh['claim_id'])): ?>
+                                    <a href="/admin/shop/exchanges/<?= (int) $sh['claim_id'] ?>" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
+                                <?php endif; ?>
+                                <?= htmlspecialchars($sh['company_name'] ?? '-') ?>
+                            </td>
+                            <td>
+                                <?php $trackUrl = $sh['tracking_url'] ?? ''; ?>
+                                <?php if ($trackUrl): ?>
+                                    <a href="<?= htmlspecialchars($trackUrl) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($sh['invoice_no'] ?? '') ?> <i class="bi bi-box-arrow-up-right small"></i></a>
+                                <?php else: ?>
+                                    <?= htmlspecialchars($sh['invoice_no'] ?? '') ?>
+                                <?php endif; ?>
+                            </td>
+                            <?php if ($shippingGroups !== []): ?>
+                            <td class="small text-muted">
+                                <?php $shItems = $shipmentItemNames[(int) ($sh['shipment_id'] ?? 0)] ?? []; ?>
+                                <?= $shItems === [] ? '-' : htmlspecialchars(implode(', ', $shItems)) ?>
+                            </td>
+                            <?php endif; ?>
+                            <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= htmlspecialchars($shipmentStatusLabels[$sh['shipment_status'] ?? ''] ?? ($sh['shipment_status'] ?? '')) ?></span></td>
+                            <?php if ($deliveryEditable): ?>
+                            <td class="text-end text-nowrap">
+                                <?php if (empty($sh['claim_id'])): ?>
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                    onclick='editShipment(<?= (int) $sh['shipment_id'] ?>, <?= (int) ($sh['company_id'] ?? 0) ?>, <?= json_encode((string) ($sh['invoice_no'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode((string) ($sh['admin_memo'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>수정</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteShipment(<?= (int) $sh['shipment_id'] ?>)">삭제</button>
+                                <?php else: ?>
+                                    <a href="/admin/shop/exchanges/<?= (int) $sh['claim_id'] ?>" class="btn btn-sm btn-outline-warning">교환 관리</a>
+                                <?php endif; ?>
+                            </td>
+                            <?php endif; ?>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+                </div>
+                <?php endif; ?>
+
+                <!-- 입력/수정 폼 (배송정보 편집 가능 상태에서만) -->
+                <?php if ($deliveryEditable): ?>
+                <hr class="my-3">
+                <div id="shipmentFormTitle" class="fw-semibold mb-2 small">운송장 등록</div>
+                <input type="hidden" id="shipmentEditId" value="">
+                <?php if ($shippingGroups !== []): ?>
+                    <?php
+                    // 이미 송장이 붙은 그룹을 표시해 두면, 무엇이 남았는지 목록을 다시 훑지 않아도 된다.
+                    $shippedGroupKeys = [];
+                    foreach ($shipments as $sh) {
+                        if (empty($sh['claim_id']) && ($sh['shipping_group_key'] ?? null) !== null) {
+                            $shippedGroupKeys[(string) $sh['shipping_group_key']] = true;
+                        }
+                    }
+                    ?>
+                    <div class="mb-2" id="shipmentGroupWrap">
+                        <select id="shipmentGroup" class="form-select">
+                            <option value="">주문 전체 (한 번에 발송)</option>
+                            <?php foreach ($shippingGroups as $gi => $group): ?>
+                                <?php if ($group['key'] === null) { continue; } ?>
+                                <option value="<?= htmlspecialchars((string) $group['key']) ?>">
+                                    묶음 <?= $gi + 1 ?> · <?= htmlspecialchars($group['label']) ?>
+                                    · <?= htmlspecialchars(implode(', ', $group['item_names'])) ?>
+                                    <?= isset($shippedGroupKeys[(string) $group['key']]) ? ' (송장 등록됨)' : '' ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                        <div class="form-text">배송비를 따로 받은 묶음은 따로 나갑니다. 묶음별로 송장을 등록하면 그 상품만 배송 상태가 움직입니다.</div>
+                    </div>
+                <?php endif; ?>
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <select id="shipmentCompany" class="form-select">
+                            <option value="">택배사 선택</option>
+                            <?php foreach ($deliveryCompanies as $dc): ?>
+                            <option value="<?= (int) $dc['company_id'] ?>"><?= htmlspecialchars($dc['company_name'] ?? '') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" id="shipmentInvoice" class="form-control" placeholder="송장번호">
+                    </div>
+                    <div class="col-md-4">
+                        <input type="text" id="shipmentMemo" class="form-control" placeholder="메모 (선택)">
+                    </div>
+                </div>
+                <div class="mt-2 text-end">
+                    <button type="button" id="shipmentCancelEdit" class="btn btn-sm btn-link text-muted d-none" onclick="resetShipmentForm()">수정 취소</button>
+                    <button type="button" id="shipmentSubmit" class="btn btn-sm btn-primary" onclick="submitShipment()"><i class="bi bi-plus-lg"></i> 등록</button>
+                </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -440,153 +671,6 @@ foreach ($orderReturns as $ret) {
             </div>
         </div>
         <?php endif; ?>
-
-        <!-- 배송 정보 -->
-        <div class="card mb-4">
-            <div class="card-hero">
-                <i class="bi bi-truck text-pastel-green"></i>
-                <span>배송 정보</span>
-            </div>
-            <div class="card-body">
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">수령인</div>
-                    <div class="col-9"><?= htmlspecialchars($order['recipient_name'] ?? '') ?></div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">연락처</div>
-                    <div class="col-9"><?= htmlspecialchars($order['recipient_phone'] ?? '') ?></div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">주소</div>
-                    <div class="col-9">
-                        [<?= htmlspecialchars($order['shipping_zip'] ?? '') ?>]
-                        <?= htmlspecialchars($order['shipping_address1'] ?? '') ?>
-                        <?= htmlspecialchars($order['shipping_address2'] ?? '') ?>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- 운송장 (배송 추적) -->
-        <div class="card mb-4">
-            <div class="card-hero">
-                <i class="bi bi-box-seam text-pastel-sky"></i>
-                <span>배송 운송장</span>
-                <?php if (!$deliveryEditable): ?>
-                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle ms-auto">현재 상태에서는 입력 불가</span>
-                <?php endif; ?>
-            </div>
-            <div class="card-body">
-                <!-- 등록된 송장 목록 -->
-                <?php if (empty($shipments)): ?>
-                    <p class="text-muted mb-0 text-center"><small>등록된 운송장이 없습니다.</small></p>
-                <?php else: ?>
-                <div class="table-responsive">
-                <table class="table mb-0 align-middle">
-                    <thead>
-                        <tr>
-                            <th>택배사</th>
-                            <th>송장번호</th>
-                            <?php if ($shippingGroups !== []): ?><th>포함 상품</th><?php endif; ?>
-                            <th>상태</th>
-                            <?php if ($deliveryEditable): ?><th class="text-end">관리</th><?php endif; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($shipments as $sh): ?>
-                        <tr>
-                            <td>
-                                <?php if (!empty($sh['claim_id'])): ?>
-                                    <a href="/admin/shop/exchanges/<?= (int) $sh['claim_id'] ?>" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
-                                <?php endif; ?>
-                                <?= htmlspecialchars($sh['company_name'] ?? '-') ?>
-                            </td>
-                            <td>
-                                <?php $trackUrl = $sh['tracking_url'] ?? ''; ?>
-                                <?php if ($trackUrl): ?>
-                                    <a href="<?= htmlspecialchars($trackUrl) ?>" target="_blank" rel="noopener"><?= htmlspecialchars($sh['invoice_no'] ?? '') ?> <i class="bi bi-box-arrow-up-right small"></i></a>
-                                <?php else: ?>
-                                    <?= htmlspecialchars($sh['invoice_no'] ?? '') ?>
-                                <?php endif; ?>
-                            </td>
-                            <?php if ($shippingGroups !== []): ?>
-                            <td class="small text-muted">
-                                <?php $shItems = $shipmentItemNames[(int) ($sh['shipment_id'] ?? 0)] ?? []; ?>
-                                <?= $shItems === [] ? '-' : htmlspecialchars(implode(', ', $shItems)) ?>
-                            </td>
-                            <?php endif; ?>
-                            <td><span class="badge bg-info-subtle text-info-emphasis border border-info-subtle"><?= htmlspecialchars($shipmentStatusLabels[$sh['shipment_status'] ?? ''] ?? ($sh['shipment_status'] ?? '')) ?></span></td>
-                            <?php if ($deliveryEditable): ?>
-                            <td class="text-end text-nowrap">
-                                <?php if (empty($sh['claim_id'])): ?>
-                                <button type="button" class="btn btn-sm btn-outline-secondary"
-                                    onclick='editShipment(<?= (int) $sh['shipment_id'] ?>, <?= (int) ($sh['company_id'] ?? 0) ?>, <?= json_encode((string) ($sh['invoice_no'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode((string) ($sh['admin_memo'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>수정</button>
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteShipment(<?= (int) $sh['shipment_id'] ?>)">삭제</button>
-                                <?php else: ?>
-                                    <a href="/admin/shop/exchanges/<?= (int) $sh['claim_id'] ?>" class="btn btn-sm btn-outline-warning">교환 관리</a>
-                                <?php endif; ?>
-                            </td>
-                            <?php endif; ?>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-                </div>
-                <?php endif; ?>
-
-                <!-- 입력/수정 폼 (배송정보 편집 가능 상태에서만) -->
-                <?php if ($deliveryEditable): ?>
-                <hr class="my-3">
-                <div id="shipmentFormTitle" class="fw-semibold mb-2 small">운송장 등록</div>
-                <input type="hidden" id="shipmentEditId" value="">
-                <?php if ($shippingGroups !== []): ?>
-                    <?php
-                    // 이미 송장이 붙은 그룹을 표시해 두면, 무엇이 남았는지 목록을 다시 훑지 않아도 된다.
-                    $shippedGroupKeys = [];
-                    foreach ($shipments as $sh) {
-                        if (empty($sh['claim_id']) && ($sh['shipping_group_key'] ?? null) !== null) {
-                            $shippedGroupKeys[(string) $sh['shipping_group_key']] = true;
-                        }
-                    }
-                    ?>
-                    <div class="mb-2" id="shipmentGroupWrap">
-                        <select id="shipmentGroup" class="form-select">
-                            <option value="">주문 전체 (한 번에 발송)</option>
-                            <?php foreach ($shippingGroups as $group): ?>
-                                <?php if ($group['key'] === null) { continue; } ?>
-                                <option value="<?= htmlspecialchars((string) $group['key']) ?>">
-                                    <?= htmlspecialchars($group['label']) ?>
-                                    · <?= htmlspecialchars(implode(', ', $group['item_names'])) ?>
-                                    <?= isset($shippedGroupKeys[(string) $group['key']]) ? ' (송장 등록됨)' : '' ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                        <div class="form-text">배송비를 따로 받은 묶음은 따로 나갑니다. 묶음별로 송장을 등록하면 그 상품만 배송 상태가 움직입니다.</div>
-                    </div>
-                <?php endif; ?>
-                <div class="row g-2">
-                    <div class="col-md-4">
-                        <select id="shipmentCompany" class="form-select">
-                            <option value="">택배사 선택</option>
-                            <?php foreach ($deliveryCompanies as $dc): ?>
-                            <option value="<?= (int) $dc['company_id'] ?>"><?= htmlspecialchars($dc['company_name'] ?? '') ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-4">
-                        <input type="text" id="shipmentInvoice" class="form-control" placeholder="송장번호">
-                    </div>
-                    <div class="col-md-4">
-                        <input type="text" id="shipmentMemo" class="form-control" placeholder="메모 (선택)">
-                    </div>
-                </div>
-                <div class="mt-2 text-end">
-                    <button type="button" id="shipmentCancelEdit" class="btn btn-sm btn-link text-muted d-none" onclick="resetShipmentForm()">수정 취소</button>
-                    <button type="button" id="shipmentSubmit" class="btn btn-sm btn-primary" onclick="submitShipment()"><i class="bi bi-plus-lg"></i> 등록</button>
-                </div>
-                <?php endif; ?>
-            </div>
-        </div>
 
         <!-- 상태 변경 이력 -->
         <?php if (!empty($orderLogs)): ?>
@@ -1278,6 +1362,24 @@ function resetShipmentForm() {
         groupWrap.classList.remove('d-none');
         document.getElementById('shipmentGroup').value = '';
     }
+}
+
+// 주문 상품 표의 묶음 헤더에서 부른다 — 그 묶음으로 폼을 맞춰 두고 커서까지 옮긴다.
+// 묶음 키는 data-* 로 넘긴다 (인라인 onclick 안의 값은 JS 코드로 파싱되므로)
+document.querySelectorAll('.js-group-shipment').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+        prepareGroupShipment(this.dataset.groupKey);
+    });
+});
+
+function prepareGroupShipment(groupKey) {
+    resetShipmentForm();
+    var sel = document.getElementById('shipmentGroup');
+    if (sel) { sel.value = groupKey; }
+    var invoice = document.getElementById('shipmentInvoice');
+    if (!invoice) { return; }
+    invoice.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    invoice.focus();
 }
 
 function editShipment(id, companyId, invoiceNo, memo) {
