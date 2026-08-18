@@ -197,6 +197,23 @@ class OrderController
         $shippingGroups = $this->shipmentService ? $this->shipmentService->getShippingGroups($orderNo) : [];
         $shipmentItemNames = $this->shipmentService ? $this->shipmentService->itemNamesByShipment($orderNo, $shipments) : [];
 
+        // 선택 상품 일괄 변경 대상은 배송 단계만 연다. 취소·반품·구매확정은 환불·재고·적립
+        // 후처리가 딸려 있어 전용 흐름이 담당하며, 여기서 상태만 바꾸면 그것을 건너뛴다.
+        $bulkItemStatusOptions = [];
+        foreach ($this->stateResolver->getAllStates($domainId) as $state) {
+            $stateId = (string) ($state['id'] ?? '');
+            if ($stateId === '') {
+                continue;
+            }
+            if (in_array(
+                $this->stateResolver->getAction($stateId, $state),
+                [OrderAction::PREPARING, OrderAction::SHIPPING, OrderAction::DELIVERED],
+                true
+            )) {
+                $bulkItemStatusOptions[$stateId] = (string) ($state['label'] ?? $stateId);
+            }
+        }
+
         // 관리자 메모
         $orderMemos = $this->memoService->getMemos($orderNo);
 
@@ -231,6 +248,7 @@ class OrderController
                 'deliveryEditable' => $deliveryEditable,
                 'shippingGroups' => $shippingGroups,
                 'shipmentItemNames' => $shipmentItemNames,
+                'bulkItemStatusOptions' => $bulkItemStatusOptions,
                 'orderMemos' => $orderMemos,
                 'memoTypeLabels' => OrderMemoService::TYPE_LABELS,
                 'domainId' => $domainId,
@@ -272,6 +290,68 @@ class OrderController
     }
 
     // ===== 아이템 관리 =====
+
+    /**
+     * 선택 아이템 일괄 상태 변경 (배송 단계 전용)
+     *
+     * 배송준비·배송중·배송완료만 허용한다. 취소·반품·구매확정은 환불·재고·적립처럼
+     * 돈이 오가는 후처리가 딸려 있어 전용 흐름이 담당하며, 여기서 상태만 바꾸면
+     * 그 후처리를 통째로 건너뛴다.
+     *
+     * POST /admin/shop/orders/{orderNo}/items/bulk-status
+     */
+    public function bulkUpdateItemStatus(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $request = $context->getRequest();
+
+        $orderNo = (string) ($params['orderNo'] ?? '');
+        $status = trim((string) ($request->json('order_status', '') ?? ''));
+        $reason = trim((string) ($request->json('reason', '') ?? ''));
+        $detailIds = array_values(array_filter(
+            array_map('intval', (array) $request->json('detail_ids', [])),
+            static fn(int $id): bool => $id > 0
+        ));
+
+        if ($orderNo === '' || $detailIds === []) {
+            return JsonResponse::error('변경할 상품을 선택해주세요.');
+        }
+        if ($status === '') {
+            return JsonResponse::error('변경할 상태를 선택해주세요.');
+        }
+        if ($domainGuard = $this->assertOrderInDomain($orderNo, $domainId)) {
+            return $domainGuard;
+        }
+
+        $action = $this->stateResolver->getAction(
+            $status,
+            $this->stateResolver->getState($domainId, $status) ?? []
+        );
+        if (!in_array($action, [OrderAction::PREPARING, OrderAction::SHIPPING, OrderAction::DELIVERED], true)) {
+            return JsonResponse::error('일괄 변경은 배송 단계(배송준비·배송중·배송완료)만 가능합니다.');
+        }
+
+        $changed = $this->orderService->advanceItemsToState(
+            $orderNo,
+            $domainId,
+            $status,
+            $detailIds,
+            $reason !== '' ? $reason : '선택 상품 일괄 변경',
+            'STAFF',
+        );
+        $skipped = count($detailIds) - $changed;
+
+        if ($changed === 0) {
+            // 되돌아가는 전이이거나 클레임이 걸린 상품만 골랐을 때
+            return JsonResponse::error('선택한 상품은 그 상태로 옮길 수 없습니다. 이미 지난 단계이거나 교환·반품이 진행 중인지 확인해주세요.');
+        }
+
+        $label = $this->stateResolver->getLabel($domainId, $status);
+        $message = "{$changed}개 상품을 '{$label}'(으)로 변경했습니다."
+            . ($skipped > 0 ? " {$skipped}개는 그 상태로 옮길 수 없어 건너뛰었습니다." : '');
+
+        return JsonResponse::success(['changed' => $changed, 'skipped' => $skipped], $message);
+    }
 
     /**
      * 아이템 상태 변경

@@ -580,6 +580,12 @@ return function (PrefixedRouteCollector $r): void {
     ]);
 
     // --- 주문 아이템 관리 ---
+    $r->addRoute('POST', '/admin/orders/{orderNo}/items/bulk-status', [
+        'controller' => AdminOrderController::class,
+        'method'     => 'bulkUpdateItemStatus',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     $r->addRoute('POST', '/admin/orders/{orderNo}/items/{detailId}/status', [
         'controller' => AdminOrderController::class,
         'method'     => 'updateItemStatus',

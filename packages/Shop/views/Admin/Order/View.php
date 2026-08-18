@@ -43,6 +43,8 @@ $deliveryEditable = $deliveryEditable ?? false;
 // 배송비 그룹이 둘 이상인 주문만 그룹 단위 송장 입력을 노출한다 (쪼갤 게 없으면 선택을 시키지 않는다)
 $shippingGroups = $shippingGroups ?? [];
 $shipmentItemNames = $shipmentItemNames ?? [];
+// 선택 상품 일괄 변경은 배송 단계만 (취소·반품은 환불·재고 후처리가 딸린 전용 흐름)
+$bulkItemStatusOptions = $bulkItemStatusOptions ?? [];
 
 // 출고 단위(배송비 묶음)가 곧 관리 단위다. 주문 상품 표를 묶음으로 묶고 그 묶음의
 // 송장 상태와 등록 동선을 상품 바로 옆에 둔다 — 무엇을 어떻게 보내야 하는지는
@@ -121,70 +123,183 @@ foreach ($orderReturns as $ret) {
     </div>
 </div>
 
-<div class="page-block row">
-    <div class="col-lg-8">
-        <!-- 주문 정보 -->
-        <div class="card mb-4">
-            <div class="card-hero">
-                <i class="bi bi-receipt text-pastel-blue"></i>
-                <span>주문 정보</span>
-            </div>
-            <div class="card-body">
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">주문번호</div>
-                    <div class="col-9"><strong><?= htmlspecialchars($orderNo) ?></strong></div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">주문인</div>
-                    <div class="col-9"><?= htmlspecialchars($order['orderer_name'] ?? '') ?> (<?= htmlspecialchars($order['orderer_phone'] ?? '') ?>)</div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">결제 수단</div>
-                    <div class="col-9">
+<div class="page-block">
+        <!-- 주문 요약 (주문 · 배송 · 결제) -->
+        <div class="row g-4 mb-4">
+            <div class="col-lg-4">
+                <div class="card h-100 mb-0">
+                    <div class="card-hero">
+                        <i class="bi bi-receipt text-pastel-blue"></i>
+                        <span>주문 정보</span>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">주문번호</span>
+                            <span class="text-end"><strong><?= htmlspecialchars($orderNo) ?></strong></span>
+                        </div>
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">주문인</span>
+                            <span class="text-end"><?= htmlspecialchars($order['orderer_name'] ?? '') ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">연락처</span>
+                            <span class="text-end"><?= htmlspecialchars($order['orderer_phone'] ?? '') ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">결제수단</span>
+                            <span class="text-end">
+                                <?php
+                                    // 표기 규칙: gateway / method (원문 그대로 — DB 저장값/PG 응답이 진실).
+                                    // BANK 같이 gateway가 비어 있으면(PG 안 거치는 채널) method만 표시.
+                                    $pmRaw = (string) ($order['payment_method'] ?? '');
+                                    $pgRaw = trim((string) ($order['payment_gateway'] ?? ''));
+                                ?>
+                                <?php if ($pgRaw !== ''): ?>
+                                    <?= htmlspecialchars($pgRaw) ?> <span class="text-muted">/ <?= htmlspecialchars($pmRaw ?: '-') ?></span>
+                                <?php else: ?>
+                                    <?= htmlspecialchars($pmRaw ?: '-') ?>
+                                <?php endif; ?>
+                            </span>
+                        </div>
                         <?php
-                            // 표기 규칙: gateway / method (원문 그대로 — DB 저장값/PG 응답이 진실).
-                            // BANK 같이 gateway가 비어 있으면(PG 안 거치는 채널) method만 표시.
-                            $pmRaw = (string) ($order['payment_method'] ?? '');
-                            $pgRaw = trim((string) ($order['payment_gateway'] ?? ''));
+                            // 무통장입금: 고객이 선택한 입금계좌
+                            $adminBankInfo = null;
+                            if (($order['payment_method'] ?? '') === 'BANK' && !empty($order['bank_account_info'])) {
+                                $decoded = json_decode((string) $order['bank_account_info'], true);
+                                if (is_array($decoded)) {
+                                    $adminBankInfo = $decoded;
+                                }
+                            }
                         ?>
-                        <?php if ($pgRaw !== ''): ?>
-                            <?= htmlspecialchars($pgRaw) ?> <span class="text-muted">/ <?= htmlspecialchars($pmRaw ?: '-') ?></span>
-                        <?php else: ?>
-                            <?= htmlspecialchars($pmRaw ?: '-') ?>
+                        <?php if ($adminBankInfo): ?>
+                        <div class="mt-2">
+                            <div class="text-muted">입금 계좌</div>
+                            <div>
+                                <?= htmlspecialchars((string) ($adminBankInfo['bank'] ?? '')) ?>
+                                <code><?= htmlspecialchars((string) ($adminBankInfo['account'] ?? '')) ?></code>
+                                (<?= htmlspecialchars((string) ($adminBankInfo['holder'] ?? '')) ?>)
+                            </div>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($order['order_memo'])): ?>
+                        <div class="mt-2">
+                            <div class="text-muted">주문 메모</div>
+                            <div><?= nl2br(htmlspecialchars($order['order_memo'])) ?></div>
+                        </div>
                         <?php endif; ?>
                     </div>
                 </div>
-                <?php
-                    // 무통장입금: 고객이 선택한 입금계좌
-                    $adminBankInfo = null;
-                    if (($order['payment_method'] ?? '') === 'BANK' && !empty($order['bank_account_info'])) {
-                        $decoded = json_decode((string) $order['bank_account_info'], true);
-                        if (is_array($decoded)) {
-                            $adminBankInfo = $decoded;
-                        }
-                    }
-                ?>
-                <?php if ($adminBankInfo): ?>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">입금 계좌</div>
-                    <div class="col-9">
-                        <?= htmlspecialchars((string) ($adminBankInfo['bank'] ?? '')) ?>
-                        <code><?= htmlspecialchars((string) ($adminBankInfo['account'] ?? '')) ?></code>
-                        (<?= htmlspecialchars((string) ($adminBankInfo['holder'] ?? '')) ?>)
+            </div>
+            <div class="col-lg-4">
+                <div class="card h-100 mb-0">
+                    <div class="card-hero">
+                        <i class="bi bi-truck text-pastel-green"></i>
+                        <span>배송 정보</span>
                     </div>
+                    <div class="card-body">
+
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">수령인</span>
+                            <span class="text-end"><?= htmlspecialchars($order['recipient_name'] ?? '') ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">연락처</span>
+                            <span class="text-end"><?= htmlspecialchars($order['recipient_phone'] ?? '') ?></span>
+                        </div>
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">주소</span>
+                            <span class="text-end">
+                                [<?= htmlspecialchars($order['shipping_zip'] ?? '') ?>]
+                                <?= htmlspecialchars($order['shipping_address1'] ?? '') ?>
+                                <?= htmlspecialchars($order['shipping_address2'] ?? '') ?>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card h-100 mb-0">
+                    <div class="card-hero">
+                        <i class="bi bi-currency-dollar text-pastel-purple"></i>
+                        <span>결제 정보</span>
+                    </div>
+                    <div class="card-body">
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">상품 합계</span>
+                    <span><?= number_format((int) ($order['total_price'] ?? 0)) ?>원</span>
+                </div>
+<?php
+                // 배송비 분해: shipping_fee(합계)에서 도서산간 추가비를 분리 표시
+                $__shipTotal = (int) ($order['shipping_fee'] ?? 0);
+                $__shipBd = $order['shipping_breakdown'] ?? null;
+                if (is_string($__shipBd)) { $__shipBd = json_decode($__shipBd, true); }
+                $__extraShip = 0;
+                if (is_array($__shipBd)) { foreach ($__shipBd as $__g) { $__extraShip += (int) ($__g['extra_fee'] ?? 0); } }
+                $__baseShip = $__shipTotal - $__extraShip;
+                ?>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">배송비</span>
+                    <span><?= number_format($__baseShip) ?>원</span>
+                </div>
+                <?php if ($__extraShip > 0): ?>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">추가배송비</span>
+                    <span><?= number_format($__extraShip) ?>원</span>
                 </div>
                 <?php endif; ?>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">주문 상태</div>
-                    <div class="col-9">
-                        <?= $statusBadge($order['order_status'] ?? '', $currentStatusLabel) ?>
+                <?php if (($order['coupon_discount'] ?? 0) > 0): ?>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">쿠폰 할인</span>
+                    <span class="text-danger">-<?= number_format((int) $order['coupon_discount']) ?>원</span>
+                </div>
+                <?php endif; ?>
+                <?php if (($order['point_used'] ?? 0) > 0): ?>
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">포인트 사용</span>
+                    <span class="text-danger">-<?= number_format((int) $order['point_used']) ?>원</span>
+                </div>
+                <?php endif; ?>
+                <hr>
+                <div class="d-flex justify-content-between">
+                    <strong>총 결제 금액</strong>
+                    <strong class="text-primary fs-5">
+                        <?= number_format(
+                            ((int) ($order['total_price'] ?? 0))
+                            + ((int) ($order['shipping_fee'] ?? 0))
+                            + ((int) ($order['extra_price'] ?? 0))
+                            - ((int) ($order['coupon_discount'] ?? 0))
+                            - ((int) ($order['point_used'] ?? 0))
+                        ) ?>원
+                    </strong>
+                </div>
                     </div>
                 </div>
-                <?php if (!empty($order['order_memo'])): ?>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">주문 메모</div>
-                    <div class="col-9"><?= nl2br(htmlspecialchars($order['order_memo'])) ?></div>
-                </div>
+            </div>
+        </div>
+
+        <!-- 주문 상태 (주문 전체에 적용) — 상품 목록 바로 위 -->
+        <?php // 배경은 카드에 준다. card-hero에 bg-*를 붙이면 뒤따르는 card-body의
+              // 여백을 되살리는 규칙이 걸려 헤더와 본문 사이가 벌어진다. ?>
+        <div class="card mb-4 bg-body-tertiary">
+            <div class="card-hero">
+                <i class="bi bi-arrow-repeat text-pastel-orange"></i>
+                <span>주문 상태</span>
+                <?= $statusBadge($order['order_status'] ?? '', $currentStatusLabel, 'ms-auto') ?>
+            </div>
+            <div class="card-body d-flex flex-wrap align-items-center gap-2">
+                <?php if (!empty($availableTransitions)): ?>
+                <select id="newOrderStatus" class="form-select" style="width:auto">
+                    <option value="">변경할 상태 선택</option>
+                    <?php foreach ($availableTransitions as $trans): ?>
+                    <option value="<?= htmlspecialchars($trans['id']) ?>"><?= htmlspecialchars($trans['label']) ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <input type="text" id="statusReason" class="form-control" style="width:300px;max-width:100%" placeholder="변경 사유 (선택)">
+                <button type="button" class="btn btn-primary" id="btnChangeStatus"><i class="bi bi-check-lg"></i> 변경</button>
+                <span class="form-text m-0 ms-2">이 주문의 상품이 <strong>모두</strong> 함께 옮겨집니다. 일부만 옮기려면 아래에서 선택해 적용하세요.</span>
+                <?php else: ?>
+                <span class="form-text m-0 ms-2">변경 가능한 상태가 없습니다.</span>
                 <?php endif; ?>
             </div>
         </div>
@@ -200,6 +315,7 @@ foreach ($orderReturns as $ret) {
                 <table class="table table-hover mb-0 order-items-table">
                     <thead>
                         <tr>
+                            <th class="text-center" style="width:36px"><input type="checkbox" class="form-check-input" id="itemCheckAll" title="전체 선택"></th>
                             <th>상품명</th>
                             <th>옵션</th>
                             <th class="text-end text-nowrap">단가</th>
@@ -217,8 +333,12 @@ foreach ($orderReturns as $ret) {
                             $gKey = $itemGroup['group']['key'];
                             $gShipments = $gKey !== null ? ($shipmentsByGroupKey[(string) $gKey] ?? []) : [];
                             ?>
-                            <tr class="order-items-table__group">
-                                <td colspan="8" class="bg-body-secondary">
+                            <tr class="order-items-table__group table-tertiary">
+                                <td class="text-center">
+                                    <input type="checkbox" class="form-check-input js-group-check"
+                                           data-group-no="<?= $itemGroup['no'] ?>" title="이 묶음 전체 선택">
+                                </td>
+                                <td colspan="8">
                                     <div class="d-flex flex-wrap align-items-center gap-2">
                                         <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">묶음 <?= $itemGroup['no'] ?></span>
                                         <span class="small text-muted"><?= htmlspecialchars($itemGroup['group']['label']) ?></span>
@@ -261,7 +381,13 @@ foreach ($orderReturns as $ret) {
                             $hasReturn = $returnType !== 'NONE' && $returnType !== '';
                             $isPendingReturn = $returnType === 'RETURN' && $returnStatus === 'REQUESTED';
                         ?>
+                        <?php $claimActive = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) $returnStatus)?->isActive() ?? false; ?>
                         <tr>
+                            <td class="text-center">
+                                <input type="checkbox" class="form-check-input js-item-check"
+                                       value="<?= $detailId ?>" data-group-no="<?= $itemGroup['no'] ?>"
+                                       <?= $claimActive ? 'disabled title="교환·반품이 진행 중입니다"' : '' ?>>
+                            </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
                                     <?php if (!empty($item['goods_image'])): ?>
@@ -344,32 +470,19 @@ foreach ($orderReturns as $ret) {
                     </tbody>
                 </table>
                 </div>
-            </div>
-        </div>
-
-        <!-- 배송 정보 -->
-        <div class="card mb-4">
-            <div class="card-hero">
-                <i class="bi bi-truck text-pastel-green"></i>
-                <span>배송 정보</span>
-            </div>
-            <div class="card-body">
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">수령인</div>
-                    <div class="col-9"><?= htmlspecialchars($order['recipient_name'] ?? '') ?></div>
+                <?php if ($bulkItemStatusOptions !== []): ?>
+                <div class="d-flex flex-wrap align-items-center gap-2 mt-3">
+                    <span class="small text-muted" id="itemBulkCount">선택 0개</span>
+                    <select id="itemBulkStatus" class="form-select form-select-sm" style="width:auto" disabled>
+                        <option value="">배송 단계 선택</option>
+                        <?php foreach ($bulkItemStatusOptions as $bulkId => $bulkLabel): ?>
+                        <option value="<?= htmlspecialchars((string) $bulkId) ?>"><?= htmlspecialchars($bulkLabel) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="button" class="btn btn-sm btn-primary" id="itemBulkApply" disabled>선택 상품 적용</button>
+                    <span class="form-text m-0 ms-2">취소·반품·구매확정은 환불·재고 처리가 따르므로 상품별 <strong>관리</strong>에서 진행합니다.</span>
                 </div>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">연락처</div>
-                    <div class="col-9"><?= htmlspecialchars($order['recipient_phone'] ?? '') ?></div>
-                </div>
-                <div class="row mb-2">
-                    <div class="col-3 text-muted">주소</div>
-                    <div class="col-9">
-                        [<?= htmlspecialchars($order['shipping_zip'] ?? '') ?>]
-                        <?= htmlspecialchars($order['shipping_address1'] ?? '') ?>
-                        <?= htmlspecialchars($order['shipping_address2'] ?? '') ?>
-                    </div>
-                </div>
+                <?php endif; ?>
             </div>
         </div>
 
@@ -494,6 +607,8 @@ foreach ($orderReturns as $ret) {
             </div>
         </div>
 
+    <div class="row">
+        <div class="col-lg-8">
         <!-- 주문 추가 정보 (커스텀 필드) -->
         <?php if (!empty($orderFieldValues)): ?>
         <div class="card mb-4">
@@ -729,67 +844,9 @@ foreach ($orderReturns as $ret) {
             </div>
         </div>
         <?php endif; ?>
-    </div>
-
-    <div class="col-lg-4">
-        <!-- 금액 요약 -->
-        <div class="card mb-4">
-            <div class="card-hero">
-                <i class="bi bi-currency-dollar text-pastel-purple"></i>
-                <span>결제 금액</span>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">상품 합계</span>
-                    <span><?= number_format((int) ($order['total_price'] ?? 0)) ?>원</span>
-                </div>
-<?php
-                // 배송비 분해: shipping_fee(합계)에서 도서산간 추가비를 분리 표시
-                $__shipTotal = (int) ($order['shipping_fee'] ?? 0);
-                $__shipBd = $order['shipping_breakdown'] ?? null;
-                if (is_string($__shipBd)) { $__shipBd = json_decode($__shipBd, true); }
-                $__extraShip = 0;
-                if (is_array($__shipBd)) { foreach ($__shipBd as $__g) { $__extraShip += (int) ($__g['extra_fee'] ?? 0); } }
-                $__baseShip = $__shipTotal - $__extraShip;
-                ?>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">배송비</span>
-                    <span><?= number_format($__baseShip) ?>원</span>
-                </div>
-                <?php if ($__extraShip > 0): ?>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">추가배송비</span>
-                    <span><?= number_format($__extraShip) ?>원</span>
-                </div>
-                <?php endif; ?>
-                <?php if (($order['coupon_discount'] ?? 0) > 0): ?>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">쿠폰 할인</span>
-                    <span class="text-danger">-<?= number_format((int) $order['coupon_discount']) ?>원</span>
-                </div>
-                <?php endif; ?>
-                <?php if (($order['point_used'] ?? 0) > 0): ?>
-                <div class="d-flex justify-content-between mb-2">
-                    <span class="text-muted">포인트 사용</span>
-                    <span class="text-danger">-<?= number_format((int) $order['point_used']) ?>원</span>
-                </div>
-                <?php endif; ?>
-                <hr>
-                <div class="d-flex justify-content-between">
-                    <strong>총 결제 금액</strong>
-                    <strong class="text-primary fs-5">
-                        <?= number_format(
-                            ((int) ($order['total_price'] ?? 0))
-                            + ((int) ($order['shipping_fee'] ?? 0))
-                            + ((int) ($order['extra_price'] ?? 0))
-                            - ((int) ($order['coupon_discount'] ?? 0))
-                            - ((int) ($order['point_used'] ?? 0))
-                        ) ?>원
-                    </strong>
-                </div>
-            </div>
         </div>
 
+        <div class="col-lg-4">
         <!-- 환불 처리 -->
         <?php
             $totalPaid = (int) ($refundInfo['total_paid'] ?? 0);
@@ -821,29 +878,6 @@ foreach ($orderReturns as $ret) {
                 </button>
                 <?php else: ?>
                 <p class="text-muted mb-0 text-center"><small>환불 가능 금액이 없습니다.</small></p>
-                <?php endif; ?>
-            </div>
-        </div>
-
-        <!-- 주문 상태 변경 (FSM 기반) -->
-        <div class="card mb-4">
-            <div class="card-hero">
-                <i class="bi bi-arrow-repeat text-pastel-orange"></i>
-                <span>주문 상태 변경</span>
-                <?= $statusBadge($order['order_status'] ?? '', $currentStatusLabel, 'ms-auto') ?>
-            </div>
-            <div class="card-body">
-                <?php if (!empty($availableTransitions)): ?>
-                <select id="newOrderStatus" class="form-select mb-2">
-                    <option value="">변경할 상태 선택</option>
-                    <?php foreach ($availableTransitions as $trans): ?>
-                    <option value="<?= htmlspecialchars($trans['id']) ?>"><?= htmlspecialchars($trans['label']) ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <textarea id="statusReason" class="form-control mb-2" rows="2" placeholder="변경 사유 (선택)"></textarea>
-                <button type="button" class="btn btn-primary w-100" id="btnChangeStatus"><i class="bi bi-check-lg"></i> 상태 변경</button>
-                <?php else: ?>
-                <p class="text-muted mb-0 text-center"><small>변경 가능한 상태가 없습니다.</small></p>
                 <?php endif; ?>
             </div>
         </div>
@@ -900,6 +934,7 @@ foreach ($orderReturns as $ret) {
                 </div>
                 <?php endif; ?>
             </div>
+        </div>
         </div>
     </div>
 </div>
@@ -1344,6 +1379,64 @@ function submitRefund() {
         location.reload();
     });
 }
+
+// ===== 주문 상품 선택 · 일괄 상태 변경 =====
+(function () {
+    var applyBtn = document.getElementById('itemBulkApply');
+    var statusSel = document.getElementById('itemBulkStatus');
+    var countEl = document.getElementById('itemBulkCount');
+    if (!applyBtn || !statusSel || !countEl) { return; }
+
+    function selectable() {
+        return Array.prototype.slice.call(document.querySelectorAll('.js-item-check:not([disabled])'));
+    }
+    function selected() {
+        return selectable().filter(function (box) { return box.checked; });
+    }
+    function sync() {
+        var n = selected().length;
+        countEl.textContent = '선택 ' + n + '개';
+        statusSel.disabled = n === 0;
+        applyBtn.disabled = n === 0 || statusSel.value === '';
+    }
+
+    var checkAll = document.getElementById('itemCheckAll');
+    if (checkAll) {
+        checkAll.addEventListener('change', function () {
+            var on = this.checked;
+            selectable().forEach(function (box) { box.checked = on; });
+            document.querySelectorAll('.js-group-check').forEach(function (g) { g.checked = on; });
+            sync();
+        });
+    }
+    // 묶음 체크박스는 그 묶음의 상품만 집는다 — 출고 단위가 곧 선택 단위다
+    document.querySelectorAll('.js-group-check').forEach(function (group) {
+        group.addEventListener('change', function () {
+            selectable().forEach(function (box) {
+                if (box.dataset.groupNo === group.dataset.groupNo) { box.checked = group.checked; }
+            });
+            sync();
+        });
+    });
+    selectable().forEach(function (box) { box.addEventListener('change', sync); });
+    statusSel.addEventListener('change', sync);
+
+    applyBtn.addEventListener('click', function () {
+        var ids = selected().map(function (box) { return parseInt(box.value, 10); });
+        if (ids.length === 0 || statusSel.value === '') { return; }
+        applyBtn.disabled = true;
+        MubloRequest.requestJson('/admin/shop/orders/' + ORDER_NO + '/items/bulk-status', {
+            detail_ids: ids,
+            order_status: statusSel.value
+        }).then(function () {
+            location.reload();
+        }).catch(function () {
+            applyBtn.disabled = false;
+        });
+    });
+
+    sync();
+})();
 
 // ===== 배송(운송장) =====
 function resetShipmentForm() {
