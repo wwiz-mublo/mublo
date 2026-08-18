@@ -7,10 +7,21 @@ $claimId = (int) ($claim['return_id'] ?? 0);
 $shipments = $claim['shipments'] ?? [];
 $logs = $claim['logs'] ?? [];
 $roleLabels = ['COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출고', 'REJECTED_RETURN' => '고객 반송', 'ORIGINAL' => '최초 배송'];
+$shipmentStatusLabels = ['READY' => '준비', 'PICKED_UP' => '집화', 'IN_TRANSIT' => '배송중', 'DELIVERED' => '배송완료', 'FAILED' => '실패'];
 $claimType = (string) ($claim['return_type'] ?? 'EXCHANGE');
 $isExchange = $claimType === 'EXCHANGE';
 $typeLabel = $isExchange ? '교환' : '반품';
 $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($claimType) ?? $status;
+// 완료·종결은 해당 역할 송장이 배송완료여야 서버가 받아준다(ClaimService::complete·closeRejected).
+// 버튼만 열어두면 눌렀다 거절당하므로, 그 조건을 화면에서 미리 알려준다.
+$deliveredRole = static function (string $role) use ($shipments): bool {
+    foreach ($shipments as $sh) {
+        if (($sh['shipment_role'] ?? '') === $role && ($sh['shipment_status'] ?? '') === 'DELIVERED') {
+            return true;
+        }
+    }
+    return false;
+};
 ?>
 <div class="page-container">
     <div class="page-title">
@@ -97,11 +108,38 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
                     <tr><td><?= htmlspecialchars($roleLabels[$shipment['shipment_role'] ?? ''] ?? ($shipment['shipment_role'] ?? '')) ?></td>
                         <td><?= htmlspecialchars($shipment['company_name'] ?? '-') ?></td>
                         <td><?php if (!empty($shipment['tracking_url'])): ?><a href="<?= htmlspecialchars($shipment['tracking_url']) ?>" target="_blank"><?= htmlspecialchars($shipment['invoice_no'] ?? '') ?></a><?php else: ?><?= htmlspecialchars($shipment['invoice_no'] ?? '') ?><?php endif; ?></td>
-                        <td><?= htmlspecialchars($shipment['shipment_status'] ?? '') ?></td>
-                        <td>
+                        <?php $shStatus = (string) ($shipment['shipment_status'] ?? ''); ?>
+                        <td><span class="badge bg-<?= $shStatus === 'DELIVERED' ? 'success' : ($shStatus === 'FAILED' ? 'danger' : 'info') ?>-subtle text-<?= $shStatus === 'DELIVERED' ? 'success' : ($shStatus === 'FAILED' ? 'danger' : 'info') ?>-emphasis border border-<?= $shStatus === 'DELIVERED' ? 'success' : ($shStatus === 'FAILED' ? 'danger' : 'info') ?>-subtle"><?= htmlspecialchars($shipmentStatusLabels[$shStatus] ?? $shStatus) ?></span></td>
+                        <td class="text-nowrap">
                             <?php foreach (['READY' => 'PICKED_UP', 'PICKED_UP' => 'IN_TRANSIT', 'IN_TRANSIT' => 'DELIVERED'] as $from => $to): ?>
-                                <?php if (($shipment['shipment_status'] ?? '') === $from): ?><button class="btn btn-sm btn-outline-primary js-shipment" data-id="<?= (int) $shipment['shipment_id'] ?>" data-status="<?= $to ?>"><?= $to ?></button><?php endif; ?>
+                                <?php if ($shStatus === $from): ?><button class="btn btn-sm btn-outline-primary js-shipment" data-id="<?= (int) $shipment['shipment_id'] ?>" data-status="<?= $to ?>"><?= htmlspecialchars($shipmentStatusLabels[$to] ?? $to) ?>로</button><?php endif; ?>
                             <?php endforeach; ?>
+                            <button type="button" class="btn btn-sm btn-outline-secondary js-ship-edit" data-id="<?= (int) $shipment['shipment_id'] ?>">수정</button>
+                        </td>
+                    </tr>
+                    <?php // 잘못 넣은 택배사·송장번호를 고칠 길. 이 화면에 없으면 주문 화면도
+                          // 클레임 송장은 거절하므로 아무도 못 고친다. ?>
+                    <tr class="d-none" data-ship-edit="<?= (int) $shipment['shipment_id'] ?>">
+                        <td colspan="5">
+                            <form class="js-ship-update row g-2 align-items-center" data-id="<?= (int) $shipment['shipment_id'] ?>">
+                                <div class="col-md-3">
+                                    <select name="company_id" class="form-select form-select-sm" required>
+                                        <option value="">택배사 선택</option>
+                                        <?php foreach ($companies as $company): ?>
+                                            <option value="<?= (int) $company['company_id'] ?>" <?= (int) ($shipment['company_id'] ?? 0) === (int) $company['company_id'] ? 'selected' : '' ?>><?= htmlspecialchars($company['company_name'] ?? '') ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <input name="invoice_no" class="form-control form-control-sm" value="<?= htmlspecialchars($shipment['invoice_no'] ?? '') ?>" placeholder="송장번호" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <input name="admin_memo" class="form-control form-control-sm" value="<?= htmlspecialchars($shipment['admin_memo'] ?? '') ?>" placeholder="메모 (선택)">
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-sm btn-primary w-100">저장</button>
+                                </div>
+                            </form>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -148,19 +186,50 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
                     <button class="btn btn-outline-danger js-inspect" data-action="inspect_reject">검수 거절</button>
                     <div class="form-text">검수 거절은 회수품을 고객에게 반송합니다. 거절 사유에 맞는 회수품 상태를 골라주세요.</div>
                 <?php elseif ($status === 'READY_TO_REFUND'): ?>
-                    <div class="alert alert-info py-2 px-3 mb-2 small">
-                        환불은 <strong>주문 상세의 환불 처리</strong>에서 실행합니다. 환불을 마친 뒤 아래 버튼으로 확정해주세요.
+                    <?php $refundAmount = (int) ($claim['refund_amount'] ?? 0); ?>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted small">환불 예정액</span>
+                        <strong class="fs-5"><?= number_format($refundAmount) ?>원</strong>
                     </div>
-                    <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>?activeCode=K_Shop_005" class="btn btn-outline-secondary">주문에서 환불 처리</a>
-                    <button class="btn btn-success js-reason" data-action="refund_complete">환불 완료 · 반품 종료</button>
+                    <?php if (($refundedForClaim ?? 0) > 0): ?>
+                        <div class="alert alert-success py-2 px-3 mb-0 small">
+                            이 반품 건으로 <strong><?= number_format((int) $refundedForClaim) ?>원</strong>이 이미 환불되었습니다.
+                        </div>
+                    <?php endif; ?>
+                    <select id="refundMethod" class="form-select">
+                        <option value="">환불 방법 선택</option>
+                        <option value="PG_CANCEL">PG 결제 취소 (카드/간편결제)</option>
+                        <option value="BANK">무통장 환불 (계좌 이체)</option>
+                        <option value="POINT">포인트 환불</option>
+                    </select>
+                    <div id="refundBankArea" class="d-none d-grid gap-2">
+                        <input type="text" id="refundBank" class="form-control" placeholder="은행명">
+                        <input type="text" id="refundAccount" class="form-control" placeholder="계좌번호">
+                        <input type="text" id="refundHolder" class="form-control" placeholder="예금주">
+                    </div>
+                    <button class="btn btn-success" id="btnClaimRefund">환불하고 반품 완료</button>
+                    <div class="form-text">환불이 실제로 나간 뒤에만 반품이 종료됩니다. 이 환불은 이 반품 건에 기록됩니다.</div>
+                    <hr class="my-1">
+                    <button class="btn btn-outline-secondary btn-sm js-reason" data-action="refund_complete">환불 없이 완료로 표시</button>
+                    <div class="form-text">밖에서 이미 환불했을 때만 사용하세요. 사유를 남겨야 합니다.</div>
                 <?php elseif ($status === 'READY_TO_SHIP'): ?>
                     <?php $action = 'reship'; $label = '교환 상품 재출고'; include __DIR__ . '/_shipment_form.php'; ?>
                 <?php elseif ($status === 'RESHIPPING'): ?>
-                    <button class="btn btn-success js-action" data-action="complete">교환 완료</button>
+                    <?php if ($deliveredRole('EXCHANGE_OUTBOUND')): ?>
+                        <button class="btn btn-success js-action" data-action="complete">교환 완료</button>
+                    <?php else: ?>
+                        <button class="btn btn-success" disabled>교환 완료</button>
+                        <div class="form-text">아래 <strong>배송</strong> 표에서 교환 재출고 송장을 <strong>배송완료</strong>로 옮기면 완료할 수 있습니다.</div>
+                    <?php endif; ?>
                 <?php elseif ($status === 'REJECTED'): ?>
                     <?php $action = 'return_rejected'; $label = '고객 반송'; include __DIR__ . '/_shipment_form.php'; ?>
                 <?php elseif ($status === 'RETURNING'): ?>
-                    <button class="btn btn-secondary js-action" data-action="close">반송 완료·종결</button>
+                    <?php if ($deliveredRole('REJECTED_RETURN')): ?>
+                        <button class="btn btn-secondary js-action" data-action="close">반송 완료·종결</button>
+                    <?php else: ?>
+                        <button class="btn btn-secondary" disabled>반송 완료·종결</button>
+                        <div class="form-text">아래 <strong>배송</strong> 표에서 고객 반송 송장을 <strong>배송완료</strong>로 옮기면 종결할 수 있습니다.</div>
+                    <?php endif; ?>
                 <?php endif; ?>
 
                 <?php if (($claim['fee_status'] ?? '') === 'UNPAID'): ?>
@@ -189,6 +258,32 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
    const r=prompt('검수 메모 (선택)')??'';send({action:b.dataset.action,inspection_result:result,reason:r});
  }));
  document.querySelectorAll('.js-ship-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();send({action:f.dataset.action,company_id:f.querySelector('[name=company_id]').value,invoice_no:f.querySelector('[name=invoice_no]').value,admin_memo:f.querySelector('[name=admin_memo]').value});}));
+ document.getElementById('refundMethod')?.addEventListener('change',function(){
+   // 무통장 환불만 계좌 정보를 받는다
+   document.getElementById('refundBankArea').classList.toggle('d-none', this.value!=='BANK');
+ });
+ document.getElementById('btnClaimRefund')?.addEventListener('click',()=>{
+   const method=document.getElementById('refundMethod').value;
+   if(!method){ MubloRequest.showAlert('환불 방법을 선택해주세요.','warning'); return; }
+   MubloRequest.showConfirm('환불 예정액을 환불하고 반품을 완료합니다. 진행할까요?',function(){
+     send({
+       action:'refund', refund_method:method,
+       refund_bank:document.getElementById('refundBank').value,
+       refund_account:document.getElementById('refundAccount').value,
+       refund_holder:document.getElementById('refundHolder').value
+     });
+   });
+ });
+ document.querySelectorAll('.js-ship-edit').forEach(b=>b.addEventListener('click',()=>{
+   document.querySelector('[data-ship-edit="'+b.dataset.id+'"]')?.classList.toggle('d-none');
+ }));
+ document.querySelectorAll('.js-ship-update').forEach(f=>f.addEventListener('submit',e=>{
+   e.preventDefault();
+   send({action:'shipment_update',shipment_id:f.dataset.id,
+     company_id:f.querySelector('[name=company_id]').value,
+     invoice_no:f.querySelector('[name=invoice_no]').value,
+     admin_memo:f.querySelector('[name=admin_memo]').value});
+ }));
  document.querySelectorAll('.js-shipment').forEach(b=>b.addEventListener('click',()=>send({action:'shipment_status',shipment_id:b.dataset.id,shipment_status:b.dataset.status})));
  document.getElementById('feePaid')?.addEventListener('click',()=>send({action:'fee_paid',fee_method:document.getElementById('feeMethod').value}));
 })();

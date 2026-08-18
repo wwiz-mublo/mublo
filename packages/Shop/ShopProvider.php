@@ -630,7 +630,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ShipmentService::class),
                 $c->get(AuthContextInterface::class),
                 $c->get(ShopConfigService::class),
-                $c->get(ActionTypeRegistry::class)
+                $c->get(ActionTypeRegistry::class),
+                $c->get(RefundService::class)
             )
         );
         $container->singleton(CouponController::class, fn(DependencyContainer $c) =>

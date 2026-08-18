@@ -511,6 +511,20 @@ final class ClaimService
         );
     }
 
+    /** 클레임 상세가 환불 실행에 필요한 값만 추린다. */
+    public function getRefundContext(int $domainId, int $claimId): ?array
+    {
+        $claim = $this->claims->findInDomain($domainId, $claimId);
+        if ($claim === null || ($claim['return_type'] ?? '') !== 'RETURN') {
+            return null;
+        }
+        return [
+            'order_no' => (string) ($claim['order_no'] ?? ''),
+            'refund_amount' => (int) ($claim['refund_amount'] ?? 0),
+            'status' => (string) ($claim['return_status'] ?? ''),
+        ];
+    }
+
     public function reship(int $domainId, int $claimId, array $shipment, ?int $staffId): Result
     {
         $registeredShipment = null;
