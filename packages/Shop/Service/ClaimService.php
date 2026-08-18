@@ -14,11 +14,19 @@ use Mublo\Packages\Shop\Repository\OrderRepository;
 use Mublo\Packages\Shop\Repository\ProductOptionRepository;
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
 
-final class ExchangeService
+final class ClaimService
 {
     private const REASON_TYPES = [
         'CHANGE_MIND', 'DEFECT', 'WRONG_PRODUCT', 'WRONG_OPTION', 'LATE_DELIVERY', 'OTHER',
     ];
+
+    /** 이 서비스가 다루는 클레임 유형 (취소는 결제 취소 흐름이 따로 담당한다). */
+    public const CLAIM_TYPES = ['EXCHANGE', 'RETURN'];
+
+    public static function typeLabel(string $returnType): string
+    {
+        return $returnType === 'RETURN' ? '반품' : '교환';
+    }
 
     /** 외부 확장 이벤트에 공개해도 되는 비식별 클레임 필드. */
     private const PUBLIC_CLAIM_FIELDS = [
@@ -60,35 +68,37 @@ final class ExchangeService
         $claim = $this->decryptClaim($claim);
         $claim['logs'] = $this->claims->getLogs($domainId, $claimId);
         $claim['shipments'] = $this->shipments->getByClaimId($claimId);
+        $returnType = (string) ($claim['return_type'] ?? 'EXCHANGE');
         $claim['next_statuses'] = array_map(
-            static fn(ClaimStatus $status): array => ['value' => $status->value, 'label' => $status->label()],
-            $this->stateMachine->next((string) $claim['return_status'])
+            static fn(ClaimStatus $status): array => ['value' => $status->value, 'label' => $status->label($returnType)],
+            $this->stateMachine->next((string) $claim['return_status'], $returnType)
         );
         return $claim;
     }
 
-    public function getByOrderNo(int $domainId, string $orderNo): array
+    public function getByOrderNo(int $domainId, string $orderNo, ?string $returnType = null): array
     {
         return array_map(function (array $claim) use ($domainId): array {
             $full = $this->get($domainId, (int) $claim['return_id']);
             return $full ?? $claim;
-        }, $this->claims->getByOrderNo($domainId, $orderNo));
+        }, $this->claims->getByOrderNo($domainId, $orderNo, $returnType));
     }
 
-    public function getActiveByDetailId(int $domainId, int $detailId): array
+    public function getActiveByDetailId(int $domainId, int $detailId, ?string $returnType = null): array
     {
-        return $this->claims->getActiveByDetailId($domainId, $detailId);
+        return $this->claims->getActiveByDetailId($domainId, $detailId, $returnType);
     }
 
     /**
-     * 교환 신청 가능 여부 — 프론트 버튼 노출과 서버 접수가 함께 쓰는 단일 규칙.
+     * 클레임(교환·반품) 신청 가능 여부 — 프론트 버튼과 서버 접수가 함께 쓰는 단일 규칙.
      *
+     * 두 유형의 조건은 같다. 받은 물건이어야 돌려보내든 바꾸든 할 수 있기 때문이다.
      * 주문상품 상태가 우선이고, 아직 배송완료로 따라오지 못한 품목은 주문 헤더로
-     * 폴백한다. 부분 배송에서는 먼저 도착한 품목만 교환할 수 있어야 하므로 품목
+     * 폴백한다. 부분 배송에서는 먼저 도착한 품목만 신청할 수 있어야 하므로 품목
      * 기준을 버릴 수 없고, 반대로 송장을 쓰지 않는 상점에서는 헤더가 유일한
      * 신호이기 때문이다. 취소·반품·구매확정으로 넘어간 건은 어느 쪽이든 거부한다.
      */
-    public function isExchangeable(int $domainId, array $item, string $orderStatus): bool
+    public function isClaimable(int $domainId, array $item, string $orderStatus): bool
     {
         $itemAction = $this->resolveOrderAction($domainId, (string) ($item['status'] ?? ''));
         if (in_array($itemAction, [
@@ -169,6 +179,12 @@ final class ExchangeService
         return $result;
     }
 
+    /**
+     * 클레임 접수 (교환 또는 반품).
+     *
+     * 두 유형은 사유·귀책·수량·회수지를 똑같이 받는다. 갈리는 것은 교환이 대상 옵션과
+     * 교환 배송비를 갖는 데 비해, 반품은 환불액과 반품 배송비를 갖는다는 점뿐이다.
+     */
     public function request(
         int $domainId,
         string $orderNo,
@@ -176,10 +192,15 @@ final class ExchangeService
         array $data,
         string $changedBy = 'CUSTOMER',
         ?int $changedById = null,
+        string $returnType = 'EXCHANGE',
     ): Result {
+        if (!in_array($returnType, self::CLAIM_TYPES, true)) {
+            return Result::failure('유효하지 않은 클레임 유형입니다.');
+        }
+        $typeLabel = self::typeLabel($returnType);
         $reasonType = strtoupper(trim((string) ($data['reason_type'] ?? 'OTHER')));
         if (!in_array($reasonType, self::REASON_TYPES, true)) {
-            return Result::failure('유효하지 않은 교환 사유입니다.');
+            return Result::failure("유효하지 않은 {$typeLabel} 사유입니다.");
         }
         $responsibilityValue = strtoupper((string) ($data['responsibility'] ?? 'MANUAL'));
         if ($changedBy === 'CUSTOMER') {
@@ -190,17 +211,17 @@ final class ExchangeService
         }
         $responsibility = ClaimResponsibility::tryFrom($responsibilityValue);
         if ($responsibility === null) {
-            return Result::failure('교환 귀책 구분이 올바르지 않습니다.');
+            return Result::failure('귀책 구분이 올바르지 않습니다.');
         }
         $quantity = (int) ($data['quantity'] ?? 0);
         if ($quantity <= 0) {
-            return Result::failure('교환 수량을 입력해주세요.');
+            return Result::failure("{$typeLabel} 수량을 입력해주세요.");
         }
 
         try {
             $created = $this->claims->transaction(function () use (
                 $domainId, $orderNo, $detailId, $data, $changedBy, $changedById,
-                $reasonType, $responsibility, $quantity
+                $reasonType, $responsibility, $quantity, $returnType, $typeLabel
             ): array {
                 $item = $this->claims->lockOrderDetailInDomain($domainId, $detailId);
                 if ($item === null || (string) $item['order_no'] !== $orderNo) {
@@ -209,32 +230,44 @@ final class ExchangeService
                 // 프론트 버튼과 같은 규칙으로 판정한다 (품목 우선 · 헤더 폴백).
                 // 품목만으로 결론이 나면 주문 헤더는 읽지 않는다.
                 $order = null;
-                $exchangeable = $this->isExchangeable($domainId, $item, '');
-                if (!$exchangeable) {
+                $claimable = $this->isClaimable($domainId, $item, '');
+                if (!$claimable) {
                     $order = $this->orders->findByOrderNoInDomain($domainId, $orderNo);
-                    $exchangeable = $order !== null
-                        && $this->isExchangeable($domainId, $item, (string) ($order['order_status'] ?? ''));
+                    $claimable = $order !== null
+                        && $this->isClaimable($domainId, $item, (string) ($order['order_status'] ?? ''));
                 }
-                if (!$exchangeable) {
-                    throw new \DomainException('배송 완료된 상품만 교환을 신청할 수 있습니다.');
+                if (!$claimable) {
+                    throw new \DomainException("배송 완료된 상품만 {$typeLabel}을(를) 신청할 수 있습니다.");
                 }
-                if ($this->claims->hasBlockingNonExchangeClaim($domainId, $detailId)) {
-                    throw new \DomainException('취소·반품이 처리 중이거나 완료된 상품은 교환을 신청할 수 없습니다.');
+                if ($this->claims->hasBlockingClaimOfOtherType($domainId, $detailId, $returnType)) {
+                    throw new \DomainException('같은 상품에 다른 클레임이 진행 중입니다. 그 건이 끝난 뒤 신청해주세요.');
                 }
                 $claimedQuantity = $this->claims->getActiveQuantityForUpdate($domainId, $detailId);
                 if ($claimedQuantity + $quantity > (int) ($item['quantity'] ?? 0)) {
-                    throw new \DomainException('교환 가능한 수량을 초과했습니다.');
+                    throw new \DomainException("{$typeLabel} 가능한 수량을 초과했습니다.");
                 }
 
-                $target = $this->resolveTarget($item, $data);
+                $target = $returnType === 'EXCHANGE' ? $this->resolveTarget($item, $data) : null;
                 $order ??= $this->orders->findByOrderNoInDomain($domainId, $orderNo);
                 if ($order === null) {
                     throw new \DomainException('주문을 찾을 수 없습니다.');
                 }
-                $fee = $responsibility === ClaimResponsibility::CUSTOMER
-                    ? $this->resolveExchangeFee($order, (int) $item['goods_id'])
-                    : 0;
-                $feeStatus = $fee > 0 ? 'UNPAID' : 'WAIVED';
+
+                // 고객 귀책일 때만 비용을 물린다. 교환비는 따로 받아야 하므로 납부 상태를
+                // 두지만, 반품비는 환불액에서 빼므로 따로 받을 것이 없다.
+                $customerFault = $responsibility === ClaimResponsibility::CUSTOMER;
+                $exchangeFee = 0;
+                $returnFee = 0;
+                $refundAmount = 0;
+                $feeStatus = 'WAIVED';
+                if ($returnType === 'EXCHANGE') {
+                    $exchangeFee = $customerFault ? $this->resolveGroupCost($order, (int) $item['goods_id'], 'exchange_cost') : 0;
+                    $feeStatus = $exchangeFee > 0 ? 'UNPAID' : 'WAIVED';
+                } else {
+                    $returnFee = $customerFault ? $this->resolveGroupCost($order, (int) $item['goods_id'], 'return_cost') : 0;
+                    $unitPrice = (int) ($item['goods_price'] ?? 0) + (int) ($item['option_price'] ?? 0);
+                    $refundAmount = max(0, $unitPrice * $quantity - $returnFee);
+                }
                 $pickup = $this->pickupSnapshot($order, $data);
 
                 $claimId = $this->claims->createClaim([
@@ -242,16 +275,16 @@ final class ExchangeService
                     'order_no' => $orderNo,
                     'order_detail_id' => $detailId,
                     'member_id' => (int) ($order['member_id'] ?? 0),
-                    'return_type' => 'EXCHANGE',
+                    'return_type' => $returnType,
                     'return_status' => ClaimStatus::REQUESTED->value,
                     'original_item_status' => (string) ($item['status'] ?? ''),
                     'reason_type' => $reasonType,
                     'reason_detail' => trim((string) ($data['reason_detail'] ?? '')),
                     'responsibility' => $responsibility->value,
                     'quantity' => $quantity,
-                    'refund_amount' => 0,
-                    'return_shipping_fee' => 0,
-                    'exchange_shipping_fee' => $fee,
+                    'refund_amount' => $refundAmount,
+                    'return_shipping_fee' => $returnFee,
+                    'exchange_shipping_fee' => $exchangeFee,
                     'fee_status' => $feeStatus,
                     'pickup_name' => $pickup['name'],
                     'pickup_phone' => $pickup['phone'],
@@ -260,40 +293,44 @@ final class ExchangeService
                     'pickup_address2' => $pickup['address2'],
                     'requested_at' => date('Y-m-d H:i:s'),
                 ]);
-                $this->claims->createExchangeItem([
-                    'return_id' => $claimId,
-                    'source_order_detail_id' => $detailId,
-                    'goods_id' => (int) $item['goods_id'],
-                    'option_mode' => $target['option_mode'],
-                    'option_id' => $target['option_id'],
-                    'option_code' => $target['option_code'] ?: null,
-                    'option_name' => $target['option_name'] ?: null,
-                    'option_price' => $target['option_price'],
-                    'quantity' => $quantity,
-                ]);
-                $this->orders->updateItemReturn($detailId, 'EXCHANGE', ClaimStatus::REQUESTED->value);
+                // 대상 옵션은 교환에만 있다. 반품은 돌려받고 끝이라 바꿔 보낼 상품이 없다.
+                if ($target !== null) {
+                    $this->claims->createExchangeItem([
+                        'return_id' => $claimId,
+                        'source_order_detail_id' => $detailId,
+                        'goods_id' => (int) $item['goods_id'],
+                        'option_mode' => $target['option_mode'],
+                        'option_id' => $target['option_id'],
+                        'option_code' => $target['option_code'] ?: null,
+                        'option_name' => $target['option_name'] ?: null,
+                        'option_price' => $target['option_price'],
+                        'quantity' => $quantity,
+                    ]);
+                }
+                $this->orders->updateItemReturn($detailId, $returnType, ClaimStatus::REQUESTED->value);
                 $this->claims->addLog($claimId, $domainId, '', ClaimStatus::REQUESTED->value, $changedBy, $changedById, (string) ($data['reason_detail'] ?? ''));
                 return ['claim_id' => $claimId];
             });
         } catch (\DomainException $e) {
             return Result::failure($e->getMessage());
         } catch (\Throwable $e) {
-            error_log('[SHOP][EXCHANGE] request failed: ' . $e->getMessage());
-            return Result::failure('교환 신청 처리 중 오류가 발생했습니다.');
+            error_log('[SHOP][CLAIM] request failed: ' . $e->getMessage());
+            return Result::failure("{$typeLabel} 신청 처리 중 오류가 발생했습니다.");
         }
 
         $claim = $this->claims->findInDomain($domainId, (int) $created['claim_id']);
         if ($claim !== null) {
             $this->dispatch($claim, '', ClaimStatus::REQUESTED->value);
         }
-        return Result::success('교환 신청이 접수되었습니다.', $created);
+        return Result::success("{$typeLabel} 신청이 접수되었습니다.", $created);
     }
 
     public function accept(int $domainId, int $claimId, ?int $staffId, string $reason = ''): Result
     {
         return $this->runTransition($domainId, $claimId, ClaimStatus::ACCEPTED, 'STAFF', $staffId, $reason,
             function (array $claim): array {
-                if (!$this->stock->reserveReplacement($claim)) {
+                // 바꿔 보낼 상품을 잡아두는 일이라 교환에만 있다. 반품은 돌려받고 끝이다.
+                if (($claim['return_type'] ?? '') === 'EXCHANGE' && !$this->stock->reserveReplacement($claim)) {
                     throw new \DomainException('교환 상품 재고가 부족하거나 예약할 수 없습니다.');
                 }
                 return ['accepted_at' => date('Y-m-d H:i:s')];
@@ -315,7 +352,7 @@ final class ExchangeService
     {
         return $this->runTransition($domainId, $claimId, ClaimStatus::CANCELLED, $changedBy, $changedById, $reason,
             function (array $claim): array {
-                if (!$this->stock->releaseReplacement($claim)) {
+                if (($claim['return_type'] ?? '') === 'EXCHANGE' && !$this->stock->releaseReplacement($claim)) {
                     throw new \DomainException('예약 재고를 복구하지 못했습니다.');
                 }
                 return ['cancelled_at' => date('Y-m-d H:i:s')];
@@ -376,11 +413,21 @@ final class ExchangeService
         if (!$approved && $inspectionResult === 'SALEABLE') {
             return Result::failure('검수 거절 시에는 정상 재판매를 선택할 수 없습니다. 거절 사유에 맞는 검수 결과를 골라주세요.');
         }
-        $target = $approved ? ClaimStatus::READY_TO_SHIP : ClaimStatus::REJECTED;
+        // 승인 이후 갈래는 유형이 정한다. 교환은 바꿔 보내고, 반품은 환불한다.
+        $claim = $this->claims->findInDomain($domainId, $claimId);
+        if ($claim === null) {
+            return Result::failure('클레임 건을 찾을 수 없습니다.');
+        }
+        $isExchange = ($claim['return_type'] ?? '') === 'EXCHANGE';
+        $target = $approved
+            ? ($isExchange ? ClaimStatus::READY_TO_SHIP : ClaimStatus::READY_TO_REFUND)
+            : ClaimStatus::REJECTED;
+
         return $this->runTransition($domainId, $claimId, $target, 'STAFF', $staffId, $reason,
-            function (array $claim) use ($approved, $inspectionResult, $reason): array {
-                // 재고를 건드리기 전에 막을 수 있는 것부터 막는다 (롤백 낭비 방지)
-                if ($approved && ($claim['fee_status'] ?? '') === 'UNPAID') {
+            function (array $claim) use ($approved, $inspectionResult, $reason, $isExchange): array {
+                // 재고를 건드리기 전에 막을 수 있는 것부터 막는다 (롤백 낭비 방지).
+                // 교환비는 따로 받아야 하지만 반품비는 환불액에서 빼므로 이 관문이 없다.
+                if ($approved && $isExchange && ($claim['fee_status'] ?? '') === 'UNPAID') {
                     throw new \DomainException('교환 배송비 납부 확인 후 재출고 대기로 변경할 수 있습니다.');
                 }
                 // 승인 건만 회수품을 판매 재고로 되돌린다. 거절 건의 회수품은 고객에게
@@ -388,11 +435,14 @@ final class ExchangeService
                 if ($approved && !$this->stock->restockSource($claim, $inspectionResult)) {
                     throw new \DomainException('회수 상품 재고를 처리하지 못했습니다.');
                 }
-                if (!$approved && !$this->stock->releaseReplacement($claim)) {
+                if (!$approved && $isExchange && !$this->stock->releaseReplacement($claim)) {
                     throw new \DomainException('예약된 교환 상품 재고를 복구하지 못했습니다.');
                 }
-                $this->claims->updateExchangeItem((int) $claim['return_id'], ['inspection_result' => $inspectionResult]);
-                return ['inspected_at' => date('Y-m-d H:i:s'), 'staff_memo' => $reason ?: null];
+                return [
+                    'inspected_at' => date('Y-m-d H:i:s'),
+                    'staff_memo' => $reason ?: null,
+                    'inspection_result' => $inspectionResult,
+                ];
             }
         );
     }
@@ -427,11 +477,36 @@ final class ExchangeService
         return $updated ? Result::success('교환 배송비 납부를 확인했습니다.') : Result::failure('교환비 상태를 변경하지 못했습니다.');
     }
 
+    /**
+     * 반품 환불 완료 확인 (환불대기 → 반품완료).
+     *
+     * 실제 환불은 환불 처리 화면(RefundService)이 수행한다. 돈이 나가는 동작을
+     * 클레임 상태 변경에 딸려 자동 실행하지 않는다 — 교환의 '교환비 납부 확인'과
+     * 같은 방식으로, 관리자가 환불한 사실을 여기서 확정한다.
+     */
+    public function completeRefund(int $domainId, int $claimId, ?int $staffId, string $reason = ''): Result
+    {
+        return $this->runTransition($domainId, $claimId, ClaimStatus::COMPLETED, 'STAFF', $staffId, $reason,
+            function (array $claim): array {
+                if (($claim['return_type'] ?? '') !== 'RETURN') {
+                    throw new \DomainException('반품 건에서만 환불 완료로 처리할 수 있습니다.');
+                }
+                return [
+                    'refunded_at' => date('Y-m-d H:i:s'),
+                    'completed_at' => date('Y-m-d H:i:s'),
+                ];
+            }
+        );
+    }
+
     public function reship(int $domainId, int $claimId, array $shipment, ?int $staffId): Result
     {
         $registeredShipment = null;
         $result = $this->runTransition($domainId, $claimId, ClaimStatus::RESHIPPING, 'STAFF', $staffId, '',
             function (array $claim) use ($shipment, &$registeredShipment): array {
+                if (($claim['return_type'] ?? '') !== 'EXCHANGE') {
+                    throw new \DomainException('재출고는 교환 건에서만 할 수 있습니다.');
+                }
                 $result = $this->shipments->registerShipment((string) $claim['order_no'], [
                     'order_detail_id' => (int) $claim['order_detail_id'],
                     'claim_id' => (int) $claim['return_id'],
@@ -531,51 +606,68 @@ final class ExchangeService
                 $domainId, $claimId, $target, $changedBy, $changedById, $reason, $beforeTransition, $allowedCurrent
             ): array {
                 $claim = $this->claims->findForUpdate($domainId, $claimId);
-                if ($claim === null || ($claim['return_type'] ?? '') !== 'EXCHANGE') {
-                    throw new \DomainException('교환 건을 찾을 수 없습니다.');
+                $returnType = (string) ($claim['return_type'] ?? '');
+                if ($claim === null || !in_array($returnType, self::CLAIM_TYPES, true)) {
+                    throw new \DomainException('클레임 건을 찾을 수 없습니다.');
                 }
-                if (empty($claim['exchange_item_id']) && !in_array($target, [ClaimStatus::REFUSED, ClaimStatus::CANCELLED], true)) {
+                // 대상 옵션은 교환에만 필요하다. 반품은 바꿔 보낼 상품이 없다.
+                if ($returnType === 'EXCHANGE'
+                    && empty($claim['exchange_item_id'])
+                    && !in_array($target, [ClaimStatus::REFUSED, ClaimStatus::CANCELLED], true)
+                ) {
                     throw new \DomainException('기존 교환 데이터에 대상 옵션이 없습니다. 거절 또는 취소 후 다시 접수해주세요.');
                 }
                 $current = (string) $claim['return_status'];
                 if ($allowedCurrent !== null && !in_array($current, $allowedCurrent, true)) {
                     throw new \DomainException('현재 상태에서는 요청한 처리를 할 수 없습니다.');
                 }
-                if (!$this->stateMachine->canTransition($current, $target->value)) {
-                    throw new \DomainException(ClaimStatus::tryFrom($current)?->label() . ' 상태에서 ' . $target->label() . '(으)로 변경할 수 없습니다.');
+                if (!$this->stateMachine->canTransition($current, $target->value, $returnType)) {
+                    throw new \DomainException(
+                        ClaimStatus::tryFrom($current)?->label($returnType)
+                        . ' 상태에서 ' . $target->label($returnType) . '(으)로 변경할 수 없습니다.'
+                    );
                 }
                 $extra = $beforeTransition ? (array) $beforeTransition($claim) : [];
                 if (!$this->claims->compareAndSetStatus($domainId, $claimId, $current, $target->value, $extra)) {
                     throw new \DomainException('다른 처리와 충돌했습니다. 새로고침 후 다시 시도해주세요.');
                 }
                 $this->claims->addLog($claimId, $domainId, $current, $target->value, $changedBy, $changedById, $reason);
-                $this->syncItemSummary($domainId, (int) $claim['order_detail_id'], $target);
-                return ['previous' => $current, 'claim' => $this->claims->findForUpdate($domainId, $claimId) ?? $claim];
+                $this->syncItemSummary($domainId, (int) $claim['order_detail_id'], $target, $returnType);
+                return [
+                    'previous' => $current,
+                    'return_type' => $returnType,
+                    'claim' => $this->claims->findForUpdate($domainId, $claimId) ?? $claim,
+                ];
             });
         } catch (\DomainException $e) {
             return Result::failure($e->getMessage());
         } catch (\Throwable $e) {
-            error_log('[SHOP][EXCHANGE] transition failed: ' . $e->getMessage());
-            return Result::failure('교환 상태 처리 중 오류가 발생했습니다.');
+            error_log('[SHOP][CLAIM] transition failed: ' . $e->getMessage());
+            return Result::failure('클레임 상태 처리 중 오류가 발생했습니다.');
         }
 
         $this->dispatch($transition['claim'], $transition['previous'], $target->value);
-        return Result::success($target->label() . ' 처리가 완료되었습니다.', ['claim_id' => $claimId, 'status' => $target->value]);
+        return Result::success(
+            $target->label((string) $transition['return_type']) . ' 처리가 완료되었습니다.',
+            ['claim_id' => $claimId, 'status' => $target->value]
+        );
     }
 
-    private function syncItemSummary(int $domainId, int $detailId, ClaimStatus $terminalCandidate): void
+    private function syncItemSummary(int $domainId, int $detailId, ClaimStatus $terminalCandidate, string $returnType): void
     {
         $active = $this->claims->getActiveByDetailId($domainId, $detailId);
         if ($active !== []) {
-            $this->orders->updateItemReturn($detailId, 'EXCHANGE', (string) $active[0]['return_status']);
+            $this->orders->updateItemReturn(
+                $detailId,
+                (string) ($active[0]['return_type'] ?? $returnType),
+                (string) $active[0]['return_status']
+            );
             return;
         }
-        if ($terminalCandidate === ClaimStatus::COMPLETED) {
-            $this->orders->updateItemReturn($detailId, 'EXCHANGE', ClaimStatus::COMPLETED->value);
-            return;
-        }
-        if ($this->claims->hasCompletedExchange($domainId, $detailId)) {
-            $this->orders->updateItemReturn($detailId, 'EXCHANGE', ClaimStatus::COMPLETED->value);
+        if ($terminalCandidate === ClaimStatus::COMPLETED
+            || $this->claims->hasCompletedClaim($domainId, $detailId, $returnType)
+        ) {
+            $this->orders->updateItemReturn($detailId, $returnType, ClaimStatus::COMPLETED->value);
             return;
         }
         $this->orders->updateItemReturn($detailId, 'NONE', 'NONE');
@@ -626,7 +718,12 @@ final class ExchangeService
         ];
     }
 
-    private function resolveExchangeFee(array $order, int $goodsId): int
+    /**
+     * 주문에 얼린 배송비 그룹에서 교환비·반품비를 꺼낸다.
+     *
+     * 주문 당시 값이므로 이후 배송 템플릿을 고쳐도 접수된 클레임의 비용은 변하지 않는다.
+     */
+    private function resolveGroupCost(array $order, int $goodsId, string $costKey): int
     {
         $breakdown = $order['shipping_breakdown'] ?? [];
         if (is_string($breakdown)) {
@@ -635,7 +732,7 @@ final class ExchangeService
         foreach ((array) $breakdown as $group) {
             $goodsIds = array_map('intval', (array) ($group['goods_ids'] ?? []));
             if (in_array($goodsId, $goodsIds, true)) {
-                return max(0, (int) ($group['exchange_cost'] ?? 0));
+                return max(0, (int) ($group[$costKey] ?? 0));
             }
         }
         return 0;

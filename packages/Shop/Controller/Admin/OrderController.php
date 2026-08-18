@@ -11,6 +11,7 @@ use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\RefundService;
 use Mublo\Packages\Shop\Service\OrderMemoService;
 use Mublo\Packages\Shop\Service\ShipmentService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Infrastructure\Storage\UploadedFile;
@@ -30,6 +31,7 @@ class OrderController
     private OrderMemoService $memoService;
     private AuthContextInterface $authService;
     private ?ShipmentService $shipmentService;
+    private ?ClaimService $claimService;
 
     public function __construct(
         OrderService $orderService,
@@ -38,7 +40,8 @@ class OrderController
         RefundService $refundService,
         OrderMemoService $memoService,
         AuthContextInterface $authService,
-        ?ShipmentService $shipmentService = null
+        ?ShipmentService $shipmentService = null,
+        ?ClaimService $claimService = null
     ) {
         $this->orderService = $orderService;
         $this->orderFieldService = $orderFieldService;
@@ -47,6 +50,7 @@ class OrderController
         $this->memoService = $memoService;
         $this->authService = $authService;
         $this->shipmentService = $shipmentService;
+        $this->claimService = $claimService;
     }
 
     /**
@@ -448,39 +452,24 @@ class OrderController
             return $domainGuard;
         }
 
-        $result = $this->orderService->requestItemReturn(
-            $orderNo, $detailId, $returnType, $reasonType, $reasonDetail, $domainId
+        if ($this->claimService === null) {
+            return JsonResponse::error('교환·반품 기능을 사용할 수 없습니다.');
+        }
+        // 고객이 전화로 요청한 반품을 관리자가 대신 접수한다. 승인·회수·검수는
+        // 교환·반품 관리에서 이어서 진행한다.
+        $result = $this->claimService->request(
+            $domainId,
+            $orderNo,
+            $detailId,
+            [
+                'quantity' => max(1, (int) ($request->json('quantity', 1) ?? 1)),
+                'reason_type' => (string) $reasonType,
+                'reason_detail' => (string) $reasonDetail,
+            ],
+            'STAFF',
+            null,
+            'RETURN',
         );
-
-        return $result->isSuccess()
-            ? JsonResponse::success($result->getData(), $result->getMessage())
-            : JsonResponse::error($result->getMessage());
-    }
-
-    /**
-     * 반품 승인/거절
-     *
-     * POST /admin/shop/orders/{orderNo}/items/{detailId}/return-process
-     */
-    public function processReturn(array $params, Context $context): JsonResponse
-    {
-        $domainId = $context->getDomainId() ?? 1;
-        $request = $context->getRequest();
-
-        $orderNo = $params['orderNo'] ?? '';
-        $detailId = (int) ($params['detailId'] ?? 0);
-        $accept = (bool) $request->json('accept', false);
-        $reason = $request->json('reason', '');
-
-        if (empty($orderNo) || $detailId <= 0) {
-            return JsonResponse::error('주문번호와 상품 ID가 필요합니다.');
-        }
-
-        if ($domainGuard = $this->assertOrderInDomain($orderNo, $domainId)) {
-            return $domainGuard;
-        }
-
-        $result = $this->orderService->processItemReturn($orderNo, $detailId, $accept, $reason, $domainId);
 
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())

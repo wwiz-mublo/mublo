@@ -9,7 +9,7 @@ use Mublo\Packages\Shop\Repository\OrderRepository;
 use Mublo\Packages\Shop\Repository\ProductOptionRepository;
 use Mublo\Packages\Shop\Repository\ProductRepository;
 use Mublo\Packages\Shop\Service\ClaimStateMachine;
-use Mublo\Packages\Shop\Service\ExchangeService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Service\ExchangeStockService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\ShipmentService;
@@ -167,18 +167,26 @@ final class ExchangeInspectionTest extends TestCase
                 return true;
             }
         );
+        // 검수 기록(source_restocked_at)은 이제 클레임 본체에 남는다 — 반품에는
+        // 교환 대상 상품 행이 없기 때문이다
+        $claims->method('updateClaim')->willReturnCallback(
+            static function (int $domainId, int $claimId, array $data) use (&$writes): bool {
+                $writes[] = $data;
+                return true;
+            }
+        );
         $claims->method('addLog')->willReturn(1);
         $claims->method('getActiveByDetailId')->willReturn([]);
-        $claims->method('hasCompletedExchange')->willReturn(false);
+        $claims->method('hasCompletedClaim')->willReturn(false);
 
         return $claims;
     }
 
-    private function makeService(ClaimRepository $claims, ProductRepository $products): ExchangeService
+    private function makeService(ClaimRepository $claims, ProductRepository $products): ClaimService
     {
         $options = $this->createMock(ProductOptionRepository::class);
 
-        return new ExchangeService(
+        return new ClaimService(
             $claims,
             $this->createMock(OrderRepository::class),
             $options,

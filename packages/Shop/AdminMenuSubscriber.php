@@ -76,8 +76,8 @@ class AdminMenuSubscriber implements EventSubscriberInterface
                 'code' => '005',
             ],
             [
-                'label' => '교환 관리',
-                'url' => '/admin/shop/exchanges',
+                'label' => '교환·반품 관리',
+                'url' => '/admin/shop/claims',
                 'code' => '016',
             ],
             [

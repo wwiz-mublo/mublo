@@ -7,30 +7,40 @@ $claimId = (int) ($claim['return_id'] ?? 0);
 $shipments = $claim['shipments'] ?? [];
 $logs = $claim['logs'] ?? [];
 $roleLabels = ['COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출고', 'REJECTED_RETURN' => '고객 반송', 'ORIGINAL' => '최초 배송'];
+$claimType = (string) ($claim['return_type'] ?? 'EXCHANGE');
+$isExchange = $claimType === 'EXCHANGE';
+$typeLabel = $isExchange ? '교환' : '반품';
+$statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($claimType) ?? $status;
 ?>
 <div class="page-container">
     <div class="page-title">
         <div class="page-title-text">
-            <h3>교환 #<?= $claimId ?></h3>
+            <h3><?= $typeLabel ?> #<?= $claimId ?></h3>
             <p>주문 <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>"><?= htmlspecialchars($claim['order_no'] ?? '') ?></a></p>
         </div>
-        <div class="page-title-actions"><a href="/admin/shop/exchanges" class="btn btn-sm btn-outline-secondary">목록</a></div>
+        <div class="page-title-actions"><a href="/admin/shop/claims" class="btn btn-sm btn-outline-secondary">목록</a></div>
     </div>
 
     <div class="row g-3">
         <div class="col-lg-8">
-            <div class="card mb-3"><div class="card-header fw-semibold">교환 상품</div><div class="card-body">
+            <div class="card mb-3"><div class="card-header fw-semibold"><?= $typeLabel ?> 상품</div><div class="card-body">
                 <div class="row">
                     <div class="col-md-5">
                         <div class="text-muted small">기존</div>
                         <strong><?= htmlspecialchars($claim['source_goods_name'] ?? '') ?></strong>
                         <div><?= htmlspecialchars($claim['source_option_name'] ?? '옵션 없음') ?></div>
                     </div>
-                    <div class="col-md-2 text-center fs-3">→</div>
+                    <div class="col-md-2 text-center fs-3"><?= $isExchange ? '→' : '↩' ?></div>
                     <div class="col-md-5">
-                        <div class="text-muted small">교환</div>
-                        <strong><?= htmlspecialchars($claim['source_goods_name'] ?? '') ?></strong>
-                        <div><?= htmlspecialchars($claim['target_option_name'] ?? '동일 상품') ?> · <?= (int) ($claim['exchange_quantity'] ?? 0) ?>개</div>
+                        <?php if ($isExchange): ?>
+                            <div class="text-muted small">교환</div>
+                            <strong><?= htmlspecialchars($claim['source_goods_name'] ?? '') ?></strong>
+                            <div><?= htmlspecialchars($claim['target_option_name'] ?? '동일 상품') ?> · <?= (int) ($claim['exchange_quantity'] ?? 0) ?>개</div>
+                        <?php else: ?>
+                            <div class="text-muted small">환불 예정</div>
+                            <strong><?= number_format((int) ($claim['refund_amount'] ?? 0)) ?>원</strong>
+                            <div><?= (int) ($claim['quantity'] ?? 0) ?>개 · 반품비 <?= number_format((int) ($claim['return_shipping_fee'] ?? 0)) ?>원 차감</div>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div></div>
@@ -39,7 +49,12 @@ $roleLabels = ['COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출�
                 <dl class="row mb-0">
                     <dt class="col-sm-3">사유</dt><dd class="col-sm-9"><?= htmlspecialchars(($claim['reason_type'] ?? '') . ' ' . ($claim['reason_detail'] ?? '')) ?></dd>
                     <dt class="col-sm-3">귀책</dt><dd class="col-sm-9"><?= htmlspecialchars($claim['responsibility'] ?? '') ?></dd>
+                    <?php if ($isExchange): ?>
                     <dt class="col-sm-3">교환 배송비</dt><dd class="col-sm-9"><?= number_format((int) ($claim['exchange_shipping_fee'] ?? 0)) ?>원 · <?= htmlspecialchars($claim['fee_status'] ?? '') ?></dd>
+                    <?php else: ?>
+                    <dt class="col-sm-3">반품 배송비</dt><dd class="col-sm-9"><?= number_format((int) ($claim['return_shipping_fee'] ?? 0)) ?>원 (환불액에서 차감)</dd>
+                    <dt class="col-sm-3">환불 예정액</dt><dd class="col-sm-9"><strong><?= number_format((int) ($claim['refund_amount'] ?? 0)) ?>원</strong></dd>
+                    <?php endif; ?>
                     <dt class="col-sm-3">회수지</dt><dd class="col-sm-9">[<?= htmlspecialchars($claim['pickup_zipcode'] ?? '') ?>] <?= htmlspecialchars(($claim['pickup_address1'] ?? '') . ' ' . ($claim['pickup_address2'] ?? '')) ?><br><?= htmlspecialchars(($claim['pickup_name'] ?? '') . ' ' . ($claim['pickup_phone'] ?? '')) ?></dd>
                     <dt class="col-sm-3">검수</dt><dd class="col-sm-9"><?= htmlspecialchars($claim['inspection_result'] ?? 'PENDING') ?></dd>
                 </dl>
@@ -69,7 +84,7 @@ $roleLabels = ['COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출�
         </div>
 
         <div class="col-lg-4">
-            <div class="card sticky-top" style="top:16px"><div class="card-header fw-semibold">현재 상태: <?= htmlspecialchars($statusOptions[$status] ?? $status) ?></div><div class="card-body d-grid gap-2">
+            <div class="card sticky-top" style="top:16px"><div class="card-header fw-semibold">현재 상태: <?= htmlspecialchars($statusLabel) ?></div><div class="card-body d-grid gap-2">
                 <?php if ($status === 'REQUESTED'): ?>
                     <button class="btn btn-primary js-action" data-action="accept">교환 승인</button>
                     <button class="btn btn-outline-danger js-reason" data-action="refuse">신청 거절</button>
@@ -83,9 +98,15 @@ $roleLabels = ['COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출�
                     <?php /* 회수품 상태. '정상 재판매' 는 승인 건에서만 쓴다 — 거절 건의
                              회수품은 고객에게 반송되므로 판매 재고로 잡으면 안 된다. */ ?>
                     <select id="inspectionResult" class="form-select"><option value="SALEABLE">정상 재판매</option><option value="DEFECTIVE">불량</option><option value="DISCARD">폐기</option><option value="WRONG_ITEM">오배송품</option></select>
-                    <button class="btn btn-primary js-inspect" data-action="inspect_approve">교환 승인·재출고 대기</button>
+                    <button class="btn btn-primary js-inspect" data-action="inspect_approve"><?= $isExchange ? '검수 승인 · 재출고 대기' : '검수 승인 · 환불 대기' ?></button>
                     <button class="btn btn-outline-danger js-inspect" data-action="inspect_reject">검수 거절</button>
                     <div class="form-text">검수 거절은 회수품을 고객에게 반송합니다. 거절 사유에 맞는 회수품 상태를 골라주세요.</div>
+                <?php elseif ($status === 'READY_TO_REFUND'): ?>
+                    <div class="alert alert-info py-2 px-3 mb-2 small">
+                        환불은 <strong>주문 상세의 환불 처리</strong>에서 실행합니다. 환불을 마친 뒤 아래 버튼으로 확정해주세요.
+                    </div>
+                    <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>" class="btn btn-outline-secondary">주문에서 환불 처리</a>
+                    <button class="btn btn-success js-reason" data-action="refund_complete">환불 완료 · 반품 종료</button>
                 <?php elseif ($status === 'READY_TO_SHIP'): ?>
                     <?php $action = 'reship'; $label = '교환 상품 재출고'; include __DIR__ . '/_shipment_form.php'; ?>
                 <?php elseif ($status === 'RESHIPPING'): ?>
@@ -109,13 +130,13 @@ $roleLabels = ['COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출�
 </div>
 <script>
 (function(){
- const url='/admin/shop/exchanges/<?= (int) $claimId ?>/process';
+ const url='/admin/shop/claims/<?= (int) $claimId ?>/process';
  function send(data){return MubloRequest.requestJson(url,data).then(()=>location.reload());}
  document.querySelectorAll('.js-action').forEach(b=>b.addEventListener('click',()=>{if(confirm('처리하시겠습니까?'))send({action:b.dataset.action});}));
  document.querySelectorAll('.js-reason').forEach(b=>b.addEventListener('click',()=>{const r=prompt('처리 사유를 입력해주세요.');if(r!==null&&r.trim())send({action:b.dataset.action,reason:r.trim()});}));
  document.querySelectorAll('.js-inspect').forEach(b=>b.addEventListener('click',()=>{
    const result=document.getElementById('inspectionResult').value;
-   // 서버도 같은 규칙으로 막지만(ExchangeService::inspect), 왕복 전에 알려준다
+   // 서버도 같은 규칙으로 막지만(ClaimService::inspect), 왕복 전에 알려준다
    if(b.dataset.action==='inspect_reject'&&result==='SALEABLE'){
      MubloRequest.showAlert('검수 거절 시에는 정상 재판매를 선택할 수 없습니다. 회수품은 고객에게 반송됩니다.','error');return;
    }

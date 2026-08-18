@@ -8,15 +8,15 @@ use Mublo\Core\Context\Context;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Packages\Shop\Enum\ClaimStatus;
-use Mublo\Packages\Shop\Service\ExchangeService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Service\ShipmentService;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\ActionTypeRegistry;
 
-final class ExchangeController
+final class ClaimController
 {
     public function __construct(
-        private ExchangeService $exchanges,
+        private ClaimService $exchanges,
         private ShipmentService $shipments,
         private AuthContextInterface $auth,
         private ShopConfigService $config,
@@ -28,6 +28,7 @@ final class ExchangeController
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
         $filters = [
+            'return_type' => trim((string) ($request->get('return_type') ?? '')),
             'status' => trim((string) ($request->get('status') ?? '')),
             'keyword' => trim((string) ($request->get('keyword') ?? '')),
         ];
@@ -38,9 +39,9 @@ final class ExchangeController
             max(1, (int) ($request->get('per_page') ?? 20)),
         );
         $schemas = $this->actionTypes->getAllSchemas();
-        return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Exchange/List')
+        return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Claim/List')
             ->withData([
-                'pageTitle' => '교환 관리',
+                'pageTitle' => '교환·반품 관리',
                 'claims' => $result['items'],
                 'pagination' => $result['pagination'],
                 'filters' => $filters,
@@ -88,11 +89,11 @@ final class ExchangeController
             }
         }
         if ($errors !== []) {
-            return JsonResponse::error('교환 Action 설정을 확인해주세요.', ['errors' => $errors]);
+            return JsonResponse::error('교환·반품 Action 설정을 확인해주세요.', ['errors' => $errors]);
         }
         $result = $this->config->saveClaimStateActions($domainId, $normalized);
         return $result->isSuccess()
-            ? JsonResponse::success([], '교환 Action 설정을 저장했습니다.')
+            ? JsonResponse::success([], '교환·반품 Action 설정을 저장했습니다.')
             : JsonResponse::error($result->getMessage());
     }
 
@@ -104,11 +105,11 @@ final class ExchangeController
         if ($claim === null) {
             return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Error/404')
                 ->withStatusCode(404)
-                ->withData(['message' => '교환 건을 찾을 수 없습니다.']);
+                ->withData(['message' => '클레임 건을 찾을 수 없습니다.']);
         }
-        return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Exchange/View')
+        return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Claim/View')
             ->withData([
-                'pageTitle' => '교환 상세',
+                'pageTitle' => '클레임 상세',
                 'claim' => $claim,
                 'companies' => $this->shipments->getDeliveryCompanies(),
                 'statusOptions' => ClaimStatus::options(),
@@ -123,7 +124,7 @@ final class ExchangeController
         $action = trim((string) ($request->json('action', '') ?? ''));
         $claim = $this->exchanges->get($domainId, $claimId);
         if ($claim === null) {
-            return JsonResponse::error('교환 건을 찾을 수 없습니다.', null, 404);
+            return JsonResponse::error('클레임 건을 찾을 수 없습니다.', null, 404);
         }
         $staffId = $this->auth->id();
         $reason = trim((string) ($request->json('reason', '') ?? ''));
@@ -153,6 +154,7 @@ final class ExchangeController
             'fee_paid' => $this->exchanges->markFeePaid($domainId, $claimId, strtoupper((string) $request->json('fee_method', 'MANUAL')), $staffId),
             'reship' => $this->exchanges->reship($domainId, $claimId, $shipment, $staffId),
             'complete' => $this->exchanges->complete($domainId, $claimId, $staffId),
+            'refund_complete' => $this->exchanges->completeRefund($domainId, $claimId, $staffId, $reason),
             'return_rejected' => $this->exchanges->returnRejected($domainId, $claimId, $shipment, $staffId),
             'close' => $this->exchanges->closeRejected($domainId, $claimId, $staffId),
             'shipment_status' => $this->shipments->updateStatus(
@@ -161,7 +163,7 @@ final class ExchangeController
                 (string) ($claim['order_no'] ?? ''),
                 $claimId,
             ),
-            default => \Mublo\Core\Result\Result::failure('지원하지 않는 교환 처리입니다.'),
+            default => \Mublo\Core\Result\Result::failure('지원하지 않는 클레임 처리입니다.'),
         };
 
         return $result->isSuccess()

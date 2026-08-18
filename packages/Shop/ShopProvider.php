@@ -119,7 +119,7 @@ use Mublo\Packages\Shop\Service\ShipmentGroupResolver;
 use Mublo\Packages\Shop\Service\ActionExecutionService;
 use Mublo\Packages\Shop\Service\ClaimStateMachine;
 use Mublo\Packages\Shop\Service\ExchangeStockService;
-use Mublo\Packages\Shop\Service\ExchangeService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Service\ShopDataResetter;
 use Mublo\Contract\CustomField\CustomFieldFileManagerInterface;
 use Mublo\Contract\CustomField\CustomFieldValueValidatorInterface;
@@ -141,7 +141,7 @@ use Mublo\Packages\Shop\Controller\Admin\ReviewController as AdminReviewControll
 use Mublo\Packages\Shop\Controller\Admin\InquiryController;
 use Mublo\Packages\Shop\Controller\Admin\DashboardController;
 use Mublo\Packages\Shop\Controller\Admin\ExhibitionController as AdminExhibitionController;
-use Mublo\Packages\Shop\Controller\Admin\ExchangeController;
+use Mublo\Packages\Shop\Controller\Admin\ClaimController;
 use Mublo\Packages\Shop\Controller\Front\ProductController as FrontProductController;
 use Mublo\Packages\Shop\Controller\Front\ReviewController as FrontReviewController;
 use Mublo\Packages\Shop\Controller\Front\InquiryController as FrontInquiryController;
@@ -539,8 +539,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductOptionRepository::class)
             )
         );
-        $container->singleton(ExchangeService::class, fn(DependencyContainer $c) =>
-            new ExchangeService(
+        $container->singleton(ClaimService::class, fn(DependencyContainer $c) =>
+            new ClaimService(
                 $c->get(ClaimRepository::class),
                 $c->get(OrderRepository::class),
                 $c->get(ProductOptionRepository::class),
@@ -619,12 +619,13 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(RefundService::class),
                 $c->get(OrderMemoService::class),
                 $c->get(AuthContextInterface::class),
-                $c->get(ShipmentService::class)
+                $c->get(ShipmentService::class),
+                $c->get(ClaimService::class)
             )
         );
-        $container->singleton(ExchangeController::class, fn(DependencyContainer $c) =>
-            new ExchangeController(
-                $c->get(ExchangeService::class),
+        $container->singleton(ClaimController::class, fn(DependencyContainer $c) =>
+            new ClaimController(
+                $c->get(ClaimService::class),
                 $c->get(ShipmentService::class),
                 $c->get(AuthContextInterface::class),
                 $c->get(ShopConfigService::class),
@@ -730,7 +731,7 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(PaymentReceiptService::class),
                 $c->get(OrderCancelService::class),
                 $c->get(ShipmentService::class),
-                $c->get(ExchangeService::class)
+                $c->get(ClaimService::class)
             )
         );
         $container->singleton(AddressController::class, fn(DependencyContainer $c) =>

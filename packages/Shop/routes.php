@@ -41,7 +41,7 @@ use Mublo\Packages\Shop\Controller\Admin\InquiryController;
 use Mublo\Packages\Shop\Controller\Admin\DashboardController;
 use Mublo\Packages\Shop\Controller\Admin\ExhibitionController;
 use Mublo\Packages\Shop\Controller\Admin\WishlistController as AdminWishlistController;
-use Mublo\Packages\Shop\Controller\Admin\ExchangeController;
+use Mublo\Packages\Shop\Controller\Admin\ClaimController;
 use Mublo\Packages\Shop\Controller\Admin\PriceCompareController as AdminPriceCompareController;
 
 return function (PrefixedRouteCollector $r): void {
@@ -198,9 +198,9 @@ return function (PrefixedRouteCollector $r): void {
         'method'     => 'confirmItem',
     ]);
 
-    $r->addRoute('POST', '/order/{orderNo}/items/{detailId}/exchange', [
+    $r->addRoute('POST', '/order/{orderNo}/items/{detailId}/claim', [
         'controller' => OrderController::class,
-        'method'     => 'exchangeItem',
+        'method'     => 'requestClaim',
     ]);
 
     $r->addRoute('POST', '/order/{orderNo}/exchanges/{claimId}/cancel', [
@@ -537,26 +537,26 @@ return function (PrefixedRouteCollector $r): void {
     ]);
 
     // --- 주문 관리 ---
-    $r->addRoute('GET', '/admin/exchanges', [
-        'controller' => ExchangeController::class,
+    $r->addRoute('GET', '/admin/claims', [
+        'controller' => ClaimController::class,
         'method'     => 'index',
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    $r->addRoute('GET', '/admin/exchanges/{claimId:\d+}', [
-        'controller' => ExchangeController::class,
+    $r->addRoute('GET', '/admin/claims/{claimId:\d+}', [
+        'controller' => ClaimController::class,
         'method'     => 'view',
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    $r->addRoute('POST', '/admin/exchanges/{claimId:\d+}/process', [
-        'controller' => ExchangeController::class,
+    $r->addRoute('POST', '/admin/claims/{claimId:\d+}/process', [
+        'controller' => ClaimController::class,
         'method'     => 'process',
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    $r->addRoute('POST', '/admin/exchanges/actions', [
-        'controller' => ExchangeController::class,
+    $r->addRoute('POST', '/admin/claims/actions', [
+        'controller' => ClaimController::class,
         'method'     => 'storeActions',
         'middleware' => [AdminMiddleware::class],
     ]);
@@ -607,12 +607,6 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRoute('POST', '/admin/orders/{orderNo}/items/{detailId}/return', [
         'controller' => AdminOrderController::class,
         'method'     => 'returnItem',
-        'middleware' => [AdminMiddleware::class],
-    ]);
-
-    $r->addRoute('POST', '/admin/orders/{orderNo}/items/{detailId}/return-process', [
-        'controller' => AdminOrderController::class,
-        'method'     => 'processReturn',
         'middleware' => [AdminMiddleware::class],
     ]);
 

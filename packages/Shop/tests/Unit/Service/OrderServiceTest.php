@@ -860,55 +860,7 @@ class OrderServiceTest extends TestCase
         $this->assertArrayHasKey('items', $items[0]); // 각 주문에 대표상품 items 부착
     }
 
-    public function testReturnUsesOrderTimeShippingPolicyAndMember(): void
-    {
-        $orderNo = 'ORD2026040500001';
-        $item = [
-            'order_detail_id' => 10, 'order_no' => $orderNo, 'goods_id' => 77,
-            'status' => 'delivered', 'return_type' => 'NONE', 'quantity' => 1,
-            'total_price' => 20000,
-        ];
-        $orderRow = $this->makeOrderData([
-            'order_no' => $orderNo,
-            'member_id' => 42,
-            'shipping_breakdown' => json_encode([[
-                'goods_ids' => [77], 'return_cost' => 3500,
-            ]]),
-        ]);
-        $this->orderRepo->method('getItemInDomain')->willReturn($item);
-        $this->orderRepo->method('findByOrderNoInDomain')->willReturn($orderRow);
-        $this->orderRepo->method('find')->willReturn(Order::fromArray($orderRow));
-        $captured = [];
-        $this->orderRepo->method('createReturn')->willReturnCallback(function (array $data) use (&$captured): int {
-            $captured = $data;
-            return 1;
-        });
-        $this->orderRepo->method('updateItemStatus')->willReturn(true);
-        $this->orderRepo->method('updateItemReturn')->willReturn(true);
-        $this->orderRepo->method('insertOrderLog')->willReturn(1);
-        $this->stateResolver->method('getLabel')->willReturn('배송완료');
 
-        $result = $this->service->requestItemReturn(
-            $orderNo, 10, 'RETURN', 'CHANGE_MIND', '단순 변심', 1
-        );
-
-        $this->assertTrue($result->isSuccess());
-        $this->assertSame(42, $captured['member_id']);
-        $this->assertSame(3500, $captured['return_shipping_fee']);
-        $this->assertSame(16500, $captured['refund_amount']);
-    }
-
-    public function testExchangeIsNotSilentlyCompletedAsReturn(): void
-    {
-        $this->orderRepo->method('getItemInDomain')->willReturn([
-            'order_detail_id' => 10, 'order_no' => 'ORD1', 'status' => 'delivered',
-        ]);
-
-        $result = $this->service->requestItemReturn('ORD1', 10, 'EXCHANGE', 'OTHER', '', 1);
-
-        $this->assertTrue($result->isFailure());
-        $this->assertStringContainsString('지원하지 않습니다', $result->getMessage());
-    }
 
 
     // =========================================================

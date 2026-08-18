@@ -85,12 +85,11 @@ final class ExchangeStockService
         if ($inspectionResult !== 'SALEABLE' || !empty($claim['source_restocked_at'])) {
             return true;
         }
+        // 검수 기록은 클레임 본체에 남긴다 — 반품에는 교환 대상 상품 행이 없다.
         if (empty($claim['source_stock_deducted'])) {
-            return $this->claims->updateExchangeItem((int) $claim['return_id'], [
-                'source_restocked_at' => date('Y-m-d H:i:s'),
-            ]);
+            return $this->markSourceRestocked($claim);
         }
-        $quantity = max(1, (int) ($claim['exchange_quantity'] ?? 1));
+        $quantity = max(1, (int) ($claim['exchange_quantity'] ?? $claim['quantity'] ?? 1));
         if (!$this->adjust(
             (int) ($claim['domain_id'] ?? 0),
             (string) ($claim['source_option_mode'] ?? 'NONE'),
@@ -101,9 +100,16 @@ final class ExchangeStockService
         )) {
             return false;
         }
-        return $this->claims->updateExchangeItem((int) $claim['return_id'], [
-            'source_restocked_at' => date('Y-m-d H:i:s'),
-        ]);
+        return $this->markSourceRestocked($claim);
+    }
+
+    private function markSourceRestocked(array $claim): bool
+    {
+        return $this->claims->updateClaim(
+            (int) ($claim['domain_id'] ?? 0),
+            (int) $claim['return_id'],
+            ['source_restocked_at' => date('Y-m-d H:i:s')]
+        );
     }
 
     private function adjust(int $domainId, string $mode, int $goodsId, int $optionId, string $optionCode, int $delta): bool

@@ -444,20 +444,13 @@ foreach ($orderReturns as $ret) {
                                         <?php if (!$hasReturn): ?>
                                         <li>
                                             <a class="dropdown-item js-order-item-return" href="#" data-detail-id="<?= $detailId ?>" data-item-name="<?= htmlspecialchars($item['goods_name'] ?? '', ENT_QUOTES, 'UTF-8') ?>">
-                                                반품 신청
+                                                반품 접수
                                             </a>
                                         </li>
-                                        <?php endif; ?>
-                                        <?php if ($isPendingReturn): ?>
-                                        <li><hr class="dropdown-divider"></li>
+                                        <?php else: ?>
                                         <li>
-                                            <a class="dropdown-item text-success" href="#" onclick="processReturn(<?= $detailId ?>, true); return false;">
-                                                반품 승인
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a class="dropdown-item text-danger" href="#" onclick="openReturnRefuseModal(<?= $detailId ?>); return false;">
-                                                반품 거절
+                                            <a class="dropdown-item" href="/admin/shop/claims?keyword=<?= urlencode($orderNo) ?>">
+                                                교환·반품 관리에서 처리
                                             </a>
                                         </li>
                                         <?php endif; ?>
@@ -516,7 +509,7 @@ foreach ($orderReturns as $ret) {
                         <tr>
                             <td>
                                 <?php if (!empty($sh['claim_id'])): ?>
-                                    <a href="/admin/shop/exchanges/<?= (int) $sh['claim_id'] ?>" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
+                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
                                 <?php endif; ?>
                                 <?= htmlspecialchars($sh['company_name'] ?? '-') ?>
                             </td>
@@ -542,7 +535,7 @@ foreach ($orderReturns as $ret) {
                                     onclick='editShipment(<?= (int) $sh['shipment_id'] ?>, <?= (int) ($sh['company_id'] ?? 0) ?>, <?= json_encode((string) ($sh['invoice_no'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode((string) ($sh['admin_memo'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>수정</button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteShipment(<?= (int) $sh['shipment_id'] ?>)">삭제</button>
                                 <?php else: ?>
-                                    <a href="/admin/shop/exchanges/<?= (int) $sh['claim_id'] ?>" class="btn btn-sm btn-outline-warning">교환 관리</a>
+                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>" class="btn btn-sm btn-outline-warning">교환 관리</a>
                                 <?php endif; ?>
                             </td>
                             <?php endif; ?>
@@ -679,7 +672,7 @@ foreach ($orderReturns as $ret) {
                         <tr>
                             <td>
                                 <?php if (($ret['return_type'] ?? '') === 'EXCHANGE'): ?>
-                                    <a href="/admin/shop/exchanges/<?= (int) ($ret['return_id'] ?? 0) ?>"><?= $rtLabel ?> 상세</a>
+                                    <a href="/admin/shop/claims/<?= (int) ($ret['return_id'] ?? 0) ?>"><?= $rtLabel ?> 상세</a>
                                 <?php else: ?>
                                     <?= $rtLabel ?>
                                 <?php endif; ?>
@@ -1001,12 +994,16 @@ foreach ($orderReturns as $ret) {
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">반품 요청</h5>
+                <h5 class="modal-title">반품 접수</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <p class="mb-2"><strong id="returnItemName"></strong></p>
                 <input type="hidden" id="returnDetailId">
+                <div class="mb-3">
+                    <label class="form-label">수량</label>
+                    <input type="number" id="returnQuantity" class="form-control" min="1" value="1">
+                </div>
                 <div class="mb-3">
                     <label class="form-label">사유 유형</label>
                     <select id="returnReasonType" class="form-select">
@@ -1027,29 +1024,6 @@ foreach ($orderReturns as $ret) {
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
                 <button type="button" class="btn btn-warning" onclick="submitReturn()">요청 접수</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 모달 4: 반품 거절 사유 -->
-<div class="modal fade" id="returnRefuseModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">반품 거절</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <input type="hidden" id="refuseDetailId">
-                <div class="mb-3">
-                    <label class="form-label">거절 사유 <span class="text-danger">*</span></label>
-                    <textarea id="refuseReason" class="form-control" rows="3" placeholder="거절 사유를 입력해주세요."></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
-                <button type="button" class="btn btn-danger" onclick="submitReturnRefuse()">거절</button>
             </div>
         </div>
     </div>
@@ -1252,44 +1226,10 @@ function submitReturn() {
     var reasonDetail = document.getElementById('returnReasonDetail').value;
 
     MubloRequest.requestJson('/admin/shop/orders/' + ORDER_NO + '/items/' + detailId + '/return', {
+        quantity: parseInt(document.getElementById('returnQuantity').value, 10) || 1,
         return_type: 'RETURN',
         reason_type: reasonType,
         reason_detail: reasonDetail
-    }).then(function() {
-        location.reload();
-    });
-}
-
-// ===== 반품 승인/거절 =====
-function processReturn(detailId, accept) {
-    if (!confirm(accept ? '반품을 승인하시겠습니까?' : '반품을 거절하시겠습니까?')) return;
-
-    MubloRequest.requestJson('/admin/shop/orders/' + ORDER_NO + '/items/' + detailId + '/return-process', {
-        accept: accept,
-        reason: ''
-    }).then(function() {
-        location.reload();
-    });
-}
-
-function openReturnRefuseModal(detailId) {
-    document.getElementById('refuseDetailId').value = detailId;
-    document.getElementById('refuseReason').value = '';
-    new bootstrap.Modal(document.getElementById('returnRefuseModal')).show();
-}
-
-function submitReturnRefuse() {
-    var detailId = document.getElementById('refuseDetailId').value;
-    var reason = document.getElementById('refuseReason').value;
-
-    if (!reason.trim()) {
-        alert('거절 사유를 입력해주세요.');
-        return;
-    }
-
-    MubloRequest.requestJson('/admin/shop/orders/' + ORDER_NO + '/items/' + detailId + '/return-process', {
-        accept: false,
-        reason: reason
     }).then(function() {
         location.reload();
     });
