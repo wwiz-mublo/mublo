@@ -289,7 +289,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                             title="구매확정하면 후기를 작성할 수 있습니다">구매확정</button>
                                 <?php endif; ?>
                                 <?php // 아직 쓸 수 없는 후기의 자리를 비활성 버튼으로 잡아두지 않는다.
-                                      // 교환·반품이 같은 줄에 들어오면서, 지금 할 수 있는 일과
+                                      // 반품·교환이 같은 줄에 들어오면서, 지금 할 수 있는 일과
                                       // 나중에 할 수 있는 일이 뒤섞여 읽히기 때문이다.
                                       // ($meta['pending'] 은 스킨이 쓸 수 있도록 그대로 전달된다) ?>
                                 <div class="shop-order-view__item-actions">
@@ -300,7 +300,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                     <button type="button" class="shop-order-view__review-btn js-claim-open"
                                             data-detail-id="<?= $did ?>" data-max-quantity="<?= $remaining ?>"
                                             data-goods-name="<?= e($item['goods_name'] ?? '') ?>"
-                                            data-options="<?= htmlspecialchars(json_encode($exchangeOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>">교환/반품</button>
+                                            data-options="<?= htmlspecialchars(json_encode($exchangeOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>">반품·교환</button>
                                 <?php elseif ($latestClaimStatus && !$activeClaim): ?>
                                     <small style="display:block;color:#888;margin-top:4px">최근: <?= e($latestClaimStatus->label((string) ($latestClaim['return_type'] ?? 'EXCHANGE'))) ?></small>
                                 <?php endif; ?>
@@ -553,10 +553,10 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
 
 </div>
 
-<!-- 교환·반품 신청 모달 -->
+<!-- 반품·교환 신청 모달 -->
 <div class="spv-rv-overlay" id="spvClaimOverlay">
     <div class="spv-rv-modal">
-        <h3>교환 · 반품 신청</h3>
+        <h3>반품·교환 신청</h3>
         <p class="spv-rv-modal__product" id="spvClaimProduct"></p>
         <input type="hidden" id="spvClaimDetailId">
 

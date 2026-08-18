@@ -38,16 +38,13 @@ final class ClaimController
             max(1, (int) ($request->get('page') ?? 1)),
             max(1, (int) ($request->get('per_page') ?? 20)),
         );
-        $schemas = $this->actionTypes->getAllSchemas();
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Claim/List')
             ->withData([
-                'pageTitle' => '교환·반품 관리',
+                'pageTitle' => '반품·교환 관리',
                 'claims' => $result['items'],
                 'pagination' => $result['pagination'],
                 'filters' => $filters,
                 'statusOptions' => ClaimStatus::options(),
-                'claimActions' => $this->config->getAllClaimStateActions($domainId),
-                'notificationChannels' => $schemas['notification']['fields']['channel']['options'] ?? [],
             ]);
     }
 
@@ -89,11 +86,11 @@ final class ClaimController
             }
         }
         if ($errors !== []) {
-            return JsonResponse::error('교환·반품 Action 설정을 확인해주세요.', ['errors' => $errors]);
+            return JsonResponse::error('반품·교환 Action 설정을 확인해주세요.', ['errors' => $errors]);
         }
         $result = $this->config->saveClaimStateActions($domainId, $normalized);
         return $result->isSuccess()
-            ? JsonResponse::success([], '교환·반품 Action 설정을 저장했습니다.')
+            ? JsonResponse::success([], '반품·교환 Action 설정을 저장했습니다.')
             : JsonResponse::error($result->getMessage());
     }
 

@@ -50,7 +50,7 @@ final class OrderItem
     protected bool $isShipped;
     protected bool $isCompleted;
 
-    // 반품/교환
+    // 반품·교환
     protected string $returnType;
     protected string $returnStatus;
 
@@ -102,7 +102,7 @@ final class OrderItem
         $entity->isShipped = (bool) ($data['is_shipped'] ?? false);
         $entity->isCompleted = (bool) ($data['is_completed'] ?? false);
 
-        // 반품/교환
+        // 반품·교환
         $entity->returnType = $data['return_type'] ?? 'NONE';
         $entity->returnStatus = $data['return_status'] ?? 'NONE';
 

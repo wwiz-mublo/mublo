@@ -16,14 +16,28 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
     <div class="page-title">
         <div class="page-title-text">
             <h3><?= $typeLabel ?> #<?= $claimId ?></h3>
-            <p>주문 <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>"><?= htmlspecialchars($claim['order_no'] ?? '') ?></a></p>
+            <p>주문 <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>?activeCode=K_Shop_005"><?= htmlspecialchars($claim['order_no'] ?? '') ?></a></p>
         </div>
-        <div class="page-title-actions"><a href="/admin/shop/claims" class="btn btn-sm btn-outline-secondary">목록</a></div>
+        <?php // 클레임은 늘 어떤 주문의 어떤 상품에 붙어 있다. 주문 상세에서 들어온 경우
+              // '목록'만 있으면 왔던 곳으로 돌아갈 수 없어 막다른 길이 된다. ?>
+        <div class="page-title-actions">
+            <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>?activeCode=K_Shop_005" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-receipt"></i> 주문 상세
+            </a>
+            <a href="/admin/shop/claims?activeCode=K_Shop_016" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-list"></i> 반품·교환 목록
+            </a>
+        </div>
     </div>
 
     <div class="row g-3">
         <div class="col-lg-8">
-            <div class="card mb-3"><div class="card-header fw-semibold"><?= $typeLabel ?> 상품</div><div class="card-body">
+            <div class="card mb-3">
+                <div class="card-hero">
+                    <i class="bi bi-box-seam text-pastel-purple"></i>
+                    <span><?= $typeLabel ?> 상품</span>
+                </div>
+                <div class="card-body">
                 <div class="row">
                     <div class="col-md-5">
                         <div class="text-muted small">기존</div>
@@ -45,7 +59,12 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
                 </div>
             </div></div>
 
-            <div class="card mb-3"><div class="card-header fw-semibold">사유·비용·회수지</div><div class="card-body">
+            <div class="card mb-3">
+                <div class="card-hero">
+                    <i class="bi bi-clipboard-check text-pastel-blue"></i>
+                    <span>사유 · 비용 · 회수지</span>
+                </div>
+                <div class="card-body">
                 <dl class="row mb-0">
                     <dt class="col-sm-3">사유</dt><dd class="col-sm-9">
                         <strong><?= htmlspecialchars(\Mublo\Packages\Shop\Enum\ClaimReason::labelFor($claim['reason_type'] ?? '')) ?></strong>
@@ -65,7 +84,13 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
                 </dl>
             </div></div>
 
-            <div class="card mb-3"><div class="card-header fw-semibold">배송</div><div class="table-responsive"><table class="table mb-0 align-middle">
+            <div class="card mb-3">
+                <div class="card-hero">
+                    <i class="bi bi-truck text-pastel-green"></i>
+                    <span>배송</span>
+                </div>
+                <div class="card-body">
+                <div class="table-responsive"><table class="table mb-0 align-middle">
                 <thead><tr><th>구분</th><th>택배사</th><th>송장</th><th>상태</th><th>처리</th></tr></thead><tbody>
                 <?php if ($shipments === []): ?><tr><td colspan="5" class="text-center text-muted">등록된 배송이 없습니다.</td></tr><?php endif; ?>
                 <?php foreach ($shipments as $shipment): ?>
@@ -80,16 +105,32 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
                         </td>
                     </tr>
                 <?php endforeach; ?>
-                </tbody></table></div></div>
+                </tbody></table></div>
+                </div>
+            </div>
 
-            <div class="card"><div class="card-header fw-semibold">처리 이력</div><div class="table-responsive"><table class="table mb-0">
+            <div class="card">
+                <div class="card-hero">
+                    <i class="bi bi-clock-history text-pastel-orange"></i>
+                    <span>처리 이력</span>
+                </div>
+                <div class="card-body">
+                <div class="table-responsive"><table class="table mb-0">
                 <thead><tr><th>일시</th><th>처리자</th><th>상태</th><th>사유</th></tr></thead><tbody>
                 <?php foreach ($logs as $log): ?><tr><td><?= htmlspecialchars($log['created_at'] ?? '') ?></td><td><?= htmlspecialchars($log['changed_by'] ?? '') ?></td><td><?= htmlspecialchars(($log['prev_status'] ?? '') . ' → ' . ($log['new_status'] ?? '')) ?></td><td><?= htmlspecialchars($log['reason'] ?? '') ?></td></tr><?php endforeach; ?>
-                </tbody></table></div></div>
+                </tbody></table></div>
+                </div>
+            </div>
         </div>
 
         <div class="col-lg-4">
-            <div class="card sticky-top" style="top:16px"><div class="card-header fw-semibold">현재 상태: <?= htmlspecialchars($statusLabel) ?></div><div class="card-body d-grid gap-2">
+            <div class="card sticky-top" style="top:16px">
+                <div class="card-hero">
+                    <i class="bi bi-arrow-repeat text-pastel-orange"></i>
+                    <span>현재 상태</span>
+                    <span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle ms-auto"><?= htmlspecialchars($statusLabel) ?></span>
+                </div>
+                <div class="card-body d-grid gap-2">
                 <?php if ($status === 'REQUESTED'): ?>
                     <button class="btn btn-primary js-action" data-action="accept">교환 승인</button>
                     <button class="btn btn-outline-danger js-reason" data-action="refuse">신청 거절</button>
@@ -110,7 +151,7 @@ $statusLabel = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom($status)?->label($
                     <div class="alert alert-info py-2 px-3 mb-2 small">
                         환불은 <strong>주문 상세의 환불 처리</strong>에서 실행합니다. 환불을 마친 뒤 아래 버튼으로 확정해주세요.
                     </div>
-                    <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>" class="btn btn-outline-secondary">주문에서 환불 처리</a>
+                    <a href="/admin/shop/orders/<?= urlencode((string) ($claim['order_no'] ?? '')) ?>?activeCode=K_Shop_005" class="btn btn-outline-secondary">주문에서 환불 처리</a>
                     <button class="btn btn-success js-reason" data-action="refund_complete">환불 완료 · 반품 종료</button>
                 <?php elseif ($status === 'READY_TO_SHIP'): ?>
                     <?php $action = 'reship'; $label = '교환 상품 재출고'; include __DIR__ . '/_shipment_form.php'; ?>

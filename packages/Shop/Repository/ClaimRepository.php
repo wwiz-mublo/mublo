@@ -142,7 +142,7 @@ class ClaimRepository
         );
     }
 
-    /** @param ?string $returnType null 이면 교환·반품을 모두 돌려준다 */
+    /** @param ?string $returnType null 이면 반품·교환을 모두 돌려준다 */
     public function getByOrderNo(int $domainId, string $orderNo, ?string $returnType = null): array
     {
         $typeSql = $returnType !== null ? ' AND r.return_type = ?' : '';
@@ -158,7 +158,7 @@ class ClaimRepository
         );
     }
 
-    /** @param ?string $returnType null 이면 교환·반품을 모두 돌려준다 */
+    /** @param ?string $returnType null 이면 반품·교환을 모두 돌려준다 */
     public function getActiveByDetailId(int $domainId, int $detailId, ?string $returnType = null): array
     {
         $typeSql = $returnType !== null ? ' AND r.return_type = ?' : '';
@@ -198,6 +198,37 @@ class ClaimRepository
             [$domainId, $detailId, $returnType]
         );
         return $row !== null && $row !== false;
+    }
+
+    /**
+     * 주어진 주문 중 살아 있는 클레임을 가진 주문번호 (목록 화면 일괄 표시용 — N+1 회피).
+     *
+     * @param string[] $orderNos
+     * @return array<string, string> [order_no => 대표 유형(EXCHANGE|RETURN|MIXED)]
+     */
+    public function getActiveClaimTypesByOrderNo(int $domainId, array $orderNos): array
+    {
+        $orderNos = array_values(array_filter(array_map('strval', $orderNos), static fn($v) => $v !== ''));
+        if ($orderNos === []) {
+            return [];
+        }
+        $placeholders = implode(', ', array_fill(0, count($orderNos), '?'));
+        $rows = $this->db->select(
+            "SELECT order_no, GROUP_CONCAT(DISTINCT return_type) AS types
+             FROM shop_returns
+             WHERE domain_id = ? AND return_type IN ('EXCHANGE', 'RETURN')
+               AND return_status NOT IN ('COMPLETED', 'REFUSED', 'CANCELLED', 'CLOSED')
+               AND order_no IN ({$placeholders})
+             GROUP BY order_no",
+            array_merge([$domainId], $orderNos)
+        );
+
+        $result = [];
+        foreach ($rows as $row) {
+            $types = explode(',', (string) ($row['types'] ?? ''));
+            $result[(string) $row['order_no']] = count($types) > 1 ? 'MIXED' : ($types[0] ?: 'EXCHANGE');
+        }
+        return $result;
     }
 
     /** 완료된 클레임 수량 합계 (전량 반품인지 판정할 때 쓴다). */
@@ -253,10 +284,10 @@ class ClaimRepository
         return [
             'items' => $items,
             'pagination' => [
-                'current_page' => $page,
-                'per_page' => $perPage,
-                'total' => $total,
-                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'totalItems' => $total,
+                'perPage' => $perPage,
+                'currentPage' => $page,
+                'totalPages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
             ],
         ];
     }

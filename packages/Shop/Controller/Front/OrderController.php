@@ -304,7 +304,7 @@ class OrderController
         foreach ($this->claimService?->getByOrderNo($domainId, $orderNo) ?? [] as $claim) {
             $detailId = (int) ($claim['order_detail_id'] ?? 0);
             $claimsByDetail[$detailId][] = $claim;
-            // 3개 중 1개만 교환·반품한 주문이라면 나머지 2개는 아직 신청할 수 있다.
+            // 3개 중 1개만 반품·교환한 주문이라면 나머지 2개는 아직 신청할 수 있다.
             // 서버가 접수 때 세는 것과 같은 규칙으로 남은 수량을 미리 계산해 둔다.
             $claimedStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
             if ($claimedStatus?->consumesQuantity()) {
@@ -459,11 +459,11 @@ class OrderController
             : JsonResponse::error($result->getMessage());
     }
 
-    /** 고객 클레임(교환·반품) 신청 (회원 및 소유권을 확인한 비회원). */
+    /** 고객 클레임(반품·교환) 신청 (회원 및 소유권을 확인한 비회원). */
     public function requestClaim(array $params, Context $context): JsonResponse
     {
         if ($this->claimService === null) {
-            return JsonResponse::error('교환·반품 기능을 사용할 수 없습니다.');
+            return JsonResponse::error('반품·교환 기능을 사용할 수 없습니다.');
         }
         $orderNo = (string) ($params['orderNo'] ?? '');
         $detailId = (int) ($params['detailId'] ?? 0);

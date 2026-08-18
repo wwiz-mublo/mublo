@@ -6,7 +6,7 @@ namespace Mublo\Packages\Shop\Service;
 use Mublo\Packages\Shop\Enum\ClaimStatus;
 
 /**
- * 클레임(교환·반품) 상태 전이 규칙.
+ * 클레임(반품·교환) 상태 전이 규칙.
  *
  * 두 유형은 회수·검수까지 같은 길을 걷고 검수 이후에만 갈린다.
  * 교환은 재출고대기 → 재출고 → 완료, 반품은 환불대기 → 완료.

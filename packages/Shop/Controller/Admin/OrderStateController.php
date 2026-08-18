@@ -8,6 +8,7 @@ use Mublo\Core\Context\Context;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\ActionTypeRegistry;
+use Mublo\Packages\Shop\Enum\ClaimStatus;
 use Mublo\Packages\Shop\Enum\OrderAction;
 
 /**
@@ -54,11 +55,17 @@ class OrderStateController
         $actionDescriptions = $this->actionRegistry->getAllDescriptions();
         $actionAllowDuplicates = $this->actionRegistry->getAllowDuplicates();
 
+        // 클레임(반품·교환) 상태 Action 도 같은 성격의 설정이라 여기서 함께 다룬다.
+        // 다만 클레임의 상태 그래프는 회수·검수·환불이라는 실물 절차에 묶여 있어
+        // 코드가 소유하므로(ClaimStateMachine) 편집 대상이 아니다 — Action 만 설정한다.
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/OrderState/Index')
             ->withData([
-                'pageTitle' => '주문상태 설정',
+                'pageTitle' => '상태·알림 설정',
                 'orderStates' => $orderStates,
                 'stateActions' => $stateActions,
+                'claimStateActions' => $this->shopConfigService->getAllClaimStateActions($domainId),
+                'claimStatusOptions' => ClaimStatus::options(),
+                'claimNotificationChannels' => $actionSchemas['notification']['fields']['channel']['options'] ?? [],
                 'actionTypes' => $actionTypes,
                 'actionSchemas' => $actionSchemas,
                 'actionDescriptions' => $actionDescriptions,

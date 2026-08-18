@@ -118,6 +118,12 @@ class OrderController
         }
         $deliveryCompanies = $this->shipmentService ? $this->shipmentService->getDeliveryCompanies() : [];
 
+        // 진행 중인 반품·교환은 주문 목록에서 바로 보여야 한다. 목록에 표시가 없으면
+        // 상세로 들어가 봐야만 알 수 있어, 처리 대기 중인 주문을 놓친다.
+        $claimTypeByOrderNo = $this->claimService
+            ? $this->claimService->getActiveClaimTypesByOrderNo($domainId, array_column($orders, 'order_no'))
+            : [];
+
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Order/List')
             ->withData([
                 'pageTitle' => '주문 관리',
@@ -131,6 +137,7 @@ class OrderController
                 'shippedSet' => $shippedSet,
                 'deliveryEditableStates' => $deliveryEditableStates,
                 'deliveryCompanies' => $deliveryCompanies,
+                'claimTypeByOrderNo' => $claimTypeByOrderNo,
             ]);
     }
 
@@ -347,7 +354,7 @@ class OrderController
 
         if ($changed === 0) {
             // 되돌아가는 전이이거나 클레임이 걸린 상품만 골랐을 때
-            return JsonResponse::error('선택한 상품은 그 상태로 옮길 수 없습니다. 이미 지난 단계이거나 교환·반품이 진행 중인지 확인해주세요.');
+            return JsonResponse::error('선택한 상품은 그 상태로 옮길 수 없습니다. 이미 지난 단계이거나 반품·교환이 진행 중인지 확인해주세요.');
         }
 
         $label = $this->stateResolver->getLabel($domainId, $status);
@@ -453,10 +460,10 @@ class OrderController
         }
 
         if ($this->claimService === null) {
-            return JsonResponse::error('교환·반품 기능을 사용할 수 없습니다.');
+            return JsonResponse::error('반품·교환 기능을 사용할 수 없습니다.');
         }
         // 고객이 전화로 요청한 반품을 관리자가 대신 접수한다. 승인·회수·검수는
-        // 교환·반품 관리에서 이어서 진행한다.
+        // 반품·교환 관리에서 이어서 진행한다.
         $result = $this->claimService->request(
             $domainId,
             $orderNo,

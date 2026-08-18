@@ -12,7 +12,7 @@
  * @var array $orderFieldValues 주문 추가 필드 값
  * @var array $orderReturns 반품 정보
  * @var array $refundInfo 환불 정보 [total_paid, total_refunded, refundable]
- * @var array $paymentTransactions 결제/환불 트랜잭션 이력
+ * @var array $paymentTransactions 결제·환불 트랜잭션 이력
  * @var array $orderMemos 관리자 메모 목록
  * @var array $memoTypeLabels 메모 유형 라벨
  * @var int $domainId 도메인 ID
@@ -386,7 +386,7 @@ foreach ($orderReturns as $ret) {
                             <td class="text-center">
                                 <input type="checkbox" class="form-check-input js-item-check"
                                        value="<?= $detailId ?>" data-group-no="<?= $itemGroup['no'] ?>"
-                                       <?= $claimActive ? 'disabled title="교환·반품이 진행 중입니다"' : '' ?>>
+                                       <?= $claimActive ? 'disabled title="반품·교환이 진행 중입니다"' : '' ?>>
                             </td>
                             <td>
                                 <div class="d-flex align-items-center gap-2">
@@ -422,7 +422,7 @@ foreach ($orderReturns as $ret) {
                                     ?>
                                     <div class="mb-1">
                                         <?php if (in_array($rowType, ['RETURN', 'EXCHANGE'], true)): ?>
-                                            <a href="/admin/shop/claims/<?= (int) ($claimRow['return_id'] ?? 0) ?>" class="badge bg-<?= $rsBg ?>-subtle text-<?= $rsBg ?>-emphasis border border-<?= $rsBg ?>-subtle text-decoration-none">
+                                            <a href="/admin/shop/claims/<?= (int) ($claimRow['return_id'] ?? 0) ?>?activeCode=K_Shop_016" class="badge bg-<?= $rsBg ?>-subtle text-<?= $rsBg ?>-emphasis border border-<?= $rsBg ?>-subtle text-decoration-none">
                                                 <?= $rtLabel ?> <?= max(1, (int) ($claimRow['quantity'] ?? 1)) ?>개 · <?= htmlspecialchars($rowStatus?->label($rowType) ?? $rowStatusId) ?>
                                             </a>
                                         <?php else: ?>
@@ -456,8 +456,8 @@ foreach ($orderReturns as $ret) {
                                         </li>
                                         <?php else: ?>
                                         <li>
-                                            <a class="dropdown-item" href="/admin/shop/claims?keyword=<?= urlencode($orderNo) ?>">
-                                                교환·반품 관리에서 처리
+                                            <a class="dropdown-item" href="/admin/shop/claims?keyword=<?= urlencode($orderNo) ?>&amp;activeCode=K_Shop_016">
+                                                반품·교환 관리에서 처리
                                             </a>
                                         </li>
                                         <?php endif; ?>
@@ -516,7 +516,7 @@ foreach ($orderReturns as $ret) {
                         <tr>
                             <td>
                                 <?php if (!empty($sh['claim_id'])): ?>
-                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
+                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>?activeCode=K_Shop_016" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
                                 <?php endif; ?>
                                 <?= htmlspecialchars($sh['company_name'] ?? '-') ?>
                             </td>
@@ -542,7 +542,7 @@ foreach ($orderReturns as $ret) {
                                     onclick='editShipment(<?= (int) $sh['shipment_id'] ?>, <?= (int) ($sh['company_id'] ?? 0) ?>, <?= json_encode((string) ($sh['invoice_no'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>, <?= json_encode((string) ($sh['admin_memo'] ?? ''), JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>수정</button>
                                 <button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteShipment(<?= (int) $sh['shipment_id'] ?>)">삭제</button>
                                 <?php else: ?>
-                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>" class="btn btn-sm btn-outline-warning">교환 관리</a>
+                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>?activeCode=K_Shop_016" class="btn btn-sm btn-outline-warning">교환 관리</a>
                                 <?php endif; ?>
                             </td>
                             <?php endif; ?>
@@ -644,7 +644,7 @@ foreach ($orderReturns as $ret) {
         <div class="card mb-4">
             <div class="card-hero">
                 <i class="bi bi-arrow-return-left text-pastel-orange"></i>
-                <span>반품/교환 내역</span>
+                <span>반품·교환 내역</span>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -674,7 +674,7 @@ foreach ($orderReturns as $ret) {
                         <tr>
                             <td>
                                 <?php if (in_array($ret['return_type'] ?? '', ['EXCHANGE', 'RETURN'], true)): ?>
-                                    <a href="/admin/shop/claims/<?= (int) ($ret['return_id'] ?? 0) ?>"><?= $rtLabel ?> <?= max(1, (int) ($ret['quantity'] ?? 1)) ?>개</a>
+                                    <a href="/admin/shop/claims/<?= (int) ($ret['return_id'] ?? 0) ?>?activeCode=K_Shop_016"><?= $rtLabel ?> <?= max(1, (int) ($ret['quantity'] ?? 1)) ?>개</a>
                                 <?php else: ?>
                                     <?= $rtLabel ?>
                                 <?php endif; ?>
@@ -701,12 +701,12 @@ foreach ($orderReturns as $ret) {
         </div>
         <?php endif; ?>
 
-        <!-- 결제/환불 내역 -->
+        <!-- 결제·환불 내역 -->
         <?php if (!empty($paymentTransactions)): ?>
         <div class="card mb-4">
             <div class="card-hero">
                 <i class="bi bi-credit-card text-pastel-blue"></i>
-                <span>결제/환불 내역</span>
+                <span>결제·환불 내역</span>
             </div>
             <div class="card-body">
                 <div class="table-responsive">

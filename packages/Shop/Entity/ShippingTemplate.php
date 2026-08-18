@@ -30,7 +30,7 @@ final class ShippingTemplate
     protected bool $extraCostEnabled;
     protected ?array $extraCostRanges;
 
-    // 반품/교환
+    // 반품·교환
     protected int $returnCost;
     protected int $exchangeCost;
 
@@ -79,7 +79,7 @@ final class ShippingTemplate
         $entity->extraCostEnabled = (bool) ($data['extra_cost_enabled'] ?? true);
         $entity->extraCostRanges = self::parseJson($data['extra_cost_ranges'] ?? null);
 
-        // 반품/교환
+        // 반품·교환
         $entity->returnCost = (int) ($data['return_cost'] ?? 0);
         $entity->exchangeCost = (int) ($data['exchange_cost'] ?? 0);
 

@@ -12,7 +12,7 @@ use Mublo\Repository\BaseRepository;
  * shop_payment_transactions 테이블 CRUD
  *
  * 책임:
- * - 결제/환불 트랜잭션 기록
+ * - 결제·환불 트랜잭션 기록
  * - 주문별 트랜잭션 이력 조회
  * - 환불 누적 금액 집계
  */

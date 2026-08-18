@@ -83,13 +83,24 @@ final class ClaimService
         }, $this->claims->getByOrderNo($domainId, $orderNo, $returnType));
     }
 
+    /**
+     * 주문 목록에서 클레임 유무를 한눈에 보이기 위한 일괄 조회.
+     *
+     * @param string[] $orderNos
+     * @return array<string, string> [order_no => EXCHANGE|RETURN|MIXED]
+     */
+    public function getActiveClaimTypesByOrderNo(int $domainId, array $orderNos): array
+    {
+        return $this->claims->getActiveClaimTypesByOrderNo($domainId, $orderNos);
+    }
+
     public function getActiveByDetailId(int $domainId, int $detailId, ?string $returnType = null): array
     {
         return $this->claims->getActiveByDetailId($domainId, $detailId, $returnType);
     }
 
     /**
-     * 클레임(교환·반품) 신청 가능 여부 — 프론트 버튼과 서버 접수가 함께 쓰는 단일 규칙.
+     * 클레임(반품·교환) 신청 가능 여부 — 프론트 버튼과 서버 접수가 함께 쓰는 단일 규칙.
      *
      * 두 유형의 조건은 같다. 받은 물건이어야 돌려보내든 바꾸든 할 수 있기 때문이다.
      * 주문상품 상태가 우선이고, 아직 배송완료로 따라오지 못한 품목은 주문 헤더로

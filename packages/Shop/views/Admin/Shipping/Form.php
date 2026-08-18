@@ -18,7 +18,7 @@ $t = $template ?? [];
         <div class="page-title">
             <div class="page-title-text">
                 <h3 id="shippingFormTitle"><?= $isEdit ? '배송 템플릿 수정' : '배송 템플릿 등록' ?></h3>
-                <p>배송비 정책과 반품/교환 정보를 설정합니다.</p>
+                <p>배송비 정책과 반품·교환 정보를 설정합니다.</p>
             </div>
             <div class="page-title-actions">
                 <a href="/admin/shop/shipping" class="btn btn-sm btn-outline-secondary">
@@ -167,7 +167,7 @@ $t = $template ?? [];
                 </div>
             </div>
 
-            <!-- 반품/교환 -->
+            <!-- 반품·교환 -->
             <div class="card mb-4">
                 <div class="card-hero">
                     <i class="bi bi-arrow-return-left text-pastel-purple"></i>
@@ -275,7 +275,7 @@ $t = $template ?? [];
             <div class="card mb-4">
                 <div class="card-hero">
                     <i class="bi bi-geo-alt text-pastel-blue"></i>
-                    <span>반품/교환지</span>
+                    <span>반품·교환지</span>
                 </div>
                 <div class="card-body">
                     <div class="row mb-3">

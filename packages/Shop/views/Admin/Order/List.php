@@ -19,6 +19,7 @@ $orderStatusColors  = $orderStatusColors ?? [];
 $perPage            = (int) ($perPage ?? 20);
 $hasFilter          = $hasFilter ?? false;
 $shippedSet             = $shippedSet ?? [];             // [order_no => true] 운송장 보유
+$claimTypeByOrderNo     = $claimTypeByOrderNo ?? [];      // [order_no => EXCHANGE|RETURN|MIXED] 진행 중 클레임
 $deliveryEditableStates = $deliveryEditableStates ?? []; // [state_id => true] 운송장 입력 가능 상태
 $deliveryCompanies      = $deliveryCompanies ?? [];      // 택배사 목록 (등록 모달 드롭다운)
 
@@ -193,6 +194,24 @@ $detailSuffix = $listQuery !== '' ? '?' . htmlspecialchars($listQuery) : '';
                                         <?= htmlspecialchars($firstName ?: '-') ?>
                                         <?php if ($itemCount > 1): ?>
                                             <span class="badge text-bg-default ms-1">외 <?= $itemCount - 1 ?>건</span>
+                                        <?php endif; ?>
+                                        <?php $claimType = $claimTypeByOrderNo[$order['order_no'] ?? ''] ?? null; ?>
+                                        <?php if ($claimType !== null): ?>
+                                            <?php
+                                                // 클레임은 상품에 걸리는 것이라 상품 옆이 맥락에 맞다.
+                                                // 진행 중인 건만 보여야 '할 일'로 읽힌다.
+                                                $claimLabel = match ($claimType) {
+                                                    'RETURN' => '반품',
+                                                    'MIXED' => '반품·교환',
+                                                    default => '교환',
+                                                };
+                                                $claimColor = $claimType === 'RETURN' ? 'danger' : 'warning';
+                                            ?>
+                                            <span class="ms-1">
+                                                <a href="/admin/shop/claims?keyword=<?= urlencode((string) $order['order_no']) ?>&amp;activeCode=K_Shop_016"
+                                                   class="badge bg-<?= $claimColor ?>-subtle text-<?= $claimColor ?>-emphasis border border-<?= $claimColor ?>-subtle text-decoration-none"
+                                                   title="진행 중인 반품·교환이 있습니다"><?= $claimLabel ?> 진행중</a>
+                                            </span>
                                         <?php endif; ?>
                                     </td>
                                     <td class="text-end text-nowrap"><?= number_format($order['total_price'] ?? 0) ?></td>

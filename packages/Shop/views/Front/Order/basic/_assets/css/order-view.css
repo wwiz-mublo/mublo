@@ -147,7 +147,7 @@ a.shop-order-view__item-name:hover { text-decoration: underline; }
     .shop-order-view__btn { width: 100%; }
 }
 
-/* ── 상품별 액션 (구매확정 · 교환/반품 · 후기) ── */
+/* ── 상품별 액션 (구매확정 · 반품·교환 · 후기) ── */
 /* 한 상품에 두 개 이상이 세로로 쌓이므로 글자 수와 무관하게 폭을 맞춘다 */
 .shop-order-view__review-btn {
     display: block; width: 100%; box-sizing: border-box; text-align: center;
