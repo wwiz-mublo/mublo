@@ -326,7 +326,7 @@ foreach ($orderReturns as $ret) {
                             <th class="text-center text-nowrap">수량</th>
                             <th class="text-end text-nowrap">합계</th>
                             <th class="text-center text-nowrap">상태</th>
-                            <th class="text-center text-nowrap">반품</th>
+                            <th class="text-center text-nowrap">반품·교환</th>
                             <th class="text-nowrap" style="width:100px">관리</th>
                         </tr>
                     </thead>
@@ -525,7 +525,7 @@ foreach ($orderReturns as $ret) {
                             <td>
                                 <?php if (!empty($sh['claim_id'])): ?>
                                     <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>?activeCode=K_Shop_016"
-                                       class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none me-1"><?= htmlspecialchars($shipmentRoleLabels[$sh['shipment_role'] ?? ''] ?? '클레임') ?></a>
+                                       class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none me-1"><?= htmlspecialchars($shipmentRoleLabels[$sh['shipment_role'] ?? ''] ?? '반품·교환') ?></a>
                                 <?php endif; ?>
                                 <?= htmlspecialchars($sh['company_name'] ?? '-') ?>
                             </td>
