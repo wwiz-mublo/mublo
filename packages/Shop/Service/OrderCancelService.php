@@ -69,6 +69,15 @@ class OrderCancelService
             return Result::failure('현재 상태에서는 주문을 취소할 수 없습니다.');
         }
 
+        // 주문 상태만 보면 부분 배송을 놓친다. 주문 상태는 가장 뒤처진 품목을 따르므로
+        // 3개 중 1개가 배송완료여도 나머지가 결제완료면 주문은 결제완료로 남는다.
+        if ($this->itemsBlockingCancel($this->orderRepository->getItems($orderNo)) !== []) {
+            return Result::failure(
+                '이미 출고된 상품이 있어 주문 전체 취소가 어렵습니다. '
+                . '아직 출고되지 않은 상품의 취소는 판매자에게 문의해 주세요.'
+            );
+        }
+
         $reason = trim($reason);
 
         // received(미결제/입금대기): 받은 돈 없음 → 즉시 취소
@@ -158,5 +167,40 @@ class OrderCancelService
             return $result;
         }
         return Result::success($message, $result->getData());
+    }
+
+    /**
+     * 주문 전체 취소를 막는 품목의 상품명.
+     *
+     * 취소는 아직 나가지 않은 것에만 성립한다. 한 상품이라도 출고됐다면 그 주문은
+     * "없던 일"이 될 수 없다. 그런데도 전체 취소를 허용하면 환불액은
+     * getRefundableAmount()가 주문 전체 기준으로 잡으므로 이미 받은 상품 값까지 돌려주게 된다.
+     *
+     * 이미 취소된 품목은 막지 않는다 — 되돌릴 것이 남아 있지 않다.
+     * 상태를 알 수 없으면(판매자가 FSM에 추가한 커스텀 상태) 막는 쪽에 둔다.
+     * 잘못 막으면 문의 한 번이지만, 잘못 열면 돈이 나간다.
+     *
+     * 이 판정을 프론트 주문 상세도 그대로 쓴다 — 버튼을 띄우는 규칙과
+     * 서버가 집행하는 규칙이 갈리면 안 된다.
+     *
+     * @param array $items 주문상품 목록 (OrderRepository::getItems)
+     * @return string[] 취소를 막는 상품명 (없으면 빈 배열 = 전체 취소 가능)
+     */
+    public function itemsBlockingCancel(array $items): array
+    {
+        $blocking = [];
+        foreach ($items as $item) {
+            $status = (string) ($item['status'] ?? '');
+            if ($status === OrderAction::CANCELLED->value) {
+                continue;
+            }
+            $action = OrderAction::tryFrom($status);
+            if ($action !== null && $action->isCancellable()) {
+                continue;
+            }
+            $name = trim((string) ($item['goods_name'] ?? ''));
+            $blocking[] = $name !== '' ? $name : '상품';
+        }
+        return $blocking;
     }
 }

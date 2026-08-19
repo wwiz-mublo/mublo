@@ -131,7 +131,12 @@ if ($isCancelledOrReturned) {
 }
 
 // 사용자 주문취소 가능 여부: 주문접수(received)·결제완료(paid)에서만 (OrderAction::isCancellable과 동일)
-$canCancel = in_array($currentAction, ['received', 'paid'], true);
+// 여기에 더해 이미 출고된 품목이 하나라도 있으면 전체 취소는 성립하지 않는다.
+// 주문 상태는 가장 뒤처진 품목을 따르므로 일부만 배송된 주문도 결제완료로 보인다 —
+// 판정은 서버와 같은 OrderCancelService::itemsBlockingCancel이 내린다.
+$cancelBlockedItems = $cancelBlockedItems ?? [];
+$canCancel = in_array($currentAction, ['received', 'paid'], true) && $cancelBlockedItems === [];
+$cancelBlocked = in_array($currentAction, ['received', 'paid'], true) && $cancelBlockedItems !== [];
 
 // 취소 안내 문구 (실제 처리 정책은 서버 OrderCancelService가 결정; 여기선 예상 안내만)
 $cancelGateway = trim((string) ($order['payment_gateway'] ?? ''));
@@ -542,6 +547,11 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
 
             <?php if ($canCancel): ?>
             <button type="button" id="spvCancelOpen" class="shop-order-view__btn shop-order-view__btn--danger shop-order-view__cancel-side">주문 취소</button>
+            <?php elseif ($cancelBlocked): ?>
+            <p class="shop-order-view__cancel-blocked">
+                일부 상품이 이미 출고되어 주문 전체 취소가 어렵습니다.
+                아직 출고되지 않은 상품의 취소는 판매자에게 문의해 주세요.
+            </p>
             <?php endif; ?>
         </div><!-- /sidebar -->
 

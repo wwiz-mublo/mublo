@@ -337,6 +337,12 @@ class OrderController
             }
         }
 
+        // 취소를 막는 품목 — 서버(OrderCancelService)가 집행하는 것과 같은 판정을 써서
+        // 눌러 봐야 거절당하는 버튼이 뜨지 않게 한다.
+        $cancelBlockedItems = $this->cancelService
+            ? $this->cancelService->itemsBlockingCancel($items)
+            : [];
+
         // 취소/반품 주문 타임라인용 상태 로그 (실제 거쳐온 경로 재구성에 사용)
         $orderLogs = $this->orderService->getOrderLogs($orderNo);
 
@@ -364,6 +370,7 @@ class OrderController
                 'shipments'         => $shipments,
                 'shipmentItemNames' => $shipmentItemNames,
                 'reviewMeta'        => $reviewMeta,
+                'cancelBlockedItems' => $cancelBlockedItems,
                 'claimsByDetail' => $claimsByDetail,
                 'claimableByDetail' => $claimableByDetail,
                 'claimableQuantityByDetail' => $claimableQuantityByDetail,

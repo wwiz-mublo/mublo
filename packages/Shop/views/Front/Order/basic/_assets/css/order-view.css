@@ -112,6 +112,17 @@ a.shop-order-view__item-name:hover { text-decoration: underline; }
 .shop-order-view__btn--danger:hover { background: var(--destructive); color: var(--destructive-foreground); }
 /* 결제 정보 섹션 아래(사이드바) 배치 시 전체 너비 */
 .shop-order-view__cancel-side { display: block; width: 100%; margin-top: 12px; box-sizing: border-box; }
+/* 취소 버튼 자리를 대신하는 안내 — 버튼 없이 이유만 남기면 왜 안 되는지 알 수 없다 */
+.shop-order-view__cancel-blocked {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
 
 /* 주문 취소 모달 */
 .spv-cancel-hint { font-size: 0.85rem; line-height: 1.5; color: var(--muted-foreground); margin: 0 0 16px; }
