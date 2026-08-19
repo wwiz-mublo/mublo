@@ -585,6 +585,12 @@ foreach ($orderReturns as $ret) {
                             <?php endforeach; ?>
                         </select>
                         <div class="form-text">배송비를 따로 받은 묶음은 따로 나갑니다. 묶음별로 운송장을 등록하면 그 상품만 배송 상태가 움직입니다.</div>
+                        <?php // 막지는 않는다 — 같은 창고에서 나가면 한 상자에 담는 게 정상이다.
+                              // 다만 묶음별 배송 상태를 나눌 수 없게 된다는 건 알고 골라야 한다. ?>
+                        <div class="form-text text-warning d-none" id="shipmentWholeOrderNote">
+                            <i class="bi bi-exclamation-triangle"></i>
+                            이 주문은 배송비를 <?= count($shippingGroups) ?>번 받았습니다. 한 번에 보내면 묶음별로 배송 상태를 따로 관리할 수 없습니다.
+                        </div>
                     </div>
                 <?php endif; ?>
                 <div class="row g-2">
@@ -1397,11 +1403,15 @@ function resetShipmentForm() {
     if (groupWrap) {
         groupWrap.classList.remove('d-none');
         document.getElementById('shipmentGroup').value = '';
+        syncWholeOrderNote();
     }
 }
 
 // 주문 상품 표의 묶음 헤더에서 부른다 — 그 묶음으로 폼을 맞춰 두고 커서까지 옮긴다.
 // 묶음 키는 data-* 로 넘긴다 (인라인 onclick 안의 값은 JS 코드로 파싱되므로)
+document.getElementById('shipmentGroup')?.addEventListener('change', syncWholeOrderNote);
+syncWholeOrderNote();
+
 document.querySelectorAll('.js-group-shipment').forEach(function (btn) {
     btn.addEventListener('click', function () {
         prepareGroupShipment(this.dataset.groupKey);
@@ -1416,6 +1426,14 @@ function prepareGroupShipment(groupKey) {
     if (!invoice) { return; }
     invoice.scrollIntoView({ behavior: 'smooth', block: 'center' });
     invoice.focus();
+}
+
+// '주문 전체'를 고르면 묶음별 배송 상태를 나눌 수 없다는 걸 그 자리에서 알린다
+function syncWholeOrderNote() {
+    var sel = document.getElementById('shipmentGroup');
+    var note = document.getElementById('shipmentWholeOrderNote');
+    if (!sel || !note) { return; }
+    note.classList.toggle('d-none', sel.value !== '');
 }
 
 function editShipment(id, companyId, invoiceNo, memo) {

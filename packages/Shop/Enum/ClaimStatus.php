@@ -76,12 +76,20 @@ enum ClaimStatus: string
     /**
      * 이 클레임이 주문 수량을 잡아먹고 있는지.
      *
-     * 거절·취소·종결된 건은 그 수량을 다시 신청할 수 있어야 하고, 완료된 건은
-     * 이미 처리됐으므로 다시 신청할 수 없다.
-     * (ClaimRepository::getActiveQuantityForUpdate 의 SQL 조건과 같은 규칙)
+     * 기준은 "그 개체가 고객 손을 떠났는가" 다. 거절·취소·종결된 건은 물건이 고객에게
+     * 있으므로 수량이 되돌아오고, 반품·취소 완료는 우리가 받았거나 보내지 않았으므로
+     * 소진된다. 교환 완료는 교체품이 고객에게 있으니 되돌아온다 — 교체받은 상품이
+     * 또 하자일 수 있어 다시 신청할 수 있어야 한다.
+     *
+     * (ClaimRepository::getActiveQuantityForUpdate 의 SQL 조건과 같은 규칙.
+     *  프론트가 남은 수량을 미리 계산할 때도 이 판정을 쓴다 — 두 규칙이 갈리면
+     *  눌리는데 거절당하는 버튼이 생긴다)
      */
-    public function consumesQuantity(): bool
+    public function consumesQuantity(string $returnType = ''): bool
     {
+        if (in_array([$this, $returnType], [[self::COMPLETED, 'EXCHANGE']], true)) {
+            return false;
+        }
         return !in_array($this, [self::REFUSED, self::CANCELLED, self::CLOSED], true);
     }
 

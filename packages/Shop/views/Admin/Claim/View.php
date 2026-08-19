@@ -184,7 +184,7 @@ $deliveredRole = static function (string $role) use ($shipments): bool {
                     <select id="inspectionResult" class="form-select"><option value="SALEABLE">정상 재판매</option><option value="DEFECTIVE">불량</option><option value="DISCARD">폐기</option><option value="WRONG_ITEM">오배송품</option></select>
                     <button class="btn btn-primary js-inspect" data-action="inspect_approve"><?= $isExchange ? '검수 승인 · 재출고 대기' : '검수 승인 · 환불 대기' ?></button>
                     <button class="btn btn-outline-danger js-inspect" data-action="inspect_reject">검수 거절</button>
-                    <div class="form-text">검수 거절은 회수품을 고객에게 반송합니다. 거절 사유에 맞는 회수품 상태를 골라주세요.</div>
+                    <div class="form-text">검수 거절은 회수품을 고객에게 반송합니다. 회수품 상태를 거절 사유에 맞게 고르고, 사유를 남겨주세요.</div>
                 <?php elseif ($status === 'READY_TO_REFUND'): ?>
                     <?php $refundAmount = (int) ($claim['refund_amount'] ?? 0); ?>
                     <div class="d-flex justify-content-between align-items-center">
@@ -257,8 +257,10 @@ $deliveredRole = static function (string $role) use ($shipments): bool {
    }
    // prompt 취소는 null 이다. ?? '' 로 덮으면 취소와 '메모 없이 확인'이 구별되지 않아
    // 되돌릴 수 없는 검수가 그대로 실행된다.
-   const r=prompt('검수 메모 (선택)');
+   const rejecting=b.dataset.action==='inspect_reject';
+   const r=prompt(rejecting?'거절 사유를 입력해주세요. (고객에게 반송됩니다)':'검수 메모 (선택)');
    if(r===null){ return; }
+   if(rejecting&&r.trim()===''){ MubloRequest.showAlert('거절 사유를 입력해주세요.','warning'); return; }
    send({action:b.dataset.action,inspection_result:result,reason:r});
  }));
  document.querySelectorAll('.js-ship-form').forEach(f=>f.addEventListener('submit',e=>{e.preventDefault();send({action:f.dataset.action,company_id:f.querySelector('[name=company_id]').value,invoice_no:f.querySelector('[name=invoice_no]').value,admin_memo:f.querySelector('[name=admin_memo]').value});}));

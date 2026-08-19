@@ -174,6 +174,16 @@ class ClaimRepository
         );
     }
 
+    /**
+     * 이미 잡혀 있는 클레임 수량 (남은 신청 가능 수량 계산용).
+     *
+     * 판정 기준은 "그 개체가 고객 손을 떠났는가" 다.
+     * - 거절·취소·종결   → 물건은 고객에게 있다 → 수량을 되돌린다
+     * - 반품 완료         → 우리가 받고 환불했다 → 소진
+     * - 취소 완료         → 애초에 보내지 않았다 → 소진
+     * - 교환 완료         → 고객에게 교체품이 있다 → 되돌린다
+     *   (교체받은 상품이 또 하자일 수 있으므로 다시 신청할 수 있어야 한다)
+     */
     public function getActiveQuantityForUpdate(int $domainId, int $detailId): int
     {
         $row = $this->db->selectOne(
@@ -182,6 +192,7 @@ class ClaimRepository
              LEFT JOIN shop_exchange_items e ON e.return_id = r.return_id
              WHERE r.domain_id = ? AND r.order_detail_id = ?
                AND r.return_status NOT IN ('REFUSED', 'CANCELLED', 'CLOSED')
+               AND NOT (r.return_status = 'COMPLETED' AND r.return_type = 'EXCHANGE')
              ",
             [$domainId, $detailId]
         );

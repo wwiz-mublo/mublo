@@ -278,6 +278,23 @@ final class ClaimServiceTest extends TestCase
         $this->assertStringContainsString('클레임 유형', $result->getMessage());
     }
 
+    public function testCompletedExchangeReleasesItsQuantityForAnotherClaim(): void
+    {
+        // 교환 완료는 교체품이 고객에게 있는 상태다. 그 교체품이 또 하자일 수 있으므로
+        // 수량이 되돌아와야 한다 (반품 완료는 물건이 우리에게 왔으므로 소진된다).
+        $this->assertFalse(
+            \Mublo\Packages\Shop\Enum\ClaimStatus::COMPLETED->consumesQuantity('EXCHANGE'),
+            '교환 완료분은 다시 신청할 수 있어야 합니다.'
+        );
+        $this->assertTrue(\Mublo\Packages\Shop\Enum\ClaimStatus::COMPLETED->consumesQuantity('RETURN'));
+        $this->assertTrue(\Mublo\Packages\Shop\Enum\ClaimStatus::COMPLETED->consumesQuantity('CANCEL'));
+        // 진행 중인 교환은 그대로 잡혀 있어야 이중 신청이 막힌다
+        $this->assertTrue(\Mublo\Packages\Shop\Enum\ClaimStatus::COLLECTING->consumesQuantity('EXCHANGE'));
+        // 거절·취소·종결은 물건이 고객에게 있으므로 되돌아온다
+        $this->assertFalse(\Mublo\Packages\Shop\Enum\ClaimStatus::REFUSED->consumesQuantity('EXCHANGE'));
+        $this->assertFalse(\Mublo\Packages\Shop\Enum\ClaimStatus::CLOSED->consumesQuantity('RETURN'));
+    }
+
     public function testExchangeAndReturnCanCoexistOnTheSameOrderLine(): void
     {
         // 3개 중 2개는 불량이라 교환, 1개는 필요 없어져 반품 — 서로 다른 개체다

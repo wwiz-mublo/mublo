@@ -175,9 +175,9 @@ class ShipmentService
     /**
      * 주문별 배송 정보 조회
      */
-    public function getByOrderNo(string $orderNo): array
+    public function getByOrderNo(string $orderNo, bool $includeClaims = false): array
     {
-        $shipments = $this->shipmentRepository->getByOrderNo($orderNo);
+        $shipments = $this->shipmentRepository->getByOrderNo($orderNo, $includeClaims);
 
         return array_map(function (array $s) {
             $s['tracking_url'] = $this->buildTrackingUrl(

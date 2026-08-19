@@ -425,6 +425,11 @@ final class ClaimService
         if (!$approved && $inspectionResult === 'SALEABLE') {
             return Result::failure('검수 거절 시에는 정상 재판매를 선택할 수 없습니다. 거절 사유에 맞는 검수 결과를 골라주세요.');
         }
+        // 거절은 회수품을 고객에게 되돌려 보내는 처리다. 이유가 없으면 고객도 운영자도
+        // 나중에 왜 거절됐는지 알 수 없다 (신청 거절 refuse() 와 같은 규칙).
+        if (!$approved && trim($reason) === '') {
+            return Result::failure('검수 거절 사유를 입력해주세요.');
+        }
         // 승인 이후 갈래는 유형이 정한다. 교환은 바꿔 보내고, 반품은 환불한다.
         $claim = $this->claims->findInDomain($domainId, $claimId);
         if ($claim === null) {

@@ -307,7 +307,7 @@ class OrderController
             // 3개 중 1개만 반품·교환한 주문이라면 나머지 2개는 아직 신청할 수 있다.
             // 서버가 접수 때 세는 것과 같은 규칙으로 남은 수량을 미리 계산해 둔다.
             $claimedStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
-            if ($claimedStatus?->consumesQuantity()) {
+            if ($claimedStatus?->consumesQuantity((string) ($claim['return_type'] ?? ''))) {
                 $claimedQuantityByDetail[$detailId] = ($claimedQuantityByDetail[$detailId] ?? 0)
                     + max(1, (int) ($claim['quantity'] ?? 1));
             }
@@ -341,7 +341,9 @@ class OrderController
         $orderLogs = $this->orderService->getOrderLogs($orderNo);
 
         // 배송(운송장) 정보 — 택배사·송장번호·추적링크 표시용
-        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo) : [];
+        // 클레임 운송장까지 함께 본다 — 교환 상품이 언제 오는지, 회수가 접수됐는지를
+        // 고객이 확인할 곳이 여기뿐이다 (뷰에 '회수 운송장'·'교환 운송장' 라벨이 있다).
+        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo, true) : [];
         // 배송비를 따로 받은 묶음은 따로 나간다. 어느 송장에 어느 상품이 실렸는지
         // 고객이 알 수 있어야 "왜 일부만 왔지"가 의문으로 남지 않는다.
         $shipmentItemNames = $this->shipmentService ? $this->shipmentService->itemNamesByShipment($orderNo, $shipments) : [];
