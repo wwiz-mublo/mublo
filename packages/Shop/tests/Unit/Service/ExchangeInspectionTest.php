@@ -9,7 +9,7 @@ use Mublo\Packages\Shop\Repository\OrderRepository;
 use Mublo\Packages\Shop\Repository\ProductOptionRepository;
 use Mublo\Packages\Shop\Repository\ProductRepository;
 use Mublo\Packages\Shop\Service\ClaimStateMachine;
-use Mublo\Packages\Shop\Service\ExchangeService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Service\ExchangeStockService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\ShipmentService;
@@ -57,10 +57,24 @@ final class ExchangeInspectionTest extends TestCase
         $writes = [];
         $service = $this->makeService($this->claimsMock([], $writes), $this->productsMock());
 
-        $result = $service->inspect(1, 77, false, 'SALEABLE', 5);
+        $result = $service->inspect(1, 77, false, 'SALEABLE', 5, '사유');
 
         $this->assertTrue($result->isFailure());
         $this->assertStringContainsString('정상 재판매', $result->getMessage());
+        $this->assertSame([], $writes, '거절이 막혔으면 재고 상태를 건드리지 않아야 합니다.');
+    }
+
+    public function testRejectionRequiresAReason(): void
+    {
+        // 거절은 회수품을 고객에게 되돌려 보내는 처리다. 이유가 없으면 고객도
+        // 운영자도 나중에 왜 거절됐는지 알 수 없다.
+        $writes = [];
+        $service = $this->makeService($this->claimsMock([], $writes), $this->productsMock());
+
+        $result = $service->inspect(1, 77, false, 'DEFECTIVE', 5);
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('사유', $result->getMessage());
         $this->assertSame([], $writes, '거절이 막혔으면 재고 상태를 건드리지 않아야 합니다.');
     }
 
@@ -69,7 +83,7 @@ final class ExchangeInspectionTest extends TestCase
         $writes = [];
         $service = $this->makeService($this->claimsMock([], $writes), $this->productsMock());
 
-        $result = $service->inspect(1, 77, false, 'DEFECTIVE', 5);
+        $result = $service->inspect(1, 77, false, 'DEFECTIVE', 5, '착용 흔적이 있어 재판매 불가');
 
         $this->assertTrue($result->isSuccess());
         // 회수품은 고객에게 반송된다 — 판매 재고로 되돌리면 없는 물건을 파는 셈이다
@@ -167,18 +181,26 @@ final class ExchangeInspectionTest extends TestCase
                 return true;
             }
         );
+        // 검수 기록(source_restocked_at)은 이제 클레임 본체에 남는다 — 반품에는
+        // 교환 대상 상품 행이 없기 때문이다
+        $claims->method('updateClaim')->willReturnCallback(
+            static function (int $domainId, int $claimId, array $data) use (&$writes): bool {
+                $writes[] = $data;
+                return true;
+            }
+        );
         $claims->method('addLog')->willReturn(1);
         $claims->method('getActiveByDetailId')->willReturn([]);
-        $claims->method('hasCompletedExchange')->willReturn(false);
+        $claims->method('hasCompletedClaim')->willReturn(false);
 
         return $claims;
     }
 
-    private function makeService(ClaimRepository $claims, ProductRepository $products): ExchangeService
+    private function makeService(ClaimRepository $claims, ProductRepository $products): ClaimService
     {
         $options = $this->createMock(ProductOptionRepository::class);
 
-        return new ExchangeService(
+        return new ClaimService(
             $claims,
             $this->createMock(OrderRepository::class),
             $options,

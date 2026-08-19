@@ -297,11 +297,14 @@ class CartCheckoutService
     public function buildShippingBreakdown(array $groups): array
     {
         $breakdown = [];
-        foreach ($groups as $g) {
+        foreach ($groups as $key => $g) {
             if (!empty($g['unresolved'])) {
                 continue;
             }
             $breakdown[] = [
+                // 그룹 키는 송장 귀속(shop_shipments.shipping_group_key)의 앵커다.
+                // 주문에 얼린 값이므로 이후 템플릿이 바뀌어도 송장↔상품 연결이 흔들리지 않는다.
+                'group_key'     => (string) $key,
                 'template_id'   => $g['template_id'] ?? null,
                 'template_name' => $g['template_name'] ?? '',
                 'base_fee'      => (int) ($g['base_fee'] ?? $g['shipping_fee'] ?? 0),

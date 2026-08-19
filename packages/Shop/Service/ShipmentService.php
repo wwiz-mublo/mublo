@@ -44,6 +44,7 @@ class ShipmentService
         ShipmentRepository $shipmentRepository,
         ?OrderRepository $orderRepository = null,
         private ?EventDispatcher $eventDispatcher = null,
+        private ?ShipmentGroupResolver $groupResolver = null,
     ) {
         $this->shipmentRepository = $shipmentRepository;
         $this->orderRepository    = $orderRepository;
@@ -51,6 +52,10 @@ class ShipmentService
 
     /**
      * 주문에 송장 등록
+     *
+     * shipping_group_key를 주면 그 배송비 그룹에 귀속시킨다. 배송지가 하나여도
+     * 그룹이 다르면 출고지가 다르므로(그룹마다 반품지가 따로 스냅샷된다) 송장은
+     * 그룹 단위가 기본이다. 지정이 없으면 종전처럼 주문 전체 묶음배송으로 본다.
      */
     public function registerShipment(string $orderNo, array $data, bool $publishEvent = true): Result
     {
@@ -58,9 +63,15 @@ class ShipmentService
             return Result::failure('송장번호를 입력해주세요.');
         }
 
+        $groupKey = trim((string) ($data['shipping_group_key'] ?? ''));
+        if ($groupKey !== '' && !$this->isKnownGroupKey($orderNo, $groupKey)) {
+            return Result::failure('주문에 없는 배송 그룹입니다.');
+        }
+
         $insertData = [
             'order_no'         => $orderNo,
             'order_detail_id'  => isset($data['order_detail_id']) ? (int) $data['order_detail_id'] : null,
+            'shipping_group_key' => $groupKey !== '' ? $groupKey : null,
             'claim_id'         => isset($data['claim_id']) ? (int) $data['claim_id'] : null,
             'shipment_role'    => $this->normalizeShipmentRole((string) ($data['shipment_role'] ?? 'ORIGINAL')),
             'company_id'       => isset($data['company_id']) ? (int) $data['company_id'] : null,
@@ -164,9 +175,9 @@ class ShipmentService
     /**
      * 주문별 배송 정보 조회
      */
-    public function getByOrderNo(string $orderNo): array
+    public function getByOrderNo(string $orderNo, bool $includeClaims = false): array
     {
-        $shipments = $this->shipmentRepository->getByOrderNo($orderNo);
+        $shipments = $this->shipmentRepository->getByOrderNo($orderNo, $includeClaims);
 
         return array_map(function (array $s) {
             $s['tracking_url'] = $this->buildTrackingUrl(
@@ -330,6 +341,84 @@ class ShipmentService
         }
         // 프리픽스형: 송장번호를 뒤에 붙인다
         return $template . urlencode($invoiceNo);
+    }
+
+    /**
+     * 주문의 배송비 그룹 목록 (관리자 송장 입력 단위).
+     *
+     * 그룹이 하나뿐인 주문은 빈 배열을 돌려준다 — 쪼갤 것이 없으면 선택을
+     * 시키지 않는 편이 낫다.
+     */
+    public function getShippingGroups(string $orderNo): array
+    {
+        if ($this->orderRepository === null || $this->groupResolver === null) {
+            return [];
+        }
+        $order = $this->orderRepository->find($orderNo);
+        if ($order === null) {
+            return [];
+        }
+        $groups = $this->groupResolver->resolve($order->toArray(), $this->orderRepository->getItems($orderNo));
+        return count($groups) > 1 ? $groups : [];
+    }
+
+    /**
+     * 송장별 포함 상품명 (관리자·고객 화면 공통).
+     *
+     * 출고 그룹이 하나뿐이면 모든 송장이 주문 전체를 싣고 있다는 뜻이라 빈 배열을
+     * 돌려준다 — 상품명을 따로 붙여봐야 같은 말의 반복이다.
+     *
+     * @return array<int, string[]> [shipment_id => 상품명 목록]
+     */
+    public function itemNamesByShipment(string $orderNo, array $shipments): array
+    {
+        if ($this->orderRepository === null || $this->groupResolver === null || $shipments === []) {
+            return [];
+        }
+        $order = $this->orderRepository->find($orderNo);
+        if ($order === null) {
+            return [];
+        }
+        $orderArray = $order->toArray();
+        $items = $this->orderRepository->getItems($orderNo);
+        if (count($this->groupResolver->resolve($orderArray, $items)) < 2) {
+            return [];
+        }
+
+        $nameByDetailId = [];
+        foreach ($items as $item) {
+            $nameByDetailId[(int) ($item['order_detail_id'] ?? 0)] = trim((string) ($item['goods_name'] ?? ''));
+        }
+
+        $names = [];
+        foreach ($shipments as $shipment) {
+            $shipmentId = (int) ($shipment['shipment_id'] ?? 0);
+            if ($shipmentId <= 0 || !empty($shipment['claim_id'])) {
+                continue;
+            }
+            $detailIds = $this->groupResolver->detailIdsForShipment($shipment, $orderArray, $items);
+            $names[$shipmentId] = array_values(array_filter(array_map(
+                static fn(int $detailId): string => $nameByDetailId[$detailId] ?? '',
+                $detailIds
+            )));
+        }
+        return $names;
+    }
+
+    private function isKnownGroupKey(string $orderNo, string $groupKey): bool
+    {
+        if ($this->orderRepository === null || $this->groupResolver === null) {
+            return false;
+        }
+        $order = $this->orderRepository->find($orderNo);
+        if ($order === null) {
+            return false;
+        }
+        return $this->groupResolver->hasGroupKey(
+            $order->toArray(),
+            $this->orderRepository->getItems($orderNo),
+            $groupKey
+        );
     }
 
     private function normalizeShipmentRole(string $role): string

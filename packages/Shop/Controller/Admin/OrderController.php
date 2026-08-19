@@ -11,6 +11,7 @@ use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\RefundService;
 use Mublo\Packages\Shop\Service\OrderMemoService;
 use Mublo\Packages\Shop\Service\ShipmentService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Infrastructure\Storage\UploadedFile;
@@ -30,6 +31,7 @@ class OrderController
     private OrderMemoService $memoService;
     private AuthContextInterface $authService;
     private ?ShipmentService $shipmentService;
+    private ?ClaimService $claimService;
 
     public function __construct(
         OrderService $orderService,
@@ -38,7 +40,8 @@ class OrderController
         RefundService $refundService,
         OrderMemoService $memoService,
         AuthContextInterface $authService,
-        ?ShipmentService $shipmentService = null
+        ?ShipmentService $shipmentService = null,
+        ?ClaimService $claimService = null
     ) {
         $this->orderService = $orderService;
         $this->orderFieldService = $orderFieldService;
@@ -47,6 +50,7 @@ class OrderController
         $this->memoService = $memoService;
         $this->authService = $authService;
         $this->shipmentService = $shipmentService;
+        $this->claimService = $claimService;
     }
 
     /**
@@ -114,6 +118,12 @@ class OrderController
         }
         $deliveryCompanies = $this->shipmentService ? $this->shipmentService->getDeliveryCompanies() : [];
 
+        // 진행 중인 반품·교환은 주문 목록에서 바로 보여야 한다. 목록에 표시가 없으면
+        // 상세로 들어가 봐야만 알 수 있어, 처리 대기 중인 주문을 놓친다.
+        $claimTypeByOrderNo = $this->claimService
+            ? $this->claimService->getActiveClaimTypesByOrderNo($domainId, array_column($orders, 'order_no'))
+            : [];
+
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Order/List')
             ->withData([
                 'pageTitle' => '주문 관리',
@@ -127,6 +137,7 @@ class OrderController
                 'shippedSet' => $shippedSet,
                 'deliveryEditableStates' => $deliveryEditableStates,
                 'deliveryCompanies' => $deliveryCompanies,
+                'claimTypeByOrderNo' => $claimTypeByOrderNo,
             ]);
     }
 
@@ -190,9 +201,31 @@ class OrderController
         $paymentTransactions = $this->refundService->getTransactionHistory($orderNo);
 
         // 배송(운송장) 정보 + 택배사 목록 + 현재 상태의 배송정보 편집 가능 여부
-        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo) : [];
+        // 클레임 운송장(회수·재출고·반송)도 함께 본다 — 이 주문에 무엇이 오가는지는
+        // 한자리에서 보여야 한다. 등록·수정은 여전히 반품·교환 관리가 소유한다.
+        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo, true) : [];
         $deliveryCompanies = $this->shipmentService ? $this->shipmentService->getDeliveryCompanies() : [];
         $deliveryEditable = $this->stateResolver->isDeliveryEditable($domainId, $currentStatusId);
+        // 배송비 그룹 = 출고 단위. 둘 이상이면 송장을 그룹별로 따로 받는다.
+        $shippingGroups = $this->shipmentService ? $this->shipmentService->getShippingGroups($orderNo) : [];
+        $shipmentItemNames = $this->shipmentService ? $this->shipmentService->itemNamesByShipment($orderNo, $shipments) : [];
+
+        // 선택 상품 일괄 변경 대상은 배송 단계만 연다. 취소·반품·구매확정은 환불·재고·적립
+        // 후처리가 딸려 있어 전용 흐름이 담당하며, 여기서 상태만 바꾸면 그것을 건너뛴다.
+        $bulkItemStatusOptions = [];
+        foreach ($this->stateResolver->getAllStates($domainId) as $state) {
+            $stateId = (string) ($state['id'] ?? '');
+            if ($stateId === '') {
+                continue;
+            }
+            if (in_array(
+                $this->stateResolver->getAction($stateId, $state),
+                [OrderAction::PREPARING, OrderAction::SHIPPING, OrderAction::DELIVERED],
+                true
+            )) {
+                $bulkItemStatusOptions[$stateId] = (string) ($state['label'] ?? $stateId);
+            }
+        }
 
         // 관리자 메모
         $orderMemos = $this->memoService->getMemos($orderNo);
@@ -226,6 +259,9 @@ class OrderController
                 'shipments' => $shipments,
                 'deliveryCompanies' => $deliveryCompanies,
                 'deliveryEditable' => $deliveryEditable,
+                'shippingGroups' => $shippingGroups,
+                'shipmentItemNames' => $shipmentItemNames,
+                'bulkItemStatusOptions' => $bulkItemStatusOptions,
                 'orderMemos' => $orderMemos,
                 'memoTypeLabels' => OrderMemoService::TYPE_LABELS,
                 'domainId' => $domainId,
@@ -267,6 +303,68 @@ class OrderController
     }
 
     // ===== 아이템 관리 =====
+
+    /**
+     * 선택 아이템 일괄 상태 변경 (배송 단계 전용)
+     *
+     * 배송준비·배송중·배송완료만 허용한다. 취소·반품·구매확정은 환불·재고·적립처럼
+     * 돈이 오가는 후처리가 딸려 있어 전용 흐름이 담당하며, 여기서 상태만 바꾸면
+     * 그 후처리를 통째로 건너뛴다.
+     *
+     * POST /admin/shop/orders/{orderNo}/items/bulk-status
+     */
+    public function bulkUpdateItemStatus(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $request = $context->getRequest();
+
+        $orderNo = (string) ($params['orderNo'] ?? '');
+        $status = trim((string) ($request->json('order_status', '') ?? ''));
+        $reason = trim((string) ($request->json('reason', '') ?? ''));
+        $detailIds = array_values(array_filter(
+            array_map('intval', (array) $request->json('detail_ids', [])),
+            static fn(int $id): bool => $id > 0
+        ));
+
+        if ($orderNo === '' || $detailIds === []) {
+            return JsonResponse::error('변경할 상품을 선택해주세요.');
+        }
+        if ($status === '') {
+            return JsonResponse::error('변경할 상태를 선택해주세요.');
+        }
+        if ($domainGuard = $this->assertOrderInDomain($orderNo, $domainId)) {
+            return $domainGuard;
+        }
+
+        $action = $this->stateResolver->getAction(
+            $status,
+            $this->stateResolver->getState($domainId, $status) ?? []
+        );
+        if (!in_array($action, [OrderAction::PREPARING, OrderAction::SHIPPING, OrderAction::DELIVERED], true)) {
+            return JsonResponse::error('일괄 변경은 배송 단계(배송준비·배송중·배송완료)만 가능합니다.');
+        }
+
+        $changed = $this->orderService->advanceItemsToState(
+            $orderNo,
+            $domainId,
+            $status,
+            $detailIds,
+            $reason !== '' ? $reason : '선택 상품 일괄 변경',
+            'STAFF',
+        );
+        $skipped = count($detailIds) - $changed;
+
+        if ($changed === 0) {
+            // 되돌아가는 전이이거나 클레임이 걸린 상품만 골랐을 때
+            return JsonResponse::error('선택한 상품은 그 상태로 옮길 수 없습니다. 이미 지난 단계이거나 반품·교환이 진행 중인지 확인해주세요.');
+        }
+
+        $label = $this->stateResolver->getLabel($domainId, $status);
+        $message = "{$changed}개 상품을 '{$label}'(으)로 변경했습니다."
+            . ($skipped > 0 ? " {$skipped}개는 그 상태로 옮길 수 없어 건너뛰었습니다." : '');
+
+        return JsonResponse::success(['changed' => $changed, 'skipped' => $skipped], $message);
+    }
 
     /**
      * 아이템 상태 변경
@@ -363,39 +461,24 @@ class OrderController
             return $domainGuard;
         }
 
-        $result = $this->orderService->requestItemReturn(
-            $orderNo, $detailId, $returnType, $reasonType, $reasonDetail, $domainId
+        if ($this->claimService === null) {
+            return JsonResponse::error('반품·교환 기능을 사용할 수 없습니다.');
+        }
+        // 고객이 전화로 요청한 반품을 관리자가 대신 접수한다. 승인·회수·검수는
+        // 반품·교환 관리에서 이어서 진행한다.
+        $result = $this->claimService->request(
+            $domainId,
+            $orderNo,
+            $detailId,
+            [
+                'quantity' => max(1, (int) ($request->json('quantity', 1) ?? 1)),
+                'reason_type' => (string) $reasonType,
+                'reason_detail' => (string) $reasonDetail,
+            ],
+            'STAFF',
+            null,
+            'RETURN',
         );
-
-        return $result->isSuccess()
-            ? JsonResponse::success($result->getData(), $result->getMessage())
-            : JsonResponse::error($result->getMessage());
-    }
-
-    /**
-     * 반품 승인/거절
-     *
-     * POST /admin/shop/orders/{orderNo}/items/{detailId}/return-process
-     */
-    public function processReturn(array $params, Context $context): JsonResponse
-    {
-        $domainId = $context->getDomainId() ?? 1;
-        $request = $context->getRequest();
-
-        $orderNo = $params['orderNo'] ?? '';
-        $detailId = (int) ($params['detailId'] ?? 0);
-        $accept = (bool) $request->json('accept', false);
-        $reason = $request->json('reason', '');
-
-        if (empty($orderNo) || $detailId <= 0) {
-            return JsonResponse::error('주문번호와 상품 ID가 필요합니다.');
-        }
-
-        if ($domainGuard = $this->assertOrderInDomain($orderNo, $domainId)) {
-            return $domainGuard;
-        }
-
-        $result = $this->orderService->processItemReturn($orderNo, $detailId, $accept, $reason, $domainId);
 
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())
@@ -537,6 +620,7 @@ class OrderController
             'company_id'  => $request->json('company_id', null),
             'invoice_no'  => trim((string) $request->json('invoice_no', '')),
             'admin_memo'  => trim((string) $request->json('admin_memo', '')) ?: null,
+            'shipping_group_key' => trim((string) ($request->json('shipping_group_key', '') ?? '')),
         ]);
 
         return $result->isSuccess()

@@ -12,7 +12,7 @@ use Mublo\Repository\BaseRepository;
  * shop_payment_transactions 테이블 CRUD
  *
  * 책임:
- * - 결제/환불 트랜잭션 기록
+ * - 결제·환불 트랜잭션 기록
  * - 주문별 트랜잭션 이력 조회
  * - 환불 누적 금액 집계
  */
@@ -29,6 +29,19 @@ class PaymentTransactionRepository extends BaseRepository
     /**
      * 트랜잭션 레코드 생성
      */
+    /** 클레임에 귀속된 성공 환불 합계. */
+    public function getRefundedAmountByClaim(int $claimId): int
+    {
+        $row = $this->db->selectOne(
+            "SELECT COALESCE(SUM(cancel_amount), 0) AS refunded
+             FROM {$this->table}
+             WHERE claim_id = ? AND transaction_status = 'SUCCESS'
+               AND transaction_type IN ('CANCEL', 'PARTIAL_CANCEL')",
+            [$claimId]
+        );
+        return (int) ($row['refunded'] ?? 0);
+    }
+
     public function createTransaction(array $data): int
     {
         if (!isset($data['created_at'])) {

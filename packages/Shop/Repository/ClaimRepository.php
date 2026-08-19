@@ -72,7 +72,6 @@ class ClaimRepository
                        e.option_code AS target_option_code, e.option_name AS target_option_name,
                        e.option_price AS target_option_price, e.quantity AS exchange_quantity,
                        e.stock_reservation_status, e.stock_reserved_at, e.stock_released_at,
-                       e.inspection_result, e.source_restocked_at,
                        o.recipient_name, o.recipient_phone, o.shipping_zip,
                        o.shipping_address1, o.shipping_address2, o.shipping_breakdown
                 FROM shop_returns r
@@ -143,75 +142,126 @@ class ClaimRepository
         );
     }
 
-    public function getByOrderNo(int $domainId, string $orderNo): array
+    /** @param ?string $returnType null 이면 반품·교환을 모두 돌려준다 */
+    public function getByOrderNo(int $domainId, string $orderNo, ?string $returnType = null): array
     {
+        $typeSql = $returnType !== null ? ' AND r.return_type = ?' : '';
+        $params = $returnType !== null ? [$domainId, $orderNo, $returnType] : [$domainId, $orderNo];
         return $this->db->select(
             "SELECT r.*, e.option_name AS target_option_name, e.quantity AS exchange_quantity,
-                    e.inspection_result, e.stock_reservation_status
+                    e.stock_reservation_status
              FROM shop_returns r
              LEFT JOIN shop_exchange_items e ON e.return_id = r.return_id
-             WHERE r.domain_id = ? AND r.order_no = ? AND r.return_type = 'EXCHANGE'
+             WHERE r.domain_id = ? AND r.order_no = ?{$typeSql}
              ORDER BY r.return_id DESC",
-            [$domainId, $orderNo]
+            $params
         );
     }
 
-    public function getActiveByDetailId(int $domainId, int $detailId): array
+    /** @param ?string $returnType null 이면 반품·교환을 모두 돌려준다 */
+    public function getActiveByDetailId(int $domainId, int $detailId, ?string $returnType = null): array
     {
+        $typeSql = $returnType !== null ? ' AND r.return_type = ?' : '';
+        $params = $returnType !== null ? [$domainId, $detailId, $returnType] : [$domainId, $detailId];
         return $this->db->select(
             "SELECT r.*, e.quantity AS exchange_quantity, e.option_name AS target_option_name
              FROM shop_returns r
              LEFT JOIN shop_exchange_items e ON e.return_id = r.return_id
-             WHERE r.domain_id = ? AND r.order_detail_id = ? AND r.return_type = 'EXCHANGE'
+             WHERE r.domain_id = ? AND r.order_detail_id = ?{$typeSql}
                AND r.return_status NOT IN ('COMPLETED', 'REFUSED', 'CANCELLED', 'CLOSED')
              ORDER BY r.return_id DESC",
-            [$domainId, $detailId]
+            $params
         );
     }
 
+    /**
+     * 이미 잡혀 있는 클레임 수량 (남은 신청 가능 수량 계산용).
+     *
+     * 판정 기준은 "그 개체가 고객 손을 떠났는가" 다.
+     * - 거절·취소·종결   → 물건은 고객에게 있다 → 수량을 되돌린다
+     * - 반품 완료         → 우리가 받고 환불했다 → 소진
+     * - 취소 완료         → 애초에 보내지 않았다 → 소진
+     * - 교환 완료         → 고객에게 교체품이 있다 → 되돌린다
+     *   (교체받은 상품이 또 하자일 수 있으므로 다시 신청할 수 있어야 한다)
+     */
     public function getActiveQuantityForUpdate(int $domainId, int $detailId): int
     {
         $row = $this->db->selectOne(
-            "SELECT COALESCE(SUM(e.quantity), 0) AS claimed_quantity
+            "SELECT COALESCE(SUM(COALESCE(e.quantity, r.quantity)), 0) AS claimed_quantity
              FROM shop_returns r
-             INNER JOIN shop_exchange_items e ON e.return_id = r.return_id
-             WHERE r.domain_id = ? AND r.order_detail_id = ? AND r.return_type = 'EXCHANGE'
+             LEFT JOIN shop_exchange_items e ON e.return_id = r.return_id
+             WHERE r.domain_id = ? AND r.order_detail_id = ?
                AND r.return_status NOT IN ('REFUSED', 'CANCELLED', 'CLOSED')
+               AND NOT (r.return_status = 'COMPLETED' AND r.return_type = 'EXCHANGE')
              ",
             [$domainId, $detailId]
         );
         return (int) ($row['claimed_quantity'] ?? 0);
     }
 
-    public function hasBlockingNonExchangeClaim(int $domainId, int $detailId): bool
+    public function hasCompletedClaim(int $domainId, int $detailId, string $returnType): bool
     {
         $row = $this->db->selectOne(
-            "SELECT return_id
-             FROM shop_returns
-             WHERE domain_id = ? AND order_detail_id = ? AND return_type <> 'EXCHANGE'
-               AND return_status NOT IN ('REFUSED', 'CANCELLED', 'CLOSED')
+            "SELECT return_id FROM shop_returns
+             WHERE domain_id = ? AND order_detail_id = ? AND return_type = ?
+               AND return_status = 'COMPLETED'
              LIMIT 1",
-            [$domainId, $detailId]
+            [$domainId, $detailId, $returnType]
         );
         return $row !== null && $row !== false;
     }
 
-    public function hasCompletedExchange(int $domainId, int $detailId): bool
+    /**
+     * 주어진 주문 중 살아 있는 클레임을 가진 주문번호 (목록 화면 일괄 표시용 — N+1 회피).
+     *
+     * @param string[] $orderNos
+     * @return array<string, string> [order_no => 대표 유형(EXCHANGE|RETURN|MIXED)]
+     */
+    public function getActiveClaimTypesByOrderNo(int $domainId, array $orderNos): array
+    {
+        $orderNos = array_values(array_filter(array_map('strval', $orderNos), static fn($v) => $v !== ''));
+        if ($orderNos === []) {
+            return [];
+        }
+        $placeholders = implode(', ', array_fill(0, count($orderNos), '?'));
+        $rows = $this->db->select(
+            "SELECT order_no, GROUP_CONCAT(DISTINCT return_type) AS types
+             FROM shop_returns
+             WHERE domain_id = ? AND return_type IN ('EXCHANGE', 'RETURN')
+               AND return_status NOT IN ('COMPLETED', 'REFUSED', 'CANCELLED', 'CLOSED')
+               AND order_no IN ({$placeholders})
+             GROUP BY order_no",
+            array_merge([$domainId], $orderNos)
+        );
+
+        $result = [];
+        foreach ($rows as $row) {
+            $types = explode(',', (string) ($row['types'] ?? ''));
+            $result[(string) $row['order_no']] = count($types) > 1 ? 'MIXED' : ($types[0] ?: 'EXCHANGE');
+        }
+        return $result;
+    }
+
+    /** 완료된 클레임 수량 합계 (전량 반품인지 판정할 때 쓴다). */
+    public function getCompletedQuantity(int $domainId, int $detailId, string $returnType): int
     {
         $row = $this->db->selectOne(
-            "SELECT return_id FROM shop_returns
-             WHERE domain_id = ? AND order_detail_id = ? AND return_type = 'EXCHANGE'
-               AND return_status = 'COMPLETED'
-             LIMIT 1",
-            [$domainId, $detailId]
+            "SELECT COALESCE(SUM(quantity), 0) AS completed_quantity
+             FROM shop_returns
+             WHERE domain_id = ? AND order_detail_id = ? AND return_type = ? AND return_status = 'COMPLETED'",
+            [$domainId, $detailId, $returnType]
         );
-        return $row !== null && $row !== false;
+        return (int) ($row['completed_quantity'] ?? 0);
     }
 
     public function list(int $domainId, array $filters, int $page = 1, int $perPage = 20): array
     {
-        $where = ['r.domain_id = ?', "r.return_type = 'EXCHANGE'"];
+        $where = ['r.domain_id = ?'];
         $params = [$domainId];
+        if (!empty($filters['return_type'])) {
+            $where[] = 'r.return_type = ?';
+            $params[] = (string) $filters['return_type'];
+        }
         if (!empty($filters['status'])) {
             $where[] = 'r.return_status = ?';
             $params[] = (string) $filters['status'];
@@ -234,7 +284,7 @@ class ClaimRepository
         $items = $this->db->select(
             "SELECT r.*, d.goods_name AS source_goods_name, d.option_name AS source_option_name,
                     e.option_name AS target_option_name, e.quantity AS exchange_quantity,
-                    e.inspection_result, e.stock_reservation_status
+                    e.stock_reservation_status
              FROM shop_returns r
              INNER JOIN shop_order_details d ON d.order_detail_id = r.order_detail_id
              LEFT JOIN shop_exchange_items e ON e.return_id = r.return_id
@@ -245,10 +295,10 @@ class ClaimRepository
         return [
             'items' => $items,
             'pagination' => [
-                'current_page' => $page,
-                'per_page' => $perPage,
-                'total' => $total,
-                'last_page' => max(1, (int) ceil($total / $perPage)),
+                'totalItems' => $total,
+                'perPage' => $perPage,
+                'currentPage' => $page,
+                'totalPages' => $total > 0 ? (int) ceil($total / $perPage) : 1,
             ],
         ];
     }

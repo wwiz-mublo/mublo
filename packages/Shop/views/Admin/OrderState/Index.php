@@ -16,8 +16,8 @@ use Mublo\Packages\Shop\Enum\OrderAction;
 <div class="page-container">
     <div class="page-title">
         <div class="page-title-text">
-            <h3>주문상태 설정</h3>
-            <p>주문 처리 흐름의 상태 전이 규칙과 상태별 액션을 관리합니다.</p>
+            <h3>상태·알림 설정</h3>
+            <p>주문의 상태 전이 규칙과, 주문·반품·교환이 상태를 옮길 때 실행할 액션을 관리합니다.</p>
         </div>
     </div>
 
@@ -82,6 +82,60 @@ use Mublo\Packages\Shop\Enum\OrderAction;
                 </div>
             </div>
         </form>
+    </div>
+
+    <!-- 반품·교환 상태 알림 -->
+    <div class="page-block">
+        <div class="card">
+            <div class="card-hero">
+                <i class="bi bi-bell text-pastel-orange"></i>
+                <span>반품·교환 상태 알림</span>
+                <button type="button" class="btn btn-xs btn-primary ms-auto" id="saveClaimActions">
+                    <i class="bi bi-check-lg"></i> 저장
+                </button>
+            </div>
+            <div class="card-body">
+                <ul class="form-text mb-3 ps-3">
+                    <li>
+                        반품·교환이 각 상태로 넘어갈 때 보낼 알림과 웹훅을 정합니다.
+                        주문 액션과는 별개로 실행되며, <strong>알림·웹훅만</strong> 수행합니다(재고·포인트는 다루지 않습니다).
+                    </li>
+                    <li>
+                        <strong>반품·교환의 상태 흐름은 여기서 바꿀 수 없습니다.</strong>
+                        회수 → 검수 → 재출고(교환) / 환불(반품)이라는 실물 절차에 묶여 있어 제품이 소유합니다.
+                        주문 상태처럼 단계를 추가하거나 순서를 바꾸는 설정은 제공하지 않습니다.
+                    </li>
+                    <li>알림 채널과 템플릿 코드를 <strong>둘 다</strong> 채워야 알림이 저장됩니다. 웹훅 서명키는 한 번 저장하면 빈칸으로 두세요 — 비우면 기존 키를 유지합니다.</li>
+                </ul>
+                <div class="table-responsive"><table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>상태</th><th>알림 채널</th><th>템플릿 코드</th><th>웹훅 URL</th><th>웹훅 서명키</th></tr></thead>
+                    <tbody>
+                    <?php foreach (($claimStatusOptions ?? []) as $statusValue => $statusLabel):
+                        $configured = is_array(($claimStateActions ?? [])[$statusValue] ?? null) ? $claimStateActions[$statusValue] : [];
+                        $notification = [];
+                        $webhook = [];
+                        foreach ($configured as $action) {
+                            if (($action['type'] ?? '') === 'notification') { $notification = $action; }
+                            if (($action['type'] ?? '') === 'webhook') { $webhook = $action; }
+                        }
+                    ?>
+                        <tr data-claim-action-status="<?= htmlspecialchars($statusValue) ?>">
+                            <td class="text-nowrap"><?= htmlspecialchars($statusLabel) ?></td>
+                            <td><select class="form-select form-select-sm js-claim-channel">
+                                <option value="">사용 안 함</option>
+                                <?php foreach (($claimNotificationChannels ?? []) as $channel => $label): ?>
+                                    <option value="<?= htmlspecialchars((string) $channel) ?>" <?= ($notification['channel'] ?? '') === $channel ? 'selected' : '' ?>><?= htmlspecialchars((string) $label) ?></option>
+                                <?php endforeach; ?>
+                            </select></td>
+                            <td><input class="form-control form-control-sm js-claim-template" value="<?= htmlspecialchars((string) ($notification['template_code'] ?? '')) ?>" placeholder="exchange_requested"></td>
+                            <td><input type="url" class="form-control form-control-sm js-claim-webhook" value="<?= htmlspecialchars((string) ($webhook['url'] ?? '')) ?>" placeholder="https://..."></td>
+                            <td><input type="password" class="form-control form-control-sm js-claim-secret" value="" placeholder="<?= !empty($webhook['secret']) ? '저장됨 · 변경 시만 입력' : '선택' ?>" autocomplete="new-password"></td>
+                        </tr>
+                    <?php endforeach; ?>
+                    </tbody>
+                </table></div>
+            </div>
+        </div>
     </div>
 
     <!-- 액션 안내 -->
@@ -800,6 +854,42 @@ use Mublo\Packages\Shop\Enum\OrderAction;
             }
             alert(msg);
         }
+    });
+})();
+</script>
+
+<script>
+// 반품·교환 상태 알림 저장 — 주문 액션과 저장 경로가 다르다(shop_config.claim_state_actions)
+(function () {
+    const btn = document.getElementById('saveClaimActions');
+    if (!btn) { return; }
+    btn.addEventListener('click', function () {
+        const actions = {};
+        document.querySelectorAll('[data-claim-action-status]').forEach(function (row) {
+            const status = row.dataset.claimActionStatus;
+            const list = [];
+            const channel = row.querySelector('.js-claim-channel').value.trim();
+            const template = row.querySelector('.js-claim-template').value.trim();
+            const url = row.querySelector('.js-claim-webhook').value.trim();
+            const secret = row.querySelector('.js-claim-secret').value;
+            if (channel && template) {
+                list.push({
+                    type: 'notification', action_id: 'claim-' + status.toLowerCase() + '-notification',
+                    enabled: true, channel: channel, template_code: template, recipient: 'recipient'
+                });
+            }
+            if (url) {
+                const webhook = {
+                    type: 'webhook', action_id: 'claim-' + status.toLowerCase() + '-webhook',
+                    enabled: true, url: url, method: 'POST'
+                };
+                if (secret) { webhook.secret = secret; }
+                list.push(webhook);
+            }
+            if (list.length) { actions[status] = list; }
+        });
+        MubloRequest.requestJson('/admin/shop/claims/actions', { actions: actions })
+            .then(function () { location.reload(); });
     });
 })();
 </script>

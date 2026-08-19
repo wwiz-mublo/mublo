@@ -19,7 +19,7 @@ use Mublo\Packages\Shop\Service\OrderFieldService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\ReviewService;
 use Mublo\Packages\Shop\Service\ShipmentService;
-use Mublo\Packages\Shop\Service\ExchangeService;
+use Mublo\Packages\Shop\Service\ClaimService;
 
 /**
  * Front 주문 컨트롤러
@@ -39,7 +39,7 @@ class OrderController
     private PaymentReceiptService $receiptService;
     private ?OrderCancelService $cancelService;
     private ?ShipmentService $shipmentService;
-    private ?ExchangeService $exchangeService;
+    private ?ClaimService $claimService;
 
     /** 비회원 주문 세션 키 (CartController와 동일) */
     private const GUEST_ORDER_SESSION_KEY = 'shop_guest_order_nos';
@@ -60,7 +60,7 @@ class OrderController
         PaymentReceiptService $receiptService,
         ?OrderCancelService $cancelService = null,
         ?ShipmentService $shipmentService = null,
-        ?ExchangeService $exchangeService = null
+        ?ClaimService $claimService = null
     ) {
         $this->orderService = $orderService;
         $this->authService = $authService;
@@ -73,7 +73,7 @@ class OrderController
         $this->receiptService = $receiptService;
         $this->cancelService = $cancelService;
         $this->shipmentService = $shipmentService;
-        $this->exchangeService = $exchangeService;
+        $this->claimService = $claimService;
     }
 
     /**
@@ -299,10 +299,18 @@ class OrderController
         $items = $data['items'] ?? [];
         $reviewMeta = $this->buildReviewMeta($domainId, $items, $currentStatus);
 
-        $exchangeClaimsByDetail = [];
-        foreach ($this->exchangeService?->getByOrderNo($domainId, $orderNo) ?? [] as $claim) {
+        $claimsByDetail = [];
+        $claimedQuantityByDetail = [];
+        foreach ($this->claimService?->getByOrderNo($domainId, $orderNo) ?? [] as $claim) {
             $detailId = (int) ($claim['order_detail_id'] ?? 0);
-            $exchangeClaimsByDetail[$detailId][] = $claim;
+            $claimsByDetail[$detailId][] = $claim;
+            // 3개 중 1개만 반품·교환한 주문이라면 나머지 2개는 아직 신청할 수 있다.
+            // 서버가 접수 때 세는 것과 같은 규칙으로 남은 수량을 미리 계산해 둔다.
+            $claimedStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
+            if ($claimedStatus?->consumesQuantity((string) ($claim['return_type'] ?? ''))) {
+                $claimedQuantityByDetail[$detailId] = ($claimedQuantityByDetail[$detailId] ?? 0)
+                    + max(1, (int) ($claim['quantity'] ?? 1));
+            }
             $claimStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
             if ($claimStatus?->isActive() && isset($reviewMeta[$detailId])) {
                 $reviewMeta[$detailId]['confirmed'] = false;
@@ -310,22 +318,41 @@ class OrderController
                 $reviewMeta[$detailId]['pending'] = true;
             }
         }
+        // 신청 가능 판정은 ClaimService가 단독으로 소유한다 — 버튼을 띄우는 규칙과
+        // 서버가 접수하는 규칙이 갈리면 눌리는데 거절당하는 버튼이 생긴다.
+        // 교환 옵션이 없어도 반품은 신청할 수 있으므로 둘을 따로 넘긴다.
+        $claimableByDetail = [];
+        $claimableQuantityByDetail = [];
         $exchangeOptionsByDetail = [];
-        if ($this->exchangeService !== null) {
+        if ($this->claimService !== null) {
             foreach ($items as $item) {
                 $detailId = (int) ($item['order_detail_id'] ?? 0);
-                $itemAction = $this->resolveAction($domainId, (string) ($item['status'] ?? $currentStatus));
-                $exchangeOptionsByDetail[$detailId] = $itemAction === \Mublo\Packages\Shop\Enum\OrderAction::DELIVERED
-                    ? $this->exchangeService->getExchangeOptions($domainId, $detailId)
+                $remaining = max(0, (int) ($item['quantity'] ?? 0) - ($claimedQuantityByDetail[$detailId] ?? 0));
+                $claimable = $remaining > 0 && $this->claimService->isClaimable($domainId, $item, $currentStatus);
+                $claimableByDetail[$detailId] = $claimable;
+                $claimableQuantityByDetail[$detailId] = $remaining;
+                $exchangeOptionsByDetail[$detailId] = $claimable
+                    ? $this->claimService->getExchangeOptions($domainId, $detailId)
                     : [];
             }
         }
+
+        // 취소를 막는 품목 — 서버(OrderCancelService)가 집행하는 것과 같은 판정을 써서
+        // 눌러 봐야 거절당하는 버튼이 뜨지 않게 한다.
+        $cancelBlockedItems = $this->cancelService
+            ? $this->cancelService->itemsBlockingCancel($items)
+            : [];
 
         // 취소/반품 주문 타임라인용 상태 로그 (실제 거쳐온 경로 재구성에 사용)
         $orderLogs = $this->orderService->getOrderLogs($orderNo);
 
         // 배송(운송장) 정보 — 택배사·송장번호·추적링크 표시용
-        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo) : [];
+        // 클레임 운송장까지 함께 본다 — 교환 상품이 언제 오는지, 회수가 접수됐는지를
+        // 고객이 확인할 곳이 여기뿐이다 (뷰에 '회수 운송장'·'교환 운송장' 라벨이 있다).
+        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo, true) : [];
+        // 배송비를 따로 받은 묶음은 따로 나간다. 어느 송장에 어느 상품이 실렸는지
+        // 고객이 알 수 있어야 "왜 일부만 왔지"가 의문으로 남지 않는다.
+        $shipmentItemNames = $this->shipmentService ? $this->shipmentService->itemNamesByShipment($orderNo, $shipments) : [];
 
         // 목록으로 복귀할 때 페이지/검색어 보존 (목록에서 ?page=N&keyword=... 로 진입한 경우)
         $req = $context->getRequest();
@@ -341,8 +368,12 @@ class OrderController
                 'allStates'         => $allStates,
                 'orderLogs'         => $orderLogs,
                 'shipments'         => $shipments,
+                'shipmentItemNames' => $shipmentItemNames,
                 'reviewMeta'        => $reviewMeta,
-                'exchangeClaimsByDetail' => $exchangeClaimsByDetail,
+                'cancelBlockedItems' => $cancelBlockedItems,
+                'claimsByDetail' => $claimsByDetail,
+                'claimableByDetail' => $claimableByDetail,
+                'claimableQuantityByDetail' => $claimableQuantityByDetail,
                 'exchangeOptionsByDetail' => $exchangeOptionsByDetail,
                 'isGuest'           => $isGuest,
                 'listPage'          => $listPage,
@@ -395,8 +426,8 @@ class OrderController
             return JsonResponse::error($access['message'] ?? '주문 정보에 접근할 수 없습니다.');
         }
 
-        if ($this->exchangeService !== null) {
-            foreach ($this->exchangeService->getByOrderNo($access['domainId'], $orderNo) as $claim) {
+        if ($this->claimService !== null) {
+            foreach ($this->claimService->getByOrderNo($access['domainId'], $orderNo) as $claim) {
                 $claimStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claim['return_status'] ?? ''));
                 if ($claimStatus?->isActive()) {
                     return JsonResponse::error('교환이 진행 중인 주문은 구매확정할 수 없습니다.');
@@ -411,11 +442,37 @@ class OrderController
             : JsonResponse::error($result->getMessage());
     }
 
-    /** 고객 교환 신청 (회원 및 소유권을 확인한 비회원). */
-    public function exchangeItem(array $params, Context $context): JsonResponse
+    /**
+     * 품목 단위 구매확정 (AJAX)
+     *
+     * 부분 배송에서는 주문 헤더가 가장 뒤처진 상품을 따라가므로, 주문 단위로만
+     * 확정할 수 있으면 먼저 도착한 상품조차 확정하지 못한다.
+     */
+    public function confirmItem(array $params, Context $context): JsonResponse
     {
-        if ($this->exchangeService === null) {
-            return JsonResponse::error('교환 기능을 사용할 수 없습니다.');
+        $orderNo = (string) ($params['orderNo'] ?? '');
+        $detailId = (int) ($params['detailId'] ?? 0);
+
+        $access = $this->resolveAccessibleOrder($orderNo, $context);
+        if (!$access['ok']) {
+            return JsonResponse::error($access['message'] ?? '주문 정보에 접근할 수 없습니다.');
+        }
+        if ($detailId <= 0) {
+            return JsonResponse::error('상품 정보가 필요합니다.');
+        }
+
+        $result = $this->orderService->confirmItemByBuyer($orderNo, $detailId, $access['domainId']);
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
+    }
+
+    /** 고객 클레임(반품·교환) 신청 (회원 및 소유권을 확인한 비회원). */
+    public function requestClaim(array $params, Context $context): JsonResponse
+    {
+        if ($this->claimService === null) {
+            return JsonResponse::error('반품·교환 기능을 사용할 수 없습니다.');
         }
         $orderNo = (string) ($params['orderNo'] ?? '');
         $detailId = (int) ($params['detailId'] ?? 0);
@@ -432,8 +489,17 @@ class OrderController
             'reason_detail' => (string) ($request->json('reason_detail', '') ?? ''),
             'responsibility' => (string) ($request->json('responsibility', 'CUSTOMER') ?? 'CUSTOMER'),
         ];
+        $returnType = strtoupper(trim((string) ($request->json('return_type', 'EXCHANGE') ?? 'EXCHANGE')));
         $memberId = (int) ($access['order']['member_id'] ?? 0);
-        $result = $this->exchangeService->request($access['domainId'], $orderNo, $detailId, $data, 'CUSTOMER', $memberId ?: null);
+        $result = $this->claimService->request(
+            $access['domainId'],
+            $orderNo,
+            $detailId,
+            $data,
+            'CUSTOMER',
+            $memberId ?: null,
+            $returnType,
+        );
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())
             : JsonResponse::error($result->getMessage());
@@ -442,7 +508,7 @@ class OrderController
     /** 회수 전 고객 교환 신청 취소. */
     public function cancelExchange(array $params, Context $context): JsonResponse
     {
-        if ($this->exchangeService === null) {
+        if ($this->claimService === null) {
             return JsonResponse::error('교환 기능을 사용할 수 없습니다.');
         }
         $orderNo = (string) ($params['orderNo'] ?? '');
@@ -451,12 +517,12 @@ class OrderController
         if (!$access['ok']) {
             return JsonResponse::error($access['message'] ?? '주문 정보에 접근할 수 없습니다.');
         }
-        $claim = $this->exchangeService->get($access['domainId'], $claimId);
+        $claim = $this->claimService->get($access['domainId'], $claimId);
         if ($claim === null || (string) ($claim['order_no'] ?? '') !== $orderNo) {
             return JsonResponse::error('교환 건을 찾을 수 없습니다.');
         }
         $memberId = (int) ($access['order']['member_id'] ?? 0);
-        $result = $this->exchangeService->cancel($access['domainId'], $claimId, 'CUSTOMER', $memberId ?: null, '고객 신청 취소');
+        $result = $this->claimService->cancel($access['domainId'], $claimId, 'CUSTOMER', $memberId ?: null, '고객 신청 취소');
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())
             : JsonResponse::error($result->getMessage());
@@ -654,7 +720,9 @@ class OrderController
 
             $meta[$detailId] = [
                 'confirmed'  => $this->isReviewable($orderAction, $itemAction),
-                'canConfirm' => $this->canBuyerConfirm($orderAction, $itemAction),
+                // 확정 가능 판정은 OrderService 가 단독으로 소유한다 — 버튼을 띄우는
+                // 규칙과 서버가 처리하는 규칙이 갈리면 눌리는데 거절당하는 버튼이 생긴다
+                'canConfirm' => $this->orderService->canBuyerConfirmItem($domainId, $item, $orderStatus),
                 'pending'    => $this->isReviewPending($orderAction, $itemAction),
                 'reviewed'   => $reviewId > 0,
                 'review'     => $review,
@@ -721,16 +789,4 @@ class OrderController
         ], true);
     }
 
-    /**
-     * 구매자가 지금 구매확정 버튼을 누를 수 있는지.
-     * 주문이 배송중/배송완료(아직 미확정)이고 항목이 취소/반품 계열이 아니면 가능.
-     * (확정하면 후기 작성 버튼이 노출된다)
-     */
-    private function canBuyerConfirm(?OrderAction $orderAction, ?OrderAction $itemAction): bool
-    {
-        if ($this->isReviewExcludedAction($itemAction)) {
-            return false;
-        }
-        return in_array($orderAction, [OrderAction::SHIPPING, OrderAction::DELIVERED], true);
-    }
 }

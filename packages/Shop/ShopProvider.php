@@ -115,10 +115,11 @@ use Mublo\Packages\Shop\Service\PointLogService;
 use Mublo\Packages\Shop\Service\DashboardService;
 use Mublo\Packages\Shop\Service\ExhibitionService;
 use Mublo\Packages\Shop\Service\ShipmentService;
+use Mublo\Packages\Shop\Service\ShipmentGroupResolver;
 use Mublo\Packages\Shop\Service\ActionExecutionService;
 use Mublo\Packages\Shop\Service\ClaimStateMachine;
 use Mublo\Packages\Shop\Service\ExchangeStockService;
-use Mublo\Packages\Shop\Service\ExchangeService;
+use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Service\ShopDataResetter;
 use Mublo\Contract\CustomField\CustomFieldFileManagerInterface;
 use Mublo\Contract\CustomField\CustomFieldValueValidatorInterface;
@@ -140,7 +141,7 @@ use Mublo\Packages\Shop\Controller\Admin\ReviewController as AdminReviewControll
 use Mublo\Packages\Shop\Controller\Admin\InquiryController;
 use Mublo\Packages\Shop\Controller\Admin\DashboardController;
 use Mublo\Packages\Shop\Controller\Admin\ExhibitionController as AdminExhibitionController;
-use Mublo\Packages\Shop\Controller\Admin\ExchangeController;
+use Mublo\Packages\Shop\Controller\Admin\ClaimController;
 use Mublo\Packages\Shop\Controller\Front\ProductController as FrontProductController;
 use Mublo\Packages\Shop\Controller\Front\ReviewController as FrontReviewController;
 use Mublo\Packages\Shop\Controller\Front\InquiryController as FrontInquiryController;
@@ -164,6 +165,7 @@ use Mublo\Contract\Balance\BalanceGatewayInterface;
 use Mublo\Packages\Shop\EventSubscriber\ConfigurableActionSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\ConfigurableItemActionSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\ConfigurableClaimActionSubscriber;
+use Mublo\Packages\Shop\EventSubscriber\ShipmentItemStatusSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\CouponRestoreSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PaymentMismatchSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PointPaymentSubscriber;
@@ -521,11 +523,13 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(EventDispatcher::class)
             )
         );
+        $container->singleton(ShipmentGroupResolver::class, fn() => new ShipmentGroupResolver());
         $container->singleton(ShipmentService::class, fn(DependencyContainer $c) =>
             new ShipmentService(
                 $c->get(ShipmentRepository::class),
                 $c->get(OrderRepository::class),
-                $c->get(EventDispatcher::class)
+                $c->get(EventDispatcher::class),
+                $c->get(ShipmentGroupResolver::class)
             )
         );
         $container->singleton(ExchangeStockService::class, fn(DependencyContainer $c) =>
@@ -535,8 +539,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductOptionRepository::class)
             )
         );
-        $container->singleton(ExchangeService::class, fn(DependencyContainer $c) =>
-            new ExchangeService(
+        $container->singleton(ClaimService::class, fn(DependencyContainer $c) =>
+            new ClaimService(
                 $c->get(ClaimRepository::class),
                 $c->get(OrderRepository::class),
                 $c->get(ProductOptionRepository::class),
@@ -545,7 +549,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ExchangeStockService::class),
                 $c->get(ShipmentService::class),
                 $c->get(SensitiveValueCodecInterface::class),
-                $c->get(EventDispatcher::class)
+                $c->get(EventDispatcher::class),
+                $c->get(OrderService::class)
             )
         );
 
@@ -615,16 +620,18 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(RefundService::class),
                 $c->get(OrderMemoService::class),
                 $c->get(AuthContextInterface::class),
-                $c->get(ShipmentService::class)
+                $c->get(ShipmentService::class),
+                $c->get(ClaimService::class)
             )
         );
-        $container->singleton(ExchangeController::class, fn(DependencyContainer $c) =>
-            new ExchangeController(
-                $c->get(ExchangeService::class),
+        $container->singleton(ClaimController::class, fn(DependencyContainer $c) =>
+            new ClaimController(
+                $c->get(ClaimService::class),
                 $c->get(ShipmentService::class),
                 $c->get(AuthContextInterface::class),
                 $c->get(ShopConfigService::class),
-                $c->get(ActionTypeRegistry::class)
+                $c->get(ActionTypeRegistry::class),
+                $c->get(RefundService::class)
             )
         );
         $container->singleton(CouponController::class, fn(DependencyContainer $c) =>
@@ -726,7 +733,7 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(PaymentReceiptService::class),
                 $c->get(OrderCancelService::class),
                 $c->get(ShipmentService::class),
-                $c->get(ExchangeService::class)
+                $c->get(ClaimService::class)
             )
         );
         $container->singleton(AddressController::class, fn(DependencyContainer $c) =>
@@ -994,6 +1001,16 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             $container->get(ShopConfigService::class),
             $container->get(ActionTypeRegistry::class),
             $container->has(\Mublo\Infrastructure\Log\Logger::class) ? $container->get(\Mublo\Infrastructure\Log\Logger::class) : null
+        ));
+
+        // 송장이 주문상품 상태를 끌고 간다 (송장 등록 → 배송중, 배송완료 → 배송완료)
+        $eventDispatcher->addSubscriber(new ShipmentItemStatusSubscriber(
+            $container->get(OrderService::class),
+            $container->get(OrderRepository::class),
+            $container->get(ShipmentGroupResolver::class),
+            $container->has(\Mublo\Infrastructure\Log\Logger::class)
+                ? $container->get(\Mublo\Infrastructure\Log\Logger::class)
+                : null,
         ));
 
         $eventDispatcher->addSubscriber(new ConfigurableClaimActionSubscriber(

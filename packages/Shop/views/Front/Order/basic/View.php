@@ -39,7 +39,10 @@ $allStates = $allStates ?? [];
 $orderLogs = $orderLogs ?? [];
 $shipments = $shipments ?? [];
 $reviewMeta = $reviewMeta ?? [];
-$exchangeClaimsByDetail = $exchangeClaimsByDetail ?? [];
+$shipmentItemNames = $shipmentItemNames ?? [];
+$claimsByDetail = $claimsByDetail ?? [];
+$claimableByDetail = $claimableByDetail ?? [];
+$claimableQuantityByDetail = $claimableQuantityByDetail ?? [];
 $exchangeOptionsByDetail = $exchangeOptionsByDetail ?? [];
 
 $currentStatus = $order['order_status'] ?? '';
@@ -128,7 +131,12 @@ if ($isCancelledOrReturned) {
 }
 
 // 사용자 주문취소 가능 여부: 주문접수(received)·결제완료(paid)에서만 (OrderAction::isCancellable과 동일)
-$canCancel = in_array($currentAction, ['received', 'paid'], true);
+// 여기에 더해 이미 출고된 품목이 하나라도 있으면 전체 취소는 성립하지 않는다.
+// 주문 상태는 가장 뒤처진 품목을 따르므로 일부만 배송된 주문도 결제완료로 보인다 —
+// 판정은 서버와 같은 OrderCancelService::itemsBlockingCancel이 내린다.
+$cancelBlockedItems = $cancelBlockedItems ?? [];
+$canCancel = in_array($currentAction, ['received', 'paid'], true) && $cancelBlockedItems === [];
+$cancelBlocked = in_array($currentAction, ['received', 'paid'], true) && $cancelBlockedItems !== [];
 
 // 취소 안내 문구 (실제 처리 정책은 서버 OrderCancelService가 결정; 여기선 예상 안내만)
 $cancelGateway = trim((string) ($order['payment_gateway'] ?? ''));
@@ -263,7 +271,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                             <?php
                             $did = (int) ($item['order_detail_id'] ?? 0);
                             $meta = $reviewMeta[$did] ?? ['confirmed' => false, 'canConfirm' => false, 'pending' => false, 'reviewed' => false, 'review' => null];
-                            $itemClaims = $exchangeClaimsByDetail[$did] ?? [];
+                            $itemClaims = $claimsByDetail[$did] ?? [];
                             $latestClaim = $itemClaims[0] ?? null;
                             $latestClaimStatus = $latestClaim ? \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($latestClaim['return_status'] ?? '')) : null;
                             $activeClaim = $latestClaimStatus?->isActive() ? $latestClaim : null;
@@ -281,26 +289,60 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                             data-goods-name="<?= e($item['goods_name'] ?? '') ?>">후기 작성</button>
                                 <?php elseif ($meta['canConfirm']): ?>
                                     <button type="button" class="shop-order-view__review-btn shop-order-view__confirm-btn"
-                                            data-confirm-order title="구매확정하면 후기를 작성할 수 있습니다">구매확정</button>
-                                <?php elseif ($meta['pending']): ?>
-                                    <button type="button" class="shop-order-view__review-btn shop-order-view__review-btn--disabled"
-                                            disabled title="배송 시작 후 구매확정하실 수 있습니다">후기 작성</button>
-                                <?php endif; ?>
-                                <div style="margin-top:4px">
-                                <?php if ($activeClaim): ?>
-                                    <span style="display:inline-block;padding:5px 8px;border-radius:999px;background:#fff3cd;color:#856404;font-size:.78rem"><?= e($latestClaimStatus?->label() ?? '교환중') ?></span>
-                                    <?php if (($activeClaim['return_status'] ?? '') === 'REQUESTED'): ?>
-                                        <button type="button" class="shop-order-view__review-btn js-exchange-cancel" data-claim-id="<?= (int) $activeClaim['return_id'] ?>" style="margin-top:4px">신청 취소</button>
-                                    <?php endif; ?>
-                                <?php elseif ($exchangeOptions !== []): ?>
-                                    <button type="button" class="shop-order-view__review-btn js-exchange-open"
-                                            data-detail-id="<?= $did ?>" data-max-quantity="<?= $qty ?>"
+                                            data-confirm-detail="<?= $did ?>"
                                             data-goods-name="<?= e($item['goods_name'] ?? '') ?>"
-                                            data-options="<?= htmlspecialchars(json_encode($exchangeOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>">교환 신청</button>
-                                    <?php if ($latestClaimStatus): ?><small style="display:block;color:#888;margin-top:4px">최근: <?= e($latestClaimStatus->label()) ?></small><?php endif; ?>
+                                            title="구매확정하면 후기를 작성할 수 있습니다">구매확정</button>
+                                <?php endif; ?>
+                                <?php // 아직 쓸 수 없는 후기의 자리를 비활성 버튼으로 잡아두지 않는다.
+                                      // 반품·교환이 같은 줄에 들어오면서, 지금 할 수 있는 일과
+                                      // 나중에 할 수 있는 일이 뒤섞여 읽히기 때문이다.
+                                      // ($meta['pending'] 은 스킨이 쓸 수 있도록 그대로 전달된다) ?>
+                                <div class="shop-order-view__item-actions">
+                                <?php $remaining = (int) ($claimableQuantityByDetail[$did] ?? 0); ?>
+                                <?php if (!empty($claimableByDetail[$did])): ?>
+                                    <?php // 교환 옵션이 없는 상품(단종·품절 등)도 반품은 신청할 수 있다.
+                                          // 일부만 신청한 상품은 남은 수량만큼 다시 신청할 수 있어야 한다. ?>
+                                    <button type="button" class="shop-order-view__review-btn js-claim-open"
+                                            data-detail-id="<?= $did ?>" data-max-quantity="<?= $remaining ?>"
+                                            data-goods-name="<?= e($item['goods_name'] ?? '') ?>"
+                                            data-options="<?= htmlspecialchars(json_encode($exchangeOptions, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT), ENT_QUOTES) ?>">반품·교환</button>
+
                                 <?php endif; ?>
                                 </div>
                             </div>
+                            <?php
+                            // 클레임은 수량 단위라 한 상품에 여러 건이 생길 수 있다(3개 주문 →
+                            // 2개 교환 + 1개 반품). 좁은 액션 칸에 쌓으면 읽을 수 없으므로
+                            // 상품 행 아래 전폭 줄로 내린다.
+                            // 끝난 건도 남긴다. 신청부터 처리까지 보이다가 끝나는 순간
+                            // 사라지면, 고객은 자기 교환·반품이 어떻게 됐는지 확인할 곳을 잃는다.
+                            $claimRows = [];
+                            foreach ($itemClaims as $claimRow) {
+                                $rowStatus = \Mublo\Packages\Shop\Enum\ClaimStatus::tryFrom((string) ($claimRow['return_status'] ?? ''));
+                                if ($rowStatus !== null) {
+                                    $claimRows[] = [$claimRow, $rowStatus];
+                                }
+                            }
+                            ?>
+                            <?php if ($claimRows !== []): ?>
+                            <div class="shop-order-view__item-claims">
+                                <?php foreach ($claimRows as [$claimRow, $rowStatus]):
+                                    $rowType = (string) ($claimRow['return_type'] ?? 'EXCHANGE');
+                                    $isReturn = $rowType === 'RETURN';
+                                    $isDone = !$rowStatus->isActive();
+                                ?>
+                                <div class="shop-order-view__claim-row<?= $isDone ? ' shop-order-view__claim-row--done' : '' ?>">
+                                    <span class="shop-order-view__claim-tag<?= $isReturn ? ' shop-order-view__claim-tag--return' : '' ?>"><?= $isReturn ? '반품' : '교환' ?></span>
+                                    <span><?= max(1, (int) ($claimRow['quantity'] ?? 1)) ?>개</span>
+                                    <span><?= e(\Mublo\Packages\Shop\Enum\ClaimReason::labelFor($claimRow['reason_type'] ?? '')) ?></span>
+                                    <span class="shop-order-view__claim-state"><?= e($rowStatus->label($rowType)) ?></span>
+                                    <?php if (($claimRow['return_status'] ?? '') === 'REQUESTED'): ?>
+                                        <button type="button" class="shop-order-view__review-btn shop-order-view__claim-cancel js-exchange-cancel" data-claim-id="<?= (int) $claimRow['return_id'] ?>">신청 취소</button>
+                                    <?php endif; ?>
+                                </div>
+                                <?php endforeach; ?>
+                            </div>
+                            <?php endif; ?>
                         </div>
                         <?php endforeach; ?>
                     <?php endif; ?>
@@ -380,6 +422,14 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                                 <a href="<?= e($shTrackUrl) ?>" target="_blank" rel="noopener"><?= e((string) ($sh['invoice_no'] ?? '')) ?> <i class="bi bi-box-arrow-up-right" style="font-size:0.8em"></i></a>
                             <?php else: ?>
                                 <?= e((string) ($sh['invoice_no'] ?? '')) ?>
+                            <?php endif; ?>
+                            <?php
+                            // 배송비를 따로 받은 묶음이 여러 개인 주문에서만 채워진다.
+                            // 어느 상품이 이 송장으로 오는지 밝혀야 "왜 일부만 왔지"가 남지 않는다.
+                            $shItems = $shipmentItemNames[(int) ($sh['shipment_id'] ?? 0)] ?? [];
+                            ?>
+                            <?php if ($shItems !== []): ?>
+                                <small style="display:block;color:#777"><?= e(implode(', ', $shItems)) ?></small>
                             <?php endif; ?>
                         </span>
                     </div>
@@ -497,6 +547,11 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
 
             <?php if ($canCancel): ?>
             <button type="button" id="spvCancelOpen" class="shop-order-view__btn shop-order-view__btn--danger shop-order-view__cancel-side">주문 취소</button>
+            <?php elseif ($cancelBlocked): ?>
+            <p class="shop-order-view__cancel-blocked">
+                일부 상품이 이미 출고되어 주문 전체 취소가 어렵습니다.
+                아직 출고되지 않은 상품의 취소는 판매자에게 문의해 주세요.
+            </p>
             <?php endif; ?>
         </div><!-- /sidebar -->
 
@@ -510,30 +565,50 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
 
 </div>
 
-<!-- 교환 신청 모달 -->
-<div class="spv-rv-overlay" id="spvExchangeOverlay">
+<!-- 반품·교환 신청 모달 -->
+<div class="spv-rv-overlay" id="spvClaimOverlay">
     <div class="spv-rv-modal">
-        <h3>교환 신청</h3>
-        <p class="spv-rv-modal__product" id="spvExchangeProduct"></p>
-        <input type="hidden" id="spvExchangeDetailId">
-        <label class="spv-cancel-label">교환 옵션</label>
-        <select id="spvExchangeOption" class="spv-cancel-select"></select>
-        <label class="spv-cancel-label">수량</label>
-        <input type="number" id="spvExchangeQuantity" class="spv-cancel-select" min="1" value="1">
-        <label class="spv-cancel-label">교환 사유</label>
-        <select id="spvExchangeReason" class="spv-cancel-select">
-            <option value="CHANGE_MIND">단순 변심</option>
-            <option value="WRONG_OPTION">옵션을 잘못 선택함</option>
-            <option value="DEFECT">상품 불량</option>
-            <option value="WRONG_PRODUCT">오배송</option>
-            <option value="LATE_DELIVERY">배송 지연</option>
-            <option value="OTHER">기타</option>
+        <h3>반품·교환 신청</h3>
+        <p class="spv-rv-modal__product" id="spvClaimProduct"></p>
+        <input type="hidden" id="spvClaimDetailId">
+
+        <label class="spv-cancel-label">어떻게 처리할까요?</label>
+        <select id="spvClaimType" class="spv-cancel-select">
+            <option value="EXCHANGE">교환 — 같은 상품으로 다시 받기</option>
+            <option value="RETURN">반품 — 돌려보내고 환불받기</option>
         </select>
-        <textarea id="spvExchangeDetail" placeholder="상세 사유를 입력해주세요."></textarea>
-        <p style="font-size:.8rem;color:#777">동일 상품의 결제금액이 같은 옵션만 교환할 수 있습니다. 고객 귀책 시 주문 당시 교환 배송비가 적용됩니다.</p>
+        <p id="spvClaimExchangeUnavailable" style="display:none;font-size:.8rem;color:#c05621">
+            이 상품은 지금 바꿔 드릴 수 있는 옵션이 없어 교환을 신청할 수 없습니다. 반품으로 진행해주세요.
+        </p>
+
+        <div id="spvClaimOptionWrap">
+            <label class="spv-cancel-label">교환 옵션</label>
+            <select id="spvClaimOption" class="spv-cancel-select"></select>
+        </div>
+
+        <div id="spvClaimQuantityWrap">
+            <label class="spv-cancel-label">수량 <span style="font-weight:400;color:#888">(최대 <span id="spvClaimMaxQuantity">1</span>개까지 신청할 수 있습니다)</span></label>
+            <input type="number" id="spvClaimQuantity" class="spv-cancel-input" min="1" value="1">
+        </div>
+
+        <label class="spv-cancel-label">사유</label>
+        <select id="spvClaimReason" class="spv-cancel-select">
+            <?php foreach (\Mublo\Packages\Shop\Enum\ClaimReason::options() as $reasonValue => $reasonLabel): ?>
+            <option value="<?= e($reasonValue) ?>"><?= e($reasonLabel) ?></option>
+            <?php endforeach; ?>
+        </select>
+        <textarea id="spvClaimDetail" placeholder="상세 사유를 입력해주세요."></textarea>
+
+        <p id="spvClaimHintExchange" style="font-size:.8rem;color:#777">
+            동일 상품의 결제금액이 같은 옵션만 교환할 수 있습니다. 고객 귀책 시 주문 당시 교환 배송비가 적용됩니다.
+        </p>
+        <p id="spvClaimHintReturn" style="display:none;font-size:.8rem;color:#777">
+            상품을 회수해 확인한 뒤 환불해 드립니다. 고객 귀책 시 주문 당시 반품 배송비가 환불액에서 차감됩니다.
+        </p>
+
         <div class="spv-rv-actions">
-            <button type="button" class="spv-rv-cancel" id="spvExchangeClose">닫기</button>
-            <button type="button" class="spv-rv-submit" id="spvExchangeSubmit">교환 신청</button>
+            <button type="button" class="spv-rv-cancel" id="spvClaimClose">닫기</button>
+            <button type="button" class="spv-rv-submit" id="spvClaimSubmit">신청하기</button>
         </div>
     </div>
 </div>
@@ -592,26 +667,89 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
 
 <script>
 (function(){
- const overlay=document.getElementById('spvExchangeOverlay'), option=document.getElementById('spvExchangeOption');
- document.querySelectorAll('.js-exchange-open').forEach(btn=>btn.addEventListener('click',()=>{
-   document.getElementById('spvExchangeDetailId').value=btn.dataset.detailId;
-   document.getElementById('spvExchangeProduct').textContent=btn.dataset.goodsName;
-   const qty=document.getElementById('spvExchangeQuantity'); qty.max=btn.dataset.maxQuantity; qty.value=1;
-   option.innerHTML='';
-   JSON.parse(btn.dataset.options||'[]').forEach(row=>{const el=document.createElement('option');el.value=row.option_id;el.dataset.code=row.option_code||'';el.textContent=(row.option_name||'동일 상품')+(row.stock_quantity===null?'':' (재고 '+row.stock_quantity+')');option.appendChild(el);});
+ const overlay=document.getElementById('spvClaimOverlay');
+ if(!overlay) return;
+ // .mublo-main(z-index:1) stacking context 탈출 — 후기·주문취소 모달과 같은 처리
+ document.body.appendChild(overlay);
+
+ // 배경 스크롤 잠금. 스크롤바가 사라지며 페이지가 밀리지 않도록 그 폭만큼 보정한다.
+ let scrollLocked=false;
+ function lockScroll(on){
+   if(on===scrollLocked) return;
+   scrollLocked=on;
+   if(on){
+     const sbw=window.innerWidth-document.documentElement.clientWidth;
+     document.body.style.overflow='hidden';
+     if(sbw>0) document.body.style.paddingRight=sbw+'px';
+   }else{
+     document.body.style.overflow='';
+     document.body.style.paddingRight='';
+   }
+ }
+ function closeModal(){ overlay.classList.remove('is-open'); lockScroll(false); }
+
+ const typeSel=document.getElementById('spvClaimType'), optionSel=document.getElementById('spvClaimOption');
+ const optionWrap=document.getElementById('spvClaimOptionWrap');
+ const unavailable=document.getElementById('spvClaimExchangeUnavailable');
+ const hintExchange=document.getElementById('spvClaimHintExchange'), hintReturn=document.getElementById('spvClaimHintReturn');
+ let hasExchangeOptions=false;
+
+ // 교환은 바꿔 줄 옵션이 있어야 성립하고, 반품은 그런 제약이 없다.
+ // 옵션이 없으면 교환을 고를 수 없게 잠그고 이유를 밝힌다.
+ function syncType(){
+   const isExchange=typeSel.value==='EXCHANGE';
+   optionWrap.style.display=isExchange?'':'none';
+   hintExchange.style.display=isExchange?'':'none';
+   hintReturn.style.display=isExchange?'none':'';
+ }
+ typeSel.addEventListener('change',syncType);
+
+ document.querySelectorAll('.js-claim-open').forEach(btn=>btn.addEventListener('click',()=>{
+   document.getElementById('spvClaimDetailId').value=btn.dataset.detailId;
+   document.getElementById('spvClaimProduct').textContent=btn.dataset.goodsName;
+   const max=Math.max(1, Number(btn.dataset.maxQuantity||1));
+   const qty=document.getElementById('spvClaimQuantity'); qty.max=max; qty.value=1;
+   // 한 개만 주문한 상품은 물어볼 것이 없다
+   document.getElementById('spvClaimQuantityWrap').style.display=max>1?'':'none';
+   document.getElementById('spvClaimMaxQuantity').textContent=String(max);
+   optionSel.innerHTML='';
+   const options=JSON.parse(btn.dataset.options||'[]');
+   hasExchangeOptions=options.length>0;
+   options.forEach(row=>{
+     const el=document.createElement('option');
+     el.value=row.option_id; el.dataset.code=row.option_code||'';
+     el.textContent=(row.option_name||'동일 상품')+(row.stock_quantity===null?'':' (재고 '+row.stock_quantity+')');
+     optionSel.appendChild(el);
+   });
+   typeSel.querySelector('option[value=EXCHANGE]').disabled=!hasExchangeOptions;
+   typeSel.value=hasExchangeOptions?'EXCHANGE':'RETURN';
+   unavailable.style.display=hasExchangeOptions?'none':'';
+   syncType();
    overlay.classList.add('is-open');
+   lockScroll(true);
  }));
- document.getElementById('spvExchangeClose')?.addEventListener('click',()=>overlay.classList.remove('is-open'));
- document.getElementById('spvExchangeSubmit')?.addEventListener('click',()=>{
-   const reason=document.getElementById('spvExchangeReason').value;
+
+ document.getElementById('spvClaimClose')?.addEventListener('click',closeModal);
+ overlay.addEventListener('click',e=>{ if(e.target===overlay) closeModal(); });
+ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&overlay.classList.contains('is-open')) closeModal(); });
+ document.getElementById('spvClaimSubmit')?.addEventListener('click',()=>{
+   const returnType=typeSel.value;
+   const reason=document.getElementById('spvClaimReason').value;
    const responsibility=['DEFECT','WRONG_PRODUCT','LATE_DELIVERY'].includes(reason)?'SELLER':'CUSTOMER';
-   const selected=option.options[option.selectedIndex];
-   const detailId=document.getElementById('spvExchangeDetailId').value;
-   MubloRequest.requestJson('/shop/order/<?= e($orderNo) ?>/items/'+detailId+'/exchange',{
-     quantity:Number(document.getElementById('spvExchangeQuantity').value),target_option_id:Number(selected?.value||0),target_option_code:selected?.dataset.code||'',reason_type:reason,reason_detail:document.getElementById('spvExchangeDetail').value,responsibility:responsibility
+   const selected=optionSel.options[optionSel.selectedIndex];
+   const detailId=document.getElementById('spvClaimDetailId').value;
+   MubloRequest.requestJson('/shop/order/<?= e($orderNo) ?>/items/'+detailId+'/claim',{
+     return_type:returnType,
+     quantity:Number(document.getElementById('spvClaimQuantity').value),
+     target_option_id:returnType==='EXCHANGE'?Number(selected?.value||0):0,
+     target_option_code:returnType==='EXCHANGE'?(selected?.dataset.code||''):'',
+     reason_type:reason,
+     reason_detail:document.getElementById('spvClaimDetail').value,
+     responsibility:responsibility
    }).then(()=>location.reload());
  });
- document.querySelectorAll('.js-exchange-cancel').forEach(btn=>btn.addEventListener('click',()=>{if(confirm('교환 신청을 취소하시겠습니까?'))MubloRequest.requestJson('/shop/order/<?= e($orderNo) ?>/exchanges/'+btn.dataset.claimId+'/cancel',{}).then(()=>location.reload());}));
+
+ document.querySelectorAll('.js-exchange-cancel').forEach(btn=>btn.addEventListener('click',()=>{if(confirm('신청을 취소하시겠습니까?'))MubloRequest.requestJson('/shop/order/<?= e($orderNo) ?>/exchanges/'+btn.dataset.claimId+'/cancel',{}).then(()=>location.reload());}));
 })();
 </script>
 

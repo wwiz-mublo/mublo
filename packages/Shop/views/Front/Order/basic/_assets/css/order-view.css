@@ -45,7 +45,7 @@
 .shop-order-view__section-body { padding: 20px; }
 
 /* ── 상품 아이템 ── */
-.shop-order-view__item { display: flex; align-items: center; gap: 12px; padding: 14px 0; }
+.shop-order-view__item { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 0; }
 .shop-order-view__item + .shop-order-view__item { border-top: 1px solid var(--border-subtle); }
 .shop-order-view__item:first-child { padding-top: 0; }
 .shop-order-view__item:last-child { padding-bottom: 0; }
@@ -62,7 +62,31 @@ a.shop-order-view__item-name:hover { text-decoration: underline; }
 .shop-order-view__item-divider { margin: 0 8px; color: var(--border); }
 .shop-order-view__item-qtysep { color: var(--muted-foreground); }
 .shop-order-view__item-price { font-weight: 600; font-size: 0.95rem; text-align: right; flex: 0 0 96px; white-space: nowrap; }
-.shop-order-view__item-review { flex: 0 0 96px; text-align: center; }
+.shop-order-view__item-review { flex: 0 0 104px; display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.shop-order-view__item-actions { display: flex; flex-direction: column; gap: 4px; }
+
+/* 진행 중 클레임 — 수량 단위라 한 상품에 여러 건이 생긴다.
+   좁은 액션 칸에 쌓으면 읽을 수 없으므로 상품 행 아래 전폭 줄로 내린다. */
+.shop-order-view__item-claims { flex: 0 0 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.shop-order-view__claim-row {
+    display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; border-radius: 8px; background: var(--muted);
+    font-size: 0.78rem; color: var(--muted-foreground);
+}
+.shop-order-view__claim-row > span { flex: 0 0 auto; white-space: nowrap; }
+/* 끝난 건은 톤을 낮춰 진행 중인 건과 구분한다 (이력은 남기되 눈에 먼저 들어오지 않게) */
+.shop-order-view__claim-row--done { opacity: 0.65; }
+.shop-order-view__claim-row--done .shop-order-view__claim-tag { background: var(--muted); color: var(--muted-foreground); }
+.shop-order-view__claim-tag {
+    padding: 2px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 700;
+    background: var(--warning-subtle); color: var(--warning);
+}
+.shop-order-view__claim-tag--return { background: var(--danger-subtle); color: var(--destructive); }
+.shop-order-view__claim-state { color: var(--foreground); font-weight: 600; }
+/* .shop-order-view__review-btn 이 뒤에 오므로 같은 특정도로는 밀린다 — 한 단계 올린다 */
+.shop-order-view__claim-row .shop-order-view__review-btn {
+    width: auto; margin-left: auto; padding: 3px 10px; font-size: 0.7rem;
+}
 
 /* ── 정보 행 ── */
 .shop-order-view__info-row { display: flex; align-items: baseline; margin-bottom: 12px; }
@@ -88,10 +112,28 @@ a.shop-order-view__item-name:hover { text-decoration: underline; }
 .shop-order-view__btn--danger:hover { background: var(--destructive); color: var(--destructive-foreground); }
 /* 결제 정보 섹션 아래(사이드바) 배치 시 전체 너비 */
 .shop-order-view__cancel-side { display: block; width: 100%; margin-top: 12px; box-sizing: border-box; }
+/* 취소 버튼 자리를 대신하는 안내 — 버튼 없이 이유만 남기면 왜 안 되는지 알 수 없다 */
+.shop-order-view__cancel-blocked {
+    margin: 12px 0 0;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
 
 /* 주문 취소 모달 */
 .spv-cancel-hint { font-size: 0.85rem; line-height: 1.5; color: var(--muted-foreground); margin: 0 0 16px; }
 .spv-cancel-label { display: block; font-size: 0.82rem; font-weight: 600; color: var(--foreground); margin-bottom: 6px; }
+/* 숫자·텍스트 입력. 셀렉트와 테두리는 같지만 화살표 자리는 비운다 —
+   .spv-cancel-select 를 input 에 씌우면 셀렉트 화살표와 숫자 스피너가 겹친다 */
+.spv-cancel-input {
+    width: 100%; padding: 10px 12px; font-size: 0.9rem; font-family: inherit;
+    border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; margin-bottom: 10px;
+    background: var(--card); color: inherit;
+}
 .spv-cancel-select {
     width: 100%; padding: 10px 38px 10px 12px; font-size: 0.9rem; font-family: inherit;
     border: 1px solid var(--border); border-radius: 8px; box-sizing: border-box; margin-bottom: 10px;
@@ -119,9 +161,11 @@ a.shop-order-view__item-name:hover { text-decoration: underline; }
     .shop-order-view__btn { width: 100%; }
 }
 
-/* ── 후기 작성 ── */
+/* ── 상품별 액션 (구매확정 · 반품·교환 · 후기) ── */
+/* 한 상품에 두 개 이상이 세로로 쌓이므로 글자 수와 무관하게 폭을 맞춘다 */
 .shop-order-view__review-btn {
-    padding: 5px 10px; font-size: 0.8rem; font-weight: 600; cursor: pointer;
+    display: block; width: 100%; box-sizing: border-box; text-align: center;
+    padding: 5px 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer;
     color: var(--primary); background: var(--card); border: 1px solid var(--primary); border-radius: 8px; white-space: nowrap;
 }
 .shop-order-view__review-btn:hover { background: var(--primary); color: var(--primary-foreground); }

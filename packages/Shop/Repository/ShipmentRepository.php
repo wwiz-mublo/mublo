@@ -37,7 +37,9 @@ class ShipmentRepository
             "SELECT company_id, company_name, delivery_method, tracking_url
              FROM shop_delivery_companies
              WHERE is_active = 1
-             ORDER BY delivery_method ASC, company_name ASC"
+             -- 추적이 되는 택배사를 먼저, '기타'처럼 추적 URL 없는 항목을 뒤로.
+             -- 이름 순으로만 두면 '기타'가 목록 중간에 끼어 고르기 어렵다.
+             ORDER BY delivery_method ASC, (tracking_url IS NULL) ASC, company_name ASC"
         );
     }
 
@@ -72,13 +74,21 @@ class ShipmentRepository
         ) ?: null;
     }
 
-    public function getByOrderNo(string $orderNo): array
+    /**
+     * 주문의 운송장.
+     *
+     * 기본은 클레임 운송장(회수·재출고·반송)을 뺀 실제 출고 운송장만 돌려준다 —
+     * 클레임 배송은 반품·교환 관리가 소유하기 때문이다.
+     * 다만 고객 주문 상세는 교환 상품이 언제 오는지 볼 곳이 여기뿐이라 함께 받는다.
+     */
+    public function getByOrderNo(string $orderNo, bool $includeClaims = false): array
     {
+        $claimSql = $includeClaims ? '' : ' AND s.claim_id IS NULL';
         return $this->db->select(
             "SELECT s.*, dc.company_name, dc.tracking_url AS tracking_url_template
              FROM {$this->table} s
              LEFT JOIN shop_delivery_companies dc ON dc.company_id = s.company_id
-             WHERE s.order_no = ? AND s.claim_id IS NULL
+             WHERE s.order_no = ?{$claimSql}
              ORDER BY s.shipment_id ASC",
             [$orderNo]
         );

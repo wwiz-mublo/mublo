@@ -69,7 +69,8 @@ class RefundService
         string $reason,
         int $domainId,
         int $staffId = 0,
-        array $bankInfo = []
+        array $bankInfo = [],
+        ?int $claimId = null
     ): Result {
         // 주문 확인
         $order = $this->orderRepository->find($orderNo);
@@ -110,7 +111,7 @@ class RefundService
         $db = $this->txnRepository->getDb();
 
         $result = $db->transaction(function () use (
-            $db, $order, $orderNo, $amount, $refundMethod, $reason, $domainId, $staffId, $bankInfo, $totalPaid
+            $db, $order, $orderNo, $amount, $refundMethod, $reason, $domainId, $staffId, $bankInfo, $totalPaid, $claimId
         ) {
             // 주문 행 잠금 — 같은 주문의 동시 환불을 직렬화
             $db->select('SELECT order_no FROM shop_orders WHERE order_no = ? FOR UPDATE', [$orderNo]);
@@ -167,6 +168,8 @@ class RefundService
             // shop_payment_transactions 기록
             $txnData = [
                 'order_no' => $orderNo,
+                // 반품 환불이면 어느 클레임의 환불인지 남긴다. 없으면 주문 단위 환불이다.
+                'claim_id' => $claimId,
                 'domain_id' => $domainId,
                 'pg_key' => ($refundMethod === 'PG_CANCEL') ? ($order->getPaymentGateway() ?? '') : 'manual',
                 'pg_tid' => $pgResult['transaction_id'] ?? null,
@@ -442,6 +445,12 @@ class RefundService
     /**
      * 주문의 환불 가능 금액 조회
      */
+    /** 해당 클레임에 귀속된 환불 합계 (반품 완료 확정의 근거). */
+    public function getRefundedAmountForClaim(int $claimId): int
+    {
+        return $this->txnRepository->getRefundedAmountByClaim($claimId);
+    }
+
     public function getRefundableAmount(string $orderNo): Result
     {
         $order = $this->orderRepository->find($orderNo);
