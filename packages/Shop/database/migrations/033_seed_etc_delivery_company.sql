@@ -9,8 +9,12 @@
 --
 -- 실제 택배사명은 송장 메모에 적는다.
 
+-- FROM 절이 필요하다. MariaDB 10.3(지원 하한)은 FROM 없는 SELECT 에 WHERE 를 붙이면
+-- 문법 오류를 낸다 — MySQL 5.7·8.4 와 MariaDB 10.11 이상은 받아준다. 지우지 말 것.
+-- FROM DUAL 대신 파생 테이블을 쓴다: DUAL 은 MySQL 8.0.34 에서 폐기 예고되었다.
 INSERT INTO shop_delivery_companies (delivery_method, company_name, tracking_url, callcenter)
 SELECT 'COURIER', '기타', NULL, NULL
+FROM (SELECT 1) AS placeholder
 WHERE NOT EXISTS (
     SELECT 1 FROM shop_delivery_companies WHERE company_name = '기타'
 );
