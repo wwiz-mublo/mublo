@@ -88,6 +88,10 @@ if ($shippingGroups !== []) {
 if ($itemGroups === []) {
     $itemGroups = [['no' => 0, 'group' => null, 'items' => $orderItems]];
 }
+// 운송장 역할 — 클레임 운송장(회수·재출고·반송)이 함께 나오므로 무엇인지 밝힌다
+$shipmentRoleLabels = [
+    'COLLECTION' => '회수', 'EXCHANGE_OUTBOUND' => '교환 재출고', 'REJECTED_RETURN' => '고객 반송',
+];
 // 배송 상태 라벨
 $shipmentStatusLabels = [
     'READY' => '준비', 'PICKED_UP' => '집화', 'IN_TRANSIT' => '배송중',
@@ -520,7 +524,8 @@ foreach ($orderReturns as $ret) {
                         <tr>
                             <td>
                                 <?php if (!empty($sh['claim_id'])): ?>
-                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>?activeCode=K_Shop_016" class="badge bg-warning-subtle text-warning-emphasis me-1">교환</a>
+                                    <a href="/admin/shop/claims/<?= (int) $sh['claim_id'] ?>?activeCode=K_Shop_016"
+                                       class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle text-decoration-none me-1"><?= htmlspecialchars($shipmentRoleLabels[$sh['shipment_role'] ?? ''] ?? '클레임') ?></a>
                                 <?php endif; ?>
                                 <?= htmlspecialchars($sh['company_name'] ?? '-') ?>
                             </td>
@@ -593,8 +598,8 @@ foreach ($orderReturns as $ret) {
                         </div>
                     </div>
                 <?php endif; ?>
-                <div class="row g-2">
-                    <div class="col-md-4">
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-3">
                         <select id="shipmentCompany" class="form-select">
                             <option value="">택배사 선택</option>
                             <?php foreach ($deliveryCompanies as $dc): ?>
@@ -602,16 +607,16 @@ foreach ($orderReturns as $ret) {
                             <?php endforeach; ?>
                         </select>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <input type="text" id="shipmentInvoice" class="form-control" placeholder="송장번호">
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md">
                         <input type="text" id="shipmentMemo" class="form-control" placeholder="메모 (선택)">
                     </div>
-                </div>
-                <div class="mt-2 text-end">
-                    <button type="button" id="shipmentCancelEdit" class="btn btn-sm btn-link text-muted d-none" onclick="resetShipmentForm()">수정 취소</button>
-                    <button type="button" id="shipmentSubmit" class="btn btn-sm btn-primary" onclick="submitShipment()"><i class="bi bi-plus-lg"></i> 등록</button>
+                    <div class="col-md-auto text-end">
+                        <button type="button" id="shipmentCancelEdit" class="btn btn-link text-muted d-none p-0 me-2" onclick="resetShipmentForm()">취소</button>
+                        <button type="button" id="shipmentSubmit" class="btn btn-primary" onclick="submitShipment()"><i class="bi bi-plus-lg"></i> 등록</button>
+                    </div>
                 </div>
                 <?php endif; ?>
             </div>

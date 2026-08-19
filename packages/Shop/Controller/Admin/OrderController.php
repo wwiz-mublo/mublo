@@ -201,7 +201,9 @@ class OrderController
         $paymentTransactions = $this->refundService->getTransactionHistory($orderNo);
 
         // 배송(운송장) 정보 + 택배사 목록 + 현재 상태의 배송정보 편집 가능 여부
-        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo) : [];
+        // 클레임 운송장(회수·재출고·반송)도 함께 본다 — 이 주문에 무엇이 오가는지는
+        // 한자리에서 보여야 한다. 등록·수정은 여전히 반품·교환 관리가 소유한다.
+        $shipments = $this->shipmentService ? $this->shipmentService->getByOrderNo($orderNo, true) : [];
         $deliveryCompanies = $this->shipmentService ? $this->shipmentService->getDeliveryCompanies() : [];
         $deliveryEditable = $this->stateResolver->isDeliveryEditable($domainId, $currentStatusId);
         // 배송비 그룹 = 출고 단위. 둘 이상이면 송장을 그룹별로 따로 받는다.
