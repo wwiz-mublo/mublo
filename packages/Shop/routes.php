@@ -448,7 +448,7 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    // --- 옵션 프리셋 관리 ---
+    // --- 상품옵션 프리셋 관리 ---
     $r->addRoute('GET', '/admin/options', [
         'controller' => OptionPresetController::class,
         'method'     => 'index',

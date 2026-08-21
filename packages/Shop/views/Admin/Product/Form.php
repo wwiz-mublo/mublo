@@ -11,7 +11,7 @@
  * @var array $productCombos 상품 조합 [{combo_id, combination_key, extra_price, stock_quantity}]
  * @var array $categories 카테고리 트리 (flat)
  * @var array $categoryTree 카테고리 트리 (계층형)
- * @var array $presets 옵션 프리셋 목록
+ * @var array $presets 상품옵션 프리셋 목록
  * @var array $shippingTemplates 배송 템플릿 목록
  * @var array $discountTypeOptions 할인 유형 옵션
  * @var array $rewardTypeOptions 적립 유형 옵션

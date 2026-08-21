@@ -8,7 +8,7 @@ declare(strict_types=1);
  * ProductPresenter와 기본 스킨의 실제 계약을 기준으로 작성했다.
  */
 return [
-    'version' => 3,
+    'version' => 4,
     'book' => [
         'title' => 'Mublo Shop 매뉴얼',
         'slug' => 'shop-manual',
@@ -32,7 +32,7 @@ return [
 <li><strong>배송 템플릿</strong>을 최소 1개 만든 뒤 <strong>쇼핑몰 설정</strong>에서 기본 배송 템플릿으로 지정합니다.</li>
 <li>결제수단·입금계좌·포인트, 할인·적립, 약관과 주문 추가 필드를 설정합니다.</li>
 <li>주문상태 설정은 우선 기본 흐름을 유지하고 알림·재고·포인트 액션만 검토합니다.</li>
-<li>카테고리, 옵션 프리셋, 상품정보 템플릿을 만든 뒤 상품을 등록합니다.</li>
+<li>카테고리, 상품옵션 프리셋, 상품정보 템플릿을 만든 뒤 상품을 등록합니다.</li>
 <li>테스트 상품으로 회원·비회원 주문, 결제, 송장, 취소·반품·환불을 끝까지 검증합니다.</li>
 </ol>
 <table><thead><tr><th>프론트 화면</th><th>주소</th></tr></thead><tbody>
@@ -79,7 +79,7 @@ HTML,
 <p><strong>Mublo Shop</strong> 관리자 메뉴는 다음과 같은 업무 영역으로 구성됩니다.</p>
 <ul>
 <li><strong>기본 운영:</strong> 대시보드, 쇼핑몰 설정</li>
-<li><strong>상품:</strong> 카테고리, 옵션 프리셋, 상품정보 템플릿, 상품 관리</li>
+<li><strong>상품:</strong> 카테고리, 상품옵션 프리셋, 상품정보 템플릿, 상품 관리</li>
 <li><strong>주문:</strong> 주문 관리, 주문상태 설정, 배송 템플릿</li>
 <li><strong>고객·마케팅:</strong> 등급별 혜택, 쿠폰, 구매후기, 상품문의, 찜한상품, 기획전</li>
 </ul>
@@ -234,7 +234,7 @@ HTML,
             'sort_order' => 90,
             'content' => <<<'HTML'
 <p>카탈로그는 다음 순서로 준비하면 반복 입력과 분류 오류를 줄일 수 있습니다.</p>
-<p><strong>카테고리 → 옵션 프리셋 → 상품정보 템플릿 → 상품</strong></p>
+<p><strong>카테고리 → 상품옵션 프리셋 → 상품정보 템플릿 → 상품</strong></p>
 <p>공개 전에는 비활성 상품으로 등록하십시오.<br>상세·가격·옵션·배송을 검수한 뒤 판매중으로 전환합니다.</p>
 HTML,
         ],
@@ -267,11 +267,11 @@ HTML,
         [
             'key' => 'options',
             'parent' => 'catalog',
-            'title' => '옵션 프리셋',
+            'title' => '상품옵션 프리셋',
             'slug' => 'option-presets',
             'sort_order' => 110,
             'content' => <<<'HTML'
-<p><strong>옵션 프리셋</strong>(<code>/admin/shop/options</code>)은 반복되는 색상·사이즈·각인·포장 구성을 재사용합니다. 상품에 적용하면 옵션 모드도 함께 설정됩니다.</p>
+<p><strong>상품옵션 프리셋</strong>(<code>/admin/shop/options</code>)은 반복되는 색상·사이즈·각인·포장 구성을 재사용합니다. 상품에 적용하면 옵션 모드도 함께 설정됩니다.</p>
 <ul>
 <li><strong>단독형(SINGLE):</strong> 각 기본 옵션 값을 독립적으로 선택·재고 관리하는 상품에 적합합니다.</li>
 <li><strong>조합형(COMBINATION):</strong> 색상×사이즈처럼 선택값 조합마다 추가금액·재고·사용 여부가 다른 상품에 적합합니다.</li>

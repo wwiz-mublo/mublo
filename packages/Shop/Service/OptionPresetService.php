@@ -13,10 +13,10 @@ use Mublo\Packages\Shop\Repository\ProductRepository;
 /**
  * OptionPreset Service
  *
- * 옵션 프리셋 비즈니스 로직 담당
+ * 상품옵션 프리셋 비즈니스 로직 담당
  *
  * 책임:
- * - 옵션 프리셋 CRUD
+ * - 상품옵션 프리셋 CRUD
  * - 프리셋 → 상품 옵션 복사 적용
  * - 프리셋 옵션/값 관리
  *
@@ -56,7 +56,7 @@ class OptionPresetService
     }
 
     /**
-     * 도메인별 옵션 프리셋 목록 조회
+     * 도메인별 상품옵션 프리셋 목록 조회
      *
      * @param int $domainId 도메인 ID
      * @return Result
@@ -66,11 +66,11 @@ class OptionPresetService
         $presets = $this->presetRepository->getList($domainId);
         $items = array_map(fn($p) => $p->toArray(), $presets);
 
-        return Result::success('옵션 프리셋 목록을 조회했습니다.', ['items' => $items]);
+        return Result::success('상품옵션 프리셋 목록을 조회했습니다.', ['items' => $items]);
     }
 
     /**
-     * 옵션 프리셋 상세 조회 (옵션 + 값 포함)
+     * 상품옵션 프리셋 상세 조회 (옵션 + 값 포함)
      *
      * @param int $presetId 프리셋 ID
      * @param int $domainId 현재 도메인 ID (도메인 경계 검증용)
@@ -80,7 +80,7 @@ class OptionPresetService
     {
         $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
-            return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
+            return Result::failure('상품옵션 프리셋을 찾을 수 없습니다.');
         }
 
         $presetData = $preset->toArray();
@@ -88,11 +88,11 @@ class OptionPresetService
         // 프리셋에 속한 옵션 + 값 (이미 그룹핑되어 반환)
         $presetData['options'] = $this->presetRepository->getPresetOptions($presetId);
 
-        return Result::success('옵션 프리셋 상세를 조회했습니다.', ['preset' => $presetData]);
+        return Result::success('상품옵션 프리셋 상세를 조회했습니다.', ['preset' => $presetData]);
     }
 
     /**
-     * 옵션 프리셋 생성
+     * 상품옵션 프리셋 생성
      *
      * 프리셋 + 옵션 + 옵션값을 동시에 생성
      *
@@ -125,7 +125,7 @@ class OptionPresetService
 
             if (!$presetId) {
                 $db->rollBack();
-                return Result::failure('옵션 프리셋 생성에 실패했습니다.');
+                return Result::failure('상품옵션 프리셋 생성에 실패했습니다.');
             }
 
             // 옵션 + 값 생성
@@ -134,15 +134,15 @@ class OptionPresetService
 
             $db->commit();
 
-            return Result::success('옵션 프리셋이 생성되었습니다.', ['preset_id' => $presetId]);
+            return Result::success('상품옵션 프리셋이 생성되었습니다.', ['preset_id' => $presetId]);
         } catch (\Throwable $e) {
             $db->rollBack();
-            return Result::failure('옵션 프리셋 생성 중 오류가 발생했습니다.');
+            return Result::failure('상품옵션 프리셋 생성 중 오류가 발생했습니다.');
         }
     }
 
     /**
-     * 옵션 프리셋 수정
+     * 상품옵션 프리셋 수정
      *
      * 기존 옵션을 삭제하고 새로 생성 (delete + recreate)
      *
@@ -155,7 +155,7 @@ class OptionPresetService
     {
         $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
-            return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
+            return Result::failure('상품옵션 프리셋을 찾을 수 없습니다.');
         }
 
         $db = $this->presetRepository->getDb();
@@ -186,15 +186,15 @@ class OptionPresetService
 
             $db->commit();
 
-            return Result::success('옵션 프리셋이 수정되었습니다.');
+            return Result::success('상품옵션 프리셋이 수정되었습니다.');
         } catch (\Throwable $e) {
             $db->rollBack();
-            return Result::failure('옵션 프리셋 수정 중 오류가 발생했습니다.');
+            return Result::failure('상품옵션 프리셋 수정 중 오류가 발생했습니다.');
         }
     }
 
     /**
-     * 옵션 프리셋 삭제
+     * 상품옵션 프리셋 삭제
      *
      * @param int $presetId 프리셋 ID
      * @param int $domainId 현재 도메인 ID (도메인 경계 검증용)
@@ -204,7 +204,7 @@ class OptionPresetService
     {
         $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
-            return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
+            return Result::failure('상품옵션 프리셋을 찾을 수 없습니다.');
         }
 
         $db = $this->presetRepository->getDb();
@@ -220,10 +220,10 @@ class OptionPresetService
 
             $db->commit();
 
-            return Result::success('옵션 프리셋이 삭제되었습니다.');
+            return Result::success('상품옵션 프리셋이 삭제되었습니다.');
         } catch (\Throwable $e) {
             $db->rollBack();
-            return Result::failure('옵션 프리셋 삭제 중 오류가 발생했습니다.');
+            return Result::failure('상품옵션 프리셋 삭제 중 오류가 발생했습니다.');
         }
     }
 
@@ -241,7 +241,7 @@ class OptionPresetService
     {
         $preset = $this->presetRepository->findInDomain($domainId, $presetId);
         if (!$preset) {
-            return Result::failure('옵션 프리셋을 찾을 수 없습니다.');
+            return Result::failure('상품옵션 프리셋을 찾을 수 없습니다.');
         }
 
         // 프리셋만 확인하면 남의 도메인 상품에 내 프리셋을 심을 수 있으므로 상품도 본다

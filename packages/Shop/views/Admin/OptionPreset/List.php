@@ -1,6 +1,6 @@
 <?php
 /**
- * 옵션 프리셋 목록
+ * 상품옵션 프리셋 목록
  *
  * View Context 접근:
  * - $this->columns() : ListColumnBuilder 팩토리
@@ -47,8 +47,8 @@ $columns = $this->columns()
 <div class="page-container">
     <div class="page-title">
         <div class="page-title-text">
-            <h3><?= htmlspecialchars($pageTitle ?? '옵션 프리셋') ?></h3>
-            <p>상품 옵션 템플릿을 관리합니다.</p>
+            <h3><?= htmlspecialchars($pageTitle ?? '상품옵션 프리셋') ?></h3>
+            <p>상품옵션 프리셋을 관리합니다.</p>
         </div>
         <div class="page-title-actions">
             <a href="/admin/shop/options/create" class="btn btn-sm btn-primary">

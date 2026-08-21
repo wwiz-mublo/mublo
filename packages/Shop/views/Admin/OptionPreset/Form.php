@@ -1,6 +1,6 @@
 <?php
 /**
- * 옵션 프리셋 등록/수정
+ * 상품옵션 프리셋 등록/수정
  *
  * @var string $pageTitle 페이지 제목
  * @var bool $isEdit 수정 모드 여부
@@ -12,7 +12,7 @@
 <div class="page-title">
     <div class="page-title-text">
         <h3><?= htmlspecialchars($pageTitle) ?></h3>
-        <p>상품 옵션 템플릿을 <?= $isEdit ? '수정' : '등록' ?>합니다.</p>
+        <p>상품옵션 프리셋을 <?= $isEdit ? '수정' : '등록' ?>합니다.</p>
     </div>
     <div class="page-title-actions">
         <a href="/admin/shop/options" class="btn btn-sm btn-outline-secondary">

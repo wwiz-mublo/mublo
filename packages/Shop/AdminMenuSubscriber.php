@@ -56,7 +56,7 @@ class AdminMenuSubscriber implements EventSubscriberInterface
                 'code' => '002',
             ],
             [
-                'label' => '옵션 프리셋',
+                'label' => '상품옵션 프리셋',
                 'url' => '/admin/shop/options',
                 'code' => '003',
             ],

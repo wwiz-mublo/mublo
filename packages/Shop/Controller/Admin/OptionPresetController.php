@@ -11,7 +11,7 @@ use Mublo\Helper\Form\FormHelper;
 /**
  * Admin OptionPresetController
  *
- * 옵션 프리셋 관리 컨트롤러
+ * 상품옵션 프리셋 관리 컨트롤러
  *
  * 라우팅:
  * - GET  /admin/shop/options              → index (프리셋 목록)
@@ -31,7 +31,7 @@ class OptionPresetController
     }
 
     /**
-     * 옵션 프리셋 목록
+     * 상품옵션 프리셋 목록
      */
     public function index(array $params, Context $context): ViewResponse
     {
@@ -41,19 +41,19 @@ class OptionPresetController
 
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/OptionPreset/List')
             ->withData([
-                'pageTitle' => '옵션 프리셋 관리',
+                'pageTitle' => '상품옵션 프리셋',
                 'presets' => $result->get('items', []),
             ]);
     }
 
     /**
-     * 옵션 프리셋 생성 폼
+     * 상품옵션 프리셋 생성 폼
      */
     public function create(array $params, Context $context): ViewResponse
     {
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/OptionPreset/Form')
             ->withData([
-                'pageTitle' => '옵션 프리셋 등록',
+                'pageTitle' => '상품옵션 프리셋 등록',
                 'isEdit' => false,
                 'preset' => null,
                 'options' => [],
@@ -61,7 +61,7 @@ class OptionPresetController
     }
 
     /**
-     * 옵션 프리셋 수정 폼
+     * 상품옵션 프리셋 수정 폼
      */
     public function edit(array $params, Context $context): ViewResponse
     {
@@ -70,7 +70,7 @@ class OptionPresetController
 
         if ($presetId <= 0) {
             return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Error/404')
-                ->withData(['message' => '옵션 프리셋을 찾을 수 없습니다.']);
+                ->withData(['message' => '상품옵션 프리셋을 찾을 수 없습니다.']);
         }
 
         $result = $this->optionPresetService->getDetail($presetId, $context->getDomainId() ?? 1);
@@ -86,7 +86,7 @@ class OptionPresetController
 
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/OptionPreset/Form')
             ->withData([
-                'pageTitle' => '옵션 프리셋 수정',
+                'pageTitle' => '상품옵션 프리셋 수정',
                 'isEdit' => true,
                 'preset' => $presetData,
                 'options' => $options,
@@ -94,7 +94,7 @@ class OptionPresetController
     }
 
     /**
-     * 옵션 프리셋 저장 (생성/수정)
+     * 상품옵션 프리셋 저장 (생성/수정)
      */
     public function store(array $params, Context $context): JsonResponse
     {
@@ -126,7 +126,7 @@ class OptionPresetController
     }
 
     /**
-     * 옵션 프리셋 상세 조회 (JSON)
+     * 상품옵션 프리셋 상세 조회 (JSON)
      *
      * 상품 등록/수정 시 프리셋 불러오기용
      */
@@ -149,7 +149,7 @@ class OptionPresetController
     }
 
     /**
-     * 옵션 프리셋 삭제
+     * 상품옵션 프리셋 삭제
      */
     public function delete(array $params, Context $context): JsonResponse
     {
@@ -170,7 +170,7 @@ class OptionPresetController
     }
 
     /**
-     * 옵션 프리셋 선택 삭제 (벌크)
+     * 상품옵션 프리셋 선택 삭제 (벌크)
      */
     public function listDelete(array $params, Context $context): JsonResponse
     {
