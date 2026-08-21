@@ -671,7 +671,7 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
-    // --- 쿠폰 관리 ---
+    // --- 할인쿠폰 관리 ---
     $r->addRoute('GET', '/admin/coupons', [
         'controller' => CouponController::class,
         'method'     => 'index',

@@ -91,7 +91,7 @@ class AdminMenuSubscriber implements EventSubscriberInterface
                 'code' => '008',
             ],
             [
-                'label' => '쿠폰 관리',
+                'label' => '할인쿠폰',
                 'url' => '/admin/shop/coupons',
                 'code' => '007',
             ],
