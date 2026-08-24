@@ -551,7 +551,7 @@ class ProductRepository extends BaseRepository
     {
         $templates = $this->getDb()->table('shop_product_notice_templates')
             ->where('is_current', '=', 1)
-            ->orderBy('name', 'ASC')
+            ->orderBy('sort_order', 'ASC')
             ->get();
 
         foreach ($templates as &$template) {
@@ -604,7 +604,7 @@ class ProductRepository extends BaseRepository
             ->where('template_id', '=', $templateId)->first() !== null;
     }
 
-    /** 상품정보제공고시 선택과 비어 있지 않은 값만 교체 저장한다. */
+    /** 상품정보제공고시 선택과 운영자가 직접 입력한 값만 교체 저장한다. */
     public function saveProductNotice(int $domainId, int $goodsId, int $templateId, array $values): void
     {
         $this->deleteProductNotice($domainId, $goodsId);

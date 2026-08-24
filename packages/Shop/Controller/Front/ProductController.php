@@ -373,13 +373,16 @@ class ProductController
                 case 'detail':
                     $tabs[] = ['type' => 'detail', 'key' => 'detail', 'label' => '상세설명'];
                     $notice = $product['product_notice'] ?? null;
-                    if (is_array($notice) && !empty($notice['values'])) {
+                    if (is_array($notice) && !empty($notice['fields'])) {
                         $items = [];
                         foreach (($notice['fields'] ?? []) as $field) {
                             $code = (string) ($field['field_code'] ?? '');
                             $value = trim((string) ($notice['values'][$code] ?? ''));
-                            if ($code !== '' && $value !== '') {
-                                $items[] = ['label' => (string) ($field['label'] ?? ''), 'value' => $value];
+                            if ($code !== '') {
+                                $items[] = [
+                                    'label' => (string) ($field['label'] ?? ''),
+                                    'value' => $value !== '' ? $value : '상세설명 참조',
+                                ];
                             }
                         }
                         if ($items !== []) {

@@ -459,22 +459,25 @@ $anchor = [
                     <div class="card">
                         <div class="card-hero">
                             <span>프론트 상품 상세에 고시 정보를 표시하려면 품목을 선택하고 필요한 정보만 입력하세요.</span>
-                            <button type="button" id="productNoticeFillReference" class="btn btn-xs btn-outline-secondary ms-auto">
-                                빈 항목을 상품 상세설명 참조로 입력
-                            </button>
                         </div>
                         <div class="card-body">
-                            <div class="row mb-4">
-                                <label class="col-sm-2 col-form-label">품목</label>
-                                <div class="col-sm-6">
+                            <div class="alert alert-light border mb-4">
+                                <div class="row align-items-center">
+                                    <label class="col-sm-2 col-form-label fw-semibold">품목</label>
+                                    <div class="col-sm-6">
                                     <select id="productNoticeTemplate" name="product_notice[template_id]" class="form-select">
                                         <option value="0">선택하지 않음</option>
                                     </select>
-                                    <div class="form-text">모든 항목은 선택 입력이며, 값이 있는 항목만 상품 상세에 표시됩니다.</div>
-                                    <div class="form-text text-warning">상세설명이 이미지만으로 구성된 경우 정보 접근을 위해 적절한 대체 텍스트도 제공하세요.</div>
+                                    <div class="form-text">값을 입력하지 않은 항목은 상품 상세에서 “상세설명 참조”로 표시됩니다.</div>
+                                    </div>
                                 </div>
                             </div>
-                            <div id="product-notice-fields"></div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle mb-0">
+                                    <thead class="table-light"><tr><th style="width:32%">항목</th><th>정보</th></tr></thead>
+                                    <tbody id="product-notice-fields"></tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -1130,45 +1133,20 @@ const ShopProductForm = {
         fields.innerHTML = '';
         if (!template) return;
         (template.fields || []).forEach(field => {
-            const row = document.createElement('div');
-            row.className = 'row mb-3';
-            const label = document.createElement('label');
-            label.className = 'col-sm-3 col-form-label';
+            const row = document.createElement('tr');
+            const label = document.createElement('th');
+            label.scope = 'row';
+            label.className = 'fw-normal';
             label.textContent = field.label;
-            const wrap = document.createElement('div');
-            wrap.className = 'col-sm-9';
+            const wrap = document.createElement('td');
             const input = document.createElement('input');
             input.type = 'text';
             input.className = 'form-control';
+            input.placeholder = '상세설명 참조';
             input.name = `product_notice[values][${field.field_code}]`;
             const sameNoticeType = current?.template?.type_code === template.type_code;
             input.value = sameNoticeType ? (current?.values?.[field.field_code] || '') : '';
             wrap.appendChild(input);
-            const reference = document.createElement('div');
-            reference.className = 'form-check mt-2';
-            const check = document.createElement('input');
-            check.type = 'checkbox';
-            check.className = 'form-check-input product-notice-reference';
-            check.id = `product-notice-reference-${field.field_code}`;
-            check.checked = input.value === '상품 상세설명 참조';
-            input.readOnly = check.checked;
-            const checkLabel = document.createElement('label');
-            checkLabel.className = 'form-check-label';
-            checkLabel.htmlFor = check.id;
-            checkLabel.textContent = '상품 상세설명 참조';
-            check.addEventListener('change', function() {
-                if (this.checked) {
-                    input.dataset.previousValue = input.value;
-                    input.value = '상품 상세설명 참조';
-                    input.readOnly = true;
-                } else {
-                    input.value = input.dataset.previousValue || '';
-                    input.readOnly = false;
-                    input.focus();
-                }
-            });
-            reference.append(check, checkLabel);
-            wrap.appendChild(reference);
             if (field.help_text) {
                 const help = document.createElement('div');
                 help.className = 'form-text';
@@ -1180,15 +1158,6 @@ const ShopProductForm = {
         });
     }
     select.addEventListener('change', render);
-    document.getElementById('productNoticeFillReference').addEventListener('click', function() {
-        fields.querySelectorAll('.product-notice-reference').forEach(check => {
-            const input = check.closest('.col-sm-9')?.querySelector('input[type="text"]');
-            if (input && input.value.trim() === '') {
-                check.checked = true;
-                check.dispatchEvent(new Event('change'));
-            }
-        });
-    });
     render();
 })();
 
