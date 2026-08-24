@@ -25,12 +25,17 @@ CREATE TABLE IF NOT EXISTS shop_product_notice_template_fields (
     field_code VARCHAR(50) NOT NULL COMMENT '버전 간 값 승계용 항목 코드',
     label VARCHAR(255) NOT NULL COMMENT '표시 항목명',
     help_text VARCHAR(500) NOT NULL DEFAULT '' COMMENT '입력 안내',
+    input_type VARCHAR(10) NOT NULL DEFAULT 'TEXT' COMMENT '관리자 입력 형식(TEXT/TEXTAREA)',
     sort_order SMALLINT UNSIGNED NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE KEY uk_notice_template_field (template_id, field_code),
     INDEX idx_notice_template_field_sort (template_id, sort_order),
     FOREIGN KEY (template_id) REFERENCES shop_product_notice_templates(template_id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='상품정보제공고시 양식 항목';
+
+ALTER TABLE shop_product_notice_template_fields
+    ADD COLUMN input_type VARCHAR(10) NOT NULL DEFAULT 'TEXT'
+    COMMENT '관리자 입력 형식(TEXT/TEXTAREA)' AFTER help_text;
 
 CREATE TABLE IF NOT EXISTS shop_product_notices (
     product_notice_id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -159,3 +164,12 @@ SELECT 'other_service','provider','서비스 제공 사업자',10 UNION ALL SELE
 ) f ON f.c=t.type_code
 WHERE t.revision='2023-01-01'
 ON DUPLICATE KEY UPDATE label=VALUES(label), sort_order=VALUES(sort_order);
+
+UPDATE shop_product_notice_template_fields
+SET input_type = 'TEXTAREA'
+WHERE field_code IN (
+    'care', 'spec', 'warranty', 'purpose', 'usage', 'ingredients', 'functional',
+    'storage', 'labeling', 'summary', 'facilities', 'period', 'price', 'optional',
+    'cancel', 'warning', 'restriction', 'excluded', 'ownership', 'maintenance',
+    'damage', 'conditions', 'requirements', 'withdrawal', 'refund'
+);

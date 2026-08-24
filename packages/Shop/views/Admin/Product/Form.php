@@ -458,26 +458,23 @@ $anchor = [
                     <h5 class="mb-4">상품정보제공고시</h5>
                     <div class="card">
                         <div class="card-hero">
-                            <span>프론트 상품 상세에 고시 정보를 표시하려면 품목을 선택하고 필요한 정보만 입력하세요.</span>
+                            <span>상세설명 내 상품정보제공고시를 표시하려면 품목을 선택하고 필요한 정보만 입력하세요.</span>
                         </div>
                         <div class="card-body">
-                            <div class="alert alert-light border mb-4">
-                                <div class="row align-items-center">
-                                    <label class="col-sm-2 col-form-label fw-semibold">품목</label>
-                                    <div class="col-sm-6">
-                                    <select id="productNoticeTemplate" name="product_notice[template_id]" class="form-select">
-                                        <option value="0">선택하지 않음</option>
-                                    </select>
-                                    <div class="form-text">값을 입력하지 않은 항목은 상품 상세에서 “상세설명 참조”로 표시됩니다.</div>
+                            <div class="row justify-content-center align-items-center mb-3">
+                                <div class="col-sm-6">
+                                    <div class="input-group">
+                                        <label for="productNoticeTemplate" class="input-group-text">품목</label>
+                                        <select id="productNoticeTemplate" name="product_notice[template_id]" class="form-select">
+                                            <option value="0">선택하지 않음</option>
+                                        </select>
                                     </div>
                                 </div>
+                                <div class="col-sm-6">
+                                    <div class="form-text">값을 입력하지 않은 항목은 상품 상세에서 “상세설명 참조”로 표시됩니다.</div>
+                                </div>
                             </div>
-                            <div class="table-responsive">
-                                <table class="table table-bordered align-middle mb-0">
-                                    <thead class="table-light"><tr><th style="width:32%">항목</th><th>정보</th></tr></thead>
-                                    <tbody id="product-notice-fields"></tbody>
-                                </table>
-                            </div>
+                            <div id="product-notice-fields"></div>
                         </div>
                     </div>
                 </section>
@@ -1132,15 +1129,25 @@ const ShopProductForm = {
         const template = templates.find(t => Number(t.template_id) === Number(select.value));
         fields.innerHTML = '';
         if (!template) return;
+        const tableWrap = document.createElement('div');
+        tableWrap.className = 'table-responsive';
+        const table = document.createElement('table');
+        table.className = 'table table-bordered-inner';
+        const tbody = document.createElement('tbody');
         (template.fields || []).forEach(field => {
             const row = document.createElement('tr');
             const label = document.createElement('th');
             label.scope = 'row';
             label.className = 'fw-normal';
+            label.style.width = '360px';
             label.textContent = field.label;
             const wrap = document.createElement('td');
-            const input = document.createElement('input');
-            input.type = 'text';
+            const input = document.createElement(field.input_type === 'TEXTAREA' ? 'textarea' : 'input');
+            if (input.tagName === 'INPUT') {
+                input.type = 'text';
+            } else {
+                input.rows = 3;
+            }
             input.className = 'form-control';
             input.placeholder = '상세설명 참조';
             input.name = `product_notice[values][${field.field_code}]`;
@@ -1154,8 +1161,11 @@ const ShopProductForm = {
                 wrap.appendChild(help);
             }
             row.append(label, wrap);
-            fields.appendChild(row);
+            tbody.appendChild(row);
         });
+        table.appendChild(tbody);
+        tableWrap.appendChild(table);
+        fields.appendChild(tableWrap);
     }
     select.addEventListener('change', render);
     render();
