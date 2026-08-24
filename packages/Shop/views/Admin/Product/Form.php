@@ -9,6 +9,8 @@
  * @var array $productOptions 상품 옵션 [{option_name, option_type, is_required, values: [...]}]
  * @var array $productDetails 상품 상세설명 [{detail_id, detail_type, detail_value}]
  * @var array $productCombos 상품 조합 [{combo_id, combination_key, extra_price, stock_quantity}]
+ * @var array|null $productNotice 상품정보제공고시 선택과 값
+ * @var array $noticeTemplates 현재 상품정보제공고시 품목 양식
  * @var array $categories 카테고리 트리 (flat)
  * @var array $categoryTree 카테고리 트리 (계층형)
  * @var array $presets 상품옵션 프리셋 목록
@@ -47,6 +49,7 @@ $anchor = [
     'option'   => '옵션/재고',
     'images'   => '이미지',
     'details'  => '상세설명',
+    'notice'   => '상품정보제공고시',
     'shipping' => '배송',
     'extra'    => '추가 정보',
 ];
@@ -449,7 +452,31 @@ $anchor = [
                 </section>
 
                 <!-- ============================================ -->
-                <!-- 7. 배송 -->
+                <!-- 7. 상품정보제공고시 -->
+                <!-- ============================================ -->
+                <section id="notice" data-section="notice">
+                    <h5 class="mb-4">상품정보제공고시</h5>
+                    <div class="card">
+                        <div class="card-hero">
+                            <span>프론트 상품 상세에 고시 정보를 표시하려면 품목을 선택하고 필요한 정보만 입력하세요.</span>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-4">
+                                <label class="col-sm-2 col-form-label">품목</label>
+                                <div class="col-sm-6">
+                                    <select id="productNoticeTemplate" name="product_notice[template_id]" class="form-select">
+                                        <option value="0">선택하지 않음</option>
+                                    </select>
+                                    <div class="form-text">모든 항목은 선택 입력이며, 값이 있는 항목만 상품 상세에 표시됩니다.</div>
+                                </div>
+                            </div>
+                            <div id="product-notice-fields"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ============================================ -->
+                <!-- 8. 배송 -->
                 <!-- ============================================ -->
                 <section id="shipping" data-section="shipping">
                     <h5 class="mb-4">배송</h5>
@@ -1074,6 +1101,58 @@ const ShopProductForm = {
 // =========================================================================
 // 초기화
 // =========================================================================
+
+// 상품정보제공고시: 운영자에게 버전 관리를 노출하지 않고 품목과 입력란만 표시한다.
+(function() {
+    const templates = <?= json_encode($noticeTemplates ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    const current = <?= json_encode($productNotice ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    if (current?.template && !templates.some(t => Number(t.template_id) === Number(current.template.template_id))) {
+        templates.push({...current.template, fields: current.fields || []});
+    }
+
+    const select = document.getElementById('productNoticeTemplate');
+    const fields = document.getElementById('product-notice-fields');
+    const currentId = Number(current?.notice?.template_id || 0);
+    templates.forEach(t => {
+        const option = document.createElement('option');
+        option.value = t.template_id;
+        option.textContent = t.name + (Number(t.is_current) ? '' : ' (기존 양식)');
+        option.selected = Number(t.template_id) === currentId;
+        select.appendChild(option);
+    });
+
+    function render() {
+        const template = templates.find(t => Number(t.template_id) === Number(select.value));
+        fields.innerHTML = '';
+        if (!template) return;
+        (template.fields || []).forEach(field => {
+            const row = document.createElement('div');
+            row.className = 'row mb-3';
+            const label = document.createElement('label');
+            label.className = 'col-sm-3 col-form-label';
+            label.textContent = field.label;
+            const wrap = document.createElement('div');
+            wrap.className = 'col-sm-9';
+            const input = document.createElement('textarea');
+            input.className = 'form-control';
+            input.rows = 2;
+            input.name = `product_notice[values][${field.field_code}]`;
+            const sameNoticeType = current?.template?.type_code === template.type_code;
+            input.value = sameNoticeType ? (current?.values?.[field.field_code] || '') : '';
+            wrap.appendChild(input);
+            if (field.help_text) {
+                const help = document.createElement('div');
+                help.className = 'form-text';
+                help.textContent = field.help_text;
+                wrap.appendChild(help);
+            }
+            row.append(label, wrap);
+            fields.appendChild(row);
+        });
+    }
+    select.addEventListener('change', render);
+    render();
+})();
 
 // 카테고리 캐스케이딩 셀렉트 초기화
 const categoryPrimary = new CategoryManager({

@@ -144,6 +144,8 @@ class ProductController
                 'productOptions' => [],
                 'productDetails' => [],
                 'productCombos' => [],
+                'productNotice' => null,
+                'noticeTemplates' => $this->productService->getCurrentNoticeTemplates(),
                 'categories' => $categoriesResult->get('items', []),
                 'categoryTree' => $categoryTree,
                 'presets' => $presetsResult->get('items', []),
@@ -185,7 +187,8 @@ class ProductController
         $productOptions = $productData['options'] ?? [];
         $productDetails = $productData['details'] ?? [];
         $productCombos = $productData['combos'] ?? [];
-        unset($productData['images'], $productData['options'], $productData['details'], $productData['combos']);
+        $productNotice = $productData['product_notice'] ?? null;
+        unset($productData['images'], $productData['options'], $productData['details'], $productData['combos'], $productData['product_notice']);
 
         $categoriesResult = $this->categoryService->getTree($domainId);
         $categoryTree = $this->categoryService->getTreeHierarchy($domainId);
@@ -205,6 +208,8 @@ class ProductController
                 'productOptions' => $productOptions,
                 'productDetails' => $productDetails,
                 'productCombos' => $productCombos,
+                'productNotice' => $productNotice,
+                'noticeTemplates' => $this->productService->getCurrentNoticeTemplates(),
                 'categories' => $categoriesResult->get('items', []),
                 'categoryTree' => $categoryTree,
                 'presets' => $presetsResult->get('items', []),
@@ -267,6 +272,9 @@ class ProductController
 
         // 상세정보 (에디터 HTML)
         $data['details'] = $request->input('details') ?? [];
+
+        // 상품정보제공고시 (모든 항목은 선택 입력)
+        $data['product_notice'] = $request->input('product_notice') ?? ['template_id' => 0, 'values' => []];
 
         // 저장 경로를 Service에 전달 (에디터 이미지 이동용)
         $data['_storage_path'] = $storagePath;

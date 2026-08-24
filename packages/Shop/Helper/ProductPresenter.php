@@ -222,7 +222,7 @@ class ProductPresenter
             'reward_type', 'reward_value', 'reward_review', 'allowed_coupon',
             'stock_quantity', 'option_mode', 'shipping_apply_type', 'hit', 'is_active',
             'created_at', 'updated_at', 'sold_count', 'review_count', 'inquiry_count',
-            'rating_avg', 'wishlist_count', 'images', 'options', 'combos', 'details',
+            'rating_avg', 'wishlist_count', 'images', 'options', 'combos', 'details', 'product_notice',
         ]));
 
         // === 보안 (HTML escape) ===

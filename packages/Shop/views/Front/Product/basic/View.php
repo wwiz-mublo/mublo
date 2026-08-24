@@ -253,6 +253,17 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                 <div class="shop-product-view__detail-content"><?= $item['content'] ?? '' ?></div>
             <?php endforeach; ?>
         </div>
+            <?php elseif ($tab['type'] === 'notice'): ?>
+        <div class="shop-product-view__tab-content<?= $activeCls ?>" data-tab-content="product-notice">
+            <dl class="shop-product-view__meta">
+                <?php foreach ($tab['items'] as $item): ?>
+                    <div class="shop-product-view__meta-row">
+                        <dt><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></dt>
+                        <dd><?= nl2br(htmlspecialchars($item['value'], ENT_QUOTES, 'UTF-8')) ?></dd>
+                    </div>
+                <?php endforeach; ?>
+            </dl>
+        </div>
             <?php elseif ($tab['type'] === 'review'): ?>
         <div class="shop-product-view__tab-content<?= $activeCls ?>" data-tab-content="reviews" id="spv-reviews">
             <p class="shop-product-view__empty">구매후기를 불러오는 중...</p>
