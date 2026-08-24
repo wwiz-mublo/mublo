@@ -243,6 +243,29 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
             <?php else: ?>
                 <p class="shop-product-view__empty">등록된 상세설명이 없습니다.</p>
             <?php endif; ?>
+            <?php $productNotice = $product['product_notice'] ?? null; ?>
+            <?php if (is_array($productNotice) && !empty($productNotice['fields'])): ?>
+                <section class="shop-product-view__product-notice">
+                    <h3 class="shop-product-view__detail-title">상품정보제공고시</h3>
+                    <div class="shop-product-view__product-notice-wrap">
+                        <table class="shop-product-view__product-notice-table">
+                            <tbody>
+                                <?php foreach ($productNotice['fields'] as $field): ?>
+                                    <?php
+                                        $fieldCode = (string) ($field['field_code'] ?? '');
+                                        if ($fieldCode === '') continue;
+                                        $fieldValue = trim((string) ($productNotice['values'][$fieldCode] ?? ''));
+                                    ?>
+                                    <tr>
+                                        <th scope="row"><?= htmlspecialchars((string) ($field['label'] ?? ''), ENT_QUOTES, 'UTF-8') ?></th>
+                                        <td><?= nl2br(htmlspecialchars($fieldValue !== '' ? $fieldValue : '상세설명 참조', ENT_QUOTES, 'UTF-8')) ?></td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            <?php endif; ?>
         </div>
             <?php elseif ($tab['type'] === 'template'): ?>
         <div class="shop-product-view__tab-content<?= $activeCls ?>" data-tab-content="<?= htmlspecialchars($tab['key']) ?>">
@@ -252,17 +275,6 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                 <?php endif; ?>
                 <div class="shop-product-view__detail-content"><?= $item['content'] ?? '' ?></div>
             <?php endforeach; ?>
-        </div>
-            <?php elseif ($tab['type'] === 'notice'): ?>
-        <div class="shop-product-view__tab-content<?= $activeCls ?>" data-tab-content="product-notice">
-            <dl class="shop-product-view__meta">
-                <?php foreach ($tab['items'] as $item): ?>
-                    <div class="shop-product-view__meta-row">
-                        <dt><?= htmlspecialchars($item['label'], ENT_QUOTES, 'UTF-8') ?></dt>
-                        <dd><?= nl2br(htmlspecialchars($item['value'], ENT_QUOTES, 'UTF-8')) ?></dd>
-                    </div>
-                <?php endforeach; ?>
-            </dl>
         </div>
             <?php elseif ($tab['type'] === 'review'): ?>
         <div class="shop-product-view__tab-content<?= $activeCls ?>" data-tab-content="reviews" id="spv-reviews">

@@ -372,28 +372,6 @@ class ProductController
             switch ($type) {
                 case 'detail':
                     $tabs[] = ['type' => 'detail', 'key' => 'detail', 'label' => '상세설명'];
-                    $notice = $product['product_notice'] ?? null;
-                    if (is_array($notice) && !empty($notice['fields'])) {
-                        $items = [];
-                        foreach (($notice['fields'] ?? []) as $field) {
-                            $code = (string) ($field['field_code'] ?? '');
-                            $value = trim((string) ($notice['values'][$code] ?? ''));
-                            if ($code !== '') {
-                                $items[] = [
-                                    'label' => (string) ($field['label'] ?? ''),
-                                    'value' => $value !== '' ? $value : '상세설명 참조',
-                                ];
-                            }
-                        }
-                        if ($items !== []) {
-                            $tabs[] = [
-                                'type' => 'notice',
-                                'key' => 'product-notice',
-                                'label' => '상품정보제공고시',
-                                'items' => $items,
-                            ];
-                        }
-                    }
                     break;
                 case 'template':
                     foreach ($templateGroups as $tabId => $grp) {
