@@ -1108,8 +1108,8 @@ const ShopProductForm = {
 
 // 상품정보제공고시: 운영자에게 버전 관리를 노출하지 않고 품목과 입력란만 표시한다.
 (function() {
-    const templates = <?= json_encode($noticeTemplates ?? [], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
-    const current = <?= json_encode($productNotice ?? null, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?>;
+    const templates = <?= json_encode($noticeTemplates ?? [], JSON_UNESCAPED_UNICODE) ?>;
+    const current = <?= json_encode($productNotice ?? null, JSON_UNESCAPED_UNICODE) ?>;
     if (current?.template && !templates.some(t => Number(t.template_id) === Number(current.template.template_id))) {
         templates.push({...current.template, fields: current.fields || []});
     }
