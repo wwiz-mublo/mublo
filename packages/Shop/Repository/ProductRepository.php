@@ -546,6 +546,115 @@ class ProductRepository extends BaseRepository
         return $this->getDb()->table('shop_product_details')->insert($data);
     }
 
+    /** 현재 신규 상품에 사용할 상품정보제공고시 양식 목록. */
+    public function getCurrentNoticeTemplates(): array
+    {
+        $templates = $this->getDb()->table('shop_product_notice_templates')
+            ->where('is_current', '=', 1)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+        if ($templates === []) {
+            return [];
+        }
+
+        $templateIds = array_map(static fn(array $t): int => (int) $t['template_id'], $templates);
+        $fields = $this->getDb()->table('shop_product_notice_template_fields')
+            ->whereIn('template_id', $templateIds)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+
+        $fieldsByTemplate = [];
+        foreach ($fields as $field) {
+            $fieldsByTemplate[(int) $field['template_id']][] = $field;
+        }
+
+        foreach ($templates as &$template) {
+            $template['fields'] = $fieldsByTemplate[(int) $template['template_id']] ?? [];
+        }
+        unset($template);
+
+        return $templates;
+    }
+
+    /** 상품이 이미 참조하는 버전을 포함한 상품정보제공고시 조회. */
+    public function getProductNotice(int $domainId, int $goodsId): ?array
+    {
+        $notice = $this->getDb()->table('shop_product_notices')
+            ->where('domain_id', '=', $domainId)
+            ->where('goods_id', '=', $goodsId)
+            ->first();
+        if ($notice === null) {
+            return null;
+        }
+
+        $template = $this->getDb()->table('shop_product_notice_templates')
+            ->where('template_id', '=', (int) $notice['template_id'])
+            ->first();
+        if ($template === null) {
+            return null;
+        }
+
+        $fields = $this->getDb()->table('shop_product_notice_template_fields')
+            ->where('template_id', '=', (int) $notice['template_id'])
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+        $rows = $this->getDb()->table('shop_product_notice_values')
+            ->where('product_notice_id', '=', (int) $notice['product_notice_id'])
+            ->get();
+        $values = [];
+        foreach ($rows as $row) {
+            $values[(string) $row['field_code']] = (string) $row['field_value'];
+        }
+
+        return ['notice' => $notice, 'template' => $template, 'fields' => $fields, 'values' => $values];
+    }
+
+    public function noticeTemplateExists(int $templateId): bool
+    {
+        return $this->getDb()->table('shop_product_notice_templates')
+            ->where('template_id', '=', $templateId)->first() !== null;
+    }
+
+    /** 상품정보제공고시 선택과 운영자가 직접 입력한 값만 교체 저장한다. */
+    public function saveProductNotice(int $domainId, int $goodsId, int $templateId, array $values): void
+    {
+        $this->deleteProductNotice($domainId, $goodsId);
+        if ($templateId <= 0) {
+            return;
+        }
+
+        $noticeId = $this->getDb()->table('shop_product_notices')->insert([
+            'domain_id' => $domainId,
+            'goods_id' => $goodsId,
+            'template_id' => $templateId,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+        $allowed = $this->getDb()->table('shop_product_notice_template_fields')
+            ->where('template_id', '=', $templateId)->get();
+        $allowedCodes = array_flip(array_column($allowed, 'field_code'));
+        foreach ($values as $code => $value) {
+            $code = (string) $code;
+            $value = trim((string) $value);
+            if ($value === '' || !isset($allowedCodes[$code])) {
+                continue;
+            }
+            $this->getDb()->table('shop_product_notice_values')->insert([
+                'product_notice_id' => $noticeId,
+                'field_code' => $code,
+                'field_value' => $value,
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
+        }
+    }
+
+    public function deleteProductNotice(int $domainId, int $goodsId): int
+    {
+        return $this->getDb()->table('shop_product_notices')
+            ->where('domain_id', '=', $domainId)
+            ->where('goods_id', '=', $goodsId)
+            ->delete();
+    }
+
     /**
      * ID 배열로 상품 조회 (블록 렌더링용)
      *

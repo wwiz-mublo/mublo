@@ -222,6 +222,9 @@ class ProductService
         $details = $this->productRepository->getDetails($goodsId);
         $productData['details'] = $details;
 
+        // 상품정보제공고시 (상품이 선택한 당시 양식 버전을 그대로 반환)
+        $productData['product_notice'] = $this->productRepository->getProductNotice($domainId, $goodsId);
+
         return Result::success('상품 상세를 조회했습니다.', ['product' => $productData]);
     }
 
@@ -308,6 +311,11 @@ class ProductService
             if (!empty($details)) {
                 $storagePath = $data['_storage_path'] ?? '';
                 $this->saveDetails($goodsId, $details, $storagePath, $domainId);
+            }
+
+            // 6) 상품정보제공고시 (품목 미선택 시 저장하지 않음)
+            if (isset($data['product_notice'])) {
+                $this->saveProductNotice($domainId, $goodsId, (array) $data['product_notice']);
             }
 
             $db->commit();
@@ -401,6 +409,11 @@ class ProductService
                 }
             }
 
+            // 6) 상품정보제공고시 수정
+            if (isset($data['product_notice'])) {
+                $this->saveProductNotice($domainId, $goodsId, (array) $data['product_notice']);
+            }
+
             $db->commit();
         } catch (\Throwable $e) {
             if ($db->inTransaction()) {
@@ -446,6 +459,8 @@ class ProductService
             // 5) 상세정보 삭제
             $this->productRepository->deleteDetails($goodsId);
 
+            $this->productRepository->deleteProductNotice($domainId, $goodsId);
+
             // 6) 상품 삭제
             $this->productRepository->deleteInDomain($domainId, $goodsId);
 
@@ -463,6 +478,26 @@ class ProductService
         );
 
         return Result::success('상품이 삭제되었습니다.');
+    }
+
+    /** 상품 등록 화면용 현재 상품정보제공고시 양식. */
+    public function getCurrentNoticeTemplates(): array
+    {
+        return $this->productRepository->getCurrentNoticeTemplates();
+    }
+
+    private function saveProductNotice(int $domainId, int $goodsId, array $notice): void
+    {
+        $templateId = (int) ($notice['template_id'] ?? 0);
+        if ($templateId > 0 && !$this->productRepository->noticeTemplateExists($templateId)) {
+            throw new \InvalidArgumentException('선택한 상품정보제공고시 품목을 찾을 수 없습니다.');
+        }
+        $this->productRepository->saveProductNotice(
+            $domainId,
+            $goodsId,
+            $templateId,
+            is_array($notice['values'] ?? null) ? $notice['values'] : []
+        );
     }
 
     /**
