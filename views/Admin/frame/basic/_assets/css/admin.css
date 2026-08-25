@@ -423,6 +423,12 @@ input[type="number"] {
     font-size: 0.85rem;
     color: var(--sidebar-color-muted);
 }
+/* 아이콘 크기/폭 고정은 1뎁스 전용 규칙(.sidebar-nav .nav-link i)이라
+   후손 선택자로 하위메뉴까지 새는 것을 여기서 되돌린다. */
+.sidebar-nav .submenu .nav-link i {
+    font-size: inherit;
+    width: auto;
+}
 .sidebar-nav .submenu .nav-link:hover {
     background-color: transparent;
     color: var(--sidebar-hover-color);
