@@ -553,12 +553,23 @@ class ProductRepository extends BaseRepository
             ->where('is_current', '=', 1)
             ->orderBy('sort_order', 'ASC')
             ->get();
+        if ($templates === []) {
+            return [];
+        }
+
+        $templateIds = array_map(static fn(array $t): int => (int) $t['template_id'], $templates);
+        $fields = $this->getDb()->table('shop_product_notice_template_fields')
+            ->whereIn('template_id', $templateIds)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+
+        $fieldsByTemplate = [];
+        foreach ($fields as $field) {
+            $fieldsByTemplate[(int) $field['template_id']][] = $field;
+        }
 
         foreach ($templates as &$template) {
-            $template['fields'] = $this->getDb()->table('shop_product_notice_template_fields')
-                ->where('template_id', '=', (int) $template['template_id'])
-                ->orderBy('sort_order', 'ASC')
-                ->get();
+            $template['fields'] = $fieldsByTemplate[(int) $template['template_id']] ?? [];
         }
         unset($template);
 
