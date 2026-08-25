@@ -10,7 +10,7 @@ use Mublo\Repository\BaseRepository;
 /**
  * OptionPreset Repository
  *
- * 옵션 프리셋 데이터베이스 접근 담당
+ * 상품옵션 프리셋 데이터베이스 접근 담당
  *
  * 책임:
  * - shop_option_presets 테이블 CRUD

@@ -9,7 +9,7 @@ use Mublo\Packages\Shop\Service\OptionPresetService;
 use PHPUnit\Framework\TestCase;
 
 /**
- * 옵션 프리셋의 도메인 경계 검증
+ * 상품옵션 프리셋의 도메인 경계 검증
  *
  * 프리셋은 도메인 소유물이므로, 다른 도메인의 preset_id 를 들고 와도
  * 조회·수정·삭제·상품적용 중 어느 것도 통과해서는 안 된다.

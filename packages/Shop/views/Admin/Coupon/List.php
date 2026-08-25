@@ -78,12 +78,12 @@ $columns = $this->columns()
 <div class="page-container">
     <div class="page-title">
         <div class="page-title-text">
-            <h3><?= htmlspecialchars($pageTitle ?? '쿠폰 관리') ?></h3>
-            <p>발행 쿠폰 정책을 관리합니다.</p>
+            <h3><?= htmlspecialchars($pageTitle ?? '할인쿠폰') ?></h3>
+            <p>할인쿠폰 정책을 관리합니다.</p>
         </div>
         <div class="page-title-actions">
             <a href="/admin/shop/coupons/create" class="btn btn-sm btn-primary">
-                <i class="bi bi-plus-lg"></i> 쿠폰 등록
+                <i class="bi bi-plus-lg"></i> 할인쿠폰 등록
             </a>
         </div>
     </div>

@@ -27,8 +27,8 @@ $isEdit = !empty($isEdit);
     <div class="page-container form-container">
         <div class="page-title">
             <div class="page-title-text">
-                <h3><?= $isEdit ? '쿠폰 수정' : '쿠폰 등록' ?></h3>
-                <p>쿠폰 발행 유형과 할인·사용 조건을 설정합니다.</p>
+                <h3><?= $isEdit ? '할인쿠폰 수정' : '할인쿠폰 등록' ?></h3>
+                <p>할인쿠폰의 발행 유형과 할인·사용 조건을 설정합니다.</p>
             </div>
             <div class="page-title-actions">
                 <a href="/admin/shop/coupons" class="btn btn-sm btn-outline-secondary">

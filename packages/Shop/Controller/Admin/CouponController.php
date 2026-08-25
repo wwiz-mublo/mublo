@@ -13,7 +13,7 @@ use Mublo\Helper\Form\FormHelper;
 /**
  * Admin CouponController
  *
- * 쿠폰 관리 컨트롤러
+ * 할인쿠폰 관리 컨트롤러
  *
  * 라우팅:
  * - GET  /admin/shop/coupons              → index (쿠폰 목록)
@@ -50,7 +50,7 @@ class CouponController
 
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Coupon/List')
             ->withData([
-                'pageTitle' => '쿠폰 관리',
+                'pageTitle' => '할인쿠폰',
                 'coupons' => $result->get('items', []),
                 'pagination' => $result->get('pagination', []),
                 'couponTypeOptions' => CouponType::options(),
@@ -66,7 +66,7 @@ class CouponController
     {
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Coupon/Form')
             ->withData([
-                'pageTitle' => '쿠폰 등록',
+                'pageTitle' => '할인쿠폰 등록',
                 'isEdit' => false,
                 'coupon' => null,
                 'couponTypeOptions' => CouponType::options(),
@@ -109,7 +109,7 @@ class CouponController
 
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Coupon/Form')
             ->withData([
-                'pageTitle' => '쿠폰 수정',
+                'pageTitle' => '할인쿠폰 수정',
                 'isEdit' => true,
                 'coupon' => $coupon,
                 'couponTypeOptions' => CouponType::options(),

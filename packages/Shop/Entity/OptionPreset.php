@@ -8,11 +8,11 @@ use Mublo\Entity\BaseEntity;
 /**
  * OptionPreset Entity
  *
- * 쇼핑몰 옵션 프리셋 엔티티 (shop_option_presets 테이블)
+ * 쇼핑몰 상품옵션 프리셋 엔티티 (shop_option_presets 테이블)
  *
  * 책임:
  * - shop_option_presets 테이블의 데이터를 객체로 표현
- * - 옵션 프리셋 정보 제공
+ * - 상품옵션 프리셋 정보 제공
  *
  * 금지:
  * - DB 직접 접근
