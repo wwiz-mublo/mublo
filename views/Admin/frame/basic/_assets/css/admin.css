@@ -840,6 +840,7 @@ input[type="number"] {
 .ov-num {
     padding: 0.25rem 0.5rem;
     align-self: stretch;
+    border: 1px solid transparent;
 }
 .ov-txt {
     background-color: rgba(var(--bs-body-color-rgb), 0.75);
