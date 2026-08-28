@@ -144,6 +144,9 @@ const MubloEditor = (() => {
             cancel: '취소', confirm: '확인', insert: '삽입', replace: '교체',
             // 링크 모달
             linkInsert: '링크 삽입', linkUrl: 'URL', linkText: '표시할 텍스트', linkNewTab: '새 탭에서 열기',
+            linkImage: '이미지에 링크 걸기', linkImageEdit: '이미지 링크 수정',
+            linkImageHint: '선택한 이미지 전체에 링크가 적용됩니다.',
+            linkInvalidUrl: '사용할 수 없는 URL입니다.',
             // 이미지 모달
             imageAdd: '이미지 추가', imageReplace: '이미지 교체',
             imageDragOrClick: '이미지를 드래그하거나 클릭하여 선택',
@@ -153,6 +156,8 @@ const MubloEditor = (() => {
             imageAlt: '대체 텍스트', imageCaption: '캡션',
             imageAltPlaceholder: '이미지를 설명하는 문구',
             imageCaptionPlaceholder: '이미지 아래에 표시할 캡션',
+            imageLink: '링크 (선택)',
+            imageLinkPlaceholder: '이미지를 클릭하면 이동할 주소',
             imageUpdate: '적용',
             imageDragHint: '드래그하여 순서를 변경할 수 있습니다',
             imageSelected: '선택된 이미지:', imageCount: '개',
@@ -241,6 +246,9 @@ const MubloEditor = (() => {
             ],
             cancel: 'Cancel', confirm: 'OK', insert: 'Insert', replace: 'Replace',
             linkInsert: 'Insert Link', linkUrl: 'URL', linkText: 'Display Text', linkNewTab: 'Open in new tab',
+            linkImage: 'Link Image', linkImageEdit: 'Edit Image Link',
+            linkImageHint: 'The link will be applied to the selected image.',
+            linkInvalidUrl: 'That URL cannot be used.',
             imageAdd: 'Add Image', imageReplace: 'Replace Image',
             imageDragOrClick: 'Drag or click to select images',
             imageHint: 'Multiple files supported (JPG, PNG, GIF, WebP)',
@@ -249,6 +257,8 @@ const MubloEditor = (() => {
             imageAlt: 'Alternative text', imageCaption: 'Caption',
             imageAltPlaceholder: 'Describe the image',
             imageCaptionPlaceholder: 'Caption shown below the image',
+            imageLink: 'Link (optional)',
+            imageLinkPlaceholder: 'URL to open when the image is clicked',
             imageUpdate: 'Apply',
             imageDragHint: 'Drag to reorder',
             imageSelected: 'Selected:', imageCount: '',
@@ -588,6 +598,20 @@ const MubloEditor = (() => {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
+    }
+
+    /**
+     * href/src 로 안전한 URL인지 판별.
+     * sanitizeHtml()은 출력 시점 방어이므로, setAttribute로 직접 넣는 경로는
+     * 입력 시점에서도 위험 프로토콜을 걸러낸다.
+     */
+    function isSafeUrl(url) {
+        if (!url) return false;
+        // 제어 문자/공백 제거 후 검사 (jav&#x09;ascript: 류 우회 방지)
+        const v = String(url).replace(/[\s\x00-\x1f]+/g, '').toLowerCase();
+        if (/^(javascript|vbscript|file):/.test(v)) return false;
+        if (v.startsWith('data:') && !v.startsWith('data:image/')) return false;
+        return true;
     }
 
     function normalizeCodeText(html) {
@@ -1523,6 +1547,12 @@ const MubloEditor = (() => {
             if (cmd === 'undo') { this._historyUndo(); return; }
             if (cmd === 'redo') { this._historyRedo(); return; }
 
+            // 이미지 선택 상태에서는 캐럿이 접혀 있어 execCommand('unlink')가 무효
+            if (cmd === 'unlink') {
+                const img = this._getLinkTargetImage();
+                if (img && this._removeImageLink(img)) return;
+            }
+
             this._restoreSelection();
 
             if (cmd === 'fontSize') {
@@ -1891,33 +1921,110 @@ const MubloEditor = (() => {
             this._saveSelection();
             const sel = window.getSelection();
             const text = sel.toString();
-            
+
+            // 이미지 선택 상태 감지 — _selectImage()가 캐럿을 이미지 뒤로 접어두므로
+            // sel.toString()은 항상 빈 문자열이다. 이 경우 텍스트 앵커를 삽입하면
+            // 이미지 아래에 URL 텍스트만 남으므로, 이미지 자체를 <a>로 감싼다.
+            const img = this._getLinkTargetImage();
+            const anchor = img ? this._getImageAnchor(img) : null;
+            const initialUrl = anchor?.getAttribute('href') || 'https://';
+            const newTab = anchor ? anchor.getAttribute('target') !== '_self' : true;
+
             const body = `
                 <div class="mublo-editor-modal-form-group">
                     <label class="mublo-editor-modal-label">${_t('linkUrl')}</label>
-                    <input type="text" class="mublo-editor-modal-input" id="mublo-editor-link-url" value="https://" placeholder="https://example.com">
+                    <input type="text" class="mublo-editor-modal-input" id="mublo-editor-link-url" value="${escapeHtml(initialUrl)}" placeholder="https://example.com">
                 </div>
+                ${img ? `<p class="mublo-editor-link-image-hint">${_t('linkImageHint')}</p>` : `
                 <div class="mublo-editor-modal-form-group">
                     <label class="mublo-editor-modal-label">${_t('linkText')}</label>
                     <input type="text" class="mublo-editor-modal-input" id="mublo-editor-link-text" value="${escapeHtml(text)}">
-                </div>
+                </div>`}
                 <div class="mublo-editor-modal-check">
-                    <input type="checkbox" id="mublo-editor-link-target" checked>
+                    <input type="checkbox" id="mublo-editor-link-target"${newTab ? ' checked' : ''}>
                     <label for="mublo-editor-link-target">${_t('linkNewTab')}</label>
                 </div>
             `;
 
-            this._createModal(_t('linkInsert'), body, _t('insert'), (modal) => {
+            const title = img ? _t(anchor ? 'linkImageEdit' : 'linkImage') : _t('linkInsert');
+
+            this._createModal(title, body, _t('insert'), (modal) => {
                 const url = modal.querySelector('#mublo-editor-link-url').value.trim();
-                const label = modal.querySelector('#mublo-editor-link-text').value.trim();
                 const target = modal.querySelector('#mublo-editor-link-target').checked ? '_blank' : '_self';
 
-                if (!url || url === 'https://') return false;
+                if (!url || url === 'https://' || !isSafeUrl(url)) return false;
 
+                if (img) {
+                    this._applyImageLink(img, url, target);
+                    return;
+                }
+
+                const label = modal.querySelector('#mublo-editor-link-text').value.trim();
                 const rel = target === '_blank' ? ' rel="noopener noreferrer"' : '';
                 const html = `<a href="${escapeHtml(url)}" target="${target}"${rel}>${escapeHtml(label || url)}</a>`;
                 this._exec('insertHTML', html);
             });
+        }
+
+        /** 링크 대상이 될 선택 이미지 반환 (없으면 null) */
+        _getLinkTargetImage() {
+            const img = this._selectedImage;
+            return (img && this.contentArea.contains(img)) ? img : null;
+        }
+
+        /** 이미지를 감싸는 앵커 반환 — contentArea 밖은 무시 */
+        _getImageAnchor(img) {
+            const a = img.closest('a');
+            return (a && this.contentArea.contains(a) && a !== this.contentArea) ? a : null;
+        }
+
+        /** 이미지를 <a>로 감싸거나 기존 앵커의 href/target을 갱신 (순수 DOM) */
+        _setImageLink(img, url, target) {
+            let a = this._getImageAnchor(img);
+            if (!a) {
+                a = document.createElement('a');
+                img.parentNode.insertBefore(a, img);
+                a.appendChild(img);
+            }
+            a.setAttribute('href', url);
+            a.setAttribute('target', target);
+            if (target === '_blank') a.setAttribute('rel', 'noopener noreferrer');
+            else a.removeAttribute('rel');
+            return a;
+        }
+
+        /** 이미지 앵커 해제 (순수 DOM) */
+        _unsetImageLink(img) {
+            const a = this._getImageAnchor(img);
+            if (!a) return false;
+            a.replaceWith(...a.childNodes);
+            return true;
+        }
+
+        /** 툴바 경로: 링크 적용 + 변경 알림 + 선택 상태 복구 */
+        _applyImageLink(img, url, target) {
+            this._setImageLink(img, url, target);
+            this._onChange();
+            // 리사이저/캐럿 상태 복구 (모달 닫힘 시 _restoreSelection이 옛 range를 쓰지 않도록)
+            this._selectImage(img);
+        }
+
+        /** 툴바 경로: 앵커 해제 — execCommand('unlink')는 접힌 캐럿에서 동작하지 않는다 */
+        _removeImageLink(img) {
+            if (!this._unsetImageLink(img)) return false;
+            this._onChange();
+            this._selectImage(img);
+            return true;
+        }
+
+        /** contentArea의 현재 이미지 집합 스냅샷 */
+        _snapshotImages() {
+            return new Set(this.contentArea.querySelectorAll('img'));
+        }
+
+        /** 스냅샷 이후 새로 삽입된 이미지 목록 */
+        _imagesAddedSince(before) {
+            return Array.from(this.contentArea.querySelectorAll('img')).filter(img => !before.has(img));
         }
 
         _openImageDialog() {
@@ -1968,6 +2075,14 @@ const MubloEditor = (() => {
                                 <label class="mublo-editor-modal-label">${_t('imageCaption')}</label>
                                 <input type="text" class="mublo-editor-modal-input" id="mublo-editor-image-caption" placeholder="${_t('imageCaptionPlaceholder')}">
                             </div>
+                            <div class="mublo-editor-modal-form-group">
+                                <label class="mublo-editor-modal-label">${_t('imageLink')}</label>
+                                <input type="text" class="mublo-editor-modal-input" id="mublo-editor-image-link" placeholder="${_t('imageLinkPlaceholder')}">
+                                <div class="mublo-editor-modal-check mublo-editor-image-link-check">
+                                    <input type="checkbox" id="mublo-editor-image-link-target" checked>
+                                    <label for="mublo-editor-image-link-target">${_t('linkNewTab')}</label>
+                                </div>
+                            </div>
                         </div>
                         <p class="mublo-editor-image-drag-hint" id="mublo-editor-drag-hint" style="display:none;">
                             ${_t('imageDragHint')}
@@ -1995,6 +2110,11 @@ const MubloEditor = (() => {
                 modal.querySelector('#mublo-editor-image-meta').style.display = 'block';
                 modal.querySelector('#mublo-editor-image-alt').value = this._replacingImage.getAttribute('alt') || '';
                 modal.querySelector('#mublo-editor-image-caption').value = this._getImageCaption(this._replacingImage);
+
+                const anchor = this._getImageAnchor(this._replacingImage);
+                modal.querySelector('#mublo-editor-image-link').value = anchor?.getAttribute('href') || '';
+                modal.querySelector('#mublo-editor-image-link-target').checked =
+                    anchor ? anchor.getAttribute('target') !== '_self' : true;
             }
 
             // 외부 미디어 피커 확장 지점 (플러그인/패키지에서 탭 추가 가능)
@@ -2077,6 +2197,22 @@ const MubloEditor = (() => {
                 const altText = altInput ? altInput.value.trim() : '';
                 const captionText = captionInput ? captionInput.value.trim() : '';
 
+                const linkInput = modal.querySelector('#mublo-editor-image-link');
+                const linkTargetInput = modal.querySelector('#mublo-editor-image-link-target');
+                const linkUrl = linkInput ? linkInput.value.trim() : '';
+                const linkTarget = linkTargetInput && linkTargetInput.checked ? '_blank' : '_self';
+                // 잘못된 URL은 조용히 무시하지 않고 사용자에게 알린 뒤 모달을 유지한다
+                if (linkUrl && !isSafeUrl(linkUrl)) {
+                    this._showToast(_t('linkInvalidUrl'), 'error');
+                    insertBtn.disabled = false;
+                    insertBtn.textContent = replaceMode ? _t('imageUpdate') : _t('insert');
+                    return;
+                }
+
+                // 신규 삽입 이미지에 링크를 걸려면 삽입 전후 스냅샷 비교가 필요하다
+                // (insertImage는 insertContent 경유라 삽입된 노드를 돌려주지 않음)
+                const beforeImages = (!replaceMode && linkUrl) ? this._snapshotImages() : null;
+
                 for (const item of this._pendingImages) {
                     if (item.type === 'file') {
                         await this._handleImageUpload(item.file);
@@ -2089,8 +2225,15 @@ const MubloEditor = (() => {
                 }
 
                 if (replaceMode && targetImage) {
+                    // 캡션(figure 래핑)을 먼저 적용해야 앵커가 figure 안쪽에 남는다
                     this._applyImageMetadata(targetImage, altText, captionText);
+                    if (linkUrl) this._setImageLink(targetImage, linkUrl, linkTarget);
+                    else this._unsetImageLink(targetImage); // 비우면 기존 링크 해제
                     this._onChange();
+                } else if (beforeImages) {
+                    const added = this._imagesAddedSince(beforeImages);
+                    added.forEach(img => this._setImageLink(img, linkUrl, linkTarget));
+                    if (added.length) this._onChange();
                 }
 
                 closeModal();
@@ -2168,6 +2311,13 @@ const MubloEditor = (() => {
             countEl.textContent = count;
             insertBtn.disabled = count === 0;
             dragHint.style.display = count > 1 ? 'block' : 'none';
+
+            // 대체텍스트/캡션/링크는 이미지 1장일 때만 의미가 있다
+            // (교체 모드는 열릴 때 이미 표시 상태로 고정)
+            if (!this._replacingImage) {
+                const meta = document.getElementById('mublo-editor-image-meta');
+                if (meta) meta.style.display = count === 1 ? 'block' : 'none';
+            }
         }
 
         _updatePreviewOrder(previewList) {
@@ -3848,8 +3998,10 @@ const MubloEditor = (() => {
             figure.className = 'mublo-image';
             figure.style.margin = '1em 0';
             figure.style.textAlign = 'center';
-            img.parentNode.insertBefore(figure, img);
-            figure.appendChild(img);
+            // 링크된 이미지는 앵커째 감싼다 — img만 옮기면 앵커가 빈 채로 남아 링크가 끊긴다
+            const node = this._getImageAnchor(img) || img;
+            node.parentNode.insertBefore(figure, node);
+            figure.appendChild(node);
             return figure;
         }
 
@@ -4026,7 +4178,8 @@ const MubloEditor = (() => {
             this.contentArea.focus();
             try {
                 const range = document.createRange();
-                range.setStartAfter(img);
+                // 링크된 이미지는 앵커 바깥에 캐럿을 둔다 (앵커 안쪽이면 이어지는 입력이 링크에 흡수됨)
+                range.setStartAfter(this._getImageAnchor(img) || img);
                 range.collapse(true);
                 const sel = window.getSelection();
                 sel.removeAllRanges();
