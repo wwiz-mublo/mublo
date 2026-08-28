@@ -416,6 +416,8 @@ body.mublo-editor-noscroll {
 .mublo-editor-modal-input:focus { outline: none; border-color: var(--bs-primary, #0d6efd); }
 .mublo-editor-modal-check { display: flex; align-items: center; gap: .5rem; font-size: .875rem; cursor: pointer; color: var(--foreground, var(--bs-body-color, #212529)); }
 .mublo-editor-modal-check input { width: auto; cursor: pointer; }
+.mublo-editor-link-image-hint { margin: -.25rem 0 1rem; font-size: .8125rem; color: var(--muted-foreground, var(--bs-secondary-color, #6c757d)); }
+.mublo-editor-image-link-check { margin-top: .5rem; }
 
 /* Table Picker (Grid) */
 .mublo-editor-table-picker { display: flex; flex-direction: column; align-items: center; }
