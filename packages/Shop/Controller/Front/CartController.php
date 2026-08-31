@@ -997,10 +997,12 @@ class CartController
             ? $firstName . ' 외 ' . ($itemCount - 1) . '건'
             : $firstName;
 
-        // PG가 redirect/feedback URL을 자체 생성할 때 사용할 base URL 추출
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host = $_SERVER['HTTP_HOST'] ?? '';
-        $baseUrl = $host !== '' ? ($scheme . '://' . $host) : '';
+        // PG가 redirect/feedback URL을 자체 생성할 때 사용할 canonical base URL.
+        // 요청 Host는 클라이언트가 바꿀 수 있으므로 저장된 도메인만 URL의 권위로 사용한다.
+        $baseUrl = $this->buildPaymentBaseUrl($context);
+        if ($baseUrl === '') {
+            return JsonResponse::error('사이트 도메인 설정을 확인해주세요.');
+        }
         $successUrl = '/shop/order/' . $orderNo . '/complete';
         $failUrl = '/shop/checkout';
 
@@ -1019,8 +1021,8 @@ class CartController
             // 조회한다. 플러그인은 값을 옮기기만 하고 어느 패키지인지 알지 못한다.
             'consumer'        => 'shop',
             'base_url'        => $baseUrl,
-            'success_url'     => $baseUrl !== '' ? ($baseUrl . $successUrl) : $successUrl,
-            'fail_url'        => $baseUrl !== '' ? ($baseUrl . $failUrl) : $failUrl,
+            'success_url'     => $baseUrl . $successUrl,
+            'fail_url'        => $baseUrl . $failUrl,
         ]);
 
         if ($prepareResult->isFailure()) {
@@ -1059,6 +1061,22 @@ class CartController
                 'transaction_id' => $transactionId,
             ],
         ], '결제를 진행해주세요.');
+    }
+
+    /**
+     * 결제 플러그인에 전달할 사이트 origin을 생성한다.
+     *
+     * 호스트는 요청 헤더가 아니라 현재 컨텍스트가 해결한 저장 도메인을 사용하고,
+     * 스킴은 신뢰 프록시 정책이 적용된 Request 판별 결과를 따른다.
+     */
+    private function buildPaymentBaseUrl(Context $context): string
+    {
+        $canonicalHost = trim((string) ($context->getDomainInfo()?->getDomain() ?? ''));
+        if ($canonicalHost === '') {
+            return '';
+        }
+
+        return $context->getRequest()->getScheme() . '://' . $canonicalHost;
     }
 
     /**
