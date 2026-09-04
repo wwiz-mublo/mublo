@@ -625,12 +625,18 @@
 
 /* ============================================================
  * 다크모드 — Tier 2 semantic remap only
- * 활성화: 루트 엘리먼트에 .dark 또는 [data-theme="dark"]
+ * 활성화: 루트 엘리먼트에 .dark / [data-theme="dark"] / [data-bs-theme="dark"]
  * (현재 frame 스킨은 토글 미도입 → 무해/inert. 토글 붙이면 즉시 적용)
+ *
+ * [data-bs-theme="dark"] 를 함께 받는 이유 — 관리자(Bootstrap)와의 통합.
+ *   블록 에디터 캔버스는 이 셀렉터를 캔버스 하위로 스코프하므로
+ *   관리자 셸의 다크가 프리뷰 토큰을 뒤집지 않는다
+ *   (public/assets/js/admin/block-html-editor/index.js 의 scopeSelector).
  * ============================================================ */
 
 .dark,
-[data-theme="dark"] {
+[data-theme="dark"],
+[data-bs-theme="dark"] {
     --background:           var(--color-zinc-950);
     --foreground:           var(--color-zinc-50);
     --card:                 var(--color-zinc-900);

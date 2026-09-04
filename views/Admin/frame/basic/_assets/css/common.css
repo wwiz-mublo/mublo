@@ -1,25 +1,30 @@
 @charset "utf-8";
 
+/* ------------------------------------------------------------
+ * Zinc 팔레트 — 코어 토큰(tokens.css Tier 1) alias 계층
+ *
+ * 색을 바꿀 일이 생기면 tokens.css 한 곳만 고친다(단일 진실).
+ * ------------------------------------------------------------ */
 :root {
     /* Zinc Palette */
-    --bs-zinc-50: #fafafa;
-    --bs-zinc-100: #f4f4f5;
-    --bs-zinc-200: #e4e4e7;
-    --bs-zinc-300: #d4d4d8;
-    --bs-zinc-400: #a1a1aa;
-    --bs-zinc-500: #71717a;
-    --bs-zinc-600: #52525b;
-    --bs-zinc-700: #3f3f46;
-    --bs-zinc-800: #27272a;
-    --bs-zinc-900: #18181b;
-    --bs-zinc-950: #09090b;
+    --bs-zinc-50:  var(--color-zinc-50);
+    --bs-zinc-100: var(--color-zinc-100);
+    --bs-zinc-200: var(--color-zinc-200);
+    --bs-zinc-300: var(--color-zinc-300);
+    --bs-zinc-400: var(--color-zinc-400);
+    --bs-zinc-500: var(--color-zinc-500);
+    --bs-zinc-600: var(--color-zinc-600);
+    --bs-zinc-700: var(--color-zinc-700);
+    --bs-zinc-800: var(--color-zinc-800);
+    --bs-zinc-900: var(--color-zinc-900);
+    --bs-zinc-950: var(--color-zinc-950);
     --bs-zinc-50-rgb: 250, 250, 250;
     --bs-zinc-100-rgb: 244, 244, 245;
     --bs-zinc-200-rgb: 228, 228, 231;
     --bs-zinc-300-rgb: 212, 212, 216;
-    --bs-zinc-400-rgb: 161, 161, 170;
-    --bs-zinc-500-rgb: 113, 113, 122;
-    --bs-zinc-600-rgb: 82, 82, 91;
+    --bs-zinc-400-rgb: 159, 159, 169;
+    --bs-zinc-500-rgb: 113, 113, 123;
+    --bs-zinc-600-rgb: 82, 82, 92;
     --bs-zinc-700-rgb: 63, 63, 70;
     --bs-zinc-800-rgb: 39, 39, 42;
     --bs-zinc-900-rgb: 24, 24, 27;
@@ -28,52 +33,42 @@
 
 :root {
     color-scheme: light;
-    --bs-font-sans-serif: 'Plus Jakarta Sans', 'Noto Sans KR', sans-serif;
-    --bs-font-serif: 'Noto Serif KR', serif;
-    --bs-font-monospace: 'JetBrains Mono', 'Noto Sans KR', monospace;
+    /* 폰트 스택도 코어 토큰 참조 — tokens.css */
+    --bs-font-sans-serif: var(--font-sans);
+    --bs-font-serif: var(--font-serif);
+    --bs-font-monospace: var(--font-mono);
     --bs-body-font-family: var(--bs-font-sans-serif);
     --bs-link-decoration: none;
 }
 :root[data-bs-theme="dark"] {
     color-scheme: dark;
-    --bs-body-color: var(--bs-zinc-50);
-    --bs-body-color-rgb: var(--bs-zinc-50-rgb);
-    --bs-body-bg: var(--bs-zinc-950);
-    --bs-body-bg-rgb: var(--bs-zinc-950-rgb);
 }
 
 /* Custom */
 
 :root {
-    /* Link Colors (Light) */
-    --bs-link-color: var(--bs-zinc-900);
-    --bs-link-hover-color: var(--bs-zinc-600);
+    --bs-link-color: var(--primary);
+    --bs-link-hover-color: var(--muted-foreground);
+    --bs-default-bg: var(--primary);
+    --bs-default-text: var(--primary-foreground);
+    --bs-default-border: var(--primary);
+    --bs-default-hover-text: var(--primary-foreground);
+}
+
+:root {
     --bs-link-color-rgb: var(--bs-zinc-900-rgb);
-    --bs-link-hover-color-rgb: var(--bs-zinc-600-rgb);
-    /* Default Theme (Light) */
-    --bs-default-bg: var(--bs-zinc-950);
-    --bs-default-rgb: var(--bs-zinc-950-rgb);
-    --bs-default-text: var(--bs-zinc-50);
-    --bs-default-border: var(--bs-zinc-950);
-    --bs-default-hover-bg: var(--bs-zinc-800);
-    --bs-default-hover-text: var(--bs-zinc-50);
-    --bs-default-hover-border: var(--bs-zinc-800);
+    --bs-link-hover-color-rgb: var(--bs-zinc-500-rgb);
+    --bs-default-rgb: var(--bs-zinc-900-rgb);
+    --bs-default-hover-bg: var(--color-zinc-800);
+    --bs-default-hover-border: var(--color-zinc-800);
 }
 
 :root[data-bs-theme="dark"] {
-    /* Link Colors (Dark) */
-    --bs-link-color: var(--bs-zinc-100);
-    --bs-link-hover-color: var(--bs-zinc-400);
-    --bs-link-color-rgb: var(--bs-zinc-100-rgb);
+    --bs-link-color-rgb: var(--bs-zinc-200-rgb);
     --bs-link-hover-color-rgb: var(--bs-zinc-400-rgb);
-    /* Default Theme (Dark) */
-    --bs-default-bg: var(--bs-zinc-50);
-    --bs-default-rgb: var(--bs-zinc-50-rgb);
-    --bs-default-text: var(--bs-zinc-950);
-    --bs-default-border: var(--bs-zinc-50);
-    --bs-default-hover-bg: var(--bs-zinc-200);
-    --bs-default-hover-text: var(--bs-zinc-950);
-    --bs-default-hover-border: var(--bs-zinc-200);
+    --bs-default-rgb: var(--bs-zinc-200-rgb);
+    --bs-default-hover-bg: var(--color-zinc-100);
+    --bs-default-hover-border: var(--color-zinc-100);
 }
 
 .btn-default {
@@ -255,14 +250,14 @@ a:focus {
 
 .form-check-input:checked,
 .form-check-input[type="checkbox"]:indeterminate {
-    background-color: #6366f1;
-    border-color: #6366f1;
+    background-color: var(--color-indigo-500);
+    border-color: var(--color-indigo-500);
 }
 
 [data-bs-theme="dark"] .form-check-input:checked,
 [data-bs-theme="dark"] .form-check-input[type="checkbox"]:indeterminate {
-    background-color: #818cf8;
-    border-color: #818cf8;
+    background-color: var(--color-indigo-400);
+    border-color: var(--color-indigo-400);
 }
 
 [data-bs-theme="dark"] .form-check-input:checked[type="checkbox"] {
@@ -280,8 +275,8 @@ a:focus {
 }
 
 .form-switch .form-check-input:checked {
-    background-color: #6366f1;
-    border-color: #6366f1;
+    background-color: var(--color-indigo-500);
+    border-color: var(--color-indigo-500);
 }
 
 .form-switch .form-check-input:focus {
@@ -297,8 +292,8 @@ a:focus {
 }
 
 [data-bs-theme="dark"] .form-switch .form-check-input:checked {
-    background-color: #818cf8;
-    border-color: #818cf8;
+    background-color: var(--color-indigo-400);
+    border-color: var(--color-indigo-400);
 }
 [data-bs-theme="dark"] .form-switch .form-check-input:checked,
 [data-bs-theme="dark"] .form-switch .form-check-input:focus:checked {
@@ -309,36 +304,24 @@ a:focus {
 .switch-primary {
     --switch-bg: var(--bs-primary);
     --switch-border: var(--bs-primary);
-    --switch-knob: #ffffff;
+    --switch-knob: var(--color-white);
 }
 .switch-success {
     --switch-bg: var(--bs-success);
     --switch-border: var(--bs-success);
-    --switch-knob: #ffffff;
+    --switch-knob: var(--color-white);
 }
 .switch-danger {
     --switch-bg: var(--bs-danger);
     --switch-border: var(--bs-danger);
-    --switch-knob: #ffffff;
-}
-[data-bs-theme="dark"] .switch-primary {
-    --switch-bg: #3b82f6;
-    --switch-border: #3b82f6;
-}
-[data-bs-theme="dark"] .switch-success {
-    --switch-bg: #22c55e;
-    --switch-border: #22c55e;
-}
-[data-bs-theme="dark"] .switch-danger {
-    --switch-bg: #ef4444;
-    --switch-border: #ef4444;
+    --switch-knob: var(--color-white);
 }
 .form-switch .form-check-input {
     --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23${switch-knob}'/%3e%3c/svg%3e");
 }
 .form-switch .form-check-input:checked {
-    background-color: var(--switch-bg, #6366f1);
-    border-color: var(--switch-border, #6366f1);
+    background-color: var(--switch-bg, var(--color-indigo-500));
+    border-color: var(--switch-border, var(--color-indigo-500));
 }
 .form-switch.switch-primary .form-check-input:checked {
     --bs-form-switch-bg: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='-4 -4 8 8'%3e%3ccircle r='3' fill='%23fff'/%3e%3c/svg%3e");
@@ -442,14 +425,8 @@ a:focus {
 .progress, 
 .progress-stacked {
     --bs-progress-bg: var(--bs-secondary-bg);
-    --bs-progress-bar-color: #fafafa;
-    --bs-progress-bar-bg: #0b0809;
-}
-[data-bs-theme="dark"] .progress, 
-[data-bs-theme="dark"] .progress-stacked {
-    --bs-progress-bg: var(--bs-secondary-bg);
-    --bs-progress-bar-color: #0b0809;
-    --bs-progress-bar-bg: #fafafa;
+    --bs-progress-bar-color: var(--primary-foreground);
+    --bs-progress-bar-bg: var(--primary);
 }
 
 /* 카드 */

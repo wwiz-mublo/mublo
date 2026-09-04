@@ -7,10 +7,11 @@
  * 최상위 스코프 `.admin-login` 아래로 한정한다.
  *
  * 규칙
- * - 색/배경/보더는 하드코딩 금지. 테마변수를 쓴다:
- *     var(--bs-default-bg) / var(--bs-default-text)   ← 프레임스킨 색상테마
- *     var(--bs-zinc-50) / var(--bs-zinc-950) / var(--bs-body-color)
- *   → 다크모드(data-bs-theme)·스킨테마 변경을 자동으로 따라간다.
+ * - 색/배경/보더는 하드코딩 금지. 코어 토큰(tokens.css) semantic 을 쓴다:
+ *     var(--background) / var(--card)                 ← 표면
+ *     var(--bs-default-bg) / var(--bs-default-text)   ← 주 CTA(= --primary)
+ *   → semantic 이 [data-bs-theme="dark"] 에서 스스로 반전하므로
+ *     테마별 분기 블록이 필요 없다.
  * - 부트스트랩 유틸리티로 되는 건 Login.php의 클래스로 처리.
  */
 
@@ -19,15 +20,10 @@
  * 페이지라, body에 직접 배경을 걸어 오버스크롤 영역·여백까지 테마색으로 덮는다.
  * (front auth.css의 body:has(.auth-shell) 패턴과 동일)
  * 카드가 뷰포트보다 길어질 때를 대비해 세로 스크롤은 auto.
- * zinc 팔레트는 고정값이라 테마별로 직접 분기(common.css의 dark 블록과 동일 패턴).
  */
 body:has(.admin-login) {
-    background: var(--bs-white);
+    background: var(--background);
     overflow-y: auto;
-}
-
-:root[data-bs-theme="dark"] body:has(.admin-login) {
-    background: var(--bs-zinc-950);
 }
 
 /*
@@ -35,15 +31,10 @@ body:has(.admin-login) {
  * spacer 토큰이 .card-body 패딩을 그대로 구동하므로 별도 규칙 불필요.
  */
 .admin-login .card {
-    --bs-card-bg: var(--bs-white);
+    --bs-card-bg: var(--card);
     --bs-card-border-radius: 1.25rem;       /* 기본보다 더 둥글게 */
     --bs-card-spacer-x: 2.5rem;             /* 더 넉넉한 여백 */
     --bs-card-spacer-y: 2.5rem;
-}
-
-/* 다크: 기본 --bs-card-bg는 body-bg(zinc-950)와 같아 카드가 묻힌다 → 한 단계 밝게 */
-:root[data-bs-theme="dark"] .admin-login .card {
-    --bs-card-bg: var(--bs-zinc-900);
 }
 
 /*
