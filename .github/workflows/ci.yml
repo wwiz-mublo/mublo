@@ -43,6 +43,13 @@ on:
   #   gh workflow run ci.yml --ref <브랜치>
   workflow_dispatch:
 
+# 같은 브랜치에 연달아 push 하면 앞선 실행은 결과가 나와도 쓸 데가 없다. PR 은
+# 이전 실행을 취소한다. main 은 취소하지 않는다 — 머지가 연달아 들어와도 각
+# 커밋의 결과가 이력으로 남아야 어느 커밋에서 깨졌는지 알 수 있다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   # 이 PR 에 코드가 한 줄이라도 섞였는지 판정한다. pull_request 가 아니면
   # (push·workflow_dispatch) 무조건 돈다 — 판정 대상 범위가 없다.
