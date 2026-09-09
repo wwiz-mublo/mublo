@@ -7,8 +7,8 @@ name: CI
 # 체크가 아예 생성되지 않고, 브랜치 보호의 필수 체크(PHP 8.2/8.3/8.4)가 영원히
 # pending 으로 남아 문서만 고치는 PR 은 머지가 불가능해진다. workflow_dispatch 로
 # 수동 실행해도 그 체크 스위트는 PR 에 연결되지 않아 소용이 없다(2026-08-07 #21
-# 에서 확인). 그래서 워크플로는 항상 돌리고, 아래 changes 잡의 판정으로 잡 안의
-# 무거운 스텝만 건너뛴다.
+# 에서 확인). 그래서 워크플로는 항상 돌리고, 아래 changes 잡의 판정으로 무거운
+# 잡을 생략한다. test 잡은 결과를 확인해 기존 필수 체크 이름으로 성공을 보고한다.
 #
 # push 는 필수 체크와 무관하므로 종전처럼 paths-ignore 로 통째로 거른다.
 #
@@ -21,7 +21,8 @@ name: CI
 # 잡 구성(2026-09-09 실측, PR 1회 기준):
 #   changes                 5초   변경 판정
 #   static                 ~90초  PHPStan 2종. 결과 캐시가 맞으면 ~30초
-#   PHP 8.2/8.3/8.4        ~55초  검사 5종 + PHPUnit(실 DB)
+#   PHPUnit 8.2/8.3/8.4    ~55초  검사 5종 + PHPUnit(실 DB)
+#   PHP 8.2/8.3/8.4              정적분석·테스트 결과를 합치는 필수 체크
 #   migration-immutability  5초
 #   DB compatibility ×4    ~40초  대부분 컨테이너 기동
 # 병목은 static 또는 PHP 잡이고, 컨테이너 기동·PHP 설치·스케줄링 대기가 바닥이라
@@ -46,8 +47,9 @@ on:
 # 같은 브랜치에 연달아 push 하면 앞선 실행은 결과가 나와도 쓸 데가 없다. PR 은
 # 이전 실행을 취소한다. main 은 취소하지 않는다 — 머지가 연달아 들어와도 각
 # 커밋의 결과가 이력으로 남아야 어느 커밋에서 깨졌는지 알 수 있다.
+# push·수동 실행은 run_id 로 분리해 대기 중인 실행도 서로 취소하지 않게 한다.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -102,7 +104,7 @@ jobs:
   # composer.lock 이나 phpstan 설정이 바뀌면 캐시를 버린다 — PHPStan 자체도 설정
   # 해시가 다르면 무시하지만, 그 경우 복원 자체가 시간 낭비다.
   #
-  # 필수 체크가 아니라 skipped 로 남아도 머지를 막지 않는다.
+  # 결과는 아래 test 잡의 필수 체크에 반영한다. 문서 변경일 때만 skipped 를 허용한다.
   static:
     name: Static analysis
     runs-on: ubuntu-latest
@@ -149,14 +151,13 @@ jobs:
       - name: Run static analysis (strict scope)
         run: composer analyse-strict
 
-  # 필수 체크 3종(PHP 8.2/8.3/8.4)이다. 잡 레벨 if 로 건너뛰면 결론이 skipped 가
-  # 되는데, 필수 체크를 skipped 로 두는 것이 통과로 인정되는지는 보호 규칙 설정에
-  # 따라 달라진다. 머지 가능 여부가 걸린 자리라 추측하지 않는다 — 잡은 항상 돌려
-  # success 로 보고하고, 안의 무거운 스텝만 건너뛴다.
-  test:
-    name: PHP ${{ matrix.php }}
+  # static 과 병렬 실행한다. 문서 변경은 잡 전체를 생략해 DB 도 띄우지 않는다.
+  # 기존 필수 체크 이름은 아래 test 잡이 유지한다.
+  php-tests:
+    name: PHPUnit ${{ matrix.php }}
     runs-on: ubuntu-latest
     needs: changes
+    if: needs.changes.outputs.code == 'true'
 
     strategy:
       fail-fast: false
@@ -251,6 +252,42 @@ jobs:
           DB_TEST_USER: root
           DB_TEST_PASS: root
           DB_TEST_NAME: mublo_integration_test
+
+  # 필수 체크 이름을 유지하면서 정적분석과 PHP 매트릭스 전체의 성공을 요구한다.
+  # needs 만 추가하면 실패한 선행 잡 때문에 이 잡도 skipped 가 되어 머지를 허용할
+  # 수 있다. always() 로 실행하고 실패·취소·예상 밖 생략을 명시적으로 실패시킨다.
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    needs: [changes, static, php-tests]
+    if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(github.event_name == 'push' && '["8.2"]' || '["8.2", "8.3", "8.4"]') }}
+    steps:
+      - name: Verify required checks
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          TEST_RESULT: ${{ needs.php-tests.result }}
+        run: |
+          set -euo pipefail
+          printf 'changes=%s code=%s static=%s tests=%s\n' \
+            "$CHANGES_RESULT" "$CODE_CHANGED" "$STATIC_RESULT" "$TEST_RESULT"
+          test "$CHANGES_RESULT" = success
+          case "$CODE_CHANGED" in
+            true)
+              test "$STATIC_RESULT" = success
+              test "$TEST_RESULT" = success
+              ;;
+            false)
+              test "$STATIC_RESULT" = skipped
+              test "$TEST_RESULT" = skipped
+              ;;
+            *) exit 1 ;;
+          esac
 
   # 이미 실행된 마이그레이션 파일을 고치면, 그 파일을 이미 돌린 설치본에서
   # checksum 드리프트가 나고 해당 확장의 활성화가 막힌다. 실제로 주석 한 줄을
