@@ -15,6 +15,9 @@ name: CI
 # 제외 목록은 "실행에 영향이 없는 것" 만 담는다. 예를 들어 .github/workflows 는
 # 넣지 않는다 — CI 자신을 고치는 변경이야말로 검증이 필요하다.
 #
+# main push 는 PR 실행의 복사본이라 PHP 8.2 + static 만 돌린다(DB compatibility
+# 제외, 아래 각 잡의 주석 참고). 머지 1건 컴퓨트 약 19분 → 7.5분.
+#
 # 잡 구성(2026-09-09 실측, PR 1회 기준):
 #   changes                 5초   변경 판정
 #   static                 ~90초  PHPStan 2종. 결과 캐시가 맞으면 ~30초
@@ -151,7 +154,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: [ '8.2', '8.3', '8.4' ]
+        # main push 는 PR 에서 방금 통과한 트리를 다시 검사하는 자리다(squash merge
+        # 만 허용, PR 체크는 merge ref 로 돈다). 마지막 PR 실행 뒤 main 이 움직인
+        # 경우만 잡으면 되므로 하한 8.2 하나로 줄인다. PR 과 workflow_dispatch 는
+        # 필수 체크 3종을 그대로 돌린다.
+        php: ${{ fromJSON(github.event_name == 'push' && '["8.2"]' || '["8.2", "8.3", "8.4"]') }}
 
     # 통합 테스트용 DB. 없으면 tests/Integration 은 스킵되므로,
     # 리포지토리 계층의 SQL 이 검증되지 않은 채 통과한다.
@@ -299,7 +306,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     # 필수 체크가 아니라 skipped 로 남아도 머지를 막지 않는다.
-    if: needs.changes.outputs.code == 'true'
+    # main push 에서는 돌리지 않는다. 마이그레이션은 PR 에서 이미 4종 DB 로
+    # 검증됐고, 그 뒤 main 이 움직였어도 마이그레이션 파일끼리 충돌하면 위 PHP
+    # 잡의 통합 테스트가 먼저 깨진다. 4잡 × ~40초 중 실제 검사는 1~3초고 나머지는
+    # 컨테이너 기동이라, 같은 검사를 두 번 사는 비용이 크다.
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'push'
 
     strategy:
       fail-fast: false
