@@ -646,7 +646,9 @@ class Application
         $context = [
             'domain' => $domainName,
             'type' => $type,
-            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            // 프록시 뒤에서는 REMOTE_ADDR 이 모든 요청에 같은 엣지 주소라,
+            // 그대로 적으면 로그에서 요청을 구분할 수 없다.
+            'ip' => Request::clientIpFromServer($_SERVER),
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
             'uri' => $_SERVER['REQUEST_URI'] ?? '',
         ];
