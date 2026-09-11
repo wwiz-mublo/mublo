@@ -483,13 +483,87 @@ class Request
     }
 
     /**
+     * Cloudflare 공개 대역 (https://www.cloudflare.com/ips/).
+     *
+     * **목록을 손으로 옮겨 적게 두지 않는다.** 설정에 15줄짜리 CIDR 을 직접 적게
+     * 하면 한 줄만 빠져도 그 대역으로 들어온 요청은 조용히 프록시 IP 로 기록된다 —
+     * 무엇이 틀렸는지 알아낼 방법이 없다. `TRUSTED_PROXIES=cloudflare` 한 단어로
+     * 쓰게 한다.
+     */
+    private const CLOUDFLARE_RANGES = [
+        '173.245.48.0/20', '103.21.244.0/22', '103.22.200.0/22', '103.31.4.0/22',
+        '141.101.64.0/18', '108.162.192.0/18', '190.93.240.0/20', '188.114.96.0/20',
+        '197.234.240.0/22', '198.41.128.0/17', '162.158.0.0/15', '104.16.0.0/13',
+        '104.24.0.0/14', '172.64.0.0/13', '131.0.72.0/22',
+        '2400:cb00::/32', '2606:4700::/32', '2803:f800::/32', '2405:b500::/32',
+        '2405:8100::/32', '2a06:98c0::/29', '2c0f:f248::/32',
+    ];
+
+    /**
      * 신뢰 프록시 설정 (Application 초기화 시 호출)
      *
-     * @param array $proxies 신뢰 프록시 목록 (IP 또는 CIDR)
+     * `cloudflare` 는 위 공개 대역으로 펼치고, `none` 은 아무것도 안 믿는다.
+     * 나머지는 IP/CIDR 그대로다.
+     *
+     * `none` 이 필요한 이유는 기본값이 `cloudflare` 이기 때문이다 — 빈 값으로는
+     * "설정을 안 했다" 와 "프록시가 없다" 를 구별할 수 없다.
+     *
+     * @param array $proxies 신뢰 프록시 목록 (IP, CIDR, 'cloudflare', 'none')
      */
     public static function setTrustedProxies(array $proxies): void
     {
-        self::$trustedProxies = $proxies;
+        $expanded = [];
+        foreach ($proxies as $proxy) {
+            $proxy = trim((string) $proxy);
+            if (strcasecmp($proxy, 'none') === 0) {
+                self::$trustedProxies = [];
+                return;
+            }
+            if (strcasecmp($proxy, 'cloudflare') === 0) {
+                array_push($expanded, ...self::CLOUDFLARE_RANGES);
+                continue;
+            }
+            if ($proxy !== '') {
+                $expanded[] = $proxy;
+            }
+        }
+        self::$trustedProxies = $expanded;
+    }
+
+    /** 경고를 프로세스당 한 번만 낸다 — 요청마다 찍으면 로그가 그것으로 덮인다. */
+    private static bool $forwarderWarned = false;
+
+    /**
+     * **프록시 뒤인데 신뢰 목록이 비었다** — 조용히 넘어가지 않는다 (2026-09-11).
+     *
+     * 이 상태에서는 모든 기록이 프록시 IP 로 남는다. 표시가 틀리는 것으로 끝나지
+     * 않는다 — `getClientIp()` 는 로그인 시도 제한(`AuthService::attempt`),
+     * 레이트리밋 키(`editor-convert:...`), 게시판 도배 제한, 감사 로그에 함께
+     * 쓰인다. 전 세계 사용자가 **한 바구니**에 들어가 한 명이 많이 쓰면 다른
+     * 사람이 막히고, 차단을 걸면 프록시 전체가 막힌다.
+     *
+     * 실제로 운영에서 Cloudflare 엣지 주소(162.159.110.30)가 로그인 기록에 남는
+     * 것을 사용자가 발견하고서야 드러났다. 아무 신호도 없었기 때문이다.
+     *
+     * @param array<string, mixed> $server
+     */
+    private static function warnUntrustedForwarder(string $remoteAddr, array $server): void
+    {
+        if (self::$forwarderWarned) {
+            return;
+        }
+        if (empty($server['HTTP_CF_CONNECTING_IP']) && empty($server['HTTP_X_FORWARDED_FOR'])) {
+            return;   // 프록시를 안 거쳤다. 정상이다.
+        }
+        self::$forwarderWarned = true;
+        error_log(sprintf(
+            '[TRUSTED_PROXY] %s 에서 전달 헤더가 왔는데 신뢰 프록시 목록에 없습니다. '
+            . '실제 사용자 IP 대신 이 주소가 기록되어, 로그인 시도 제한·레이트리밋이 '
+            . '모든 사용자에게 공유됩니다. 이 주소가 우리 프록시가 맞다면 .env 의 '
+            . 'TRUSTED_PROXIES 에 더하세요 (기본값 cloudflare 는 이미 포함되어 '
+            . '있으므로, 이 경고는 다른 프록시를 거쳤다는 뜻입니다).',
+            $remoteAddr
+        ));
     }
 
     /**
@@ -500,22 +574,24 @@ class Request
      */
     public function getClientIp(): string
     {
-        $remoteAddr = $this->server['REMOTE_ADDR'] ?? '0.0.0.0';
+        $server = $this->server;
+        $remoteAddr = (string) ($server['REMOTE_ADDR'] ?? '0.0.0.0');
 
         // 신뢰 프록시가 설정되지 않았거나 현재 요청이 신뢰 프록시에서 온 게 아니면
         // REMOTE_ADDR만 반환
         if (!$this->isFromTrustedProxy($remoteAddr)) {
+            self::warnUntrustedForwarder($remoteAddr, $server);
             return $remoteAddr;
         }
 
         // Cloudflare: 신뢰 프록시에서 들어온 요청일 때만 CF-Connecting-IP 사용.
         // 신뢰 프록시가 전달했다는 사실과 값이 유효한 IP라는 사실은 별개이므로,
         // 형식이 잘못되면 감사로그·레이트리밋 키를 오염시키지 않고 직전 홉으로 폴백한다.
-        if (!empty($this->server['HTTP_CF_CONNECTING_IP'])) {
-            return $this->normalizeForwardedIp($this->server['HTTP_CF_CONNECTING_IP']) ?? $remoteAddr;
+        if (!empty($server['HTTP_CF_CONNECTING_IP'])) {
+            return $this->normalizeForwardedIp($server['HTTP_CF_CONNECTING_IP']) ?? $remoteAddr;
         }
 
-        if (!empty($this->server['HTTP_X_FORWARDED_FOR'])) {
+        if (!empty($server['HTTP_X_FORWARDED_FOR'])) {
             // XFF 체인: "client, proxy1, proxy2" — 오른쪽일수록 우리에게 가까운 홉이다.
             // REMOTE_ADDR(직전 홉)이 신뢰 프록시임을 이미 확인했으므로, 오른쪽부터 신뢰 프록시를
             // 벗겨내고 첫 '비신뢰' IP 를 클라이언트로 채택한다. 최좌측을 그대로 쓰면 클라이언트가

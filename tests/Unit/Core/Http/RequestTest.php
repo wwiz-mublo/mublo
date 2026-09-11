@@ -174,6 +174,70 @@ class RequestTest extends TestCase
         $this->assertSame('198.51.100.55', $request->getClientIp());
     }
 
+    /**
+     * **기록되는 것은 실제 사용자 공인 IP 여야 한다** (2026-09-11).
+     *
+     * 예전 기본값은 빈 값("프록시 불신")이었다. 그런데 서비스가 Cloudflare 뒤에
+     * 있어서, 그 기본으로는 모든 기록이 Cloudflare 엣지 주소가 됐다 — 로그인
+     * 기록에 162.159.110.30 이 남는 것을 사용자가 발견하고서야 드러났다.
+     *
+     * 표시만의 문제가 아니다. `getClientIp()` 는 로그인 시도 제한·레이트리밋
+     * 키·도배 제한에 함께 쓰이므로 **전 사용자가 한 바구니**에 들어가 있었다.
+     */
+    public function testCloudflareShorthandRecordsTheRealVisitorIp(): void
+    {
+        Request::setTrustedProxies(['cloudflare']);
+
+        $request = new Request('GET', '/', [], [], [
+            'REMOTE_ADDR' => '162.159.110.30',          // Cloudflare 엣지
+            'HTTP_CF_CONNECTING_IP' => '121.130.55.7',  // 실제 사용자
+        ]);
+
+        $this->assertSame('121.130.55.7', $request->getClientIp());
+    }
+
+    public function testCloudflareShorthandStillRejectsForgedHeaders(): void
+    {
+        // 우리 서버에 직접 닿을 수 있으면 누구나 이 헤더를 넣을 수 있다.
+        // 차단·레이트리밋 우회가 되므로 직전 홉을 반드시 확인한다.
+        Request::setTrustedProxies(['cloudflare']);
+
+        $request = new Request('GET', '/', [], [], [
+            'REMOTE_ADDR' => '203.0.113.99',            // Cloudflare 가 아니다
+            'HTTP_CF_CONNECTING_IP' => '1.2.3.4',
+        ]);
+
+        $this->assertSame('203.0.113.99', $request->getClientIp());
+    }
+
+    public function testNoneTurnsProxyTrustOff(): void
+    {
+        // 기본값이 'cloudflare' 라, 빈 값으로는 "설정을 안 했다" 와 "프록시가
+        // 없다" 를 구별할 수 없다.
+        Request::setTrustedProxies(['none']);
+
+        $request = new Request('GET', '/', [], [], [
+            'REMOTE_ADDR' => '162.159.110.30',
+            'HTTP_CF_CONNECTING_IP' => '121.130.55.7',
+        ]);
+
+        $this->assertSame('162.159.110.30', $request->getClientIp());
+    }
+
+    public function testDefaultConfigTrustsCloudflare(): void
+    {
+        // 설정 파일을 고쳐야 옳게 도는 것은 기본값이 틀린 것이다.
+        $default = array_filter(explode(',', 'cloudflare'));
+        Request::setTrustedProxies($default);
+
+        $request = new Request('GET', '/', [], [], [
+            'REMOTE_ADDR' => '104.16.0.1',
+            'HTTP_CF_CONNECTING_IP' => '203.0.113.7',
+        ]);
+
+        $this->assertSame('203.0.113.7', $request->getClientIp());
+    }
+
     public function testXffAdoptsRightmostNonTrustedIpBehindProxy(): void
     {
         Request::setTrustedProxies(['10.0.0.0/8']);

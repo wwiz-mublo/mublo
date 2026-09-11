@@ -399,14 +399,24 @@ class Application
      * 신뢰 프록시 설정 로드
      *
      * config/security.php의 trusted_proxies 설정을 Request 클래스에 적용
+     *
+     * **비어 있으면 Cloudflare 를 신뢰한다** (2026-09-11). 기본값을 Installer 에만
+     * 두면 **이미 설치된 곳에는 닿지 않는다** — `config/security.php` 는 설치할 때
+     * 한 번 만들어지고 그 뒤로 갱신되지 않기 때문이다. 실제로 운영 로그인 기록에
+     * Cloudflare 엣지 주소(162.159.110.30)가 남고 있었다.
+     *
+     * 표시만의 문제가 아니다. `Request::getClientIp()` 는 로그인 시도 제한·
+     * 레이트리밋 키·도배 제한에 함께 쓰이므로, 프록시 IP 하나로 뭉치면 **전 사용자가
+     * 한 바구니**에 들어간다.
+     *
+     * Cloudflare 를 안 쓰는 설치는 REMOTE_ADDR 이 그 대역에 없어 아무 영향이 없다.
+     * 프록시가 없음을 명시하려면 `TRUSTED_PROXIES=none` 을 쓴다.
      */
     protected function configureTrustedProxies(): void
     {
         $trustedProxies = ConfigFile::load('security')['trusted_proxies'] ?? [];
 
-        if (!empty($trustedProxies)) {
-            Request::setTrustedProxies($trustedProxies);
-        }
+        Request::setTrustedProxies(!empty($trustedProxies) ? $trustedProxies : ['cloudflare']);
     }
 
     /**

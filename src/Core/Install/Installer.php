@@ -846,10 +846,13 @@ return [
 
     // 신뢰 프록시 설정
     // X-Forwarded-Proto, X-Forwarded-For 헤더를 신뢰할 프록시 IP 목록
+    // 'cloudflare': Cloudflare 공개 대역으로 펼친다 (Request::CLOUDFLARE_RANGES)
     // ['*']: 모든 프록시 신뢰 (직접 접근이 방화벽으로 차단된 환경에서만 사용)
     // ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']: 특정 IP/CIDR만 신뢰
     // 빈 문자열 설정 시(TRUSTED_PROXIES=''): 프록시 불신 (REMOTE_ADDR만 사용)
-    'trusted_proxies' => array_filter(explode(',', env('TRUSTED_PROXIES', ''))),
+    //
+    // 기본이 'cloudflare' 인 이유는 config/security.php 의 같은 항목에 적어 두었다.
+    'trusted_proxies' => array_filter(explode(',', env('TRUSTED_PROXIES', 'cloudflare'))),
 
     // 캐시 & 세션 드라이버 (env에서 로드)
     'cache_driver' => env('CACHE_DRIVER', 'file'),
