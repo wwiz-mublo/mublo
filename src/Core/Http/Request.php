@@ -224,7 +224,7 @@ class Request
         }
         // 리버스 프록시 지원 (X-Forwarded-Proto) — 신뢰 프록시에서만 허용
         $remoteAddr = $this->server['REMOTE_ADDR'] ?? '0.0.0.0';
-        if ($this->isFromTrustedProxy($remoteAddr)
+        if (self::isFromTrustedProxy($remoteAddr)
             && isset($this->server['HTTP_X_FORWARDED_PROTO'])
             && $this->server['HTTP_X_FORWARDED_PROTO'] === 'https'
         ) {
@@ -574,12 +574,28 @@ class Request
      */
     public function getClientIp(): string
     {
-        $server = $this->server;
+        return self::clientIpFromServer($this->server);
+    }
+
+    /**
+     * `$_SERVER` 만 있는 자리에서도 **같은 판정**을 쓴다.
+     *
+     * Request 객체가 없다는 이유로 `$_SERVER['REMOTE_ADDR']` 을 직접 읽던 자리가
+     * 셋 있었다 (2026-09-11). 프록시 뒤에서는 그 값이 전부 엣지 주소다.
+     *
+     * `SecureFileService` 는 다운로드 링크를 IP 에 묶어 보호하는데, 모든 사용자가
+     * 같은 값이면 **묶은 것이 아무것도 아니다** — 링크가 새면 누구나 쓴다.
+     * 나머지 둘(`Application::logRequest`·`ErrorHandler`)은 기록의 정확도 문제다.
+     *
+     * @param array<string, mixed> $server
+     */
+    public static function clientIpFromServer(array $server): string
+    {
         $remoteAddr = (string) ($server['REMOTE_ADDR'] ?? '0.0.0.0');
 
         // 신뢰 프록시가 설정되지 않았거나 현재 요청이 신뢰 프록시에서 온 게 아니면
         // REMOTE_ADDR만 반환
-        if (!$this->isFromTrustedProxy($remoteAddr)) {
+        if (!self::isFromTrustedProxy($remoteAddr)) {
             self::warnUntrustedForwarder($remoteAddr, $server);
             return $remoteAddr;
         }
@@ -588,7 +604,7 @@ class Request
         // 신뢰 프록시가 전달했다는 사실과 값이 유효한 IP라는 사실은 별개이므로,
         // 형식이 잘못되면 감사로그·레이트리밋 키를 오염시키지 않고 직전 홉으로 폴백한다.
         if (!empty($server['HTTP_CF_CONNECTING_IP'])) {
-            return $this->normalizeForwardedIp($server['HTTP_CF_CONNECTING_IP']) ?? $remoteAddr;
+            return self::normalizeForwardedIp($server['HTTP_CF_CONNECTING_IP']) ?? $remoteAddr;
         }
 
         if (!empty($server['HTTP_X_FORWARDED_FOR'])) {
@@ -596,30 +612,30 @@ class Request
             // REMOTE_ADDR(직전 홉)이 신뢰 프록시임을 이미 확인했으므로, 오른쪽부터 신뢰 프록시를
             // 벗겨내고 첫 '비신뢰' IP 를 클라이언트로 채택한다. 최좌측을 그대로 쓰면 클라이언트가
             // 임의 값을 prepend 해 IP 를 위조(레이트리밋·감사로그·차단 우회)할 수 있다.
-            $ips = array_map('trim', explode(',', $this->server['HTTP_X_FORWARDED_FOR']));
+            $ips = array_map('trim', explode(',', $server['HTTP_X_FORWARDED_FOR']));
             for ($i = count($ips) - 1; $i >= 0; $i--) {
-                $ip = $this->normalizeForwardedIp($ips[$i]);
+                $ip = self::normalizeForwardedIp($ips[$i]);
                 if ($ip === null) {
                     // 체인 중간의 빈 값·임의 문자열을 건너뛰면 그 왼쪽의 공격자 제공 값을
                     // 실제 클라이언트로 오인할 수 있다. 체인 전체를 불신하고 직전 홉으로 폴백한다.
                     return $remoteAddr;
                 }
-                if (!$this->isFromTrustedProxy($ip)) {
+                if (!self::isFromTrustedProxy($ip)) {
                     return $ip;
                 }
             }
             // 체인 전체가 신뢰 프록시면 최좌측을 원 클라이언트로 간주.
             // 최좌측이 비어("" — 예: ", 10.0.0.9") 있으면 빈 IP 가 레이트리밋·감사로그로
             // 새지 않도록 REMOTE_ADDR 로 폴백한다.
-            return $this->normalizeForwardedIp($ips[0]) ?? $remoteAddr;
+            return self::normalizeForwardedIp($ips[0]) ?? $remoteAddr;
         }
 
-        if (!empty($this->server['HTTP_X_REAL_IP'])) {
-            return $this->normalizeForwardedIp($this->server['HTTP_X_REAL_IP']) ?? $remoteAddr;
+        if (!empty($server['HTTP_X_REAL_IP'])) {
+            return self::normalizeForwardedIp($server['HTTP_X_REAL_IP']) ?? $remoteAddr;
         }
 
-        if (!empty($this->server['HTTP_CLIENT_IP'])) {
-            return $this->normalizeForwardedIp($this->server['HTTP_CLIENT_IP']) ?? $remoteAddr;
+        if (!empty($server['HTTP_CLIENT_IP'])) {
+            return self::normalizeForwardedIp($server['HTTP_CLIENT_IP']) ?? $remoteAddr;
         }
 
         return $remoteAddr;
@@ -632,7 +648,7 @@ class Request
      * 이대로 ipMatches(inet_pton)에 넣으면 실패해 신뢰 프록시 홉을 인식하지 못하고, 그 값을
      * 그대로 클라이언트 IP 로 반환해 쓰레기 IP(포트 포함)가 레이트리밋·감사로그로 새어나간다.
      */
-    private function stripPortFromIp(string $entry): string
+    private static function stripPortFromIp(string $entry): string
     {
         $entry = trim($entry);
         if ($entry === '') {
@@ -658,9 +674,9 @@ class Request
      *
      * @return string|null 유효한 IP, 형식이 잘못됐거나 비어 있으면 null
      */
-    private function normalizeForwardedIp(string $entry): ?string
+    private static function normalizeForwardedIp(string $entry): ?string
     {
-        $ip = $this->stripPortFromIp($entry);
+        $ip = self::stripPortFromIp($entry);
         if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return null;
         }
@@ -671,7 +687,7 @@ class Request
     /**
      * 요청이 신뢰 프록시에서 왔는지 확인
      */
-    private function isFromTrustedProxy(string $remoteAddr): bool
+    private static function isFromTrustedProxy(string $remoteAddr): bool
     {
         // 신뢰 프록시가 설정되지 않음
         if (empty(self::$trustedProxies)) {
@@ -684,7 +700,7 @@ class Request
         }
 
         foreach (self::$trustedProxies as $proxy) {
-            if ($this->ipMatches($remoteAddr, $proxy)) {
+            if (self::ipMatches($remoteAddr, $proxy)) {
                 return true;
             }
         }
@@ -695,7 +711,7 @@ class Request
     /**
      * IP 주소가 CIDR 패턴과 일치하는지 확인
      */
-    private function ipMatches(string $ip, string $cidr): bool
+    private static function ipMatches(string $ip, string $cidr): bool
     {
         // CIDR 패턴이 아니면 단일 IP 비교. inet_pton 이진 비교로 IPv6 표기 차이
         // (대문자/축약 vs 비압축)를 흡수한다 — 문자열 === 만으로는 2400:CB00::1 과

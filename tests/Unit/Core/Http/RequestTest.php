@@ -238,6 +238,37 @@ class RequestTest extends TestCase
         $this->assertSame('203.0.113.7', $request->getClientIp());
     }
 
+    /**
+     * **판정은 한 곳에만 있어야 한다** (2026-09-11).
+     *
+     * Request 객체가 없다는 이유로 `$_SERVER['REMOTE_ADDR']` 을 직접 읽던 자리가
+     * 셋 있었다. 프록시 뒤에서는 그 값이 전부 엣지 주소라, `SecureFileService` 의
+     * IP 바인딩은 모든 사용자가 같은 값이 되어 묶은 의미가 없었다.
+     */
+    public function testClientIpFromServerMatchesTheInstanceMethod(): void
+    {
+        Request::setTrustedProxies(['cloudflare']);
+        $server = [
+            'REMOTE_ADDR' => '162.159.110.30',
+            'HTTP_CF_CONNECTING_IP' => '121.130.55.7',
+        ];
+
+        $request = new Request('GET', '/', [], [], $server);
+
+        $this->assertSame($request->getClientIp(), Request::clientIpFromServer($server));
+        $this->assertSame('121.130.55.7', Request::clientIpFromServer($server));
+    }
+
+    public function testClientIpFromServerRejectsForgedHeaders(): void
+    {
+        Request::setTrustedProxies(['cloudflare']);
+
+        $this->assertSame('203.0.113.99', Request::clientIpFromServer([
+            'REMOTE_ADDR' => '203.0.113.99',
+            'HTTP_CF_CONNECTING_IP' => '1.2.3.4',
+        ]));
+    }
+
     public function testXffAdoptsRightmostNonTrustedIpBehindProxy(): void
     {
         Request::setTrustedProxies(['10.0.0.0/8']);

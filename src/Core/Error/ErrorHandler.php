@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Mublo\Core\Error;
 
+use Mublo\Core\Http\Request;
 use Mublo\Core\Rendering\ErrorRenderer;
 use Mublo\Exception\ApplicationException;
 use Mublo\Infrastructure\Log\Logger;
@@ -188,7 +189,9 @@ class ErrorHandler
             'trace' => $this->debug ? $e->getTraceAsString() : $this->getSafeTrace($e),
             'url' => $this->maskSensitiveParams($_SERVER['REQUEST_URI'] ?? ''),
             'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-            'ip' => $_SERVER['REMOTE_ADDR'] ?? '',
+            // 프록시 뒤에서는 REMOTE_ADDR 이 전부 같은 엣지 주소라, 오류가 한
+            // 사용자에게만 나는지 모두에게 나는지 구별할 수 없다.
+            'ip' => Request::clientIpFromServer($_SERVER),
             'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
         ]);
     }

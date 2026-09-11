@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Infrastructure\Storage;
 
 use Mublo\Core\ConfigFile;
+use Mublo\Core\Http\Request;
 
 /**
  * SecureFileService
@@ -265,7 +266,10 @@ class SecureFileService
             $payload['f'] = $filename;
         }
 
-        $clientIp = $options['client_ip'] ?? ($_SERVER['REMOTE_ADDR'] ?? null);
+        // **REMOTE_ADDR 을 직접 읽지 않는다** (2026-09-11). 프록시 뒤에서는 그 값이
+        // 모든 사용자에게 같은 엣지 주소라, IP 에 묶어도 묶은 것이 아무것도 아니다 —
+        // 링크가 새면 누구나 쓴다.
+        $clientIp = $options['client_ip'] ?? Request::clientIpFromServer($_SERVER);
         if ($bindIp && is_string($clientIp) && $clientIp !== '') {
             $payload['ip'] = $clientIp;
         }
@@ -305,9 +309,11 @@ class SecureFileService
             return null;
         }
 
-        // IP 바인딩 검증
+        // IP 바인딩 검증 — 발급할 때와 **같은 판정**이어야 한다. 한쪽만 프록시를
+        // 보면 모든 링크가 검증에서 떨어지거나(발급=실제/검증=엣지) 반대로 전부
+        // 통과한다(발급=엣지/검증=엣지).
         if (!empty($payload['ip'])) {
-            $clientIp ??= $_SERVER['REMOTE_ADDR'] ?? '';
+            $clientIp ??= Request::clientIpFromServer($_SERVER);
             if ($payload['ip'] !== $clientIp) {
                 return null;
             }
