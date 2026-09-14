@@ -1042,34 +1042,42 @@ PHP;
         return [
             'config_version' => 1,
             'providers' => [
+                // 여기는 "새 설치본이 처음 보게 될 목록" 이다. 아직 아무 도메인도 모델을 고른 적이
+                // 없으므로 구형 모델을 실어 보낼 이유가 없고, 빼도 깨질 저장값이 없다.
+                //
+                // 반대로 이미 돌고 있는 설치본의 config/ai.php 에서는 함부로 빼면 안 된다 —
+                // DomainAiConfigService::runtimeConfig() 는 저장된 모델이 목록에 없으면
+                // 폴백 없이 예외를 던져 그 도메인의 AI 기능을 세운다. 그 파일은 운영자가 관리하며
+                // 코어가 덮어쓰지 않으므로, 두 목록은 여기서 갈라지는 것이 정상이다.
                 'openai' => [
                     'label' => 'OpenAI',
-                    'default_model' => 'gpt-5.6-terra',
+                    'default_model' => 'gpt-6-astra',
                     'models' => [
-                        'gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.6-sol',
+                        'gpt-6-astra',
+                        'gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.6-luna',
                         'gpt-5.5',
                         'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-nano',
                         'gpt-5.2',
-                        'gpt-5', 'gpt-5-mini', 'gpt-5-nano',
-                        'gpt-4.1', 'gpt-4.1-mini', 'gpt-4o-mini',
                     ],
                 ],
                 'anthropic' => [
                     'label' => 'Anthropic',
-                    'default_model' => 'claude-sonnet-5',
+                    'default_model' => 'claude-opus-5',
                     'models' => [
-                        'claude-sonnet-5', 'claude-opus-4-8', 'claude-fable-5',
-                        'claude-sonnet-4-6', 'claude-opus-4-6',
-                        'claude-sonnet-4-5', 'claude-haiku-4-5',
+                        'claude-opus-5', 'claude-fable-5', 'claude-sonnet-5',
+                        'claude-opus-4-8', 'claude-opus-4-7', 'claude-opus-4-6',
+                        'claude-sonnet-4-6', 'claude-haiku-4-5',
                     ],
                 ],
                 'gemini' => [
                     'label' => 'Google Gemini',
-                    'default_model' => 'gemini-3.5-flash',
+                    'default_model' => 'gemini-3.8-flash',
                     'models' => [
-                        'gemini-3.5-flash', 'gemini-3.1-flash-lite',
-                        'gemini-3.1-pro-preview', 'gemini-3-flash-preview',
-                        'gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.5-flash-lite',
+                        'gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.6-flash',
+                        'gemini-3.5-flash', 'gemini-3.5-flash-lite',
+                        // 3.x 계열에는 아직 정식 Pro 가 없어 프리뷰와 2.5 Pro 를 함께 남긴다.
+                        'gemini-3.1-pro-preview', 'gemini-3.1-flash-lite',
+                        'gemini-2.5-pro',
                     ],
                 ],
             ],

@@ -72,18 +72,18 @@ class DomainAiConfigServiceTest extends TestCase
     public function testSupportedPreviousGenerationModelCanBeSelected(): void
     {
         $stored = [
-            'provider' => 'openai', 'model' => 'gpt-4.1-mini',
+            'provider' => 'openai', 'model' => 'gpt-5.2',
             'encrypted_api_key' => 'ciphertext', 'is_enabled' => 1,
             'daily_request_limit' => 50,
         ];
         $repository = $this->createMock(DomainAiConfigRepository::class);
         $repository->method('findByDomainId')->willReturn($stored);
         $repository->expects($this->once())->method('save')->with(1, $this->callback(
-            fn (array $data): bool => $data['model'] === 'gpt-4.1-mini'
+            fn (array $data): bool => $data['model'] === 'gpt-5.2'
         ));
 
         (new DomainAiConfigService($repository, $this->createMock(EncryptionService::class)))->save(1, [
-            'provider' => 'openai', 'model' => 'gpt-4.1-mini',
+            'provider' => 'openai', 'model' => 'gpt-5.2',
             'api_key' => '', 'is_enabled' => true, 'daily_request_limit' => 50,
         ]);
     }
