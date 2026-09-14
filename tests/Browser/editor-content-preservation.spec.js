@@ -110,5 +110,58 @@ for (const [name, script] of EDITORS) {
         });
       }
     }
+
+    test('저장 시 굵게·글꼴 span 의 빈 껍데기 제거와 병합도 동작한다', async ({ page }) => {
+      // styleWithCSS 상태의 execCommand(굵게 등)와 <font> 변환이 만드는 span 은
+      // color 계열이 아니다 — 서식 판정이 이들을 빠뜨리면 정리가 조용히 멈춘다
+      const r = await page.evaluate(() => {
+        const ed = window.__editor;
+        const probe = (html) => { ed.setHTML(html); return ed.getHTML(); };
+        return {
+          boldShell: probe('<p>a<span style="font-weight: 700;"></span>b</p>'),
+          boldMerge: probe('<p><span style="font-weight: 700;">foo</span><span style="font-weight: 700;">bar</span></p>'),
+          fontMerge: probe('<p><span style="font-family: Arial;">foo</span><span style="font-family: Arial;">bar</span></p>'),
+        };
+      });
+      expect(r.boldShell).toBe('<p>ab</p>');
+      expect(r.boldMerge).toBe('<p><span style="font-weight: 700;">foobar</span></p>');
+      expect(r.fontMerge).toBe('<p><span style="font-family: Arial;">foobar</span></p>');
+    });
+
+    test('여러 텍스트 노드로 쪼개진 빈 서식 span 도 저장 시 정리한다', async ({ page }) => {
+      // extractContents/insertNode 는 빈 텍스트 노드를 남기곤 한다 —
+      // childNodes 가 ['', ZWSP] 여도 합친 내용 기준으로 비어 있으면 지운다
+      const saved = await page.evaluate(() => {
+        const ed = window.__editor;
+        ed.contentArea.innerHTML = '<p>a<span style="color: red;"></span>b</p>';
+        const span = ed.contentArea.querySelector('span');
+        span.appendChild(document.createTextNode(''));
+        span.appendChild(document.createTextNode('\u200b'));
+        return ed.getHTML();
+      });
+      expect(saved).toBe('<p>ab</p>');
+    });
+
+    test('업로드에서 대체 텍스트를 비워 두면 파일명 폴백을 지우지 않는다', async ({ page }) => {
+      await page.evaluate(() => {
+        const ed = window.__editor;
+        ed.setHTML('<p>Hello</p>');
+        ed.focus();
+        ed.setImageUploadHandler(async () => 'https://example.com/upload.png');
+        ed._openImageDialog();
+      });
+      await page.locator('#mublo-editor-image-input').setInputFiles({
+        name: 'original-name.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aXioAAAAASUVORK5CYII=', 'base64'),
+      });
+      await expect(page.locator('#mublo-editor-image-meta')).toBeVisible();
+      // 대체 텍스트는 비워 두고 캡션만 채운다 — 메타 적용이 돌면서도 alt 폴백은 남아야 한다
+      await page.locator('#mublo-editor-image-caption').fill('사진 캡션');
+      await page.locator('#mublo-editor-image-insert').click();
+      const area = page.locator('.mublo-editor-content');
+      await expect(area.locator('img')).toHaveAttribute('alt', 'original-name.png');
+      await expect(area.locator('figure figcaption')).toHaveText('사진 캡션');
+    });
   });
 }

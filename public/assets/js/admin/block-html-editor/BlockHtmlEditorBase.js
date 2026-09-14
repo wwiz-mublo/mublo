@@ -108,6 +108,18 @@ const BlockHtmlEditorBase = (() => {
     const EDITOR_CONTENT_CLASS = 'mublo-editor-content';
     const ZERO_WIDTH = '\u200b';
 
+    // 편집기 자신이 만드는 서식 span 의 인라인 속성 전집 — _applyInlineStyle 의 3종과,
+    // styleWithCSS 상태의 execCommand(굵게·기울임·밑줄·취소선)가 만드는 것,
+    // _normalizeFormattingMarkupOn 의 <font> 변환(font-family)까지다.
+    // _isFormattingSpan 이 이 목록으로 "우리가 만든 span" 을 판정하므로,
+    // 인라인 서식 명령을 더할 때는 여기에도 속성을 더해야 정리가 따라온다.
+    const FORMATTING_STYLE_PROPERTIES = new Set([
+        'color', 'background-color', 'font-size',
+        'font-weight', 'font-style',
+        'text-decoration', 'text-decoration-line',
+        'font-family',
+    ]);
+
     // =========================================================
     // i18n 시스템
     // =========================================================
@@ -1044,10 +1056,14 @@ const BlockHtmlEditorBase = (() => {
                 // DOM 병합으로 span이 사라지거나 뒤의 글자를 흡수해도 선택 끝을 유지한다.
                 const caret = document.createComment('editor-caret');
                 span.appendChild(caret);
-                this._cleanupInlineSpans(span.parentNode);
-                range.setStartBefore(caret);
-                range.collapse(true);
-                caret.remove();
+                try {
+                    this._cleanupInlineSpans(span.parentNode);
+                    range.setStartBefore(caret);
+                    range.collapse(true);
+                } finally {
+                    // 정리 중 무엇이 던져도 마커가 본문에 남아 저장되는 일은 없어야 한다
+                    caret.remove();
+                }
             }
 
             sel.removeAllRanges();
@@ -1147,11 +1163,12 @@ const BlockHtmlEditorBase = (() => {
                 }
                 // 아이콘·앵커·레이아웃 요소는 보존하고 서식 전용 빈 요소만 정리한다.
                 // 커서 복원용 주석이 있는 요소는 복원이 끝날 때까지 유지한다.
-                const empty = el.childNodes.length === 0
-                    || (el.childNodes.length === 1
-                        && el.firstChild.nodeType === Node.TEXT_NODE
-                        && (el.textContent === ''
-                            || (el.textContent === ZERO_WIDTH && !this._containsSelection(el))));
+                // 텍스트 노드가 여러 개로 쪼개져 있어도(extractContents 잔재) 합친 내용으로
+                // 판정한다. 커서 복원용 주석이 든 span 은 TEXT 전용이 아니므로 보존된다.
+                const onlyText = [...el.childNodes].every(node => node.nodeType === Node.TEXT_NODE);
+                const empty = onlyText
+                    && (el.textContent === ''
+                        || (el.textContent === ZERO_WIDTH && !this._containsSelection(el)));
                 if (empty) {
                     el.remove();
                     return;
@@ -1177,10 +1194,20 @@ const BlockHtmlEditorBase = (() => {
 
         // class/id/data/aria 속성이나 레이아웃 CSS가 있으면 독립된 콘텐츠다.
         _isFormattingSpan(el) {
-            return el?.nodeType === Node.ELEMENT_NODE && el.tagName === 'SPAN'
-                && Array.from(el.attributes).every(attr => attr.name === 'style')
-                && Array.from(el.style).every(property =>
-                    ['color', 'background-color', 'font-size'].includes(property));
+            if (el?.nodeType !== Node.ELEMENT_NODE || el.tagName !== 'SPAN') {
+                return false;
+            }
+            // getHTML 마다 모든 span 에 대해 불리는 핫패스 — 배열 할당 없이 검사한다
+            const attrs = el.attributes;
+            if (attrs.length > 1 || (attrs.length === 1 && attrs[0].name !== 'style')) {
+                return false;
+            }
+            for (let i = 0; i < el.style.length; i++) {
+                if (!FORMATTING_STYLE_PROPERTIES.has(el.style[i])) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         _containsSelection(el) {
@@ -1629,7 +1656,6 @@ const BlockHtmlEditorBase = (() => {
 
                 // insertImage는 삽입된 노드를 반환하지 않으므로 전후 이미지 집합을 비교한다.
                 // 링크가 없어도 한 장 삽입 시 입력한 대체 텍스트와 캡션을 적용해야 한다.
-                const singleImage = this._pendingImages.length === 1;
                 const beforeImages = !replaceMode ? this._snapshotImages() : null;
 
                 for (const item of this._pendingImages) {
@@ -1651,10 +1677,18 @@ const BlockHtmlEditorBase = (() => {
                     this._onChange();
                 } else if (beforeImages) {
                     const added = this._imagesAddedSince(beforeImages);
-                    added.forEach(img => {
-                        if (singleImage) this._applyImageMetadata(img, altText, captionText);
-                        if (linkUrl) this._setImageLink(img, linkUrl, linkTarget);
-                    });
+                    // 메타는 실제 삽입 결과가 1장일 때만 입힌다 — insertHTML 이 주변 노드를
+                    // 재생성해 기존 이미지가 added 에 섞이면, 고른 장수 기준 판정은
+                    // 엉뚱한 이미지에 alt·캡션을 찍는다. 실패 방향도 이쪽이 안전하다.
+                    if (added.length === 1) {
+                        const img = added[0];
+                        // 새 삽입에서 빈 alt 는 "입력 안 함" — 업로드가 심은 파일명 폴백을
+                        // 지우지 않는다 (교체 모드는 프리필이 있어 빈 값=해제가 정당)
+                        this._applyImageMetadata(img, altText || img.getAttribute('alt') || '', captionText);
+                    }
+                    if (linkUrl) {
+                        added.forEach(img => this._setImageLink(img, linkUrl, linkTarget));
+                    }
                     if (added.length) this._onChange();
                 }
 
