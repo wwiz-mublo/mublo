@@ -2068,6 +2068,10 @@ const MubloEditor = (() => {
         }
 
         _openImageModal() {
+            // 모달 세대 — 삽입 핸들러가 업로드를 기다리는 사이 모달이 닫히거나 다시
+            // 열리면 세대가 어긋나고, 늦게 도착한 결과는 버려진다
+            this._imageModalSession = (this._imageModalSession || 0) + 1;
+
             // 기존 모달이 있으면 제거
             const existingModal = document.getElementById('mublo-editor-modal');
             if (existingModal) existingModal.remove();
@@ -2211,6 +2215,8 @@ const MubloEditor = (() => {
 
             // 닫기
             const closeModal = () => {
+                // 진행 중인 삽입 핸들러가 이 모달의 결과를 더 적용하지 못하게 세대를 올린다
+                this._imageModalSession = (this._imageModalSession || 0) + 1;
                 modal.classList.add('mublo-editor-modal-closing');
                 setTimeout(() => modal.remove(), 200);
                 this._pendingImages = [];
@@ -2224,6 +2230,8 @@ const MubloEditor = (() => {
             insertBtn.addEventListener('click', async () => {
                 insertBtn.disabled = true;
                 insertBtn.textContent = _t('uploading');
+                // 이 핸들러가 속한 모달 세대 — 업로드 대기 중 닫히면 어긋난다
+                const session = this._imageModalSession;
                 const replaceMode = !!this._replacingImage;
                 const targetImage = this._replacingImage;
                 const altInput = modal.querySelector('#mublo-editor-image-alt');
@@ -2249,13 +2257,27 @@ const MubloEditor = (() => {
 
                 for (const item of this._pendingImages) {
                     if (item.type === 'file') {
-                        await this._handleImageUpload(item.file);
+                        const upload = await this._uploadImageFile(item.file);
+                        // 기다리는 동안 모달이 닫혔으면(취소) 도착한 결과를 버린다 —
+                        // 삽입도, 그 사이 들어갔을지 모르는 교체 모드 덮어쓰기도 없다
+                        if (session !== this._imageModalSession) {
+                            return;
+                        }
+                        if (upload) {
+                            this.insertImage(upload.imageUrl, item.file.name);
+                            this.fire('uploadSuccess', { url: upload.imageUrl, blobInfo: upload.blobInfo });
+                        }
                     } else if (item.type === 'url') {
                         this.insertImage(item.url, altText);
                     }
                     if (replaceMode) {
                         break;
                     }
+                }
+
+                // 위 루프의 검사와 짝 — await 가 하나라도 있었다면 여기서도 유효해야 한다
+                if (session !== this._imageModalSession) {
+                    return;
                 }
 
                 if (replaceMode && targetImage) {
@@ -2433,13 +2455,17 @@ const MubloEditor = (() => {
         // =========================================================
         // 이미지 업로드 처리 (플러그인 지원)
         // =========================================================
-        async _handleImageUpload(file) {
+        /**
+         * 파일 검증과 업로드만 수행하고 { imageUrl, blobInfo } 를 돌려준다 — 삽입은 호출자 몫.
+         * 실패·거부 시 null. 진행률 표시와 uploadStart/uploadError 발화는 여기서 한다.
+         */
+        async _uploadImageFile(file) {
             _activeInstanceLocale = this._locale;
             // 파일 타입 체크
             if (!this.options.allowedImageTypes.includes(file.type)) {
                 this.fire('uploadError', { error: _t('invalidImageType'), file });
                 this._showToast(_t('invalidImageType'), 'error');
-                return;
+                return null;
             }
 
             // 파일 크기는 검사하지 않는다. 허용 크기는 업로드 엔드포인트와 php.ini 가 정하고
@@ -2490,17 +2516,28 @@ const MubloEditor = (() => {
                     });
                 }
 
-                if (imageUrl) {
-                    this.insertImage(imageUrl, file.name);
-                    this.fire('uploadSuccess', { url: imageUrl, blobInfo });
-                }
+                return imageUrl ? { imageUrl, blobInfo } : null;
 
             } catch (error) {
                 console.error('[MubloEditor] Image upload failed:', error);
                 this.fire('uploadError', { error: error.message || error, blobInfo });
                 this._showToast(_t('uploadFailed'), 'error');
+                return null;
             } finally {
                 this._hideProgress();
+            }
+        }
+
+        /**
+         * 붙여넣기·드롭 경로: 업로드가 끝나면 곧바로 본문에 삽입한다.
+         * 모달 삽입 경로는 이 함수를 쓰지 않는다 — 업로드가 돌아온 시점에 모달이
+         * 아직 유효한지(세대) 따져야 해서 _uploadImageFile 을 직접 부른다.
+         */
+        async _handleImageUpload(file) {
+            const upload = await this._uploadImageFile(file);
+            if (upload) {
+                this.insertImage(upload.imageUrl, file.name);
+                this.fire('uploadSuccess', { url: upload.imageUrl, blobInfo: upload.blobInfo });
             }
         }
 
