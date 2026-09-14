@@ -1,19 +1,32 @@
 name: CI
 
-# 문서·이미지만 바뀐 변경은 무거운 검사를 건너뛴다. PHP 3종 × DB 4종 매트릭스가
-# 5분씩 도는데 마크다운은 어떤 테스트도 깨뜨릴 수 없다.
+# 문서·이미지만 바뀐 변경은 무거운 검사를 건너뛴다. 마크다운은 어떤 테스트도
+# 깨뜨릴 수 없다.
 #
 # 다만 pull_request 에는 paths-ignore 를 쓰지 않는다. 워크플로 자체가 건너뛰어지면
 # 체크가 아예 생성되지 않고, 브랜치 보호의 필수 체크(PHP 8.2/8.3/8.4)가 영원히
 # pending 으로 남아 문서만 고치는 PR 은 머지가 불가능해진다. workflow_dispatch 로
 # 수동 실행해도 그 체크 스위트는 PR 에 연결되지 않아 소용이 없다(2026-08-07 #21
-# 에서 확인). 그래서 워크플로는 항상 돌리고, 아래 changes 잡의 판정으로 잡 안의
-# 무거운 스텝만 건너뛴다.
+# 에서 확인). 그래서 워크플로는 항상 돌리고, 아래 changes 잡의 판정으로 무거운
+# 잡을 생략한다. test 잡은 결과를 확인해 기존 필수 체크 이름으로 성공을 보고한다.
 #
 # push 는 필수 체크와 무관하므로 종전처럼 paths-ignore 로 통째로 거른다.
 #
 # 제외 목록은 "실행에 영향이 없는 것" 만 담는다. 예를 들어 .github/workflows 는
 # 넣지 않는다 — CI 자신을 고치는 변경이야말로 검증이 필요하다.
+#
+# main push 는 PR 실행의 복사본이라 PHP 8.2 + static 만 돌린다(DB compatibility
+# 제외, 아래 각 잡의 주석 참고). 머지 1건 컴퓨트 약 19분 → 7.5분.
+#
+# 잡 구성(2026-09-09 실측, PR 1회 기준):
+#   changes                 5초   변경 판정
+#   static                 ~90초  PHPStan 2종. 결과 캐시가 맞으면 ~30초
+#   PHPUnit 8.2/8.3/8.4    ~55초  검사 5종 + PHPUnit(실 DB)
+#   PHP 8.2/8.3/8.4              정적분석·테스트 결과를 합치는 필수 체크
+#   migration-immutability  5초
+#   DB compatibility ×4    ~40초  대부분 컨테이너 기동
+# 병목은 static 또는 PHP 잡이고, 컨테이너 기동·PHP 설치·스케줄링 대기가 바닥이라
+# 벽시계 1분 남짓 아래로는 내려가지 않는다.
 on:
   push:
     branches: [ main ]
@@ -30,6 +43,14 @@ on:
   # 임의 브랜치/커밋을 수동으로 검증할 때 사용한다.
   #   gh workflow run ci.yml --ref <브랜치>
   workflow_dispatch:
+
+# 같은 브랜치에 연달아 push 하면 앞선 실행은 결과가 나와도 쓸 데가 없다. PR 은
+# 이전 실행을 취소한다. main 은 취소하지 않는다 — 머지가 연달아 들어와도 각
+# 커밋의 결과가 이력으로 남아야 어느 커밋에서 깨졌는지 알 수 있다.
+# push·수동 실행은 run_id 로 분리해 대기 중인 실행도 서로 취소하지 않게 한다.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # 이 PR 에 코드가 한 줄이라도 섞였는지 판정한다. pull_request 가 아니면
@@ -71,19 +92,81 @@ jobs:
             echo "→ 문서·이미지 변경뿐, 무거운 검사 생략"
           fi
 
-  # 필수 체크 3종(PHP 8.2/8.3/8.4)이다. 잡 레벨 if 로 건너뛰면 결론이 skipped 가
-  # 되는데, 필수 체크를 skipped 로 두는 것이 통과로 인정되는지는 보호 규칙 설정에
-  # 따라 달라진다. 머지 가능 여부가 걸린 자리라 추측하지 않는다 — 잡은 항상 돌려
-  # success 로 보고하고, 안의 무거운 스텝만 건너뛴다.
-  test:
-    name: PHP ${{ matrix.php }}
+  # PHPStan 은 소스만 읽고 실행하지 않으며, composer.json 의 platform 이 8.2.0 으로
+  # 고정돼 있어 PHP 버전을 바꿔 돌려도 결과가 같다. 그래서 PHP 매트릭스에서 빼
+  # 한 번만 돌린다 — 매트릭스 안에 있을 때는 PHP 잡 시간의 절반 이상이 이 두
+  # 스텝의 중복이었다(잡당 ~75초 × 3).
+  #
+  # 결과 캐시: PHPStan 은 tmpDir 에 파일별 분석 결과를 남기고, 다음 실행에서 바뀐
+  # 파일과 그 의존 파일만 다시 본다. tmpDir 은 phpstan*.neon.dist 가 .cache/ 아래로
+  # 고정한다. 두 설정이 같은 디렉토리를 쓰면 서로의 캐시를 무효화하므로 따로 둔다.
+  # 키에 sha 를 넣어 매번 새로 저장하고, restore-keys 로 가장 최근 것을 받는다.
+  # composer.lock 이나 phpstan 설정이 바뀌면 캐시를 버린다 — PHPStan 자체도 설정
+  # 해시가 다르면 무시하지만, 그 경우 복원 자체가 시간 낭비다.
+  #
+  # 결과는 아래 test 잡의 필수 체크에 반영한다. 문서 변경일 때만 skipped 를 허용한다.
+  static:
+    name: Static analysis
     runs-on: ubuntu-latest
     needs: changes
+    if: needs.changes.outputs.code == 'true'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo, pdo_mysql, mysqli, mbstring, openssl, json, curl, fileinfo, gd, zip, xml, intl
+          coverage: none
+
+      # PHP 8.2 테스트 잡과 같은 키라 vendor 캐시를 공유한다.
+      - name: Cache Composer dependencies
+        uses: actions/cache@v6
+        with:
+          path: vendor
+          key: composer-8.2-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.2-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Cache PHPStan result
+        uses: actions/cache@v6
+        with:
+          path: |
+            .cache/phpstan
+            .cache/phpstan-strict
+          key: phpstan-${{ hashFiles('composer.lock', 'phpstan.neon.dist', 'phpstan-strict.neon.dist') }}-${{ github.sha }}
+          restore-keys: phpstan-${{ hashFiles('composer.lock', 'phpstan.neon.dist', 'phpstan-strict.neon.dist') }}-
+
+      # 정적분석 level 0 — "부르는데 없는" 클래스·인터페이스·메서드를 잡는다.
+      # 오탐 0건이라 베이스라인 없이 게이트로 쓴다. 설정은 phpstan.neon.dist.
+      - name: Run static analysis
+        run: composer analyse
+
+      # 정리가 끝난 범위(코어·Board·Shop·플러그인, 뷰 제외)만 level 3 으로 본다.
+      # level 2 부터 "아무 객체에나 없는 메서드 호출"을 잡는다.
+      - name: Run static analysis (strict scope)
+        run: composer analyse-strict
+
+  # static 과 병렬 실행한다. 문서 변경은 잡 전체를 생략해 DB 도 띄우지 않는다.
+  # 기존 필수 체크 이름은 아래 test 잡이 유지한다.
+  php-tests:
+    name: PHPUnit ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
 
     strategy:
       fail-fast: false
       matrix:
-        php: [ '8.2', '8.3', '8.4' ]
+        # main push 는 PR 에서 방금 통과한 트리를 다시 검사하는 자리다(squash merge
+        # 만 허용, PR 체크는 merge ref 로 돈다). 마지막 PR 실행 뒤 main 이 움직인
+        # 경우만 잡으면 되므로 하한 8.2 하나로 줄인다. PR 과 workflow_dispatch 는
+        # 필수 체크 3종을 그대로 돌린다.
+        php: ${{ fromJSON(github.event_name == 'push' && '["8.2"]' || '["8.2", "8.3", "8.4"]') }}
 
     # 통합 테스트용 DB. 없으면 tests/Integration 은 스킵되므로,
     # 리포지토리 계층의 SQL 이 검증되지 않은 채 통과한다.
@@ -156,17 +239,7 @@ jobs:
         if: needs.changes.outputs.code == 'true'
         run: composer check-strict-types
 
-      # 정적분석 level 0 — "부르는데 없는" 클래스·인터페이스·메서드를 잡는다.
-      # 오탐 0건이라 베이스라인 없이 게이트로 쓴다. 설정은 phpstan.neon.dist.
-      - name: Run static analysis
-        if: needs.changes.outputs.code == 'true'
-        run: composer analyse
-
-      # 정리가 끝난 범위(코어·Board·Shop·플러그인, 뷰 제외)만 level 3 으로 본다.
-      # level 2 부터 "아무 객체에나 없는 메서드 호출"을 잡는다.
-      - name: Run static analysis (strict scope)
-        if: needs.changes.outputs.code == 'true'
-        run: composer analyse-strict
+      # PHPStan 은 위 static 잡에서 한 번만 돈다.
 
       # DB_TEST_* 가 있으면 tests/Integration 이 실 DB 를 태운다(없으면 스킵).
       # 리포지토리·QueryBuilder 의 SQL 은 mock 으로는 검증되지 않는다.
@@ -179,6 +252,42 @@ jobs:
           DB_TEST_USER: root
           DB_TEST_PASS: root
           DB_TEST_NAME: mublo_integration_test
+
+  # 필수 체크 이름을 유지하면서 정적분석과 PHP 매트릭스 전체의 성공을 요구한다.
+  # needs 만 추가하면 실패한 선행 잡 때문에 이 잡도 skipped 가 되어 머지를 허용할
+  # 수 있다. always() 로 실행하고 실패·취소·예상 밖 생략을 명시적으로 실패시킨다.
+  test:
+    name: PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    needs: [changes, static, php-tests]
+    if: always()
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ${{ fromJSON(github.event_name == 'push' && '["8.2"]' || '["8.2", "8.3", "8.4"]') }}
+    steps:
+      - name: Verify required checks
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          CODE_CHANGED: ${{ needs.changes.outputs.code }}
+          STATIC_RESULT: ${{ needs.static.result }}
+          TEST_RESULT: ${{ needs.php-tests.result }}
+        run: |
+          set -euo pipefail
+          printf 'changes=%s code=%s static=%s tests=%s\n' \
+            "$CHANGES_RESULT" "$CODE_CHANGED" "$STATIC_RESULT" "$TEST_RESULT"
+          test "$CHANGES_RESULT" = success
+          case "$CODE_CHANGED" in
+            true)
+              test "$STATIC_RESULT" = success
+              test "$TEST_RESULT" = success
+              ;;
+            false)
+              test "$STATIC_RESULT" = skipped
+              test "$TEST_RESULT" = skipped
+              ;;
+            *) exit 1 ;;
+          esac
 
   # 이미 실행된 마이그레이션 파일을 고치면, 그 파일을 이미 돌린 설치본에서
   # checksum 드리프트가 나고 해당 확장의 활성화가 막힌다. 실제로 주석 한 줄을
@@ -241,7 +350,11 @@ jobs:
     runs-on: ubuntu-latest
     needs: changes
     # 필수 체크가 아니라 skipped 로 남아도 머지를 막지 않는다.
-    if: needs.changes.outputs.code == 'true'
+    # main push 에서는 돌리지 않는다. 마이그레이션은 PR 에서 이미 4종 DB 로
+    # 검증됐고, 그 뒤 main 이 움직였어도 마이그레이션 파일끼리 충돌하면 위 PHP
+    # 잡의 통합 테스트가 먼저 깨진다. 4잡 × ~40초 중 실제 검사는 1~3초고 나머지는
+    # 컨테이너 기동이라, 같은 검사를 두 번 사는 비용이 크다.
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'push'
 
     strategy:
       fail-fast: false
