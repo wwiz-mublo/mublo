@@ -2,7 +2,7 @@ const path = require('path');
 const { test, expect } = require('@playwright/test');
 
 /**
- * MubloEditor 인라인 서식(글자색·배경색·글자크기) 적용 회귀 테스트.
+ * 인라인 서식(글자색·배경색·글자크기) 적용 회귀 테스트.
  *
  * 배경: 색을 적용할 때 기존 서식을 보지 않고 새 span 으로 감싸기만 해서 세 증상이
  * 한꺼번에 났다.
@@ -12,19 +12,27 @@ const { test, expect } = require('@playwright/test');
  *   - 적용 후 캐럿이 span 끝으로 모이고, 그 상태에서 다시 고르면 제로폭 문자만 든
  *     빈 span 이 새로 생겨 누적됐다
  *
- * 이 스펙은 서버도 로그인도 DB 도 쓰지 않는다. 에디터 스크립트만 붙여 DOM 결과를
+ * **두 편집기에 같은 스펙을 돌린다.** 블록 HTML 편집기는 MubloEditor 와 공통 조상을
+ * 가진 별도 아티팩트이고, 그 헤더가 "공통 코어 버그는 양쪽에 함께 수정한다" 고
+ * 규정한다. 실제로 이 수정은 한쪽에만 들어가 있었고 아무도 몰랐다 — 한쪽만 고치면
+ * 여기서 걸리도록 대상을 둘로 둔다. 새 공통 코어 버그의 스펙도 이 형식을 따를 것.
+ *
+ * 이 스펙은 서버도 로그인도 DB 도 쓰지 않는다. 편집기 스크립트만 붙여 DOM 결과를
  * 확인하므로 다른 브라우저 테스트와 달리 환경변수 없이 항상 실행된다.
  */
 
-const EDITOR_JS = path.resolve(__dirname, '../../public/assets/lib/editor/mublo-editor/MubloEditor.js');
-
-test.beforeEach(async ({ page }) => {
-  await page.setContent('<!DOCTYPE html><html><body><div id="ed"></div></body></html>');
-  await page.addScriptTag({ path: EDITOR_JS });
-  await page.evaluate(() => {
-    window.__editor = MubloEditor.create('#ed', { toolbar: 'full' });
-  });
-});
+const EDITORS = [
+  {
+    label: 'MubloEditor',
+    js: path.resolve(__dirname, '../../public/assets/lib/editor/mublo-editor/MubloEditor.js'),
+    global: 'MubloEditor',
+  },
+  {
+    label: 'BlockHtmlEditorBase',
+    js: path.resolve(__dirname, '../../public/assets/js/admin/block-html-editor/BlockHtmlEditorBase.js'),
+    global: 'BlockHtmlEditorBase',
+  },
+];
 
 /**
  * 본문을 초기화하고 첫 단어를 선택한 뒤 서식을 적용한다.
@@ -41,7 +49,7 @@ async function applyToFirstWord(page, { reset = null, command, value, length = 5
 
     const walker = document.createTreeWalker(area, NodeFilter.SHOW_TEXT);
     let node = walker.nextNode();
-    while (node && node.data.replace(/​/g, '').trim().length === 0) {
+    while (node && node.data.replace(/\u200b/g, '').trim().length === 0) {
       node = walker.nextNode();
     }
     if (!node) {
@@ -63,97 +71,112 @@ async function applyToFirstWord(page, { reset = null, command, value, length = 5
   }, { reset, command, value, length });
 }
 
-test('같은 글자에 색을 다시 적용하면 교체된다', async ({ page }) => {
-  await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'foreColor', value: 'red' });
-  const html = await applyToFirstWord(page, { command: 'foreColor', value: 'blue' });
+for (const target of EDITORS) {
+  test.describe(target.label, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setContent('<!DOCTYPE html><html><body><div id="ed"></div></body></html>');
+      await page.addScriptTag({ path: target.js });
+      await page.evaluate((globalName) => {
+        // 편집기는 클래식 스크립트의 최상위 const 라 window 프로퍼티가 아니다.
+        // 전역 렉시컬 환경에서 이름으로 찾아야 한다.
+        const factory = new Function(`return ${globalName}`)();
+        window.__editor = factory.create('#ed', { toolbar: 'full' });
+      }, target.global);
+    });
 
-  // 바깥을 덧씌우면 CSS 상 안쪽이 이겨 화면이 바뀌지 않는다
-  expect(html).toBe('<p><span style="color: blue;">hello</span> world</p>');
-});
+  test('같은 글자에 색을 다시 적용하면 교체된다', async ({ page }) => {
+    await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'foreColor', value: 'red' });
+    const html = await applyToFirstWord(page, { command: 'foreColor', value: 'blue' });
 
-test('색을 여러 번 바꿔도 span 이 쌓이지 않는다', async ({ page }) => {
-  await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'foreColor', value: 'red' });
-  await applyToFirstWord(page, { command: 'foreColor', value: 'blue' });
-  const html = await applyToFirstWord(page, { command: 'foreColor', value: 'green' });
-
-  expect(html).toBe('<p><span style="color: green;">hello</span> world</p>');
-  expect(html.match(/<span/g)).toHaveLength(1);
-});
-
-test('캐럿 상태에서 색만 계속 바꿔도 빈 span 이 누적되지 않는다', async ({ page }) => {
-  const html = await page.evaluate(() => {
-    const editor = window.__editor;
-    editor.contentArea.innerHTML = '<p>hello world</p>';
-
-    const node = editor.contentArea.querySelector('p').firstChild;
-    const range = document.createRange();
-    range.setStart(node, 5);
-    range.collapse(true);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    editor._saveSelection();
-
-    editor._exec('foreColor', 'red');
-    editor._exec('foreColor', 'blue');
-    editor._exec('foreColor', 'green');
-
-    return editor.contentArea.innerHTML;
+    // 바깥을 덧씌우면 CSS 상 안쪽이 이겨 화면이 바뀌지 않는다
+    expect(html).toBe('<p><span style="color: blue;">hello</span> world</p>');
   });
 
-  // 서식 예약용 span 은 하나만 남고, 색은 마지막 선택을 따른다
-  expect(html.match(/<span/g)).toHaveLength(1);
-  expect(html).toContain('color: green;');
-});
+  test('색을 여러 번 바꿔도 span 이 쌓이지 않는다', async ({ page }) => {
+    await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'foreColor', value: 'red' });
+    await applyToFirstWord(page, { command: 'foreColor', value: 'blue' });
+    const html = await applyToFirstWord(page, { command: 'foreColor', value: 'green' });
 
-test('저장본에는 서식 예약용 빈 span 이 남지 않는다', async ({ page }) => {
-  const saved = await page.evaluate(() => {
-    const editor = window.__editor;
-    editor.contentArea.innerHTML = '<p>hello world</p>';
-
-    const node = editor.contentArea.querySelector('p').firstChild;
-    const range = document.createRange();
-    range.setStart(node, 5);
-    range.collapse(true);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    editor._saveSelection();
-
-    editor._exec('foreColor', 'red');
-
-    return editor.getHTML();
+    expect(html).toBe('<p><span style="color: green;">hello</span> world</p>');
+    expect(html.match(/<span/g)).toHaveLength(1);
   });
 
-  // getHTML 은 클론에서 정리한다 — 편집 중 캐럿에는 영향이 없어야 한다
-  expect(saved).not.toContain('​');
-  expect(saved.replace(/\s+/g, ' ')).toContain('hello world');
-});
+  test('캐럿 상태에서 색만 계속 바꿔도 빈 span 이 누적되지 않는다', async ({ page }) => {
+    const html = await page.evaluate(() => {
+      const editor = window.__editor;
+      editor.contentArea.innerHTML = '<p>hello world</p>';
 
-test('글자색과 배경색은 서로를 지우지 않는다', async ({ page }) => {
-  await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'foreColor', value: 'red' });
-  const html = await applyToFirstWord(page, { command: 'hiliteColor', value: 'yellow' });
+      const node = editor.contentArea.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(node, 5);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      editor._saveSelection();
 
-  expect(html).toContain('color: red;');
-  expect(html).toContain('background-color: yellow;');
-});
+      editor._exec('foreColor', 'red');
+      editor._exec('foreColor', 'blue');
+      editor._exec('foreColor', 'green');
 
-test('선택하지 않은 글자의 서식은 건드리지 않는다', async ({ page }) => {
-  // span 이 선택 밖 내용까지 갖고 있으면 조상 정리를 하면 안 된다
-  const html = await applyToFirstWord(page, {
-    reset: '<p><span style="color: red;">hello world</span></p>',
-    command: 'foreColor',
-    value: 'blue',
+      return editor.contentArea.innerHTML;
+    });
+
+    // 서식 예약용 span 은 하나만 남고, 색은 마지막 선택을 따른다
+    expect(html.match(/<span/g)).toHaveLength(1);
+    expect(html).toContain('color: green;');
   });
 
-  expect(html).toContain('color: blue;');
-  expect(html).toContain('color: red;');
-  expect(html).toContain('world');
-});
+  test('저장본에는 서식 예약용 빈 span 이 남지 않는다', async ({ page }) => {
+    const saved = await page.evaluate(() => {
+      const editor = window.__editor;
+      editor.contentArea.innerHTML = '<p>hello world</p>';
 
-test('글자 크기도 같은 규칙으로 교체된다', async ({ page }) => {
-  await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'fontSize', value: '24px' });
-  const html = await applyToFirstWord(page, { command: 'fontSize', value: '32px' });
+      const node = editor.contentArea.querySelector('p').firstChild;
+      const range = document.createRange();
+      range.setStart(node, 5);
+      range.collapse(true);
+      const selection = window.getSelection();
+      selection.removeAllRanges();
+      selection.addRange(range);
+      editor._saveSelection();
 
-  expect(html).toBe('<p><span style="font-size: 32px;">hello</span> world</p>');
-});
+      editor._exec('foreColor', 'red');
+
+      return editor.getHTML();
+    });
+
+    // getHTML 은 클론에서 정리한다 — 편집 중 캐럿에는 영향이 없어야 한다
+    expect(saved).not.toContain('​');
+    expect(saved.replace(/\s+/g, ' ')).toContain('hello world');
+  });
+
+  test('글자색과 배경색은 서로를 지우지 않는다', async ({ page }) => {
+    await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'foreColor', value: 'red' });
+    const html = await applyToFirstWord(page, { command: 'hiliteColor', value: 'yellow' });
+
+    expect(html).toContain('color: red;');
+    expect(html).toContain('background-color: yellow;');
+  });
+
+  test('선택하지 않은 글자의 서식은 건드리지 않는다', async ({ page }) => {
+    // span 이 선택 밖 내용까지 갖고 있으면 조상 정리를 하면 안 된다
+    const html = await applyToFirstWord(page, {
+      reset: '<p><span style="color: red;">hello world</span></p>',
+      command: 'foreColor',
+      value: 'blue',
+    });
+
+    expect(html).toContain('color: blue;');
+    expect(html).toContain('color: red;');
+    expect(html).toContain('world');
+  });
+
+  test('글자 크기도 같은 규칙으로 교체된다', async ({ page }) => {
+    await applyToFirstWord(page, { reset: '<p>hello world</p>', command: 'fontSize', value: '24px' });
+    const html = await applyToFirstWord(page, { command: 'fontSize', value: '32px' });
+
+    expect(html).toBe('<p><span style="font-size: 32px;">hello</span> world</p>');
+  });
+  });
+}
