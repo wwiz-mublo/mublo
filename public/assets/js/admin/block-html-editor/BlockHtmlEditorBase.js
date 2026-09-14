@@ -106,6 +106,7 @@ const BlockHtmlEditorBase = (() => {
     const EDITOR_WRAPPER_CLASS = 'mublo-editor-wrapper';
     const EDITOR_TOOLBAR_CLASS = 'mublo-editor-toolbar';
     const EDITOR_CONTENT_CLASS = 'mublo-editor-content';
+    const ZERO_WIDTH = '\u200b';
 
     // =========================================================
     // i18n 시스템
@@ -750,6 +751,7 @@ const BlockHtmlEditorBase = (() => {
         _buildToolbar() {
             const toolbar = document.createElement('div');
             toolbar.className = EDITOR_TOOLBAR_CLASS;
+            toolbar.setAttribute('role', 'toolbar');
             const items = this.options.toolbarItems || TOOLBAR_PRESETS[this.options.toolbar] || TOOLBAR_PRESETS.full;
 
             items.forEach(name => {
@@ -818,6 +820,7 @@ const BlockHtmlEditorBase = (() => {
             btn.type = 'button';
             btn.className = 'mublo-editor-btn';
             btn.title = def.title;
+            btn.setAttribute('aria-label', def.title || name);
             btn.innerHTML = def.icon;
             btn.dataset.cmd = name;
             btn.addEventListener('click', e => {
@@ -984,6 +987,19 @@ const BlockHtmlEditorBase = (() => {
             this._onChange();
         }
 
+        /**
+         * 선택 영역에 인라인 스타일 적용.
+         *
+         * 새 span 으로 감싸기만 하면 세 가지가 한꺼번에 어긋난다.
+         * - 이미 색이 있는 글자를 다시 칠하면 새 span 이 바깥을 감싸는데,
+         *   CSS 는 안쪽이 이기므로 화면이 바뀌지 않는다
+         * - 감싸기만 하니 중첩이 계속 쌓인다
+         * - 적용 후 캐럿이 span 끝으로 모이고, 그 상태에서 다시 고르면
+         *   제로폭 문자만 든 빈 span 이 새로 생긴다
+         *
+         * 그래서 입히기 전에 선택 안의 같은 속성 선언을 먼저 걷어내고,
+         * 끝난 뒤 빈 span·인접 중복을 정리한다.
+         */
         _applyInlineStyle(property, value) {
             const sel = window.getSelection();
             if (!sel || sel.rangeCount === 0 || !value) {
@@ -995,19 +1011,45 @@ const BlockHtmlEditorBase = (() => {
                 return;
             }
 
-            const span = document.createElement('span');
-            span.style[property] = value;
-
             if (range.collapsed) {
-                span.appendChild(document.createTextNode('\u200b'));
-                range.insertNode(span);
-                range.setStart(span.firstChild, 1);
+                // 이어서 입력할 색을 예약하는 자리. 직전에 만들어 둔 빈 span 안에
+                // 캐럿이 있으면 그것을 다시 쓴다 — 고를 때마다 새로 만들면 쌓인다.
+                const pending = this._findPendingStyleSpan(range.startContainer);
+                const span = pending || document.createElement('span');
+
+                span.style[property] = value;
+
+                if (!pending) {
+                    span.appendChild(document.createTextNode(ZERO_WIDTH));
+                    range.insertNode(span);
+                }
+
+                const textNode = span.firstChild;
+                range.setStart(textNode, textNode.length);
                 range.collapse(true);
             } else {
                 const fragment = range.extractContents();
+                this._stripInlineProperty(fragment, property);
+
+                const span = document.createElement('span');
+                span.style[property] = value;
                 span.appendChild(fragment);
                 range.insertNode(span);
-                range.selectNodeContents(span);
+
+                // 선택이 기존 span 의 내용 전체였다면 그 span 은 껍데기만 남고
+                // 새 span 이 그 안에 들어간다. 바깥 선언이 살아 있으면 안쪽이 이겨
+                // 화면은 바뀌지만 중첩이 계속 쌓인다 — 조상에서도 같은 속성을 걷어낸다.
+                this._stripRedundantAncestors(span, property);
+
+                const parent = span.parentNode;
+                this._cleanupInlineSpans(parent);
+
+                // 정리 과정에서 병합돼 사라졌을 수 있다
+                if (span.isConnected) {
+                    range.selectNodeContents(span);
+                } else {
+                    range.selectNodeContents(parent);
+                }
                 range.collapse(false);
             }
 
@@ -1015,6 +1057,128 @@ const BlockHtmlEditorBase = (() => {
             sel.addRange(range);
             this._saveSelection();
             this._onChange();
+        }
+
+        /**
+         * 캐럿이 "아직 입력되지 않은" 스타일 예약 span 안에 있으면 그 span 을 준다.
+         * 제로폭 문자만 들어 있는 span 이 그 표식이다.
+         */
+        _findPendingStyleSpan(node) {
+            const el = node.nodeType === Node.TEXT_NODE ? node.parentNode : node;
+            if (!el || el.tagName !== 'SPAN' || !this.contentArea.contains(el)) {
+                return null;
+            }
+
+            return el.childNodes.length === 1
+                && el.firstChild.nodeType === Node.TEXT_NODE
+                && el.firstChild.data === ZERO_WIDTH
+                ? el
+                : null;
+        }
+
+        /**
+         * 조각 안의 해당 CSS 속성 선언을 모두 제거한다.
+         * 선언이 사라져 아무 역할이 없어진 span 은 껍데기를 벗긴다.
+         */
+        _stripInlineProperty(root, property) {
+            Array.from(root.querySelectorAll('*')).forEach(el => {
+                if (!el.style || !el.style[property]) {
+                    return;
+                }
+
+                el.style[property] = '';
+
+                if (el.tagName !== 'SPAN') {
+                    return;
+                }
+                if (el.getAttribute('style') === '') {
+                    el.removeAttribute('style');
+                }
+                if (el.attributes.length === 0) {
+                    el.replaceWith(...el.childNodes);
+                }
+            });
+        }
+
+        /**
+         * 새로 만든 span 을 감싸고 있는 조상 span 들에서 같은 속성 선언을 걷어낸다.
+         * 그 span 이 이 자식 말고 실질적인 내용을 더 가지고 있으면 건드리지 않는다 —
+         * 선택하지 않은 글자의 서식까지 바꾸게 된다.
+         */
+        _stripRedundantAncestors(span, property) {
+            let parent = span.parentNode;
+
+            while (parent
+                && parent.nodeType === Node.ELEMENT_NODE
+                && parent.tagName === 'SPAN'
+                && parent !== this.contentArea
+                && this.contentArea.contains(parent)
+            ) {
+                const onlyWrapsThis = parent.textContent === span.textContent;
+                if (!onlyWrapsThis || !parent.style[property]) {
+                    break;
+                }
+
+                parent.style[property] = '';
+                if (parent.getAttribute('style') === '') {
+                    parent.removeAttribute('style');
+                }
+
+                const next = parent.parentNode;
+                if (parent.attributes.length === 0) {
+                    parent.replaceWith(...parent.childNodes);
+                }
+                parent = next;
+            }
+        }
+
+        /**
+         * 빈 span 제거 + 스타일이 같은 인접 span 병합.
+         * 편집을 반복할수록 쌓이는 껍데기를 그때그때 걷어낸다.
+         *
+         * getHTML() 은 라이브 DOM 이 아니라 클론에서 부르므로, 문서 연결 여부가 아니라
+         * 전달받은 root 기준으로 판단해야 한다.
+         */
+        _cleanupInlineSpans(root) {
+            if (!root || root.nodeType !== Node.ELEMENT_NODE) {
+                return;
+            }
+
+            Array.from(root.querySelectorAll('span')).forEach(el => {
+                if (!root.contains(el)) {
+                    return;
+                }
+                // 내용이 아예 없거나 제로폭 문자만 남은 껍데기.
+                // 캐럿이 들어 있는 예약 span 은 편집 중이므로 남긴다.
+                const text = el.textContent;
+                if (el.children.length === 0 && (text === '' || (text === ZERO_WIDTH && !this._containsSelection(el)))) {
+                    el.remove();
+                    return;
+                }
+                // 스타일이 없어진 span 은 껍데기다
+                if (el.attributes.length === 0) {
+                    el.replaceWith(...el.childNodes);
+                }
+            });
+
+            Array.from(root.querySelectorAll('span')).forEach(el => {
+                const next = el.nextSibling;
+                if (!root.contains(el) || !next || next.nodeType !== Node.ELEMENT_NODE) {
+                    return;
+                }
+                if (next.tagName !== 'SPAN' || next.getAttribute('style') !== el.getAttribute('style')) {
+                    return;
+                }
+                while (next.firstChild) {
+                    el.appendChild(next.firstChild);
+                }
+                next.remove();
+            });
+        }
+
+        _containsSelection(el) {
+            const sel = window.getSelection();
+            return sel && sel.rangeCount > 0 && el.contains(sel.getRangeAt(0).startContainer);
         }
 
         _normalizeFormattingMarkup() {
@@ -1086,6 +1250,9 @@ const BlockHtmlEditorBase = (() => {
             const modal = document.createElement('div');
             modal.id = 'mublo-editor-modal';
             modal.className = 'mublo-editor-modal';
+            modal.setAttribute('role', 'dialog');
+            modal.setAttribute('aria-modal', 'true');
+            modal.setAttribute('aria-label', String(title).replace(/<[^>]*>/g, ''));
             modal.innerHTML = `
                 <div class="mublo-editor-modal-backdrop"></div>
                 <div class="mublo-editor-modal-dialog">
@@ -1129,11 +1296,27 @@ const BlockHtmlEditorBase = (() => {
                 });
             }
 
-            // ESC 닫기
+            // ESC 닫기 + Tab 포커스 트랩
             const escHandler = (e) => {
                 if (e.key === 'Escape') {
                     closeModal();
                     document.removeEventListener('keydown', escHandler);
+                    return;
+                }
+                if (e.key === 'Tab' && document.body.contains(modal)) {
+                    const focusables = Array.from(modal.querySelectorAll(
+                        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                    )).filter(el => !el.disabled && el.offsetParent !== null);
+                    if (!focusables.length) return;
+                    const first = focusables[0];
+                    const last = focusables[focusables.length - 1];
+                    if (e.shiftKey && document.activeElement === first) {
+                        e.preventDefault(); last.focus();
+                    } else if (!e.shiftKey && document.activeElement === last) {
+                        e.preventDefault(); first.focus();
+                    } else if (!modal.contains(document.activeElement)) {
+                        e.preventDefault(); first.focus();
+                    }
                 }
             };
             document.addEventListener('keydown', escHandler);
@@ -2798,6 +2981,9 @@ const BlockHtmlEditorBase = (() => {
                 // 클론에서 normalize 수행 — 라이브 DOM을 건드리지 않아 커서 보호
                 const clone = this.contentArea.cloneNode(true);
                 this._normalizeFormattingMarkupOn(clone);
+                // 서식 예약용 빈 span 과 인접 중복은 저장본에 남기지 않는다.
+                // 클론이라 편집 중인 캐럿에는 영향이 없다.
+                this._cleanupInlineSpans(clone);
                 html = clone.innerHTML;
             }
             html = this._formatHTML(convertCodeShortcodesToHtml(html));
