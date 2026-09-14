@@ -1630,16 +1630,13 @@ const MubloEditor = (() => {
                 // 화면은 바뀌지만 중첩이 계속 쌓인다 — 조상에서도 같은 속성을 걷어낸다.
                 this._stripRedundantAncestors(span, property);
 
-                const parent = span.parentNode;
-                this._cleanupInlineSpans(parent);
-
-                // \uc815\ub9ac \uacfc\uc815\uc5d0\uc11c \ubcd1\ud569\ub3fc \uc0ac\ub77c\uc84c\uc744 \uc218 \uc788\ub2e4
-                if (span.isConnected) {
-                    range.selectNodeContents(span);
-                } else {
-                    range.selectNodeContents(parent);
-                }
-                range.collapse(false);
+                // DOM 병합으로 span이 사라지거나 뒤의 글자를 흡수해도 선택 끝을 유지한다.
+                const caret = document.createComment('editor-caret');
+                span.appendChild(caret);
+                this._cleanupInlineSpans(span.parentNode);
+                range.setStartBefore(caret);
+                range.collapse(true);
+                caret.remove();
             }
 
             sel.removeAllRanges();
@@ -1734,35 +1731,45 @@ const MubloEditor = (() => {
             }
 
             Array.from(root.querySelectorAll('span')).forEach(el => {
-                if (!root.contains(el)) {
+                if (!root.contains(el) || !this._isFormattingSpan(el)) {
                     return;
                 }
-                // \ub0b4\uc6a9\uc774 \uc544\uc608 \uc5c6\uac70\ub098 \uc81c\ub85c\ud3ed \ubb38\uc790\ub9cc \ub0a8\uc740 \uaecd\ub370\uae30.
-                // \uce90\ub7ff\uc774 \ub4e4\uc5b4 \uc788\ub294 \uc608\uc57d span \uc740 \ud3b8\uc9d1 \uc911\uc774\ubbc0\ub85c \ub0a8\uae34\ub2e4.
-                const text = el.textContent;
-                if (el.children.length === 0 && (text === '' || (text === ZERO_WIDTH && !this._containsSelection(el)))) {
+                // 아이콘·앵커·레이아웃 요소는 보존하고 서식 전용 빈 요소만 정리한다.
+                // 커서 복원용 주석이 있는 요소는 복원이 끝날 때까지 유지한다.
+                const empty = el.childNodes.length === 0
+                    || (el.childNodes.length === 1
+                        && el.firstChild.nodeType === Node.TEXT_NODE
+                        && (el.textContent === ''
+                            || (el.textContent === ZERO_WIDTH && !this._containsSelection(el))));
+                if (empty) {
                     el.remove();
                     return;
                 }
-                // \uc2a4\ud0c0\uc77c\uc774 \uc5c6\uc5b4\uc9c4 span \uc740 \uaecd\ub370\uae30\ub2e4
                 if (el.attributes.length === 0) {
                     el.replaceWith(...el.childNodes);
                 }
             });
 
             Array.from(root.querySelectorAll('span')).forEach(el => {
-                const next = el.nextSibling;
-                if (!root.contains(el) || !next || next.nodeType !== Node.ELEMENT_NODE) {
+                if (!root.contains(el) || !this._isFormattingSpan(el)) {
                     return;
                 }
-                if (next.tagName !== 'SPAN' || next.getAttribute('style') !== el.getAttribute('style')) {
-                    return;
+                let next = el.nextSibling;
+                while (this._isFormattingSpan(next)
+                    && next.getAttribute('style') === el.getAttribute('style')) {
+                    el.append(...next.childNodes);
+                    next.remove();
+                    next = el.nextSibling;
                 }
-                while (next.firstChild) {
-                    el.appendChild(next.firstChild);
-                }
-                next.remove();
             });
+        }
+
+        // class/id/data/aria 속성이나 레이아웃 CSS가 있으면 독립된 콘텐츠다.
+        _isFormattingSpan(el) {
+            return el?.nodeType === Node.ELEMENT_NODE && el.tagName === 'SPAN'
+                && Array.from(el.attributes).every(attr => attr.name === 'style')
+                && Array.from(el.style).every(property =>
+                    ['color', 'background-color', 'font-size'].includes(property));
         }
 
         _containsSelection(el) {
@@ -2209,9 +2216,10 @@ const MubloEditor = (() => {
                     return;
                 }
 
-                // 신규 삽입 이미지에 링크를 걸려면 삽입 전후 스냅샷 비교가 필요하다
-                // (insertImage는 insertContent 경유라 삽입된 노드를 돌려주지 않음)
-                const beforeImages = (!replaceMode && linkUrl) ? this._snapshotImages() : null;
+                // insertImage는 삽입된 노드를 반환하지 않으므로 전후 이미지 집합을 비교한다.
+                // 링크가 없어도 한 장 삽입 시 입력한 대체 텍스트와 캡션을 적용해야 한다.
+                const singleImage = this._pendingImages.length === 1;
+                const beforeImages = !replaceMode ? this._snapshotImages() : null;
 
                 for (const item of this._pendingImages) {
                     if (item.type === 'file') {
@@ -2232,7 +2240,10 @@ const MubloEditor = (() => {
                     this._onChange();
                 } else if (beforeImages) {
                     const added = this._imagesAddedSince(beforeImages);
-                    added.forEach(img => this._setImageLink(img, linkUrl, linkTarget));
+                    added.forEach(img => {
+                        if (singleImage) this._applyImageMetadata(img, altText, captionText);
+                        if (linkUrl) this._setImageLink(img, linkUrl, linkTarget);
+                    });
                     if (added.length) this._onChange();
                 }
 
