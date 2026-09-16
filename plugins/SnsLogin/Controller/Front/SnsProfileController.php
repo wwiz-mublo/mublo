@@ -124,6 +124,9 @@ class SnsProfileController
 
         $this->loginService->linkAccount($memberId, $domainId, $userInfo, $tokenData);
 
+        // 회원·추가 필드·SNS 연결이 모두 저장된 뒤에 가입을 알린다(바로 가입 경로와 동일).
+        $this->memberAccounts->notifyRegistered($memberId);
+
         if (!$this->authenticator->loginByMemberId($memberId, $request->getClientIp())) {
             return JsonResponse::error('생성된 계정으로 로그인할 수 없습니다.');
         }

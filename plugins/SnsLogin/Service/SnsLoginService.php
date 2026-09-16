@@ -182,6 +182,10 @@ class SnsLoginService
             return Result::failure('사용 가능한 닉네임을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.');
         }
 
+        // 회원 생성 트랜잭션이 커밋된 뒤에 가입을 알린다. 코어의 정식 가입 경로가 발행하는
+        // 이벤트와 같아서 가입 포인트·가입 쿠폰 같은 확장점이 SNS 가입에도 동작한다.
+        $this->memberAccounts->notifyRegistered($memberId);
+
         if (!$this->authenticator->loginByMemberId($memberId, $ipAddress)) {
             return Result::failure('생성된 계정으로 로그인할 수 없습니다.');
         }

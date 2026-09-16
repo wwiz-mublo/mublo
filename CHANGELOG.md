@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **SnsLogin: SNS로 가입한 회원에게 가입 포인트가 지급되지 않던 것을 고쳤습니다.** 정식 회원가입은 커밋 뒤 `MemberRegisteredByUserEvent` 를 발행하는데, SNS 바로 가입과 프로필 완성 가입은 코어 계약 `MemberAccountGatewayInterface::create()` 로 행만 만들고 이 이벤트를 발행하지 않았습니다. 그래서 MemberPoint 의 가입 보너스뿐 아니라 Shop 의 가입 쿠폰 자동 발급도 SNS 회원에게는 한 번도 동작하지 않았습니다. 계약에 `notifyRegistered(int $memberId)` 를 더해 코어가 같은 이벤트를 발행하고, SnsLogin 은 회원 생성 트랜잭션이 커밋된 뒤 두 가입 경로 모두에서 이를 호출합니다. 리스너 실패는 정식 가입과 같이 로그로만 남기고 로그인은 막지 않습니다. **이미 SNS로 가입한 회원은 소급 지급되지 않습니다** — MemberPoint 의 가입 지급은 `mp_signup_{도메인}_{회원}` 멱등키를 쓰므로 운영자가 대상 회원에 대해 `awardSignup` 을 한 번씩 호출하는 일회성 스크립트로 안전하게 보전할 수 있습니다
+
 ## [1.5.1] - 2026-09-16
 
 ### Fixed
