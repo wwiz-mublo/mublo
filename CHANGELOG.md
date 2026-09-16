@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-09-16
+
 ### Fixed
 - **AI 설정: 신규 설치의 모델 목록이 낡아 현행 주력 모델을 고를 수 없던 것을 고쳤습니다.** 관리자 화면의 모델 선택은 `config/ai.php` 의 목록에서만 채워지는데(운영자가 임의로 적어 넣을 수 없습니다), 설치 기본값이 낡아 Anthropic 의 `claude-opus-5`, OpenAI 의 `gpt-6-astra`, Gemini 의 `gemini-3.8-flash` 계열이 선택지에 없었습니다. 세 공급자 모두 최신 모델을 싣고 역량 순으로 정렬했으며, 기본값도 각 공급자의 최신 주력으로 바꿨습니다. 구형도 함께 덜어냈습니다 — 제공사가 2026-12-11 제거를 예고한 `gpt-5`·`gpt-5-mini`·`gpt-5-nano` 와 두 세대 전인 `gpt-4.1` 계열, `claude-sonnet-4-5`, 정식 모델로 대체된 `gemini-3-flash-preview` 와 2.5 Flash 계열입니다. **새로 설치하는 사이트에만 적용됩니다** — `config/ai.php` 는 설치 때 한 번 생성된 뒤 코어 업데이트가 덮어쓰지 않는 운영자 관리 파일이라, 이미 돌고 있는 사이트에서 새 모델을 쓰려면 운영자가 그 파일의 목록에 직접 더해야 합니다. 반대로 쓰던 모델을 목록에서 지우는 것은 권하지 않습니다 — 그 모델로 저장된 도메인은 AI 기능이 폴백 없이 멈춥니다(`DomainAiConfigService::runtimeConfig`)
 - **편집기: 이미지 업로드가 진행되는 동안 모달을 닫으면(ESC·배경 클릭) 그 업로드는 취소로 처리됩니다.** 종전에는 닫아도 진행 중인 업로드가 취소되지 않아, 몇 초 뒤 업로드가 끝나면 취소한 이미지가 본문에 그대로 삽입됐습니다. 더 나쁜 경우로, 그 사이 다른 이미지를 더블클릭해 교체 모드에 들어가 있으면 **취소했던 업로드가 그 무관한 이미지를 덮어썼습니다.** 느린 네트워크에서 충분히 겪을 수 있는 타이밍입니다. 이제 모달이 닫히면 뒤늦게 도착한 결과는 버려집니다. 두 편집기(머블로 에디터·블록 HTML 편집기) 모두 적용됩니다
@@ -241,7 +243,8 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/wwiz-mublo/mublo/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/wwiz-mublo/mublo/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/wwiz-mublo/mublo/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/wwiz-mublo/mublo/compare/v1.2.0...v1.3.0
