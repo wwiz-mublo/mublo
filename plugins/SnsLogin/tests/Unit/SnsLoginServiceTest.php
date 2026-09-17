@@ -32,22 +32,17 @@ class SnsLoginServiceTest extends TestCase
         $memberRepository->method('nicknameExists')->with(7, $nickname, true)->willReturn(false);
         $memberRepository->expects($this->once())
             ->method('create')
-            ->willReturnCallback(function (MemberRegistrationRequest $data) use (&$capturedMember, $database): int {
-                $this->assertTrue($database->inTransaction());
+            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use (&$capturedMember, $database): int {
                 $capturedMember = $data;
-                return 321;
+                return $database->transaction(function () use ($persistRelated): int {
+                    $persistRelated(321);
+                    return 321;
+                });
             });
         $accountRepository->expects($this->once())
             ->method('create')
             ->willReturnCallback(function () use ($database): void {
                 $this->assertTrue($database->inTransaction());
-            });
-        $memberRepository->expects($this->once())
-            ->method('notifyRegistered')
-            ->with(321)
-            ->willReturnCallback(function () use ($database): void {
-                // 가입 이벤트는 회원 생성 트랜잭션이 커밋된 뒤에 알린다.
-                $this->assertFalse($database->inTransaction());
             });
         $authenticator->expects($this->once())->method('loginByMemberId')->with(321, '127.0.0.1')->willReturn(true);
 
@@ -77,13 +72,14 @@ class SnsLoginServiceTest extends TestCase
         $memberRepository->method('nicknameExists')->willReturn(false);
         $memberRepository->expects($this->exactly(2))
             ->method('create')
-            ->willReturnCallback(function (MemberRegistrationRequest $data) use (&$createCalls): int {
+            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use (&$createCalls): int {
                 $createCalls++;
                 if ($createCalls === 1) {
                     throw new DatabaseException("Duplicate entry '{$data->nickname}' for key 'uk_domain_nickname'");
                 }
 
                 $this->assertSame('다정한달빛고래', $data->nickname);
+                $persistRelated(654);
                 return 654;
             });
         $accountRepository->expects($this->once())->method('create');
@@ -102,7 +98,6 @@ class SnsLoginServiceTest extends TestCase
         $generator->expects($this->exactly(20))->method('generate')->willReturn('고요한별빛수달');
         $memberRepository->method('nicknameExists')->willReturn(true);
         $memberRepository->expects($this->never())->method('create');
-        $memberRepository->expects($this->never())->method('notifyRegistered');
         $accountRepository->expects($this->never())->method('create');
         $authenticator->expects($this->never())->method('loginByMemberId');
 
@@ -135,9 +130,11 @@ class SnsLoginServiceTest extends TestCase
         $memberRepository->method('nicknameExists')->willReturn(false);
         $memberRepository->expects($this->once())
             ->method('create')
-            ->willReturnCallback(function () use ($database): int {
-                $this->assertTrue($database->inTransaction());
-                return 321;
+            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use ($database): int {
+                return $database->transaction(function () use ($persistRelated): int {
+                    $persistRelated(321);
+                    return 321;
+                });
             });
         $accountRepository->expects($this->once())
             ->method('create')
@@ -145,8 +142,6 @@ class SnsLoginServiceTest extends TestCase
                 "Duplicate entry '7-kakao-provider-user-123' for key 'uk_provider_uid'"
             ));
         $memberRepository->expects($this->once())->method('findProfile')->with(777)->willReturn($member);
-        // 패배한 트랜잭션은 롤백됐으므로 새 가입으로 알리지 않는다.
-        $memberRepository->expects($this->never())->method('notifyRegistered');
         $authenticator->expects($this->once())->method('loginByMemberId')->with(777, null)->willReturn(true);
 
         $result = $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token']);
@@ -162,12 +157,13 @@ class SnsLoginServiceTest extends TestCase
 
         $generator->method('generate')->willReturn('고요한별빛수달');
         $memberRepository->method('nicknameExists')->willReturn(false);
-        $memberRepository->method('create')->willReturnCallback(function () use ($database): int {
-            $this->assertTrue($database->inTransaction());
-            return 321;
+        $memberRepository->method('create')->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use ($database): int {
+            return $database->transaction(function () use ($persistRelated): int {
+                $persistRelated(321);
+                return 321;
+            });
         });
         $accountRepository->method('create')->willThrowException(new \RuntimeException('link failed'));
-        $memberRepository->expects($this->never())->method('notifyRegistered');
 
         try {
             $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token']);
@@ -194,7 +190,6 @@ class SnsLoginServiceTest extends TestCase
         ));
         $memberRepository->method('findProfile')->with(500)->willReturn(new MemberProfile(500, 7, 'old', null, 1, true));
         $memberRepository->expects($this->never())->method('create');
-        $memberRepository->expects($this->never())->method('notifyRegistered');
         $authenticator->method('loginByMemberId')->willReturn(true);
 
         $result = $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token']);
@@ -250,7 +245,6 @@ class SnsLoginServiceTest extends TestCase
                 $accountRepository,
                 $memberRepository,
                 $memberRepository,
-                $database,
                 $authenticator,
                 $configService,
                 $session,

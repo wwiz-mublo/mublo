@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Mublo\Service\Member;
 
+use Mublo\Contract\Member\MemberRegistrationRequest;
 use Mublo\Repository\Member\MemberRepository;
 use Mublo\Repository\Member\MemberFieldRepository;
 use Mublo\Repository\Member\MemberLevelRepository;
@@ -942,7 +943,7 @@ class MemberService
         $nickname = trim((string) ($data['nickname'] ?? ''));
 
         try {
-            $memberId = $this->memberRepository->getDb()->transaction(function () use ($data, $hashedPassword, $nickname, $levelValue) {
+            $memberId = $this->completeRegistration(function () use ($data, $hashedPassword, $nickname, $levelValue) {
                 $insertData = [
                     'domain_id' => $data['domain_id'],
                     // 최초 가입 도메인 = 현재 가입 도메인(불변). 이후 사이트 개설로 domain_id가
@@ -990,7 +991,7 @@ class MemberService
                 }
 
                 return $memberId;
-            });
+            }, $pluginData);
         } catch (DuplicateFieldValueException $e) {
             // 검증 통과 후 INSERT 경합 — 사용자에게 필드 중복 안내 (시스템 오류 아님)
             return Result::failure($e->getMessage());
@@ -1000,8 +1001,56 @@ class MemberService
             return Result::failure('회원가입에 실패했습니다.', ['_system' => true]);
         }
 
+        return Result::success('회원가입이 완료되었습니다.', ['member_id' => $memberId]);
+    }
+
+    /**
+     * 신뢰 확장의 가입 요청도 일반 가입과 같은 커밋·완료 절차를 거친다.
+     * 인증 및 입력 검증은 확장 경로에서 수행하며, 확장은 저장에만 참여한다.
+     * @param null|callable(int): void $persistRelated
+     */
+    public function registerAccount(MemberRegistrationRequest $request, ?callable $persistRelated = null): int
+    {
+        return $this->completeRegistration(function () use ($request, $persistRelated): int {
+            $now = date('Y-m-d H:i:s');
+            $memberId = $this->memberRepository->create([
+                'domain_id' => $request->domainId,
+                'origin_domain_id' => $request->originDomainId ?? $request->domainId,
+                'domain_group' => $request->domainGroup,
+                'user_id' => $request->userId,
+                'password' => $request->passwordHash,
+                'nickname' => $request->nickname,
+                'level_value' => $request->levelValue,
+                'status' => 'active',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+
+            if (!$memberId) {
+                throw new \RuntimeException('회원 생성 실패');
+            }
+            if ($persistRelated !== null) {
+                $persistRelated((int) $memberId);
+            }
+            return (int) $memberId;
+        });
+    }
+
+    /**
+     * 가입의 트랜잭션 경계와 완료 이벤트를 한 곳에서 관리한다.
+     * @param callable(): int $persist
+     * @param array<string, array> $pluginData
+     */
+    private function completeRegistration(callable $persist, array $pluginData = []): int
+    {
+        $db = $this->memberRepository->getDb();
+        if ($db->inTransaction()) {
+            throw new \LogicException('회원 가입은 코어가 소유한 트랜잭션에서 실행해야 합니다.');
+        }
+        $memberId = $db->transaction($persist);
+
         // 커밋이 끝난 시점부터 가입은 성립한다. 아래 사후 처리는 그 사실을 뒤집지 못하므로
-        // 가입 트랜잭션의 catch 안에 두지 않는다 — 리스너 하나가 터졌다고 "가입 실패"를
+        // 저장과 별도로 예외를 처리한다 — 리스너 하나가 터졌다고 "가입 실패"를
         // 돌려주면 사용자는 이미 만들어진 계정을 두고 재시도해 아이디 중복을 만난다.
         // (개발 환경뿐 아니라 운영에서도 재현된다: EventDispatcher 는 \Error 와
         //  FailFastEventInterface 예외를 환경과 무관하게 재throw 한다.)
@@ -1019,7 +1068,7 @@ class MemberService
                 . ' ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         }
 
-        return Result::success('회원가입이 완료되었습니다.', ['member_id' => $memberId]);
+        return $memberId;
     }
 
     /**

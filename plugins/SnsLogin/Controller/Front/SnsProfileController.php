@@ -91,24 +91,6 @@ class SnsProfileController
         $userId = 'sns_' . $pending['provider'] . '_' . substr($pending['uid'], 0, 8)
                 . '_' . substr(bin2hex(random_bytes(2)), 0, 4);
 
-        $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
-            domainId: $domainId,
-            userId: $userId,
-            passwordHash: password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT),
-            nickname: $nickname,
-            domainGroup: $context->getDomainGroup(),
-        ));
-
-        if (!$memberId) {
-            return JsonResponse::error('가입 처리 중 오류가 발생했습니다.');
-        }
-
-        // 추가 필드 저장 (프론트 경로 — 현재 도메인의 비관리자 필드만 허용)
-        $fields = $formData['fields'] ?? [];
-        if (!empty($fields)) {
-            $this->memberAccounts->saveCustomFields($memberId, $domainId, $fields);
-        }
-
         $userInfo  = new SnsUserInfo(
             provider:     $pending['provider'],
             uid:          $pending['uid'],
@@ -122,10 +104,29 @@ class SnsProfileController
             'expires_in'    => $pending['expires_in'],
         ];
 
-        $this->loginService->linkAccount($memberId, $domainId, $userInfo, $tokenData);
+        try {
+            $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
+                domainId: $domainId,
+                userId: $userId,
+                passwordHash: password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT),
+                nickname: $nickname,
+                domainGroup: $context->getDomainGroup(),
+            ), function (int $memberId) use ($domainId, $fields, $userInfo, $tokenData): void {
+                if (!empty($fields)) {
+                    $this->memberAccounts->saveCustomFields($memberId, $domainId, $fields);
+                }
+                $this->loginService->linkAccount($memberId, $domainId, $userInfo, $tokenData);
+            });
+        } catch (\Throwable $e) {
+            error_log('[SnsProfileController::store] ' . $e->getMessage());
+            $this->loginService->setPendingSession($pending);
+            return JsonResponse::error('가입 처리 중 오류가 발생했습니다.');
+        }
 
-        // 회원·추가 필드·SNS 연결이 모두 저장된 뒤에 가입을 알린다(바로 가입 경로와 동일).
-        $this->memberAccounts->notifyRegistered($memberId);
+        if (!$memberId) {
+            $this->loginService->setPendingSession($pending);
+            return JsonResponse::error('가입 처리 중 오류가 발생했습니다.');
+        }
 
         if (!$this->authenticator->loginByMemberId($memberId, $request->getClientIp())) {
             return JsonResponse::error('생성된 계정으로 로그인할 수 없습니다.');

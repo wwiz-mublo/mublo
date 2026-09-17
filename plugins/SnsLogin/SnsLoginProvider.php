@@ -96,7 +96,6 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(SnsAccountRepository::class),
                 $c->get(MemberAccountGatewayInterface::class),
                 $c->get(MemberQueryInterface::class),
-                $c->get(Database::class),
                 $c->get(MemberAuthenticatorInterface::class),
                 $c->get(SnsLoginConfigService::class),
                 $c->get(SessionInterface::class),
