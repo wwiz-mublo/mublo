@@ -357,6 +357,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Member\MemberAccountGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Auth\ReauthenticationInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Auth\ReauthenticationService::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Member\MemberLevelCatalogInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Member\MemberLevelCatalog::class)
         );

@@ -10,6 +10,7 @@ use Mublo\Service\Mypage\MypageMenuBuilder;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
+use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Service\CustomField\CustomFieldFileHandler;
 use Mublo\Infrastructure\Storage\SecureFileService;
@@ -48,6 +49,7 @@ class MypageController
         private EventDispatcher        $eventDispatcher,
         private SessionInterface       $session,
         private MypageMenuBuilder      $menuBuilder,
+        private ReauthenticationInterface $reauthentication,
         private ?MemberFieldService    $fieldService = null,
         private ?SecureFileService      $secureFileService = null,
         private ?FileUploader           $fileUploader = null,
@@ -117,10 +119,18 @@ class MypageController
 
         $newPassword = $request->post('new_password', '');
         if (!empty($newPassword)) {
-            // 현재 비밀번호 재확인 — 세션 탈취·미인증 단말에서 비밀번호 재설정으로 계정을
-            // 영구 장악하는 것을 막는다(탈퇴가 비밀번호를 요구하는 것과 대칭).
+            // 본인 재확인 — 세션 탈취·미인증 단말에서 비밀번호 재설정으로 계정을
+            // 영구 장악하는 것을 막는다(탈퇴가 본인 확인을 요구하는 것과 대칭).
+            // 현재 비밀번호 입력은 확인 수단의 하나이며, 확인에 성공하면 그 사실이
+            // 잠시 남아 이어지는 민감한 작업에서 다시 묻지 않는다.
             $currentPassword = $request->post('current_password', '');
-            if (!$this->memberService->verifyPassword($user['member_id'], $currentPassword)) {
+            if ($currentPassword !== ''
+                && $this->memberService->verifyPassword($user['member_id'], $currentPassword)
+            ) {
+                $this->reauthentication->confirm($user['member_id']);
+            }
+
+            if (!$this->reauthentication->isConfirmed($user['member_id'])) {
                 $message = '현재 비밀번호가 일치하지 않습니다.';
                 return $request->isAjax()
                     ? JsonResponse::error($message)
