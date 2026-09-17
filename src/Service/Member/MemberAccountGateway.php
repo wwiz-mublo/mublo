@@ -7,6 +7,7 @@ use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberProfile;
 use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
+use Mublo\Entity\Member\Member;
 use Mublo\Core\Result\Result;
 use Mublo\Repository\Member\MemberRepository;
 
@@ -31,6 +32,13 @@ final class MemberAccountGateway implements MemberAccountGatewayInterface
     public function create(MemberRegistrationRequest $request, ?callable $persistRelated = null): int
     {
         return $this->memberService->registerAccount($request, $persistRelated);
+    }
+
+    public function hasLocalPassword(int $memberId): bool
+    {
+        $member = $this->members->find($memberId);
+
+        return $member instanceof Member && $member->getPassword() !== '';
     }
 
     public function verifyCredentials(int $domainId, string $userId, string $password): ?MemberProfile

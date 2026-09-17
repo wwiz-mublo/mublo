@@ -281,24 +281,45 @@ class MypageController
             return $this->processWithdraw($request, $context);
         }
 
-        return $this->mypageView('Withdraw', 'withdraw', $context);
+        $user = $this->authService->user();
+        $confirmed = $this->reauthentication->isConfirmed((int) $user['member_id']);
+        $optionsEvent = $this->eventDispatcher->dispatch(new ReauthenticationOptionsRenderingEvent(
+            (int) $user['member_id'],
+            $confirmed,
+            $context,
+        ));
+
+        return $this->mypageView('Withdraw', 'withdraw', $context, [
+            'reauthConfirmed' => $confirmed,
+            'reauthOptions'   => $optionsEvent->getHtmlSorted(),
+        ]);
     }
 
     private function processWithdraw(Request $request, Context $context): JsonResponse|RedirectResponse
     {
         $user     = $this->authService->user();
+        $memberId = (int) $user['member_id'];
         // 마이페이지 뷰는 평면 필드로 전송한다(updateProfile 과 동일 계약).
         $password = (string) $request->post('password', '');
         $reason   = trim((string) $request->post('reason', ''));
 
-        if (empty($password)) {
-            if ($request->isAjax()) {
-                return JsonResponse::error('비밀번호를 입력해주세요.');
-            }
-            return RedirectResponse::back();
+        // 비밀번호는 본인 확인 수단의 하나다. 입력했다면 그것으로 확인하고, 이미 다른
+        // 수단으로 확인을 마쳤다면(SNS 재인증 등) 다시 묻지 않는다.
+        if ($password !== '' && $this->memberService->verifyPassword($memberId, $password)) {
+            $this->reauthentication->confirm($memberId);
         }
 
-        $result = $this->memberService->withdraw($user['member_id'], $password, $reason);
+        if (!$this->reauthentication->isConfirmed($memberId)) {
+            $message = $password !== ''
+                ? '비밀번호가 일치하지 않습니다.'
+                : '본인 확인이 필요합니다.';
+
+            return $request->isAjax()
+                ? JsonResponse::error($message)
+                : RedirectResponse::back();
+        }
+
+        $result = $this->memberService->withdraw($memberId, $reason);
 
         if ($request->isAjax()) {
             if ($result->isSuccess()) {
