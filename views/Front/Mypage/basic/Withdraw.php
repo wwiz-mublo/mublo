@@ -112,8 +112,41 @@ document.getElementById('btn-withdraw').addEventListener('click', function() {
                     location.href = (data.data && data.data.redirect) || '/';
                 }
             });
-        }).catch(function() {
-            // 에러는 MubloRequest가 이미 alert 처리함
+        }).catch(function(error) {
+            // MubloRequest 가 띄우는 알림창은 그대로 둔다(주의를 끄는 역할). 다만 차단
+            // 사유에는 주문번호가 여러 개 들어가는데, 알림창은 닫으면 사라지고 복사도
+            // 어렵다. 그 번호를 들고 주문 내역으로 가야 하는 사람을 위해 화면에도 남긴다.
+            //
+            // 서버는 첫 줄에 상황을, 그 아래 줄마다 주문 한 건을 담아 보낸다. 알림창은
+            // 가운데 정렬이라 개행만으로 충분하지만, 여기서는 목록으로 그린다.
+            var reason = (error && error.message) ? error.message : '';
+            if (!reason) {
+                return;
+            }
+
+            var lines   = reason.split('\n');
+            var summary = lines.shift();
+
+            msgEl.textContent = '';
+
+            var paragraph = document.createElement('p');
+            paragraph.className = 'withdraw-block__summary';
+            paragraph.textContent = summary;
+            msgEl.appendChild(paragraph);
+
+            if (lines.length) {
+                var list = document.createElement('ul');
+                list.className = 'withdraw-block__orders';
+                lines.forEach(function(line) {
+                    var item = document.createElement('li');
+                    item.textContent = line;
+                    list.appendChild(item);
+                });
+                msgEl.appendChild(list);
+            }
+
+            msgEl.style.display = 'block';
+            msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
     }, { type: 'warning' });
 });
