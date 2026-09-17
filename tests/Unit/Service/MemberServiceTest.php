@@ -181,8 +181,59 @@ class MemberServiceTest extends TestCase
             new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 10]),
             null,
             null,
-            $dispatcher
+            $dispatcher,
+            reauthentication: $this->confirmedReauthentication(),
         );
+    }
+
+    /** 탈퇴는 본인 재확인을 요구한다 — 이 테스트들은 확인을 마친 회원을 다룬다. */
+    private function confirmedReauthentication(): \Mublo\Contract\Auth\ReauthenticationInterface
+    {
+        $reauth = $this->createStub(\Mublo\Contract\Auth\ReauthenticationInterface::class);
+        $reauth->method('isConfirmed')->willReturn(true);
+
+        return $reauth;
+    }
+
+    /**
+     * 탈퇴는 계정을 지우는 되돌릴 수 없는 작업이다. 세션만 쥔 사람이 실행하지 못하도록
+     * 본인 재확인을 요구한다 — 확인 수단이 무엇이었는지는 묻지 않는다.
+     */
+    public function testWithdrawIsRefusedWithoutAConfirmedIdentity(): void
+    {
+        $reauth = $this->createStub(\Mublo\Contract\Auth\ReauthenticationInterface::class);
+        $reauth->method('isConfirmed')->willReturn(false);
+
+        $service = new MemberService(
+            $this->repositoryMock,
+            $this->fieldRepositoryMock,
+            $this->encryptionServiceMock,
+            new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 4]),
+            reauthentication: $reauth,
+        );
+        $this->repositoryMock->method('find')->willReturn($this->withdrawableMember());
+        $this->repositoryMock->expects($this->never())->method('softDelete');
+        $this->repositoryMock->expects($this->never())->method('deleteAllFieldValues');
+
+        $result = $service->withdraw(100, '개인 사유');
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('본인 확인', $result->getMessage());
+    }
+
+    /** 확인 수단이 배선되지 않은 환경에서도 탈퇴가 열려서는 안 된다(fail-closed). */
+    public function testWithdrawIsRefusedWhenNoConfirmationServiceIsWired(): void
+    {
+        $service = new MemberService(
+            $this->repositoryMock,
+            $this->fieldRepositoryMock,
+            $this->encryptionServiceMock,
+            new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 4]),
+        );
+        $this->repositoryMock->method('find')->willReturn($this->withdrawableMember());
+        $this->repositoryMock->expects($this->never())->method('softDelete');
+
+        $this->assertTrue($service->withdraw(100, '개인 사유')->isFailure());
     }
 
     private function withdrawableMember(): \Mublo\Entity\Member\Member
@@ -214,7 +265,7 @@ class MemberServiceTest extends TestCase
         // 차단 시 DB 반영이 일어나면 안 됨
         $this->repositoryMock->expects($this->never())->method('getDb');
 
-        $result = $service->withdraw(100, 'pw1234', '개인 사유');
+        $result = $service->withdraw(100, '개인 사유');
 
         $this->assertFalse($result->isSuccess());
         $this->assertStringContainsString('진행 중인 주문', $result->getMessage());
@@ -239,7 +290,7 @@ class MemberServiceTest extends TestCase
         $this->repositoryMock->expects($this->once())->method('deleteAllFieldValues')->with(100);
         $this->repositoryMock->expects($this->once())->method('softDelete');
 
-        $result = $service->withdraw(100, 'pw1234', '개인 사유');
+        $result = $service->withdraw(100, '개인 사유');
 
         $this->assertTrue($result->isSuccess());
         $this->assertContains(\Mublo\Service\Member\Event\MemberWithdrawingEvent::class, $dispatched);

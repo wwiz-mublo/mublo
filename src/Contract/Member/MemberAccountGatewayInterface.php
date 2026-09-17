@@ -27,6 +27,14 @@ interface MemberAccountGatewayInterface
      */
     public function create(MemberRegistrationRequest $request, ?callable $persistRelated = null): int;
 
+    /**
+     * 이 회원이 비밀번호로 로그인할 수 있는지.
+     *
+     * 확장이 마지막 로그인 수단을 끊으려는지 판단할 때 쓴다. 비밀번호 없이 외부 인증에만
+     * 의지하던 회원의 연결을 끊으면 그 회원은 계정에 영영 들어올 수 없다.
+     */
+    public function hasLocalPassword(int $memberId): bool;
+
     public function verifyCredentials(int $domainId, string $userId, string $password): ?MemberProfile;
 
     public function validateCustomFields(int $domainId, array $values): Result;

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Mublo\Service\Member;
 
+use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
 use Mublo\Repository\Member\MemberRepository;
 use Mublo\Repository\Member\MemberFieldRepository;
@@ -62,6 +63,7 @@ class MemberService
     private ?DomainRepository $domainRepository = null;
     private PasswordHasher $passwordHasher;
     private ?PolicyService $policyService;
+    private ?ReauthenticationInterface $reauthentication = null;
 
     public function __construct(
         MemberRepository $memberRepository,
@@ -75,6 +77,7 @@ class MemberService
         ?DomainRepository $domainRepository = null,
         ?FileUploader $fileUploader = null,
         ?PolicyService $policyService = null,
+        ?ReauthenticationInterface $reauthentication = null,
     ) {
         $this->memberRepository = $memberRepository;
         $this->fieldRepository = $fieldRepository;
@@ -86,6 +89,7 @@ class MemberService
         $this->fileHandler = $secureFileService ? new CustomFieldFileHandler($secureFileService, $fileUploader) : null;
         $this->domainRepository = $domainRepository;
         $this->policyService = $policyService;
+        $this->reauthentication = $reauthentication;
     }
 
     /**
@@ -1294,7 +1298,7 @@ class MemberService
      * 보존 항목: user_id, created_at, withdrawn_at, withdrawal_reason
      * 도메인 운영자는 탈퇴 불가 (고객센터 문의 안내)
      */
-    public function withdraw(int $memberId, string $password, string $reason = ''): Result
+    public function withdraw(int $memberId, string $reason = ''): Result
     {
         $member = $this->memberRepository->find($memberId);
 
@@ -1302,8 +1306,11 @@ class MemberService
             return Result::failure('회원 정보를 찾을 수 없습니다.');
         }
 
-        if (!password_verify($password, $member->getPassword())) {
-            return Result::failure('비밀번호가 일치하지 않습니다.');
+        // 본인 재확인 — 세션만으로 계정을 지울 수 없게 한다. 무엇으로 확인했는지는 묻지
+        // 않는다. 현재 비밀번호 입력이 기본 수단이고, 자기 비밀번호를 모르는 회원(SNS
+        // 전용)은 확장이 내놓는 수단으로 확인한다.
+        if ($this->reauthentication === null || !$this->reauthentication->isConfirmed($memberId)) {
+            return Result::failure('본인 확인이 필요합니다.');
         }
 
         // 도메인 운영자 탈퇴 차단

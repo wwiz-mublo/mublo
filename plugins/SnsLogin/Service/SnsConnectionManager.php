@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Mublo\Plugin\SnsLogin\Service;
 
+use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Core\Result\Result;
 use Mublo\Infrastructure\Log\Logger;
 use Mublo\Plugin\SnsLogin\Contract\RevocableSnsProviderInterface;
@@ -14,8 +15,11 @@ use Mublo\Plugin\SnsLogin\SnsProviderRegistry;
  *
  * 외부 폐기는 되돌릴 수 없다. 그래서 코어가 소유한 회원 탈퇴·삭제 흐름에서는
  * 로컬 확정(커밋) 뒤에만 폐기를 시도하고, 폐기 실패로 그 흐름을 되돌리지 않는다.
- * 실패한 연결은 행에 표시만 남긴다 — 재시도에 쓸 토큰이 그 행에 들어 있으므로
- * 지우지 않고, 관리자가 SNS 연동 내역에서 다시 해제할 수 있게 한다.
+ *
+ * 실패한 연결을 어떻게 두는지는 경로마다 다르다. 회원이 살아 있는 해제(본인·관리자)는
+ * 행에 표시만 남긴다 — 재시도에 쓸 토큰이 그 행에 있으므로 지우지 않고, 관리자가 SNS
+ * 연동 내역에서 다시 해제할 수 있다. 반면 탈퇴 정리는 행을 지운다. provider_uid 가
+ * 유니크 키라 남은 행이 그 사람의 재가입을 영구히 막기 때문이다.
  */
 class SnsConnectionManager
 {
@@ -23,6 +27,7 @@ class SnsConnectionManager
         private SnsAccountRepository $accounts,
         private SnsProviderRegistry $providers,
         private Logger $logger,
+        private MemberAccountGatewayInterface $memberAccounts,
     ) {}
 
     /**
@@ -49,8 +54,7 @@ class SnsConnectionManager
      * 탈퇴가 확정된 회원의 외부 연결을 폐기하고 로컬 행을 정리한다.
      *
      * 탈퇴는 소프트 삭제라 FK CASCADE 가 걸리지 않으므로, 암호화 토큰을 남기지 않으려면
-     * 이 경로가 유일한 정리 수단이다. 폐기에 성공한 연결만 삭제하고,
-     * 실패한 연결은 재시도 대상으로 표시해 남긴다.
+     * 이 경로가 유일한 정리 수단이다. 폐기 성공 여부와 무관하게 로컬 행을 지운다.
      *
      * @return array{revoked: int, failed: int}
      */
@@ -60,14 +64,26 @@ class SnsConnectionManager
         $failed  = 0;
 
         foreach ($this->captureAccounts($memberId) as $account) {
-            if ($this->revokeAndRecord($account)->isFailure()) {
+            $revokeFailed = $this->revokeAndRecord($account)->isFailure();
+
+            if ($revokeFailed) {
                 $failed++;
-                continue;
+                // 행을 남겨 재시도하던 방식은 탈퇴에서는 쓸 수 없다. provider_uid 는
+                // 유니크 키라, 남은 행 때문에 같은 사람이 같은 SNS 로 다시 가입하려 할 때
+                // 탈퇴한 회원을 가리키며 영구히 막힌다. 떠난 회원의 폐기를 재시도하는
+                // 것보다 돌아올 길을 막지 않는 편이 낫다 — 실패는 로그로 남긴다.
+                $this->logger->error('탈퇴 회원 SNS 연결 폐기 실패 — 로컬 연결만 정리한다', [
+                    'member_id' => $account->getMemberId(),
+                    'provider' => $account->getProvider(),
+                    'provider_uid' => $account->getProviderUid(),
+                ]);
             }
 
             try {
                 $this->accounts->deleteById($account->getId(), $account->getDomainId());
-                $revoked++;
+                if (!$revokeFailed) {
+                    $revoked++;
+                }
             } catch (\Throwable $e) {
                 // 외부 폐기는 이미 끝났다. 행만 남으므로 재시도 시 폐기가 한 번 더 갈 뿐이다.
                 $this->logger->exception($e, context: [
@@ -125,6 +141,13 @@ class SnsConnectionManager
             return Result::failure('연결된 계정이 없습니다.');
         }
 
+        // 마지막 로그인 수단은 끊지 못하게 한다. 비밀번호 없이 이 연결에만 의지하던
+        // 회원이 해제하면 그 자리에서 계정에 영영 들어올 수 없다(되돌릴 방법이 없다).
+        $blocked = $this->lastLoginMethodFailure($memberId);
+        if ($blocked !== null) {
+            return $blocked;
+        }
+
         $result = $this->revokeAndRecord($account);
         if ($result->isFailure()) {
             return $result;
@@ -140,6 +163,39 @@ class SnsConnectionManager
         }
 
         return Result::success('SNS 제공자와의 연결이 해제되었습니다.');
+    }
+
+    /**
+     * 이 해제가 회원의 마지막 로그인 수단을 없애는지 판단한다.
+     *
+     * 판단할 수 없으면(조회 실패) 막는다 — 잘못 막으면 잠시 불편하지만, 잘못 허용하면
+     * 되돌릴 수 없다.
+     */
+    private function lastLoginMethodFailure(int $memberId): ?Result
+    {
+        try {
+            $remaining = count($this->accounts->findByMember($memberId)) - 1;
+        } catch (\Throwable $e) {
+            return $this->repositoryFailure($e, $memberId, 'count_connections');
+        }
+
+        if ($remaining > 0) {
+            return null;
+        }
+
+        try {
+            $hasPassword = $this->memberAccounts->hasLocalPassword($memberId);
+        } catch (\Throwable $e) {
+            return $this->repositoryFailure($e, $memberId, 'check_local_password');
+        }
+
+        if ($hasPassword) {
+            return null;
+        }
+
+        return Result::failure(
+            '마지막 로그인 수단이라 해제할 수 없습니다. 회원정보 수정에서 비밀번호를 먼저 설정해주세요.'
+        );
     }
 
     /** 관리자 화면에서 선택한 연결도 외부 제공자를 먼저 해제한다. */

@@ -302,7 +302,8 @@
     cursor: not-allowed;
 }
 
-.mypage-content .profile-form-help {
+.mypage-content .profile-form-help,
+.mypage-content .withdraw-form-help {
     margin-top: 4px;
     font-size: 0.8125rem;
     color: var(--muted-foreground);
