@@ -116,6 +116,9 @@ class SnsProfileController
                 levelValue: $this->configService->getRegisterLevel($domainId),
                 originDomainId: $domainId,
                 domainGroup: $context->getDomainGroup(),
+                agreedPolicyIds: $pending['agreed_policy_ids'] ?? [],
+                ipAddress: $request->getClientIp(),
+                userAgent: (string) $request->header('User-Agent', ''),
             ), function (int $memberId) use ($domainId, $fields, $userInfo, $tokenData): void {
                 if (!empty($fields)) {
                     $this->memberAccounts->saveCustomFields($memberId, $domainId, $fields);
