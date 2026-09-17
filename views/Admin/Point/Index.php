@@ -95,17 +95,17 @@
                     <?php else: ?>
                         <?php foreach ($items as $item): ?>
                         <tr>
-                            <td><?= $item['log_id'] ?></td>
-                            <td>
+                            <td class="text-nowrap"><?= $item['log_id'] ?></td>
+                            <td class="text-nowrap">
                                 <a href="/admin/member/edit/<?= $item['member_id'] ?>" class="text-decoration-none">
                                     <?= htmlspecialchars($item['user_id']) ?>
                                 </a>
                             </td>
-                            <td class="<?= $item['amount'] > 0 ? 'text-primary' : 'text-danger' ?>">
+                            <td class="text-nowrap <?= $item['amount'] > 0 ? 'text-primary' : 'text-danger' ?>">
                                 <strong><?= $item['amount'] > 0 ? '+' : '' ?><?= number_format($item['amount']) ?></strong>
                             </td>
-                            <td><?= number_format($item['balance_after']) ?></td>
-                            <td>
+                            <td class="text-nowrap"><?= number_format($item['balance_after']) ?></td>
+                            <td class="text-nowrap">
                                 <?php
                                 $srcColor = match ($item['source_type']) {
                                     'plugin' => 'info',
@@ -126,7 +126,7 @@
                                 <span class="badge bg-secondary ms-1">관리자</span>
                                 <?php endif; ?>
                             </td>
-                            <td style="white-space:nowrap">
+                            <td class="text-nowrap">
                                 <small class="text-muted"><?= $item['created_at'] ?></small>
                             </td>
                         </tr>

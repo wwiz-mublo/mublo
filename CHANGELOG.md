@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+### Changed
+- **Core: 회원 계정 계약(`Contract\Member\MemberAccountGatewayInterface`)에 `notifyRegistered(int $memberId)` 가 추가됐습니다.** `create()` 는 회원 행만 만들고 가입 이벤트를 발행하지 않으므로, 이 계약으로 회원을 만드는 확장은 자기 트랜잭션을 커밋한 뒤 이 메서드를 호출해야 가입 포인트·가입 쿠폰 같은 확장점이 동작합니다. 계약을 소비하기만 하는 확장은 영향이 없고, 계약을 **직접 구현한** 확장은 메서드를 추가해야 합니다
+- 관리자: 포인트 지갑(`/admin/point`) 원장 표에서 내용 열을 제외한 셀이 줄바꿈되지 않습니다. 번호·회원·변동·변경 후·구분·일시가 좁은 화면에서 두 줄로 접히며 행 높이가 들쭉날쭉하던 것을 맞췄습니다
+
+### Fixed
+- **SnsLogin: SNS로 가입한 회원에게 가입 포인트가 지급되지 않던 것을 고쳤습니다.** 정식 회원가입은 커밋 뒤 `MemberRegisteredByUserEvent` 를 발행하는데, SNS 바로 가입과 프로필 완성 가입은 코어 계약 `MemberAccountGatewayInterface::create()` 로 행만 만들고 이 이벤트를 발행하지 않았습니다. 그래서 MemberPoint 의 가입 보너스뿐 아니라 Shop 의 가입 쿠폰 자동 발급도 SNS 회원에게는 한 번도 동작하지 않았습니다. 계약에 `notifyRegistered(int $memberId)` 를 더해 코어가 같은 이벤트를 발행하고, SnsLogin 은 회원 생성 트랜잭션이 커밋된 뒤 두 가입 경로 모두에서 이를 호출합니다. 리스너 실패는 정식 가입과 같이 로그로만 남기고 로그인은 막지 않습니다. **이미 SNS로 가입한 회원은 소급 지급되지 않습니다** — MemberPoint 의 가입 지급은 `mp_signup_{도메인}_{회원}` 멱등키를 쓰므로 운영자가 대상 회원에 대해 `awardSignup` 을 한 번씩 호출하는 일회성 스크립트로 안전하게 보전할 수 있습니다
+
 ## [1.5.1] - 2026-09-16
 
 ### Fixed
