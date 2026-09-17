@@ -10,6 +10,7 @@ use Mublo\Contract\Block\BlockRenderContextInterface;
 use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
+use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
 use Mublo\Contract\Member\MemberActionQueryInterface;
@@ -45,6 +46,7 @@ class ServiceProviderContractBindingTest extends TestCase
             DomainQueryInterface::class,
             MenuManagementInterface::class,
             MemberAccountGatewayInterface::class,
+            ReauthenticationInterface::class,
             MemberLevelCatalogInterface::class,
             MemberActionQueryInterface::class,
             SensitiveValueCodecInterface::class,
