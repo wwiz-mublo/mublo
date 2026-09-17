@@ -90,7 +90,7 @@ class SnsProfileController
             }
         }
 
-        $credentials = $this->loginService->generateCredentials($pending['provider'], $pending['uid']);
+        $userId = $this->loginService->generateUserId($pending['provider'], $pending['uid']);
 
         $userInfo  = new SnsUserInfo(
             provider:     $pending['provider'],
@@ -108,8 +108,8 @@ class SnsProfileController
         try {
             $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
                 domainId: $domainId,
-                userId: $credentials['user_id'],
-                passwordHash: $credentials['password_hash'],
+                userId: $userId,
+                passwordHash: SnsLoginService::NO_LOCAL_PASSWORD,
                 nickname: $nickname,
                 // 바로 가입과 같은 값을 쓴다. 종전에는 이 경로만 기본 레벨로 가입해
                 // 관리자가 정한 가입 레벨이 가입 방식에 따라 갈렸다.
