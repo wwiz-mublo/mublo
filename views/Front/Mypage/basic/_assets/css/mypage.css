@@ -371,6 +371,24 @@
     background: color-mix(in srgb, var(--secondary) 90%, var(--foreground));
 }
 
+/* 탈퇴 거절 사유 — 상황 한 줄 아래에 막고 있는 주문을 목록으로 보여준다 */
+.mypage-withdraw #withdraw-message {
+    text-align: left;
+}
+
+.mypage-withdraw .withdraw-block__summary {
+    margin: 0;
+}
+
+.mypage-withdraw .withdraw-block__orders {
+    margin: 0.5rem 0 0;
+    padding-left: 1.25rem;
+}
+
+.mypage-withdraw .withdraw-block__orders li + li {
+    margin-top: 0.25rem;
+}
+
 .mypage-content .sns-reauth-note {
     margin: 4px 0 0;
     font-size: 0.8125rem;

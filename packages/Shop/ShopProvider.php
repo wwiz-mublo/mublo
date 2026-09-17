@@ -67,6 +67,7 @@ use Mublo\Packages\Shop\Repository\CartRepository;
 use Mublo\Packages\Shop\Repository\OrderRepository;
 use Mublo\Packages\Shop\Repository\ShippingRepository;
 use Mublo\Packages\Shop\Repository\CouponRepository;
+use Mublo\Packages\Shop\Repository\WithdrawalBlockerRepository;
 use Mublo\Packages\Shop\Repository\MemberAddressRepository;
 use Mublo\Packages\Shop\Repository\OrderFieldRepository;
 use Mublo\Packages\Shop\Repository\PaymentTransactionRepository;
@@ -170,6 +171,7 @@ use Mublo\Packages\Shop\EventSubscriber\CouponRestoreSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PaymentMismatchSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PointPaymentSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\CouponAutoIssueSubscriber;
+use Mublo\Packages\Shop\EventSubscriber\WithdrawalGuardSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\DomainEventSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\ExhibitionMenuSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\CategoryMenuSubscriber;
@@ -224,6 +226,10 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $container->singleton(ShippingRepository::class, fn(DependencyContainer $c) =>
             new ShippingRepository($c->get(Database::class))
         );
+        $container->singleton(WithdrawalBlockerRepository::class, fn(DependencyContainer $c) =>
+            new WithdrawalBlockerRepository($c->get(Database::class))
+        );
+
         $container->singleton(CouponRepository::class, fn(DependencyContainer $c) =>
             new CouponRepository($c->get(Database::class))
         );
@@ -1047,6 +1053,13 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             $container->get(CouponService::class),
             $container->get(CouponRepository::class),
             $container->get(MemberQueryInterface::class)
+        ));
+
+        // 이행이 끝나지 않은 거래가 있으면 탈퇴를 보류 — 환불할 곳이 사라지는 것을 막는다
+        $eventDispatcher->addSubscriber(new WithdrawalGuardSubscriber(
+            $container->get(WithdrawalBlockerRepository::class),
+            $container->get(OrderStateResolver::class),
+            $container->get(\Mublo\Infrastructure\Log\Logger::class)->channel('shop'),
         ));
 
         // 도메인 생성 시 프론트 메뉴 + 기본 배송 템플릿 자동 시딩
