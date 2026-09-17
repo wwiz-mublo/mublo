@@ -161,7 +161,14 @@ class SnsAuthController
                 return $this->completeReauthentication($domainId, $userInfo, $savedState);
             }
 
-            $result = $this->loginService->handleCallback($domainId, $userInfo, $tokenData, $domainGroup, $context->getRequest()->getClientIp());
+            $result = $this->loginService->handleCallback(
+                $domainId,
+                $userInfo,
+                $tokenData,
+                $domainGroup,
+                $request->getClientIp(),
+                (string) $request->header('User-Agent', ''),
+            );
 
             if ($result->isFailure()) {
                 return RedirectResponse::to('/login?error=' . urlencode($result->getMessage()));
@@ -170,6 +177,10 @@ class SnsAuthController
             $action   = $result->get('action');
             $redirect = $this->session->get(self::SESSION_REDIRECT) ?? '/';
             $this->session->remove(self::SESSION_REDIRECT);
+
+            if ($action === 'agreement_needed') {
+                return RedirectResponse::to('/sns-login/agree');
+            }
 
             if ($action === 'profile_needed') {
                 return RedirectResponse::to('/sns-login/profile/complete');

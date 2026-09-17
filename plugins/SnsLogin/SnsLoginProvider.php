@@ -16,6 +16,7 @@ use Mublo\Infrastructure\Log\Logger;
 use Mublo\Plugin\SnsLogin\Controller\Admin\SettingsController;
 use Mublo\Plugin\SnsLogin\Controller\Admin\AccountsController;
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
+use Mublo\Plugin\SnsLogin\Controller\Front\SnsAgreeController;
 use Mublo\Plugin\SnsLogin\Controller\Front\SnsAuthController;
 use Mublo\Plugin\SnsLogin\Controller\Front\SnsProfileController;
 use Mublo\Plugin\SnsLogin\Provider\GoogleProvider;
@@ -33,6 +34,7 @@ use Mublo\Plugin\SnsLogin\Subscriber\ReauthenticationOptionSubscriber;
 use Mublo\Plugin\SnsLogin\Subscriber\MemberLifecycleSubscriber;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Auth\MemberAuthenticatorInterface;
@@ -104,6 +106,7 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(SessionInterface::class),
                 $c->get(KoreanNicknameGenerator::class),
                 $c->get(SnsConnectionManager::class),
+                $c->get(PolicyQueryInterface::class),
             )
         );
 
@@ -126,6 +129,13 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(MemberAccountGatewayInterface::class),
                 $c->get(MemberAuthenticatorInterface::class),
                 $c->get(SnsLoginConfigService::class),
+            )
+        );
+
+        $container->singleton(SnsAgreeController::class, fn($c) =>
+            new SnsAgreeController(
+                $c->get(SnsLoginService::class),
+                $c->get(PolicyQueryInterface::class),
             )
         );
 

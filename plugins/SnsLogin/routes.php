@@ -43,6 +43,22 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AuthMiddleware::class],
     ]);
 
+    // 가입 약관 동의 (가입 약관을 운영하는 사이트에서만 거친다)
+    $r->addRoute('GET', '/agree', [
+        'controller' => \Mublo\Plugin\SnsLogin\Controller\Front\SnsAgreeController::class,
+        'method'     => 'form',
+    ]);
+
+    $r->addRoute('POST', '/agree', [
+        'controller' => \Mublo\Plugin\SnsLogin\Controller\Front\SnsAgreeController::class,
+        'method'     => 'store',
+    ]);
+
+    $r->addRoute('GET', '/agree/skip', [
+        'controller' => \Mublo\Plugin\SnsLogin\Controller\Front\SnsAgreeController::class,
+        'method'     => 'skip',
+    ]);
+
     // 신규 가입 프로필 완성 (auto_register=OFF 시)
     $r->addRoute('GET', '/profile/complete', [
         'controller' => \Mublo\Plugin\SnsLogin\Controller\Front\SnsProfileController::class,

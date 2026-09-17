@@ -115,6 +115,16 @@ class PolicyService implements PolicyQueryInterface
         return $this->documentsForPolicies($this->getActiveByDomain($domainId));
     }
 
+    public function registerDocuments(int $domainId): array
+    {
+        return $this->documentsForPolicies($this->getRegisterPolicies($domainId));
+    }
+
+    public function validateRegisterAgreements(int $domainId, array $agreedPolicyIds): Result
+    {
+        return $this->agreementSnapshot($domainId, $agreedPolicyIds);
+    }
+
     public function findDocument(int $domainId, int $policyId): ?PolicyDocument
     {
         $policy = $this->findById($policyId);

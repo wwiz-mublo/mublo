@@ -1003,7 +1003,12 @@ class MemberService
      */
     public function registerAccount(MemberRegistrationRequest $request, ?callable $persistRelated = null): int
     {
-        return $this->completeRegistration(function () use ($request, $persistRelated): int {
+        // 동의 증빙은 코어가 만든다 — 확장은 어떤 약관에 동의했는지만 넘기고, 버전과
+        // 내용 해시는 여기서 직접 찾는다. 필수 약관 누락 판정도 같은 자리에서 한다.
+        // 트랜잭션 밖에서 먼저 막는다: 필수 약관을 빠뜨린 요청으로 회원을 만들 이유가 없다.
+        $agreements = $this->resolveAgreements($request);
+
+        return $this->completeRegistration(function () use ($request, $persistRelated, $agreements): int {
             $memberId = $this->insertMember([
                 'domain_id' => $request->domainId,
                 'origin_domain_id' => $request->originDomainId,
@@ -1014,12 +1019,60 @@ class MemberService
                 'nickname' => $request->nickname,
             ]);
 
+            $this->saveAgreements($memberId, $request, $agreements);
+
             if ($persistRelated !== null) {
                 $persistRelated($memberId);
             }
 
             return $memberId;
         });
+    }
+
+    /**
+     * 확장이 넘긴 동의 약관을 검증하고 저장할 스냅샷으로 바꾼다.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    private function resolveAgreements(MemberRegistrationRequest $request): array
+    {
+        if ($this->policyService === null) {
+            return [];
+        }
+
+        $snapshot = $this->policyService->validateRegisterAgreements(
+            $request->domainId,
+            $request->agreedPolicyIds,
+        );
+
+        if ($snapshot->isFailure()) {
+            throw new \RuntimeException($snapshot->getMessage());
+        }
+
+        $agreements = $snapshot->get('agreements', []);
+
+        return is_array($agreements) ? $agreements : [];
+    }
+
+    /** @param array<int, array<string, mixed>> $agreements */
+    private function saveAgreements(int $memberId, MemberRegistrationRequest $request, array $agreements): void
+    {
+        foreach ($agreements as $policyId => $agreement) {
+            if (!is_array($agreement)) {
+                continue;
+            }
+
+            $this->memberRepository->savePolicyAgreement(
+                $memberId,
+                $request->domainId,
+                (int) $policyId,
+                (int) ($agreement['revision_id'] ?? 0),
+                (string) ($agreement['version'] ?? ''),
+                (string) ($agreement['content_hash'] ?? ''),
+                $request->ipAddress,
+                $request->userAgent,
+            );
+        }
     }
 
     /**

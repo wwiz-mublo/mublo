@@ -8,6 +8,7 @@ use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
 use Mublo\Plugin\SnsLogin\Repository\SnsAccountRepository;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
 use Mublo\Contract\Auth\MemberAuthenticatorInterface;
 
@@ -36,6 +37,7 @@ class SnsLoginService
         private SessionInterface     $session,
         private KoreanNicknameGenerator $nicknameGenerator,
         private SnsConnectionManager $connectionManager,
+        private PolicyQueryInterface $policies,
     ) {}
 
     /**
@@ -47,7 +49,7 @@ class SnsLoginService
      *     data['action'] = 'register'        → 자동 가입 후 로그인 완료
      *     data['action'] = 'profile_needed'  → 프로필 완성 페이지로 이동 필요
      */
-    public function handleCallback(int $domainId, SnsUserInfo $userInfo, array $tokenData, ?string $domainGroup = null, ?string $ipAddress = null): Result
+    public function handleCallback(int $domainId, SnsUserInfo $userInfo, array $tokenData, ?string $domainGroup = null, ?string $ipAddress = null, ?string $userAgent = null): Result
     {
         // 1. 기존 연결 계정 조회
         $account = $this->accountRepository->findByProvider(
@@ -72,14 +74,7 @@ class SnsLoginService
             return $this->loginLinkedMember($account->getMemberId(), $ipAddress);
         }
 
-        // 2. 신규 연동 처리
-        $config = $this->configService->getConfig($domainId);
-
-        if (!empty($config['auto_register'])) {
-            return $this->autoRegister($domainId, $userInfo, $tokenData, $domainGroup, $ipAddress);
-        }
-
-        // 프로필 완성 페이지로 이동
+        // 2. 신규 연동 처리 — 어느 경로로 가든 가입 재료는 세션에 둔다.
         $this->session->set(self::SESSION_SNS_PENDING, [
             'domain_id'     => $domainId,
             'domain_group'  => $domainGroup,
@@ -91,15 +86,87 @@ class SnsLoginService
             'access_token'  => $tokenData['access_token'] ?? '',
             'refresh_token' => $tokenData['refresh_token'] ?? null,
             'expires_in'    => $tokenData['expires_in'] ?? null,
+            'agreed_policy_ids' => [],
         ]);
 
-        return Result::success('프로필 입력 필요', ['action' => 'profile_needed']);
+        // 가입 약관을 운영하는 사이트라면 SNS 가입도 동의를 받아야 한다. 바로 가입은
+        // 버튼 한 번에 회원이 되어 동의를 받을 화면이 없었고, 그래서 SNS 회원만 동의
+        // 이력이 비어 있었다. 약관을 쓰지 않는 사이트는 종전처럼 한 번에 가입한다.
+        if ($this->registerPolicies($domainId) !== []) {
+            return Result::success('약관 동의 필요', ['action' => 'agreement_needed']);
+        }
+
+        return $this->continueAfterAgreement($ipAddress, $userAgent);
+    }
+
+    /**
+     * 약관 단계를 지난 뒤(또는 약관이 없을 때) 가입 방식에 따라 갈린다.
+     */
+    public function continueAfterAgreement(?string $ipAddress = null, ?string $userAgent = null): Result
+    {
+        $pending = $this->getPendingSession();
+        if (!$pending) {
+            return Result::failure('세션이 만료되었습니다. 다시 로그인해주세요.');
+        }
+
+        $domainId = (int) $pending['domain_id'];
+        $config   = $this->configService->getConfig($domainId);
+
+        if (empty($config['auto_register'])) {
+            return Result::success('프로필 입력 필요', ['action' => 'profile_needed']);
+        }
+
+        return $this->autoRegister(
+            $domainId,
+            new SnsUserInfo(
+                provider:     $pending['provider'],
+                uid:          $pending['uid'],
+                email:        $pending['email'],
+                nickname:     $pending['nickname'],
+                profileImage: $pending['profile_image'],
+            ),
+            [
+                'access_token'  => $pending['access_token'],
+                'refresh_token' => $pending['refresh_token'],
+                'expires_in'    => $pending['expires_in'],
+            ],
+            $pending['domain_group'] ?? null,
+            $ipAddress,
+            $pending['agreed_policy_ids'] ?? [],
+            $userAgent,
+        );
+    }
+
+    /**
+     * 가입 화면에 표시할 약관 — 설치 전이거나 조회가 실패하면 없는 것으로 본다.
+     *
+     * @return \Mublo\Contract\Member\PolicyDocument[]
+     */
+    public function registerPolicies(int $domainId): array
+    {
+        try {
+            return $this->policies->registerDocuments($domainId);
+        } catch (\Throwable) {
+            return [];
+        }
+    }
+
+    /** 동의한 약관을 pending 세션에 적어 둔다(가입 시 코어로 넘긴다). */
+    public function rememberAgreements(array $agreedPolicyIds): void
+    {
+        $pending = $this->getPendingSession();
+        if (!$pending) {
+            return;
+        }
+
+        $pending['agreed_policy_ids'] = array_values(array_map('intval', $agreedPolicyIds));
+        $this->setPendingSession($pending);
     }
 
     /**
      * 자동 가입 + SNS 연결 + 로그인
      */
-    private function autoRegister(int $domainId, SnsUserInfo $userInfo, array $tokenData, ?string $domainGroup = null, ?string $ipAddress = null): Result
+    private function autoRegister(int $domainId, SnsUserInfo $userInfo, array $tokenData, ?string $domainGroup = null, ?string $ipAddress = null, array $agreedPolicyIds = [], ?string $userAgent = null): Result
     {
         $levelValue = $this->configService->getRegisterLevel($domainId);
 
@@ -123,6 +190,9 @@ class SnsLoginService
                     levelValue: $levelValue,
                     originDomainId: $domainId,
                     domainGroup: $domainGroup,
+                    agreedPolicyIds: $agreedPolicyIds,
+                    ipAddress: $ipAddress,
+                    userAgent: $userAgent,
                 ), function (int $createdMemberId) use ($domainId, $userInfo, $tokenData): void {
                     $this->linkAccount($createdMemberId, $domainId, $userInfo, $tokenData);
                 });

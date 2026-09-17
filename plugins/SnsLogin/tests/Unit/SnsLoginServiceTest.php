@@ -6,6 +6,8 @@ use Mublo\Contract\Auth\MemberAuthenticatorInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberProfile;
 use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\PolicyDocument;
+use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Infrastructure\Database\DatabaseException;
@@ -195,6 +197,86 @@ class SnsLoginServiceTest extends TestCase
         $this->assertSame(6, $captured->levelValue);
     }
 
+    /**
+     * 가입 약관을 운영하는 사이트에서는 SNS 가입도 동의를 받아야 한다. 바로 가입이
+     * 동의 없이 회원을 만들어 버리면 같은 사이트인데 SNS 회원만 이력이 비어 버린다.
+     */
+    public function testSignupPoliciesInterruptAutoRegistrationForConsent(): void
+    {
+        [$service, , $memberRepository, $authenticator, , , $policies] = $this->createService();
+
+        $policies->method('registerDocuments')->willReturn([$this->policyDocument()]);
+        $memberRepository->expects($this->never())->method('create');
+        $authenticator->expects($this->never())->method('loginByMemberId');
+
+        $result = $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token']);
+
+        $this->assertSame('agreement_needed', $result->get('action'));
+    }
+
+    /** 동의를 마치면 번호가 코어로 넘어가 증빙이 된다 — 스냅샷은 코어가 만든다. */
+    public function testAgreedPolicyIdsReachTheCoreRegistration(): void
+    {
+        [$service, , $memberRepository, $authenticator, $generator, , $policies] = $this->createService();
+
+        $policies->method('registerDocuments')->willReturn([$this->policyDocument()]);
+        $generator->method('generate')->willReturn('고요한별빛수달');
+        $memberRepository->method('nicknameExists')->willReturn(false);
+        $captured = null;
+        $memberRepository->method('create')->willReturnCallback(
+            function (MemberRegistrationRequest $data, callable $persistRelated) use (&$captured): int {
+                $captured = $data;
+                $persistRelated(321);
+                return 321;
+            }
+        );
+        $authenticator->method('loginByMemberId')->willReturn(true);
+
+        $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token'], null, '127.0.0.1', 'UA/1.0');
+        $service->rememberAgreements([11, 22]);
+        $result = $service->continueAfterAgreement('127.0.0.1', 'UA/1.0');
+
+        $this->assertSame('register', $result->get('action'));
+        $this->assertSame([11, 22], $captured->agreedPolicyIds);
+        // 동의 기록에도 코어 가입 폼과 같은 접속 정보를 남긴다.
+        $this->assertSame('127.0.0.1', $captured->ipAddress);
+        $this->assertSame('UA/1.0', $captured->userAgent);
+    }
+
+    /** 약관을 운영하지 않는 사이트는 종전처럼 한 번에 가입한다. */
+    public function testSiteWithoutSignupPoliciesRegistersInOneStep(): void
+    {
+        [$service, , $memberRepository, $authenticator, $generator] = $this->createService();
+
+        $generator->method('generate')->willReturn('고요한별빛수달');
+        $memberRepository->method('nicknameExists')->willReturn(false);
+        $memberRepository->method('create')->willReturnCallback(
+            function (MemberRegistrationRequest $data, callable $persistRelated): int {
+                $persistRelated(321);
+                return 321;
+            }
+        );
+        $authenticator->method('loginByMemberId')->willReturn(true);
+
+        $this->assertSame('register', $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token'])->get('action'));
+    }
+
+    private function policyDocument(): PolicyDocument
+    {
+        return new PolicyDocument(
+            policyId: 11,
+            revisionId: 1,
+            domainId: 7,
+            version: '1.0',
+            title: '이용약관',
+            content: '내용',
+            contentHash: 'hash',
+            required: true,
+            active: true,
+            createdAt: '2026-09-17 10:00:00',
+        );
+    }
+
     public function testExistingLinkedAccountLoginDoesNotAnnounceRegistration(): void
     {
         [$service, $accountRepository, $memberRepository, $authenticator] = $this->createService();
@@ -229,9 +311,27 @@ class SnsLoginServiceTest extends TestCase
         ]);
         $authenticator = $this->createMock(MemberAuthenticatorInterface::class);
         $configService = $this->createMock(SnsLoginConfigService::class);
-        $session = $this->createMock(SessionInterface::class);
+        // 가입 재료는 세션을 거쳐 흐른다(콜백 → 약관 → 가입). 값을 보관하지 않는
+        // 목으로는 그 흐름이 끊겨, 서비스가 아니라 목을 검증하게 된다.
+        $sessionStore = [];
+        $session = $this->createStub(SessionInterface::class);
+        $session->method('set')->willReturnCallback(function (string $k, mixed $v) use (&$sessionStore): void {
+            $sessionStore[$k] = $v;
+        });
+        // 화살표 함수는 값으로 캡처한다 — 참조로 받아야 set 이 넣은 값이 보인다.
+        $session->method('get')->willReturnCallback(
+            function (string $k, mixed $d = null) use (&$sessionStore): mixed {
+                return $sessionStore[$k] ?? $d;
+            }
+        );
+        $session->method('remove')->willReturnCallback(function (string $k) use (&$sessionStore): void {
+            unset($sessionStore[$k]);
+        });
         $generator = $this->createMock(KoreanNicknameGenerator::class);
         $connectionManager = $this->createMock(SnsConnectionManager::class);
+        // 기본은 약관 없는 사이트 — 목의 배열 기본 반환값이 그 상태다.
+        // 여기서 미리 스텁하면 테스트별 재정의가 먹히지 않는다(첫 매처가 이긴다).
+        $policies = $this->createMock(PolicyQueryInterface::class);
         $configService->method('getConfig')->willReturn([
             'auto_register' => true,
             'register_level' => 1,
@@ -248,12 +348,15 @@ class SnsLoginServiceTest extends TestCase
                 $session,
                 $generator,
                 $connectionManager,
+                // 대부분의 테스트는 약관과 무관하다 — 약관을 운영하지 않는 사이트로 둔다.
+                $policies,
             ),
             $accountRepository,
             $memberRepository,
             $authenticator,
             $generator,
             $configService,
+            $policies,
         ];
     }
 
