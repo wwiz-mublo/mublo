@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Mublo\Plugin\SnsLogin\Service;
 
+use Mublo\Core\Crypto\PasswordHasher;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
@@ -36,6 +37,7 @@ class SnsLoginService
         private SessionInterface     $session,
         private KoreanNicknameGenerator $nicknameGenerator,
         private SnsConnectionManager $connectionManager,
+        private PasswordHasher $passwordHasher,
     ) {}
 
     /**
@@ -76,7 +78,7 @@ class SnsLoginService
         $config = $this->configService->getConfig($domainId);
 
         if (!empty($config['auto_register'])) {
-            return $this->autoRegister($domainId, $userInfo, $tokenData, $config, $domainGroup, $ipAddress);
+            return $this->autoRegister($domainId, $userInfo, $tokenData, $domainGroup, $ipAddress);
         }
 
         // 프로필 완성 페이지로 이동
@@ -99,9 +101,9 @@ class SnsLoginService
     /**
      * 자동 가입 + SNS 연결 + 로그인
      */
-    private function autoRegister(int $domainId, SnsUserInfo $userInfo, array $tokenData, array $config, ?string $domainGroup = null, ?string $ipAddress = null): Result
+    private function autoRegister(int $domainId, SnsUserInfo $userInfo, array $tokenData, ?string $domainGroup = null, ?string $ipAddress = null): Result
     {
-        $levelValue = (int) ($config['register_level'] ?? 1);
+        $levelValue = $this->configService->getRegisterLevel($domainId);
 
         $memberId = null;
 
@@ -193,6 +195,8 @@ class SnsLoginService
      * SNS 회원의 자동 생성 자격 — 두 가입 경로(바로 가입·프로필 완성)가 같은 규칙을 쓴다.
      *
      * SNS 회원은 이 비밀번호로 로그인하지 않지만 컬럼이 비어 있을 수 없어 임의값을 넣는다.
+     * 해시는 코어 해셔에 맡긴다 — 알고리즘·코스트를 직접 적으면 운영자가 보안 설정을
+     * 바꿔도 SNS 회원만 옛 방식으로 남고, 로그인마다 도는 재해시 판정과도 어긋난다.
      *
      * @return array{user_id: string, password_hash: string}
      */
@@ -201,7 +205,7 @@ class SnsLoginService
         return [
             'user_id' => 'sns_' . $provider . '_' . substr($uid, 0, 8)
                 . '_' . substr(bin2hex(random_bytes(2)), 0, 4),
-            'password_hash' => password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT),
+            'password_hash' => $this->passwordHasher->hash(bin2hex(random_bytes(16))),
         ];
     }
 

@@ -11,6 +11,7 @@ use Mublo\Core\Http\Request;
 use Mublo\Core\Result\Result;
 use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Controller\Front\SnsProfileController;
+use Mublo\Plugin\SnsLogin\Service\SnsLoginConfigService;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginService;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -33,6 +34,8 @@ final class SnsProfileControllerTest extends TestCase
         $login = $this->createMock(SnsLoginService::class);
         $accounts = $this->createMock(MemberAccountGatewayInterface::class);
         $auth = $this->createMock(MemberAuthenticatorInterface::class);
+        $config = $this->createMock(SnsLoginConfigService::class);
+        $config->method('getRegisterLevel')->with(7)->willReturn(4);
         $login->method('consumePendingSession')->willReturn($pending);
         $login->method('generateCredentials')->with('kakao', 'provider-123')
             ->willReturn(['user_id' => 'sns_kakao_provider_ab12', 'password_hash' => 'throwaway-hash']);
@@ -47,6 +50,9 @@ final class SnsProfileControllerTest extends TestCase
                 // 자격은 두 가입 경로가 공유하는 생성기에서 온다.
                 $this->assertSame('sns_kakao_provider_ab12', $request->userId);
                 $this->assertSame('throwaway-hash', $request->passwordHash);
+                // 관리자가 정한 가입 레벨이 가입 방식에 따라 갈리면 안 된다.
+                $this->assertSame(4, $request->levelValue);
+                $this->assertSame(7, $request->originDomainId);
                 $insideRegistration = true;
                 try {
                     $persistRelated(321);
@@ -95,7 +101,7 @@ final class SnsProfileControllerTest extends TestCase
         $context->method('getRequest')->willReturn($request);
         $previous = ini_set('error_log', '/dev/null');
         try {
-            (new SnsProfileController($login, $accounts, $auth))->store([], $context);
+            (new SnsProfileController($login, $accounts, $auth, $config))->store([], $context);
         } finally {
             ini_set('error_log', (string) $previous);
         }
@@ -111,6 +117,8 @@ final class SnsProfileControllerTest extends TestCase
         $login = $this->createMock(SnsLoginService::class);
         $accounts = $this->createMock(MemberAccountGatewayInterface::class);
         $auth = $this->createMock(MemberAuthenticatorInterface::class);
+        $config = $this->createMock(SnsLoginConfigService::class);
+        $config->method('getRegisterLevel')->with(7)->willReturn(4);
         $login->method('consumePendingSession')->willReturn($pending);
         $login->method('generateCredentials')
             ->willReturn(['user_id' => 'sns_kakao_provider_ab12', 'password_hash' => 'throwaway-hash']);
@@ -128,6 +136,6 @@ final class SnsProfileControllerTest extends TestCase
         $context->method('getRequest')->willReturn($request);
 
         $this->expectException(\LogicException::class);
-        (new SnsProfileController($login, $accounts, $auth))->store([], $context);
+        (new SnsProfileController($login, $accounts, $auth, $config))->store([], $context);
     }
 }

@@ -70,6 +70,14 @@ class SnsLoginConfigService
         return $config[$provider] ?? [];
     }
 
+    /**
+     * SNS 가입 회원에게 부여할 레벨 — 바로 가입과 프로필 완성이 같은 값을 쓴다.
+     */
+    public function getRegisterLevel(int $domainId): int
+    {
+        return (int) ($this->getConfig($domainId)['register_level'] ?? 1);
+    }
+
     public function getEnabledMap(int $domainId): array
     {
         $config = $this->getConfig($domainId);
