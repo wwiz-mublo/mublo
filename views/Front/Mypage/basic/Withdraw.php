@@ -37,25 +37,32 @@ $csrfToken = $mublo['security']['csrfToken'];
                       placeholder="탈퇴 사유를 입력해주세요 (선택사항)" maxlength="500"></textarea>
         </div>
 
-        <?php if (!empty($reauthConfirmed)): ?>
-        <div class="withdraw-form-group">
-            <div class="withdraw-form-help">본인 확인이 완료되었습니다.</div>
-        </div>
-        <?php else: ?>
-        <div class="withdraw-form-group">
-            <label for="password">비밀번호 확인</label>
-            <input type="password" id="password" name="password" class="withdraw-form-control"
-                   placeholder="현재 비밀번호를 입력하세요">
-        </div>
-            <?php if (!empty($reauthOptions)): ?>
+        <?php
+            // 회원정보 수정과 같은 구성이다 — 확인을 마치면 SNS 칸은 사라지고,
+            // 비밀번호 칸은 자리를 지키며 확인됐음을 알린다.
+            $confirmed = !empty($reauthConfirmed);
+            $showSnsColumn = !$confirmed && !empty($reauthOptions);
+        ?>
+        <div class="withdraw-form-row">
             <div class="withdraw-form-group">
-                <div class="withdraw-form-help">비밀번호를 모르시나요? 아래 방법으로 본인 확인을 할 수 있습니다.</div>
+                <label for="password">비밀번호 확인</label>
+                <?php if ($confirmed): ?>
+                <input type="text" id="password" class="withdraw-form-control"
+                       value="본인 확인이 완료되었습니다" disabled>
+                <?php else: ?>
+                <input type="password" id="password" name="password" class="withdraw-form-control"
+                       placeholder="현재 비밀번호를 입력하세요">
+                <?php endif; ?>
+            </div>
+            <?php if ($showSnsColumn): ?>
+            <div class="withdraw-form-group">
+                <div class="form-group-title">가입한 계정으로 확인</div>
                 <?php foreach ($reauthOptions as $optionHtml): ?>
                     <?= $optionHtml ?>
                 <?php endforeach; ?>
             </div>
             <?php endif; ?>
-        <?php endif; ?>
+        </div>
 
         <div class="checkbox-group">
             <input type="checkbox" id="confirm" name="confirm">
@@ -72,10 +79,10 @@ $csrfToken = $mublo['security']['csrfToken'];
 <script>
 document.getElementById('btn-withdraw').addEventListener('click', function() {
     var msgEl    = document.getElementById('withdraw-message');
-    // 본인 확인을 이미 마쳤으면 비밀번호 칸 자체가 없다(SNS 재인증 등).
+    // 본인 확인을 마치면 비밀번호 칸은 안내용으로 비활성 상태가 된다 — 입력을 받지 않는다.
     var passwordEl = document.getElementById('password');
 
-    if (passwordEl && !passwordEl.value) {
+    if (passwordEl && !passwordEl.disabled && !passwordEl.value) {
         msgEl.textContent = '비밀번호를 입력해주세요.';
         msgEl.style.display = 'block';
         return;

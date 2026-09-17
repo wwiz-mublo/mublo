@@ -57,26 +57,35 @@ $csrfToken = $mublo['security']['csrfToken'];
             $pwHint = implode(' · ', $pwHintParts);
         ?>
         <h3 class="section-title">비밀번호 변경</h3>
-        <?php if (!empty($reauthConfirmed)): ?>
-        <div class="profile-form-group">
-            <div class="profile-form-help">본인 확인이 완료되었습니다. 새 비밀번호만 입력하세요.</div>
-        </div>
-        <?php else: ?>
-        <div class="profile-form-group">
-            <label for="current_password">현재 비밀번호</label>
-            <input type="password" id="current_password" name="current_password" class="profile-form-control"
-                   placeholder="비밀번호를 변경할 경우에만 입력" autocomplete="current-password">
-            <div class="profile-form-help">본인 확인을 위해 비밀번호 변경 시에만 필요합니다.</div>
-        </div>
-            <?php if (!empty($reauthOptions)): ?>
+        <?php
+            // 본인 확인 수단은 둘이다 — 현재 비밀번호를 아는 회원과, 그 값을 모르는
+            // 회원(SNS 전용)이 쓰는 확장 수단. 확인을 마치면 오른쪽은 할 일이 없어
+            // 사라지고, 왼쪽은 자리를 지키며 확인됐음을 알린다.
+            $confirmed = !empty($reauthConfirmed);
+            $showSnsColumn = !$confirmed && !empty($reauthOptions);
+        ?>
+        <div class="profile-form-row">
             <div class="profile-form-group">
-                <div class="profile-form-help">비밀번호를 모르시나요? 아래 방법으로 본인 확인을 할 수 있습니다.</div>
+                <label for="current_password">현재 비밀번호</label>
+                <?php if ($confirmed): ?>
+                <input type="text" id="current_password" class="profile-form-control"
+                       value="본인 확인이 완료되었습니다" disabled>
+                <div class="profile-form-help">새 비밀번호만 입력하면 됩니다.</div>
+                <?php else: ?>
+                <input type="password" id="current_password" name="current_password" class="profile-form-control"
+                       placeholder="비밀번호를 변경할 경우에만 입력" autocomplete="current-password">
+                <div class="profile-form-help">본인 확인을 위해 비밀번호 변경 시에만 필요합니다.</div>
+                <?php endif; ?>
+            </div>
+            <?php if ($showSnsColumn): ?>
+            <div class="profile-form-group">
+                <div class="form-group-title">가입한 계정으로 확인</div>
                 <?php foreach ($reauthOptions as $optionHtml): ?>
                     <?= $optionHtml ?>
                 <?php endforeach; ?>
             </div>
             <?php endif; ?>
-        <?php endif; ?>
+        </div>
         <div class="profile-form-row">
             <div class="profile-form-group">
                 <label for="new_password">새 비밀번호</label>
