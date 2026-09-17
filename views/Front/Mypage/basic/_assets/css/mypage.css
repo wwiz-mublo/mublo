@@ -254,7 +254,8 @@
 }
 
 .mypage-content .profile-form-group label,
-.mypage-content .withdraw-form-group label {
+.mypage-content .withdraw-form-group label,
+.mypage-content .form-group-title {
     display: block;
     margin-bottom: 0.375rem;
     font-size: 0.875rem;
@@ -340,27 +341,43 @@
     border-color: var(--ring);
 }
 
+/* 주입된 본인 확인 버튼(.btn-sns)을 마이페이지 입력 높이에 맞춘다
+   (전역 .btn-sns는 로그인 페이지 등 공용이라 마이페이지 스코프에서만 오버라이드) */
+.mypage-content .btn-sns {
+    padding: 0.5rem 1rem;
+}
+
+.mypage-content .sns-reauth-note {
+    margin: 4px 0 0;
+    font-size: 0.8125rem;
+    color: var(--muted-foreground);
+}
+
 /* 2필드 가로 배치 — 데스크탑 1행, 모바일 2행(세로) */
-.mypage-content .profile-form-row {
+.mypage-content .profile-form-row,
+.mypage-content .withdraw-form-row {
     display: flex;
     gap: 12px;
     margin-bottom: 1rem;
 }
 
-.mypage-content .profile-form-row > .profile-form-group {
+.mypage-content .profile-form-row > .profile-form-group,
+.mypage-content .withdraw-form-row > .withdraw-form-group {
     flex: 1;
     min-width: 0;
     margin-bottom: 0;
 }
 
 @media (max-width: 768px) {
-    .mypage-content .profile-form-row {
+    .mypage-content .profile-form-row,
+    .mypage-content .withdraw-form-row {
         flex-direction: column;
         gap: 0;
         margin-bottom: 0;
     }
 
-    .mypage-content .profile-form-row > .profile-form-group {
+    .mypage-content .profile-form-row > .profile-form-group,
+    .mypage-content .withdraw-form-row > .withdraw-form-group {
         margin-bottom: 1rem;
     }
 }

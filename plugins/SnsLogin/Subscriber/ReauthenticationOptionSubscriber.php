@@ -70,6 +70,13 @@ class ReauthenticationOptionSubscriber implements EventSubscriberInterface
             return;
         }
 
-        $event->addHtml('<div class="sns-login-buttons">' . $buttons . '</div>', 50);
+        // 왜 하필 이 제공자인지는 버튼이 답한다("Google로 본인 확인"). 칼럼 제목이
+        // "가입한 계정으로 확인" 이므로, 둘을 이어 읽으면 자기가 구글로 가입했다는 뜻이
+        // 전달된다. 제공자 이름을 한 번 더 적을 이유는 없다.
+        $event->addHtml(
+            '<div class="sns-login-buttons">' . $buttons . '</div>'
+            . '<p class="sns-reauth-note">비밀번호를 모를 때 사용하세요.</p>',
+            50,
+        );
     }
 }
