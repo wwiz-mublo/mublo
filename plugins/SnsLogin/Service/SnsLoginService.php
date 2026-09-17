@@ -4,7 +4,6 @@ namespace Mublo\Plugin\SnsLogin\Service;
 
 use Mublo\Core\Result\Result;
 use Mublo\Core\Session\SessionInterface;
-use Mublo\Infrastructure\Database\Database;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
 use Mublo\Plugin\SnsLogin\Repository\SnsAccountRepository;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
@@ -32,7 +31,6 @@ class SnsLoginService
         private SnsAccountRepository $accountRepository,
         private MemberAccountGatewayInterface $memberAccounts,
         private MemberQueryInterface $memberQueries,
-        private Database             $db,
         private MemberAuthenticatorInterface $authenticator,
         private SnsLoginConfigService $configService,
         private SessionInterface     $session,
@@ -103,9 +101,7 @@ class SnsLoginService
      */
     private function autoRegister(int $domainId, SnsUserInfo $userInfo, array $tokenData, array $config, ?string $domainGroup = null, ?string $ipAddress = null): Result
     {
-        $password = bin2hex(random_bytes(16));
         $levelValue = (int) ($config['register_level'] ?? 1);
-        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         $memberId = null;
 
@@ -117,38 +113,18 @@ class SnsLoginService
                 continue;
             }
 
-            // user_id: sns_{provider}_{uid 앞 8자}_{랜덤 4자}
-            $userId = 'sns_' . $userInfo->provider . '_' . substr($userInfo->uid, 0, 8)
-                . '_' . substr(bin2hex(random_bytes(2)), 0, 4);
+            $credentials = $this->generateCredentials($userInfo->provider, $userInfo->uid);
             try {
-                $memberId = $this->db->transaction(function () use (
-                    $domainId,
-                    $domainGroup,
-                    $userId,
-                    $passwordHash,
-                    $nickname,
-                    $levelValue,
-                    $userInfo,
-                    $tokenData,
-                ): ?int {
-                    $createdMemberId = $this->memberAccounts->create(new MemberRegistrationRequest(
-                        domainId: $domainId,
-                        userId: $userId,
-                        passwordHash: $passwordHash,
-                        nickname: $nickname,
-                        levelValue: $levelValue,
-                        originDomainId: $domainId,
-                        domainGroup: $domainGroup,
-                    ));
-
-                    if (!$createdMemberId) {
-                        return null;
-                    }
-
-                    // 회원 생성과 SNS 연결을 같은 트랜잭션에 넣어 고아 회원을 남기지 않는다.
+                $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
+                    domainId: $domainId,
+                    userId: $credentials['user_id'],
+                    passwordHash: $credentials['password_hash'],
+                    nickname: $nickname,
+                    levelValue: $levelValue,
+                    originDomainId: $domainId,
+                    domainGroup: $domainGroup,
+                ), function (int $createdMemberId) use ($domainId, $userInfo, $tokenData): void {
                     $this->linkAccount($createdMemberId, $domainId, $userInfo, $tokenData);
-
-                    return $createdMemberId;
                 });
             } catch (\Throwable $e) {
                 // 같은 SNS 콜백이 동시에 처리된 경우, 패배한 트랜잭션은 롤백되고
@@ -171,20 +147,12 @@ class SnsLoginService
                 throw $e;
             }
 
-            if ($memberId) {
-                break;
-            }
-
-            return Result::failure('자동 가입 처리 중 오류가 발생했습니다.');
+            break;
         }
 
         if (!$memberId) {
             return Result::failure('사용 가능한 닉네임을 생성하지 못했습니다. 잠시 후 다시 시도해 주세요.');
         }
-
-        // 회원 생성 트랜잭션이 커밋된 뒤에 가입을 알린다. 코어의 정식 가입 경로가 발행하는
-        // 이벤트와 같아서 가입 포인트·가입 쿠폰 같은 확장점이 SNS 가입에도 동작한다.
-        $this->memberAccounts->notifyRegistered($memberId);
 
         if (!$this->authenticator->loginByMemberId($memberId, $ipAddress)) {
             return Result::failure('생성된 계정으로 로그인할 수 없습니다.');
@@ -219,6 +187,22 @@ class SnsLoginService
         }
 
         return false;
+    }
+
+    /**
+     * SNS 회원의 자동 생성 자격 — 두 가입 경로(바로 가입·프로필 완성)가 같은 규칙을 쓴다.
+     *
+     * SNS 회원은 이 비밀번호로 로그인하지 않지만 컬럼이 비어 있을 수 없어 임의값을 넣는다.
+     *
+     * @return array{user_id: string, password_hash: string}
+     */
+    public function generateCredentials(string $provider, string $uid): array
+    {
+        return [
+            'user_id' => 'sns_' . $provider . '_' . substr($uid, 0, 8)
+                . '_' . substr(bin2hex(random_bytes(2)), 0, 4),
+            'password_hash' => password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT),
+        ];
     }
 
     /**

@@ -6,6 +6,7 @@ use Mublo\Core\Context\Context;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
+use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginService;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
@@ -87,27 +88,7 @@ class SnsProfileController
             }
         }
 
-        // user_id 자동 생성
-        $userId = 'sns_' . $pending['provider'] . '_' . substr($pending['uid'], 0, 8)
-                . '_' . substr(bin2hex(random_bytes(2)), 0, 4);
-
-        $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
-            domainId: $domainId,
-            userId: $userId,
-            passwordHash: password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT),
-            nickname: $nickname,
-            domainGroup: $context->getDomainGroup(),
-        ));
-
-        if (!$memberId) {
-            return JsonResponse::error('가입 처리 중 오류가 발생했습니다.');
-        }
-
-        // 추가 필드 저장 (프론트 경로 — 현재 도메인의 비관리자 필드만 허용)
-        $fields = $formData['fields'] ?? [];
-        if (!empty($fields)) {
-            $this->memberAccounts->saveCustomFields($memberId, $domainId, $fields);
-        }
+        $credentials = $this->loginService->generateCredentials($pending['provider'], $pending['uid']);
 
         $userInfo  = new SnsUserInfo(
             provider:     $pending['provider'],
@@ -122,10 +103,28 @@ class SnsProfileController
             'expires_in'    => $pending['expires_in'],
         ];
 
-        $this->loginService->linkAccount($memberId, $domainId, $userInfo, $tokenData);
-
-        // 회원·추가 필드·SNS 연결이 모두 저장된 뒤에 가입을 알린다(바로 가입 경로와 동일).
-        $this->memberAccounts->notifyRegistered($memberId);
+        try {
+            $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
+                domainId: $domainId,
+                userId: $credentials['user_id'],
+                passwordHash: $credentials['password_hash'],
+                nickname: $nickname,
+                domainGroup: $context->getDomainGroup(),
+            ), function (int $memberId) use ($domainId, $fields, $userInfo, $tokenData): void {
+                if (!empty($fields)) {
+                    $this->memberAccounts->saveCustomFields($memberId, $domainId, $fields);
+                }
+                $this->loginService->linkAccount($memberId, $domainId, $userInfo, $tokenData);
+            });
+        } catch (DatabaseException $e) {
+            // 저장 실패만 사용자에게 재시도로 안내한다. 코어는 회원·추가 필드·SNS 연결을
+            // 한 트랜잭션에 묶으므로 이 시점에 남은 회원 행은 없다.
+            // LogicException(외부 트랜잭션)과 \Error 는 프로그래밍 오류라 잡지 않고 올려보낸다.
+            error_log('[SnsProfileController::store] ' . $e->getMessage()
+                . ' in ' . $e->getFile() . ':' . $e->getLine());
+            $this->loginService->setPendingSession($pending);
+            return JsonResponse::error('가입 처리 중 오류가 발생했습니다.');
+        }
 
         if (!$this->authenticator->loginByMemberId($memberId, $request->getClientIp())) {
             return JsonResponse::error('생성된 계정으로 로그인할 수 없습니다.');

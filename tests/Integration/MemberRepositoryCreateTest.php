@@ -12,6 +12,10 @@ use Mublo\Repository\Member\MemberRepository;
  *   createMock(MemberRepository::class) 라서, 실제 INSERT 가 한 번도 실행된 적이 없었다.
  *   컬럼 제약·기본값·인코딩은 mock 뒤에서 전부 통과한다.
  *
+ *   created_at·updated_at 도 같은 사각지대다. 가입 경로는 두 값을 넘기지 않고
+ *   created_at 은 BaseRepository 가, updated_at 은 테이블 기본값이 채우는데, 둘 다
+ *   NOT NULL 이라 하나라도 어긋나면 실 DB 에서만 INSERT 가 거부된다.
+ *
  *   public_id 가 그 사각지대의 대표 사례다. 세 경로 모두 값을 넘기지 않고
  *   MemberRepository::create() 의 기본값 분기 하나에 의존하는데, 그 분기를 지워도
  *   전체 스위트가 초록이었다. CHAR(22) NOT NULL 이라 실 DB 에서만 드러난다.
@@ -41,8 +45,8 @@ class MemberRepositoryCreateTest extends DatabaseTestCase
             level_value INT NOT NULL DEFAULT 1,
             point_balance INT NOT NULL DEFAULT 0,
             status VARCHAR(20) NOT NULL DEFAULT 'active',
-            created_at DATETIME NULL,
-            updated_at DATETIME NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             UNIQUE KEY uk_member_public_id (public_id),
             UNIQUE KEY uk_domain_user (domain_id, user_id)
         ");
@@ -88,6 +92,37 @@ class MemberRepositoryCreateTest extends DatabaseTestCase
         $this->assertCount(1, $rows);
         $this->assertSame('가입회원', $rows[0]['nickname']);
         $this->assertMatchesRegularExpression('/\A[0-9a-f]{22}\z/', (string) $rows[0]['public_id']);
+    }
+
+    /**
+     * 가입 경로가 넘기는 행 그대로 — 타임스탬프를 싣지 않는다.
+     *
+     * created_at 은 BaseRepository::create 가 채우고 updated_at 은 테이블 기본값이 채운다.
+     * 두 컬럼 다 NOT NULL 이라, 어느 한쪽 경로가 사라지면 여기서 INSERT 가 거부된다.
+     * 경로마다 타임스탬프를 직접 찍던 코드를 걷어냈으므로 이 보증이 유일한 안전망이다.
+     */
+    public function testCreateFillsBothTimestampsWhenTheCallerOmitsThem(): void
+    {
+        $before = (new \DateTimeImmutable('-1 minute'))->format('Y-m-d H:i:s');
+
+        $memberId = $this->repository->create([
+            'domain_id' => 1,
+            'origin_domain_id' => 1,
+            'user_id' => 'sns_kakao_abc12345_1b2c',
+            'password' => 'secret-hash',
+            'nickname' => '타임스탬프회원',
+            'level_value' => 1,
+            'status' => 'active',
+        ]);
+
+        $this->assertNotNull($memberId);
+
+        $rows = $this->fetchAll('SELECT created_at, updated_at FROM members WHERE member_id = ?', [$memberId]);
+        $this->assertNotNull($rows[0]['created_at']);
+        $this->assertNotNull($rows[0]['updated_at']);
+        // '0000-00-00' 같은 빈 기본값이 들어오면 NOT NULL 을 통과하고도 값이 쓸모없다.
+        $this->assertGreaterThan($before, (string) $rows[0]['created_at']);
+        $this->assertGreaterThan($before, (string) $rows[0]['updated_at']);
     }
 
     /**
