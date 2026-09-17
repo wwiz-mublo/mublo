@@ -174,10 +174,11 @@ class SnsAuthController
                 return RedirectResponse::to('/login?error=' . urlencode($result->getMessage()));
             }
 
-            $action   = $result->get('action');
-            $redirect = $this->session->get(self::SESSION_REDIRECT) ?? '/';
-            $this->session->remove(self::SESSION_REDIRECT);
+            $action = $result->get('action');
 
+            // 가입이 여러 단계로 나뉘면(약관 동의·프로필 입력) 여기서 끝나지 않는다.
+            // 돌아갈 주소를 지금 지우면 마지막 단계가 그 자리를 잃어, 특정 글에서
+            // 로그인한 사람이 원래 보던 곳으로 돌아가지 못한다 — 마지막 단계가 쓴다.
             if ($action === 'agreement_needed') {
                 return RedirectResponse::to('/sns-login/agree');
             }
@@ -186,7 +187,7 @@ class SnsAuthController
                 return RedirectResponse::to('/sns-login/profile/complete');
             }
 
-            return RedirectResponse::to($redirect);
+            return RedirectResponse::to($this->consumeRedirect());
 
         } catch (\Throwable $e) {
             $this->logger->exception($e, 'error', [
@@ -196,6 +197,26 @@ class SnsAuthController
             ]);
             return RedirectResponse::to($errorBase . '?error=sns_error');
         }
+    }
+
+    /**
+     * 로그인 전에 보던 곳으로 돌려보낼 주소를 꺼내고 세션에서 지운다.
+     *
+     * 가입이 여러 단계로 나뉘므로 마지막 단계에서 한 번만 소비해야 한다.
+     */
+    public static function consumeRedirectFrom(SessionInterface $session): string
+    {
+        $redirect = $session->get(self::SESSION_REDIRECT) ?? '/';
+        $session->remove(self::SESSION_REDIRECT);
+
+        return is_string($redirect) && str_starts_with($redirect, '/') && !str_starts_with($redirect, '//')
+            ? $redirect
+            : '/';
+    }
+
+    private function consumeRedirect(): string
+    {
+        return self::consumeRedirectFrom($this->session);
     }
 
     /**

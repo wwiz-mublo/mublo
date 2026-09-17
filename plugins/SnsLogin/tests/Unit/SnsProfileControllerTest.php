@@ -9,6 +9,7 @@ use Mublo\Contract\Member\MemberRegistrationRequest;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Http\Request;
 use Mublo\Core\Result\Result;
+use Mublo\Core\Session\SessionInterface;
 use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Controller\Front\SnsProfileController;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginConfigService;
@@ -102,7 +103,7 @@ final class SnsProfileControllerTest extends TestCase
         $context->method('getRequest')->willReturn($request);
         $previous = ini_set('error_log', '/dev/null');
         try {
-            (new SnsProfileController($login, $accounts, $auth, $config))->store([], $context);
+            (new SnsProfileController($login, $accounts, $auth, $config, $this->createStub(SessionInterface::class)))->store([], $context);
         } finally {
             ini_set('error_log', (string) $previous);
         }
@@ -136,6 +137,6 @@ final class SnsProfileControllerTest extends TestCase
         $context->method('getRequest')->willReturn($request);
 
         $this->expectException(\LogicException::class);
-        (new SnsProfileController($login, $accounts, $auth, $config))->store([], $context);
+        (new SnsProfileController($login, $accounts, $auth, $config, $this->createStub(SessionInterface::class)))->store([], $context);
     }
 }

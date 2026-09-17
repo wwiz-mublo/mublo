@@ -6,6 +6,7 @@ use Mublo\Core\Context\Context;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
+use Mublo\Core\Session\SessionInterface;
 use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginConfigService;
@@ -26,6 +27,7 @@ class SnsProfileController
         private MemberAccountGatewayInterface $memberAccounts,
         private MemberAuthenticatorInterface $authenticator,
         private SnsLoginConfigService $configService,
+        private SessionInterface $session,
     ) {}
 
     /**
@@ -139,6 +141,9 @@ class SnsProfileController
             return JsonResponse::error('생성된 계정으로 로그인할 수 없습니다.');
         }
 
-        return JsonResponse::success(['redirect' => '/'], '가입이 완료되었습니다.');
+        return JsonResponse::success(
+            ['redirect' => SnsAuthController::consumeRedirectFrom($this->session)],
+            '가입이 완료되었습니다.',
+        );
     }
 }
