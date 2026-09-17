@@ -7,7 +7,6 @@ use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberProfile;
 use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
-use Mublo\Core\Crypto\PasswordHasher;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
@@ -47,6 +46,9 @@ class SnsLoginServiceTest extends TestCase
         $this->assertTrue($result->isSuccess());
         $this->assertSame('register', $result->get('action'));
         $this->assertSame($nickname, $capturedMember->nickname);
+        // 로컬 비밀번호 없음 — 본인도 모르는 임의 해시를 넣으면 코어가 '비밀번호 있는
+        // 회원' 과 구분하지 못하고, 회원은 그 값을 영영 쓸 수 없다.
+        $this->assertSame('', $capturedMember->passwordHash);
         $this->assertSame(7, $capturedMember->domainId);
         $this->assertSame(7, $capturedMember->originDomainId);
         $this->assertSame('group-a', $capturedMember->domainGroup);
@@ -246,8 +248,6 @@ class SnsLoginServiceTest extends TestCase
                 $session,
                 $generator,
                 $connectionManager,
-                // 테스트에서 비용이 큰 해시를 돌릴 이유가 없다 — 최소 비용으로 낮춘다.
-                new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 4]),
             ),
             $accountRepository,
             $memberRepository,

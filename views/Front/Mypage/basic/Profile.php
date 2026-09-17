@@ -5,6 +5,8 @@ $csrfToken = $mublo['security']['csrfToken'];
  *
  * @var array  $user             로그인한 사용자 정보
  * @var array  $fieldDefinitions 추가 필드 정의
+ * @var bool   $reauthConfirmed 본인 확인 완료 여부
+ * @var array  $reauthOptions   확장이 내놓은 본인 확인 수단 HTML
  * @var array  $fieldValues      필드 값 (field_id => field_value)
  * @var array[] $mypageMenus     사이드바 메뉴 목록
  * @var string $currentSection   현재 활성 섹션
@@ -55,12 +57,26 @@ $csrfToken = $mublo['security']['csrfToken'];
             $pwHint = implode(' · ', $pwHintParts);
         ?>
         <h3 class="section-title">비밀번호 변경</h3>
+        <?php if (!empty($reauthConfirmed)): ?>
+        <div class="profile-form-group">
+            <div class="profile-form-help">본인 확인이 완료되었습니다. 새 비밀번호만 입력하세요.</div>
+        </div>
+        <?php else: ?>
         <div class="profile-form-group">
             <label for="current_password">현재 비밀번호</label>
             <input type="password" id="current_password" name="current_password" class="profile-form-control"
                    placeholder="비밀번호를 변경할 경우에만 입력" autocomplete="current-password">
             <div class="profile-form-help">본인 확인을 위해 비밀번호 변경 시에만 필요합니다.</div>
         </div>
+            <?php if (!empty($reauthOptions)): ?>
+            <div class="profile-form-group">
+                <div class="profile-form-help">비밀번호를 모르시나요? 아래 방법으로 본인 확인을 할 수 있습니다.</div>
+                <?php foreach ($reauthOptions as $optionHtml): ?>
+                    <?= $optionHtml ?>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        <?php endif; ?>
         <div class="profile-form-row">
             <div class="profile-form-group">
                 <label for="new_password">새 비밀번호</label>

@@ -2,7 +2,6 @@
 declare(strict_types=1);
 namespace Mublo\Plugin\SnsLogin\Service;
 
-use Mublo\Core\Crypto\PasswordHasher;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
@@ -37,7 +36,6 @@ class SnsLoginService
         private SessionInterface     $session,
         private KoreanNicknameGenerator $nicknameGenerator,
         private SnsConnectionManager $connectionManager,
-        private PasswordHasher $passwordHasher,
     ) {}
 
     /**
@@ -115,12 +113,12 @@ class SnsLoginService
                 continue;
             }
 
-            $credentials = $this->generateCredentials($userInfo->provider, $userInfo->uid);
+            $userId = $this->generateUserId($userInfo->provider, $userInfo->uid);
             try {
                 $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
                     domainId: $domainId,
-                    userId: $credentials['user_id'],
-                    passwordHash: $credentials['password_hash'],
+                    userId: $userId,
+                    passwordHash: self::NO_LOCAL_PASSWORD,
                     nickname: $nickname,
                     levelValue: $levelValue,
                     originDomainId: $domainId,
@@ -192,22 +190,24 @@ class SnsLoginService
     }
 
     /**
-     * SNS 회원의 자동 생성 자격 — 두 가입 경로(바로 가입·프로필 완성)가 같은 규칙을 쓴다.
-     *
-     * SNS 회원은 이 비밀번호로 로그인하지 않지만 컬럼이 비어 있을 수 없어 임의값을 넣는다.
-     * 해시는 코어 해셔에 맡긴다 — 알고리즘·코스트를 직접 적으면 운영자가 보안 설정을
-     * 바꿔도 SNS 회원만 옛 방식으로 남고, 로그인마다 도는 재해시 판정과도 어긋난다.
-     *
-     * @return array{user_id: string, password_hash: string}
+     * SNS 회원의 자동 생성 아이디 — 두 가입 경로(바로 가입·프로필 완성)가 같은 규칙을 쓴다.
      */
-    public function generateCredentials(string $provider, string $uid): array
+    public function generateUserId(string $provider, string $uid): string
     {
-        return [
-            'user_id' => 'sns_' . $provider . '_' . substr($uid, 0, 8)
-                . '_' . substr(bin2hex(random_bytes(2)), 0, 4),
-            'password_hash' => $this->passwordHasher->hash(bin2hex(random_bytes(16))),
-        ];
+        return 'sns_' . $provider . '_' . substr($uid, 0, 8)
+            . '_' . substr(bin2hex(random_bytes(2)), 0, 4);
     }
+
+    /**
+     * SNS 가입 회원의 비밀번호 자리 — 로컬 비밀번호가 없음을 뜻하는 빈 값이다.
+     *
+     * 종전에는 임의 문자열을 해시해 넣었다. 컬럼은 채워졌지만 본인도 그 값을 모르니
+     * 쓸 수 없는 비밀번호였고, 코어는 컬럼이 차 있다는 이유로 "비밀번호가 있는 회원" 과
+     * 구분하지 못했다. 빈 값은 password_verify 가 어떤 입력으로도 통과시키지 않으므로
+     * 로그인은 그대로 막히고, 코어는 로컬 비밀번호 없음을 알아볼 수 있다.
+     * (탈퇴한 회원의 비밀번호도 같은 빈 값으로 정리된다.)
+     */
+    public const NO_LOCAL_PASSWORD = '';
 
     /**
      * SNS 계정 연결 저장

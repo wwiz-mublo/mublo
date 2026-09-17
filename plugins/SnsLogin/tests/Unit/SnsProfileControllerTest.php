@@ -37,8 +37,8 @@ final class SnsProfileControllerTest extends TestCase
         $config = $this->createMock(SnsLoginConfigService::class);
         $config->method('getRegisterLevel')->with(7)->willReturn(4);
         $login->method('consumePendingSession')->willReturn($pending);
-        $login->method('generateCredentials')->with('kakao', 'provider-123')
-            ->willReturn(['user_id' => 'sns_kakao_provider_ab12', 'password_hash' => 'throwaway-hash']);
+        $login->method('generateUserId')->with('kakao', 'provider-123')
+            ->willReturn('sns_kakao_provider_ab12');
         $accounts->method('validateCustomFields')->willReturn(Result::success());
         $insideRegistration = false;
         $fieldsSaved = false;
@@ -49,7 +49,8 @@ final class SnsProfileControllerTest extends TestCase
                 $this->assertSame('닉네임', $request->nickname);
                 // 자격은 두 가입 경로가 공유하는 생성기에서 온다.
                 $this->assertSame('sns_kakao_provider_ab12', $request->userId);
-                $this->assertSame('throwaway-hash', $request->passwordHash);
+                // 로컬 비밀번호 없음 — 어떤 입력으로도 로그인되지 않는 빈 값이다.
+                $this->assertSame('', $request->passwordHash);
                 // 관리자가 정한 가입 레벨이 가입 방식에 따라 갈리면 안 된다.
                 $this->assertSame(4, $request->levelValue);
                 $this->assertSame(7, $request->originDomainId);
@@ -120,8 +121,7 @@ final class SnsProfileControllerTest extends TestCase
         $config = $this->createMock(SnsLoginConfigService::class);
         $config->method('getRegisterLevel')->with(7)->willReturn(4);
         $login->method('consumePendingSession')->willReturn($pending);
-        $login->method('generateCredentials')
-            ->willReturn(['user_id' => 'sns_kakao_provider_ab12', 'password_hash' => 'throwaway-hash']);
+        $login->method('generateUserId')->willReturn('sns_kakao_provider_ab12');
         $accounts->method('validateCustomFields')->willReturn(Result::success());
         // 코어가 외부 트랜잭션을 거부할 때 나는 예외. 프로그래밍 오류이므로 일반 오류로
         // 감싸 재시도를 권하면 사용자는 같은 실패를 반복한다.

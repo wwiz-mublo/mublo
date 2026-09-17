@@ -11,6 +11,7 @@ use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Contract\Auth\ReauthenticationInterface;
+use Mublo\Core\Event\Member\ReauthenticationOptionsRenderingEvent;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Service\CustomField\CustomFieldFileHandler;
 use Mublo\Infrastructure\Storage\SecureFileService;
@@ -92,10 +93,21 @@ class MypageController
 
         $siteConfig = $context->getDomainInfo()?->getSiteConfig() ?? [];
 
+        // 본인 확인 수단은 회원마다 다르다 — 자기 비밀번호를 모르는 회원(SNS 전용)은
+        // 확장이 내놓는 수단으로 확인한다. 코어는 확인 여부만 알고 수단은 모른다.
+        $confirmed = $this->reauthentication->isConfirmed((int) $user['member_id']);
+        $optionsEvent = $this->eventDispatcher->dispatch(new ReauthenticationOptionsRenderingEvent(
+            (int) $user['member_id'],
+            $confirmed,
+            $context,
+        ));
+
         return $this->mypageView('Profile', 'profile', $context, [
             'user'             => $user,
             'fieldDefinitions' => $fieldDefinitions,
             'fieldValues'      => $fieldValuesMap,
+            'reauthConfirmed'  => $confirmed,
+            'reauthOptions'    => $optionsEvent->getHtmlSorted(),
             'passwordPolicy'   => [
                 'min'     => (int) ($siteConfig['password_min_length'] ?? 6),
                 'lower'   => !empty($siteConfig['password_require_lower']),

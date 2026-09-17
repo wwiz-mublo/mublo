@@ -23,6 +23,13 @@ return function (PrefixedRouteCollector $r): void {
         'method'     => 'start',
     ]);
 
+    // 본인 확인용 재인증 시작 (로그인 회원 전용, 콜백은 로그인과 같은 주소를 쓴다)
+    $r->addRoute('GET', '/reauth/{provider}', [
+        'controller' => \Mublo\Plugin\SnsLogin\Controller\Front\SnsAuthController::class,
+        'method'     => 'startReauthentication',
+        'middleware' => [AuthMiddleware::class],
+    ]);
+
     // OAuth2 콜백 처리
     $r->addRoute('GET', '/callback/{provider}', [
         'controller' => \Mublo\Plugin\SnsLogin\Controller\Front\SnsAuthController::class,

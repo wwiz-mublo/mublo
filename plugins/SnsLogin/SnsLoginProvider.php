@@ -5,7 +5,6 @@ namespace Mublo\Plugin\SnsLogin;
 use Mublo\Contract\DataResetResult;
 use Mublo\Contract\DataResettableInterface;
 use Mublo\Core\Container\DependencyContainer;
-use Mublo\Core\Crypto\PasswordHasher;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Extension\ExtensionProviderInterface;
@@ -30,10 +29,12 @@ use Mublo\Plugin\SnsLogin\Service\SnsLoginService;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginDataResetter;
 use Mublo\Plugin\SnsLogin\Service\SnsConnectionManager;
 use Mublo\Plugin\SnsLogin\Subscriber\LoginFormSubscriber;
+use Mublo\Plugin\SnsLogin\Subscriber\ReauthenticationOptionSubscriber;
 use Mublo\Plugin\SnsLogin\Subscriber\MemberLifecycleSubscriber;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Auth\MemberAuthenticatorInterface;
 
 class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensionInterface, DataResettableInterface
@@ -102,7 +103,6 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(SessionInterface::class),
                 $c->get(KoreanNicknameGenerator::class),
                 $c->get(SnsConnectionManager::class),
-                $c->get(PasswordHasher::class),
             )
         );
 
@@ -114,6 +114,8 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(SessionInterface::class),
                 $c->get(Logger::class)->channel('sns-login'),
                 $c->get(AuthContextInterface::class),
+                $c->get(SnsAccountRepository::class),
+                $c->get(ReauthenticationInterface::class),
             )
         );
 
@@ -151,6 +153,10 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
         // 구독자 등록은 항상 먼저 (DB 접근 전) — 설치 전에도 관리자 메뉴가 보여야 함
         $eventDispatcher->addSubscriber(new AdminMenuSubscriber());
         $eventDispatcher->addSubscriber(new LoginFormSubscriber($registry));
+        $eventDispatcher->addSubscriber(new ReauthenticationOptionSubscriber(
+            $container->get(SnsAccountRepository::class),
+            $registry,
+        ));
         $eventDispatcher->addSubscriber(new MemberLifecycleSubscriber(
             $container->get(SnsConnectionManager::class),
             $container->get(Logger::class)->channel('sns-login'),
