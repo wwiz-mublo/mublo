@@ -7,8 +7,8 @@ use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberProfile;
 use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
+use Mublo\Core\Crypto\PasswordHasher;
 use Mublo\Core\Session\SessionInterface;
-use Mublo\Infrastructure\Database\Database;
 use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
 use Mublo\Plugin\SnsLogin\Entity\SnsAccount;
@@ -26,7 +26,7 @@ class SnsLoginServiceTest extends TestCase
         $capturedMember = null;
         $nickname = '고요한별빛수달';
 
-        [$service, $accountRepository, $memberRepository, $authenticator, $generator, $database] = $this->createService();
+        [$service, $accountRepository, $memberRepository, $authenticator, $generator] = $this->createService();
 
         $generator->expects($this->once())->method('generate')->willReturn($nickname);
         $memberRepository->method('nicknameExists')->with(7, $nickname, true)->willReturn(false);
@@ -50,7 +50,6 @@ class SnsLoginServiceTest extends TestCase
         $this->assertSame(7, $capturedMember->domainId);
         $this->assertSame(7, $capturedMember->originDomainId);
         $this->assertSame('group-a', $capturedMember->domainGroup);
-        $this->assertFalse($database->inTransaction());
     }
 
     public function testAutoRegisterRetriesAfterDatabaseUniqueKeyCollision(): void
@@ -105,7 +104,7 @@ class SnsLoginServiceTest extends TestCase
 
     public function testConcurrentProviderLinkRollsBackNewMemberAndLogsIntoWinner(): void
     {
-        [$service, $accountRepository, $memberRepository, $authenticator, $generator, $database] = $this->createService();
+        [$service, $accountRepository, $memberRepository, $authenticator, $generator] = $this->createService();
 
         $linkedAccount = new SnsAccount(
             id: 99,
@@ -142,7 +141,6 @@ class SnsLoginServiceTest extends TestCase
 
         $this->assertTrue($result->isSuccess());
         $this->assertSame('login', $result->get('action'));
-        $this->assertFalse($database->inTransaction());
     }
 
     public function testAccountLinkFailurePropagatesInsteadOfLoggingTheMemberIn(): void
@@ -172,6 +170,29 @@ class SnsLoginServiceTest extends TestCase
         }
     }
 
+    public function testAutoRegisterAppliesTheConfiguredRegisterLevel(): void
+    {
+        [$service, , $memberRepository, $authenticator, $generator, $configService] = $this->createService();
+
+        // 관리자가 정한 가입 레벨은 가입 방식과 무관하게 같아야 한다.
+        $configService->method('getRegisterLevel')->with(7)->willReturn(6);
+        $generator->method('generate')->willReturn('고요한별빛수달');
+        $memberRepository->method('nicknameExists')->willReturn(false);
+        $captured = null;
+        $memberRepository->method('create')->willReturnCallback(
+            function (MemberRegistrationRequest $data, callable $persistRelated) use (&$captured): int {
+                $captured = $data;
+                $persistRelated(321);
+                return 321;
+            }
+        );
+        $authenticator->method('loginByMemberId')->willReturn(true);
+
+        $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token']);
+
+        $this->assertSame(6, $captured->levelValue);
+    }
+
     public function testExistingLinkedAccountLoginDoesNotAnnounceRegistration(): void
     {
         [$service, $accountRepository, $memberRepository, $authenticator] = $this->createService();
@@ -195,7 +216,7 @@ class SnsLoginServiceTest extends TestCase
     }
 
     /**
-     * @return array{SnsLoginService, SnsAccountRepository&\PHPUnit\Framework\MockObject\MockObject, MemberAccountGatewayInterface&MemberQueryInterface&\PHPUnit\Framework\MockObject\MockObject, MemberAuthenticatorInterface&\PHPUnit\Framework\MockObject\MockObject, KoreanNicknameGenerator&\PHPUnit\Framework\MockObject\MockObject, Database&\PHPUnit\Framework\MockObject\MockObject}
+     * @return array{SnsLoginService, SnsAccountRepository&\PHPUnit\Framework\MockObject\MockObject, MemberAccountGatewayInterface&MemberQueryInterface&\PHPUnit\Framework\MockObject\MockObject, MemberAuthenticatorInterface&\PHPUnit\Framework\MockObject\MockObject, KoreanNicknameGenerator&\PHPUnit\Framework\MockObject\MockObject, SnsLoginConfigService&\PHPUnit\Framework\MockObject\MockObject}
      */
     private function createService(): array
     {
@@ -209,33 +230,11 @@ class SnsLoginServiceTest extends TestCase
         $session = $this->createMock(SessionInterface::class);
         $generator = $this->createMock(KoreanNicknameGenerator::class);
         $connectionManager = $this->createMock(SnsConnectionManager::class);
-        $database = $this->createMock(Database::class);
-        $inTransaction = false;
-
-        $database->method('transaction')->willReturnCallback(
-            function (callable $callback) use (&$inTransaction): mixed {
-                $inTransaction = true;
-
-                try {
-                    $result = $callback();
-                    $inTransaction = false;
-                    return $result;
-                } catch (\Throwable $e) {
-                    $inTransaction = false;
-                    throw new DatabaseException('Transaction failed: ' . $e->getMessage(), 0, $e);
-                }
-            }
-        );
-        $database->method('inTransaction')->willReturnCallback(
-            function () use (&$inTransaction): bool {
-                return $inTransaction;
-            }
-        );
-
         $configService->method('getConfig')->willReturn([
             'auto_register' => true,
             'register_level' => 1,
         ]);
+
 
         return [
             new SnsLoginService(
@@ -247,12 +246,14 @@ class SnsLoginServiceTest extends TestCase
                 $session,
                 $generator,
                 $connectionManager,
+                // 테스트에서 비용이 큰 해시를 돌릴 이유가 없다 — 최소 비용으로 낮춘다.
+                new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 4]),
             ),
             $accountRepository,
             $memberRepository,
             $authenticator,
             $generator,
-            $database,
+            $configService,
         ];
     }
 

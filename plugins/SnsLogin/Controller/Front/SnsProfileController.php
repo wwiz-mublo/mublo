@@ -8,6 +8,7 @@ use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Infrastructure\Database\DatabaseException;
 use Mublo\Plugin\SnsLogin\Dto\SnsUserInfo;
+use Mublo\Plugin\SnsLogin\Service\SnsLoginConfigService;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginService;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberRegistrationRequest;
@@ -24,6 +25,7 @@ class SnsProfileController
         private SnsLoginService  $loginService,
         private MemberAccountGatewayInterface $memberAccounts,
         private MemberAuthenticatorInterface $authenticator,
+        private SnsLoginConfigService $configService,
     ) {}
 
     /**
@@ -109,6 +111,10 @@ class SnsProfileController
                 userId: $credentials['user_id'],
                 passwordHash: $credentials['password_hash'],
                 nickname: $nickname,
+                // 바로 가입과 같은 값을 쓴다. 종전에는 이 경로만 기본 레벨로 가입해
+                // 관리자가 정한 가입 레벨이 가입 방식에 따라 갈렸다.
+                levelValue: $this->configService->getRegisterLevel($domainId),
+                originDomainId: $domainId,
                 domainGroup: $context->getDomainGroup(),
             ), function (int $memberId) use ($domainId, $fields, $userInfo, $tokenData): void {
                 if (!empty($fields)) {

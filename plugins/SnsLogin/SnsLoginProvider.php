@@ -5,6 +5,7 @@ namespace Mublo\Plugin\SnsLogin;
 use Mublo\Contract\DataResetResult;
 use Mublo\Contract\DataResettableInterface;
 use Mublo\Core\Container\DependencyContainer;
+use Mublo\Core\Crypto\PasswordHasher;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Extension\ExtensionProviderInterface;
@@ -101,6 +102,7 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(SessionInterface::class),
                 $c->get(KoreanNicknameGenerator::class),
                 $c->get(SnsConnectionManager::class),
+                $c->get(PasswordHasher::class),
             )
         );
 
@@ -120,6 +122,7 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(SnsLoginService::class),
                 $c->get(MemberAccountGatewayInterface::class),
                 $c->get(MemberAuthenticatorInterface::class),
+                $c->get(SnsLoginConfigService::class),
             )
         );
 
