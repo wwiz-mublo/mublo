@@ -7,6 +7,8 @@ use Mublo\Core\Context\Context;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
+use Mublo\Core\Result\Result;
+use Mublo\Core\Session\SessionInterface;
 use Mublo\Plugin\SnsLogin\Service\SnsLoginService;
 
 /**
@@ -26,6 +28,7 @@ class SnsAgreeController
     public function __construct(
         private SnsLoginService $loginService,
         private PolicyQueryInterface $policies,
+        private SessionInterface $session,
     ) {}
 
     /**
@@ -127,14 +130,17 @@ class SnsAgreeController
         return JsonResponse::success(['redirect' => $this->destinationFor($result)], $result->getMessage());
     }
 
-    private function destinationFor(\Mublo\Core\Result\Result $result): string
+    private function destinationFor(Result $result): string
     {
         if ($result->isFailure()) {
             return '/login?error=' . urlencode($result->getMessage());
         }
 
-        return $result->get('action') === 'profile_needed'
-            ? '/sns-login/profile/complete'
-            : '/';
+        // 프로필 입력이 남았다면 아직 가입이 끝나지 않았다 — 돌아갈 주소는 그 단계가 쓴다.
+        if ($result->get('action') === 'profile_needed') {
+            return '/sns-login/profile/complete';
+        }
+
+        return SnsAuthController::consumeRedirectFrom($this->session);
     }
 }

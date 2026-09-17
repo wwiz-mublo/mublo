@@ -129,6 +129,7 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
                 $c->get(MemberAccountGatewayInterface::class),
                 $c->get(MemberAuthenticatorInterface::class),
                 $c->get(SnsLoginConfigService::class),
+                $c->get(SessionInterface::class),
             )
         );
 
@@ -136,6 +137,7 @@ class SnsLoginProvider implements ExtensionProviderInterface, InstallableExtensi
             new SnsAgreeController(
                 $c->get(SnsLoginService::class),
                 $c->get(PolicyQueryInterface::class),
+                $c->get(SessionInterface::class),
             )
         );
 

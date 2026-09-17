@@ -127,8 +127,11 @@ $brandName = $siteConfig['site_title'] ?? 'MUBLO';
             url: '/sns-login/agree',
             payloadType: 'form',
             data: new FormData(document.getElementById('agree-form')),
-        }).then(function(data) {
-            window.location.href = (data && data.redirect) ? data.redirect : '/';
+        }).then(function(response) {
+            // MubloRequest 는 공통 응답 규격을 그대로 넘긴다 — 주소는 data 안에 있다.
+            // 한 단계를 빠뜨리면 주소를 못 찾아 홈으로 떨어지고, 자동 가입이 꺼진
+            // 사이트에서는 프로필 입력 단계로 가지 못해 가입이 중간에 끊긴다.
+            window.location.href = response?.data?.redirect || '/';
         }).catch(function() {
             btnNext.disabled = false;
         });

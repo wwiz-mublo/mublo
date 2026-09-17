@@ -161,6 +161,33 @@ final class SnsReauthenticationTest extends TestCase
         $this->assertStringContainsString('invalid_state', $this->target($response));
     }
 
+    /**
+     * 가입이 여러 단계로 나뉘면(약관 동의·프로필 입력) 콜백에서 끝나지 않는다.
+     * 그 자리에서 돌아갈 주소를 지우면 마지막 단계가 그 자리를 잃어, 특정 글에서
+     * 로그인한 사람이 원래 보던 곳으로 돌아가지 못한다.
+     */
+    public function testReturnAddressSurvivesAMultiStepSignup(): void
+    {
+        $this->store['sns_login_redirect'] = '/board/notice/12';
+
+        $this->assertSame(
+            '/board/notice/12',
+            SnsAuthController::consumeRedirectFrom($this->session)
+        );
+        // 한 번 쓰면 사라진다 — 다음 로그인까지 남으면 엉뚱한 곳으로 보낸다.
+        $this->assertSame('/', SnsAuthController::consumeRedirectFrom($this->session));
+    }
+
+    /** 외부 주소로 보내는 열린 리다이렉트를 막는다. */
+    public function testOffsiteReturnAddressIsRefused(): void
+    {
+        foreach (['//evil.example.com', 'https://evil.example.com', ''] as $hostile) {
+            $this->store['sns_login_redirect'] = $hostile;
+
+            $this->assertSame('/', SnsAuthController::consumeRedirectFrom($this->session));
+        }
+    }
+
     private function beginRoundTrip(int $startedBy, ?int $loggedInAs): void
     {
         $this->store['sns_oauth_state'] = [
