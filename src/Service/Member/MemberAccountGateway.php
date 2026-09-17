@@ -28,7 +28,7 @@ final class MemberAccountGateway implements MemberAccountGatewayInterface
             || ($includeOriginDomain && $this->members->existsByOriginAndNickname($domainId, $nickname));
     }
 
-    public function create(MemberRegistrationRequest $request, ?callable $persistRelated = null): ?int
+    public function create(MemberRegistrationRequest $request, ?callable $persistRelated = null): int
     {
         return $this->memberService->registerAccount($request, $persistRelated);
     }

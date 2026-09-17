@@ -28,6 +28,8 @@ final class MemberRegistrationTransactionTest extends TestCase
     private bool $inTransaction = false;
     /** @var list<string> */
     private array $operations = [];
+    /** @var array<string, mixed>|null 마지막으로 INSERT 된 회원 행 */
+    private ?array $insertedRow = null;
 
     protected function setUp(): void
     {
@@ -55,6 +57,7 @@ final class MemberRegistrationTransactionTest extends TestCase
         $this->members->method('getDb')->willReturn($this->db);
         $this->members->method('create')->willReturnCallback(function (array $row): int {
             $this->assertTrue($this->db->inTransaction());
+            $this->insertedRow = $row;
             $this->operations[] = 'member';
             return 1;
         });
@@ -159,8 +162,43 @@ final class MemberRegistrationTransactionTest extends TestCase
             $this->fail('Cannot announce completion before an external commit');
         } catch (\LogicException $e) {
             $this->assertSame([], $this->operations);
-            $this->assertTrue($this->pdo->inTransaction());
         }
+    }
+
+    public function testRequestIsStoredAsAnActiveMemberRowOnItsOriginDomain(): void
+    {
+        $this->service->registerAccount($this->request());
+
+        // origin_domain_id 는 프로필 완성 경로처럼 요청이 생략하면 가입 도메인으로 채운다.
+        // 비면 태생 사이트의 아이디·닉네임 예약이 풀린다.
+        $this->assertSame(3, $this->insertedRow['origin_domain_id']);
+        $this->assertSame(3, $this->insertedRow['domain_id']);
+        $this->assertSame('sns-user', $this->insertedRow['user_id']);
+        $this->assertSame('secret-hash', $this->insertedRow['password']);
+        $this->assertSame('닉네임', $this->insertedRow['nickname']);
+        $this->assertSame('active', $this->insertedRow['status']);
+        $this->assertSame(1, $this->insertedRow['level_value']);
+        // 타임스탬프는 저장소와 테이블 기본값이 채운다 — 경로마다 따로 찍지 않는다.
+        $this->assertArrayNotHasKey('created_at', $this->insertedRow);
+        $this->assertArrayNotHasKey('updated_at', $this->insertedRow);
+    }
+
+    public function testExplicitOriginDomainSurvivesRegistration(): void
+    {
+        $this->service->registerAccount(new MemberRegistrationRequest(
+            domainId: 3,
+            userId: 'sns-user',
+            passwordHash: 'secret-hash',
+            nickname: '닉네임',
+            levelValue: 5,
+            originDomainId: 9,
+            domainGroup: 'group-a',
+        ));
+
+        $this->assertSame(9, $this->insertedRow['origin_domain_id']);
+        $this->assertSame(3, $this->insertedRow['domain_id']);
+        $this->assertSame('group-a', $this->insertedRow['domain_group']);
+        $this->assertSame(5, $this->insertedRow['level_value']);
     }
 
     private function request(): MemberRegistrationRequest

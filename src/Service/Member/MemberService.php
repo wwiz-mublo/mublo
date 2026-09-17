@@ -944,27 +944,15 @@ class MemberService
 
         try {
             $memberId = $this->completeRegistration(function () use ($data, $hashedPassword, $nickname, $levelValue) {
-                $insertData = [
+                $memberId = $this->insertMember([
                     'domain_id' => $data['domain_id'],
-                    // 최초 가입 도메인 = 현재 가입 도메인(불변). 이후 사이트 개설로 domain_id가
-                    // 바뀌어도 origin_domain_id는 유지되어 태생 사이트에 아이디가 예약된다.
-                    'origin_domain_id' => $data['domain_id'],
                     'domain_group' => $data['domain_group'] ?? null,
                     'user_id' => $data['user_id'],
                     'password' => $hashedPassword,
                     'level_value' => $levelValue,
                     'status' => $data['status'] ?? 'active',
-                ];
-
-                if (!empty($nickname)) {
-                    $insertData['nickname'] = $nickname;
-                }
-
-                $memberId = $this->memberRepository->create($insertData);
-
-                if (!$memberId) {
-                    throw new \RuntimeException('회원 생성 실패');
-                }
+                    'nickname' => $nickname !== '' ? $nickname : null,
+                ]);
 
                 if (!empty($data['fields'])) {
                     $this->saveFieldValues($memberId, $data['fields'], (int) $data['domain_id']);
@@ -1012,28 +1000,61 @@ class MemberService
     public function registerAccount(MemberRegistrationRequest $request, ?callable $persistRelated = null): int
     {
         return $this->completeRegistration(function () use ($request, $persistRelated): int {
-            $now = date('Y-m-d H:i:s');
-            $memberId = $this->memberRepository->create([
+            $memberId = $this->insertMember([
                 'domain_id' => $request->domainId,
-                'origin_domain_id' => $request->originDomainId ?? $request->domainId,
+                'origin_domain_id' => $request->originDomainId,
                 'domain_group' => $request->domainGroup,
                 'user_id' => $request->userId,
                 'password' => $request->passwordHash,
-                'nickname' => $request->nickname,
                 'level_value' => $request->levelValue,
-                'status' => 'active',
-                'created_at' => $now,
-                'updated_at' => $now,
+                'nickname' => $request->nickname,
             ]);
 
-            if (!$memberId) {
-                throw new \RuntimeException('회원 생성 실패');
-            }
             if ($persistRelated !== null) {
-                $persistRelated((int) $memberId);
+                $persistRelated($memberId);
             }
-            return (int) $memberId;
+
+            return $memberId;
         });
+    }
+
+    /**
+     * 회원 행 INSERT — 모든 가입 경로가 같은 컬럼 구성을 쓰도록 한 곳에 모은다.
+     *
+     * 컬럼이 늘 때 경로마다 따로 고치다 하나를 빠뜨리는 드리프트를 막는 것이 목적이다.
+     * created_at·updated_at 은 저장소와 테이블 기본값이 채우므로 여기서 넘기지 않는다.
+     *
+     * @param array{domain_id: int|string, domain_group?: ?string, user_id: string,
+     *     password: string, level_value?: int|string|null, status?: ?string,
+     *     nickname?: ?string, origin_domain_id?: ?int} $values
+     */
+    private function insertMember(array $values): int
+    {
+        $domainId = (int) $values['domain_id'];
+        $row = [
+            'domain_id' => $domainId,
+            // 최초 가입 도메인 = 현재 가입 도메인(불변). 이후 사이트 개설로 domain_id가
+            // 바뀌어도 origin_domain_id는 유지되어 태생 사이트에 아이디가 예약된다.
+            'origin_domain_id' => $values['origin_domain_id'] ?? $domainId,
+            'domain_group' => $values['domain_group'] ?? null,
+            'user_id' => $values['user_id'],
+            'password' => $values['password'],
+            'level_value' => (int) ($values['level_value'] ?? 1),
+            'status' => $values['status'] ?? 'active',
+        ];
+
+        $nickname = $values['nickname'] ?? null;
+        if ($nickname !== null && $nickname !== '') {
+            $row['nickname'] = $nickname;
+        }
+
+        $memberId = $this->memberRepository->create($row);
+
+        if (!$memberId) {
+            throw new \RuntimeException('회원 생성 실패');
+        }
+
+        return (int) $memberId;
     }
 
     /**
@@ -1064,7 +1085,7 @@ class MemberService
                 $this->dispatch($event);
             }
         } catch (\Throwable $e) {
-            error_log('[MemberService::register] post_commit_event_failed member_id=' . $memberId
+            error_log('[MemberService::completeRegistration] post_commit_event_failed member_id=' . $memberId
                 . ' ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
         }
 

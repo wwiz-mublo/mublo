@@ -101,9 +101,7 @@ class SnsLoginService
      */
     private function autoRegister(int $domainId, SnsUserInfo $userInfo, array $tokenData, array $config, ?string $domainGroup = null, ?string $ipAddress = null): Result
     {
-        $password = bin2hex(random_bytes(16));
         $levelValue = (int) ($config['register_level'] ?? 1);
-        $passwordHash = password_hash($password, PASSWORD_BCRYPT);
 
         $memberId = null;
 
@@ -115,14 +113,12 @@ class SnsLoginService
                 continue;
             }
 
-            // user_id: sns_{provider}_{uid 앞 8자}_{랜덤 4자}
-            $userId = 'sns_' . $userInfo->provider . '_' . substr($userInfo->uid, 0, 8)
-                . '_' . substr(bin2hex(random_bytes(2)), 0, 4);
+            $credentials = $this->generateCredentials($userInfo->provider, $userInfo->uid);
             try {
                 $memberId = $this->memberAccounts->create(new MemberRegistrationRequest(
                     domainId: $domainId,
-                    userId: $userId,
-                    passwordHash: $passwordHash,
+                    userId: $credentials['user_id'],
+                    passwordHash: $credentials['password_hash'],
                     nickname: $nickname,
                     levelValue: $levelValue,
                     originDomainId: $domainId,
@@ -151,11 +147,7 @@ class SnsLoginService
                 throw $e;
             }
 
-            if ($memberId) {
-                break;
-            }
-
-            return Result::failure('자동 가입 처리 중 오류가 발생했습니다.');
+            break;
         }
 
         if (!$memberId) {
@@ -195,6 +187,22 @@ class SnsLoginService
         }
 
         return false;
+    }
+
+    /**
+     * SNS 회원의 자동 생성 자격 — 두 가입 경로(바로 가입·프로필 완성)가 같은 규칙을 쓴다.
+     *
+     * SNS 회원은 이 비밀번호로 로그인하지 않지만 컬럼이 비어 있을 수 없어 임의값을 넣는다.
+     *
+     * @return array{user_id: string, password_hash: string}
+     */
+    public function generateCredentials(string $provider, string $uid): array
+    {
+        return [
+            'user_id' => 'sns_' . $provider . '_' . substr($uid, 0, 8)
+                . '_' . substr(bin2hex(random_bytes(2)), 0, 4),
+            'password_hash' => password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT),
+        ];
     }
 
     /**

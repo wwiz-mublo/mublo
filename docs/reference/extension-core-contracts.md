@@ -17,10 +17,17 @@
 | `AuthContextInterface` | 현재 사용자, 관리자·SUPER 권한, 대리 로그인 여부를 세션 배열 없이 조회 | Board, Mshop, Rental, Reservation, Shop, SiteKit, AutoForm, Promotion, Qna, Survey |
 | `MemberQueryInterface` | 내부 Member Entity 없이 단건·일괄 프로필 및 활성 회원 닉네임 검색 | Board, Mshop, Rental, MemberPoint, SnsLogin, DirectMessage |
 | `MemberActionQueryInterface` | 로그인·자기 자신·위치·상태 정책을 공통 적용한 회원 액션 단건/일괄 조회 | Board 및 회원 작성자 화면 |
-| `MemberAccountGatewayInterface` | 계정 생성·자격 검증·커스텀 필드 저장을 회원 테이블과 해시 형식 없이 수행 | Rental, SnsLogin |
+| `MemberAccountGatewayInterface` | 가입(코어 트랜잭션·완료 이벤트 포함)·자격 검증·커스텀 필드 저장을 회원 테이블과 해시 형식 없이 수행 | Rental, SnsLogin |
 | `MemberLevelCatalogInterface` | 내부 레벨 Entity를 `MemberLevelDescriptor`로 변환해 조회 | Board, Mshop, Shop, MemberPoint |
 | `PolicyQueryInterface` | 도메인 소유권이 확인된 활성·단건 약관과 렌더 결과 조회 | Mshop, Rental, Shop, AutoForm |
 | `BalanceRankingQueryInterface` | 코어 원장·잔액으로 현재/기간 랭킹과 회원 순위를 조회 | PointRanking |
+
+`MemberAccountGatewayInterface::create()`는 회원 저장과 가입 완료 이벤트 발행까지 코어가 책임집니다.
+확장이 같은 트랜잭션에 데이터를 더 저장해야 하면 두 번째 인자 `persistRelated(int $memberId)`로
+넘깁니다. 이 콜백이 실패하면 회원 저장까지 함께 롤백됩니다(트랜잭션 밖의 디스크 파일은 제외).
+**호출자가 `create()`를 자기 트랜잭션으로 감싸면 안 됩니다** — 완료 이벤트는 커밋 이후에 발행해야
+하므로 외부 트랜잭션이 열려 있으면 `LogicException`이 납니다. 실패는 반환값이 아니라 예외로
+전달되며, 저장 실패는 `DatabaseException`입니다.
 
 `AuthContextInterface::currentUser()`는 `AuthenticatedUser`를 반환합니다. 표시 이름과 식별자,
 고정 레벨 타입은 DTO가 제공하며 세션 키나 내부 Member Entity는 공개하지 않습니다.

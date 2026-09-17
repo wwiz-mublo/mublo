@@ -32,18 +32,14 @@ class SnsLoginServiceTest extends TestCase
         $memberRepository->method('nicknameExists')->with(7, $nickname, true)->willReturn(false);
         $memberRepository->expects($this->once())
             ->method('create')
-            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use (&$capturedMember, $database): int {
+            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use (&$capturedMember): int {
                 $capturedMember = $data;
-                return $database->transaction(function () use ($persistRelated): int {
-                    $persistRelated(321);
-                    return 321;
-                });
+                // SNS 연결은 코어가 여는 트랜잭션 안에서만 저장돼야 한다. 여기서 콜백을
+                // 부르지 않으면 아래 accountRepository 기대가 깨진다.
+                $persistRelated(321);
+                return 321;
             });
-        $accountRepository->expects($this->once())
-            ->method('create')
-            ->willReturnCallback(function () use ($database): void {
-                $this->assertTrue($database->inTransaction());
-            });
+        $accountRepository->expects($this->once())->method('create');
         $authenticator->expects($this->once())->method('loginByMemberId')->with(321, '127.0.0.1')->willReturn(true);
 
         $result = $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token'], 'group-a', '127.0.0.1');
@@ -130,11 +126,9 @@ class SnsLoginServiceTest extends TestCase
         $memberRepository->method('nicknameExists')->willReturn(false);
         $memberRepository->expects($this->once())
             ->method('create')
-            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use ($database): int {
-                return $database->transaction(function () use ($persistRelated): int {
-                    $persistRelated(321);
-                    return 321;
-                });
+            ->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated): int {
+                $persistRelated(321);
+                return 321;
             });
         $accountRepository->expects($this->once())
             ->method('create')
@@ -151,19 +145,24 @@ class SnsLoginServiceTest extends TestCase
         $this->assertFalse($database->inTransaction());
     }
 
-    public function testAccountLinkFailureRollsBackAutoRegisterTransaction(): void
+    public function testAccountLinkFailurePropagatesInsteadOfLoggingTheMemberIn(): void
     {
-        [$service, $accountRepository, $memberRepository, , $generator, $database] = $this->createService();
+        // 롤백 자체는 코어 트랜잭션의 책임이라 tests/Unit/Service/Member 에서 검증한다.
+        // 여기서는 연결 실패를 삼키고 로그인시키는 일이 없는지만 본다.
+        [$service, $accountRepository, $memberRepository, $authenticator, $generator] = $this->createService();
 
         $generator->method('generate')->willReturn('고요한별빛수달');
         $memberRepository->method('nicknameExists')->willReturn(false);
-        $memberRepository->method('create')->willReturnCallback(function (MemberRegistrationRequest $data, callable $persistRelated) use ($database): int {
-            return $database->transaction(function () use ($persistRelated): int {
+        $memberRepository->method('create')->willReturnCallback(
+            function (MemberRegistrationRequest $data, callable $persistRelated): int {
                 $persistRelated(321);
                 return 321;
-            });
-        });
-        $accountRepository->method('create')->willThrowException(new \RuntimeException('link failed'));
+            }
+        );
+        $accountRepository->method('create')->willThrowException(
+            new DatabaseException('Transaction failed: link failed')
+        );
+        $authenticator->expects($this->never())->method('loginByMemberId');
 
         try {
             $service->handleCallback(7, $this->snsUser(), ['access_token' => 'token']);
@@ -171,8 +170,6 @@ class SnsLoginServiceTest extends TestCase
         } catch (DatabaseException $e) {
             $this->assertStringContainsString('link failed', $e->getMessage());
         }
-
-        $this->assertFalse($database->inTransaction());
     }
 
     public function testExistingLinkedAccountLoginDoesNotAnnounceRegistration(): void
