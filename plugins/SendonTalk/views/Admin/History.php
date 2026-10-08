@@ -14,7 +14,7 @@ $pagination['totalPages'] = $pagination['totalPages']
 
 // 컬럼 정의
 $columns = $this->columns()
-    ->add('log_id', '번호', ['_th_attr' => ['style' => 'width:50px']])
+    ->rowNumber('번호', ['id_key' => 'log_id', '_th_attr' => ['style' => 'width:50px']])
     ->add('message_type', '타입', [
         '_th_attr' => ['style' => 'width:100px'],
         'render' => function ($row) {
@@ -84,6 +84,7 @@ $columns = $this->columns()
             <?= $this->listRenderHelper
                 ->setColumns($columns)
                 ->setRows($logs)
+                ->setPagination($pagination ?? [])
                 ->setSkin('table/basic')
                 ->setWrapAttr(['class' => 'table table-hover align-middle'])
                 ->showHeader(true)

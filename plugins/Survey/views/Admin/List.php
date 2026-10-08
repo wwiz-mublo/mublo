@@ -37,7 +37,7 @@ $statusLabel = [
 // 컬럼 정의
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'survey_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center text-nowrap']])
-    ->add('survey_id', '번호', ['_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'survey_id', '_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
     ->add('title', '제목', [
         'render' => function ($row) use ($editReturn) {
             $id    = (int) $row['survey_id'];
@@ -176,6 +176,7 @@ $columns = $this->columns()
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($items)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle'])
                     ->showHeader(true)

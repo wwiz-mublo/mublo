@@ -51,7 +51,7 @@ foreach ($domains as $domain) {
 // 컬럼 정의
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'domain_id', 'skip_key' => 'is_current', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center text-nowrap'], '_cell_attr' => ['class' => 'text-center text-nowrap']])
-    ->add('domain_id', '번호', ['_th_attr' => ['style' => 'width:60px', 'class' => 'text-nowrap'], '_cell_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'domain_id', '_th_attr' => ['style' => 'width:60px', 'class' => 'text-nowrap'], '_cell_attr' => ['class' => 'text-nowrap']])
     ->callback('domain', '도메인', function ($row) {
         $domainId = $row['domain_id'];
         $domain = htmlspecialchars($row['domain']);
@@ -221,6 +221,7 @@ $columns = $this->columns()
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($domainsData)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle'])
                     ->showHeader(true)

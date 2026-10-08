@@ -123,6 +123,32 @@ class ListColumnBuilder
     }
 
     /**
+     * 목록 번호 컬럼
+     *
+     * DB 고유번호가 아니라 목록에서의 순번을 보여 준다. ListRenderHelper::setPagination() 을
+     * 주면 게시판처럼 "전체 건수 − 앞 페이지 건수 − 순서" 로 매기고(첫 행이 가장 큰 수),
+     * 주지 않으면 1 부터 차례로 매긴다. 순번이라 정렬 대상이 아니다.
+     *
+     * @param string $title 헤더명
+     * @param array $options 추가 옵션
+     *   - id_key: DB 고유번호 필드명. 주면 번호에 마우스를 올렸을 때 "ID {값}" 으로 보인다
+     *             (문의 대응·오류 추적에는 고유번호가 필요하다)
+     * @return self
+     */
+    public function rowNumber(string $title = '번호', array $options = []): self
+    {
+        $column = [
+            'key'      => ListRenderHelper::ROW_NUMBER_KEY,
+            'title'    => $title,
+            'type'     => 'row_number',
+            'sortable' => false,
+        ];
+
+        $this->columns[] = array_merge($column, $options, ['sortable' => false]);
+        return $this;
+    }
+
+    /**
      * 여러 개의 text 컬럼 한번에 등록
      *
      * @param array $items ['key' => 'title', ...]

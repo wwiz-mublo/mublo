@@ -41,7 +41,7 @@ $renderDateTime = function ($value): string {
 
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'post_id', '_th_attr' => ['class' => 'text-center', 'style' => 'width:40px'], '_td_attr' => ['class' => 'text-center']])
-    ->add('post_id', '번호', ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'post_id', '_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
     ->callback('title', '제목', function ($row) {
         $id    = (int) $row['post_id'];
         $title = htmlspecialchars($row['title'] ?? '(제목 없음)');
@@ -201,6 +201,7 @@ $columns = $this->columns()
             <?= $this->listRenderHelper
                 ->setColumns($columns)
                 ->setRows($items)
+                ->setPagination($pagination ?? [])
                 ->setSkin('table/basic')
                 ->setWrapAttr(['class' => 'table table-hover align-middle mb-0', 'id' => 'qnaTable'])
                 ->showHeader(true)

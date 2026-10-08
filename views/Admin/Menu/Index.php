@@ -97,7 +97,7 @@ $providerBadge = function (string $text, string $color): string {
 // NOTE: 커스텀 HTML은 'formatter'가 아니라 'render'(callback, $row 받음)로 줘야 렌더된다.
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'item_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center']])
-    ->add('item_id', '번호', ['sortable' => true, '_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'item_id', '_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
     ->add('provider_type', '제공자', [
         'sortable' => true,
         '_th_attr' => ['style' => 'width:90px'],

@@ -24,7 +24,7 @@ $editReturn = rawurlencode($listUrl);
 // 컬럼 정의
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'banner_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center']])
-    ->add('banner_id', '번호', ['_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'banner_id', '_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
     ->add('preview', '미리보기', [
         '_th_attr' => ['style' => 'width:120px'],
         '_cell_attr' => ['class' => 'text-nowrap'],
@@ -139,6 +139,7 @@ $columns = $this->columns()
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($items)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle'])
                     ->showHeader(true)
