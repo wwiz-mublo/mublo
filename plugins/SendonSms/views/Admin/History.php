@@ -11,7 +11,7 @@ $pagination = $pagination ?? [];
 
 // 컬럼 정의
 $columns = $this->columns()
-    ->add('log_id', '번호', ['_th_attr' => ['style' => 'width:70px']])
+    ->rowNumber('번호', ['id_key' => 'log_id', '_th_attr' => ['style' => 'width:70px']])
     ->add('message_type', '메시지 타입', [
         '_th_attr' => ['style' => 'width:100px; text-align:center'],
         '_cell_attr' => ['style' => 'text-align:center'],
@@ -99,6 +99,7 @@ $columns = $this->columns()
             <?= $this->listRenderHelper
                 ->setColumns($columns)
                 ->setRows($logs)
+                ->setPagination($pagination ?? [])
                 ->setSkin('table/basic')
                 ->setWrapAttr(['class' => 'table table-hover align-middle'])
                 ->showHeader(true)

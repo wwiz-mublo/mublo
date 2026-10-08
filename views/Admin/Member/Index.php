@@ -38,7 +38,7 @@ $editReturn = rawurlencode('/admin/member' . (!empty($listQuery) ? '?' . $listQu
 // 컬럼 정의 (View에서 직접 정의)
 $columnBuilder = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'member_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center text-nowrap']])
-    ->add('member_id', '번호', ['sortable' => true, '_th_attr' => ['style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'member_id', '_th_attr' => ['style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
     ->add('user_id', '아이디', [
         'sortable' => true,
         'render' => function ($row) use ($selfMemberId) {
@@ -254,6 +254,7 @@ $columns = $columnBuilder
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($members)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle'])
                     ->setSort(

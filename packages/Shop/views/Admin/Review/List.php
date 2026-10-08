@@ -17,7 +17,7 @@ $perPage = $pagination['perPage'] ?? 20;
 
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'review_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center']])
-    ->add('review_id', '번호', ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'review_id', '_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
     ->callback('goods_name', '상품명', function ($row) {
         $rid = (int) $row['review_id'];
         $gid = (int) ($row['goods_id'] ?? 0);
@@ -148,6 +148,7 @@ $columns = $this->columns()
             <?= $this->listRenderHelper
                 ->setColumns($columns)
                 ->setRows($items)
+                ->setPagination($pagination ?? [])
                 ->setSkin('table/basic')
                 ->setWrapAttr(['class' => 'table table-hover align-middle mb-0', 'id' => 'reviewTable'])
                 ->showHeader(true)

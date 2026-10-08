@@ -29,7 +29,7 @@ $editReturn = rawurlencode($listUrl);
 // 컬럼 정의
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'popup_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center']])
-    ->add('popup_id', '번호', ['_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'popup_id', '_th_attr' => ['style' => 'width:60px'], '_cell_attr' => ['class' => 'text-nowrap']])
     ->add('title', '팝업명', [
         'render' => function ($row) use ($editReturn) {
             $id = (int) $row['popup_id'];
@@ -190,6 +190,7 @@ $columns = $this->columns()
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($items)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle'])
                     ->showHeader(true)

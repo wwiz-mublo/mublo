@@ -93,6 +93,7 @@
         <?= $this->listRenderHelper
             ->setColumns($columns)
             ->setRows($items)
+            ->setPagination($pagination ?? [])
             ->setSkin('table/basic')
             ->setWrapAttr(['class' => 'table table-hover align-middle'])
             ->setSort(

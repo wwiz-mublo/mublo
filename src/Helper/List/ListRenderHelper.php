@@ -27,6 +27,7 @@ use Exception;
  * - toggle      : ON/OFF 스위치 형태
  * - actions     : 수정/삭제 등 버튼 그룹 자동 출력
  * - callback    : PHP 함수(closure)를 사용하여 HTML 직접 생성
+ * - row_number  : 목록 번호 (ListColumnBuilder::rowNumber(), 페이지 정보는 setPagination())
  *
  * [Attribute 구조 – 통일 규칙]
  * - _wrap_attr : 전체 컨테이너(wrapper)
@@ -46,6 +47,9 @@ use Exception;
  */
 class ListRenderHelper
 {
+    /** 목록 번호를 담아 두는 행 키 (row_number 컬럼이 읽는다) */
+    public const ROW_NUMBER_KEY = '_row_number';
+
     protected array $headerSchema = [];
     protected array $columns = [];
     protected array $rows = [];
@@ -59,6 +63,8 @@ class ListRenderHelper
     protected $trAttrCallback = null;
     /** @var array|null 정렬 컨텍스트 ['field'=>?, 'order'=>'ASC'|'DESC', 'query'=>array] */
     protected ?array $sort = null;
+    /** @var array{totalItems:int, currentPage:int, perPage:int}|null 목록 번호 계산용 페이지 정보 */
+    protected ?array $pagination = null;
 
     public function __construct(array $config = [])
     {
@@ -168,6 +174,70 @@ class ListRenderHelper
     }
 
     /**
+     * 목록 번호 계산용 페이지 정보
+     *
+     * 컨트롤러가 넘기는 $pagination 배열(totalItems, currentPage, perPage)을 그대로 받는다.
+     * 설정하면 row_number 컬럼이 "전체 건수 − (페이지 − 1) × 페이지당 건수 − 순서" 로 매겨진다.
+     * 한 번 render() 하면 지워진다 — 이 헬퍼는 요청 안에서 여러 목록이 함께 쓰므로,
+     * 다음 목록이 앞 목록의 페이지 정보로 번호를 매기지 않게 하기 위해서다.
+     */
+    public function setPagination(array $pagination): self
+    {
+        $total = (int) ($pagination['totalItems'] ?? $pagination['total'] ?? 0);
+        $page = max(1, (int) ($pagination['currentPage'] ?? 1));
+        $perPage = (int) ($pagination['perPage'] ?? 0);
+
+        // 페이지당 건수를 모르면 2쪽부터는 앞 페이지 건수를 셀 수 없다 — 차례 번호로 둔다
+        $usable = $total > 0 && ($perPage > 0 || $page === 1);
+
+        $this->pagination = $usable ? [
+            'totalItems'  => $total,
+            'currentPage' => $page,
+            'perPage'     => max(0, $perPage),
+        ] : null;
+
+        return $this;
+    }
+
+    /**
+     * 행마다 목록 번호를 붙인다 (row_number 컬럼이 있을 때만)
+     *
+     * 페이지 정보가 없거나 현재 페이지 행 수와 맞지 않으면(0 이하로 내려가면) 1 부터 차례로 매긴다.
+     */
+    protected function numberRows(array $rows): array
+    {
+        $hasRowNumber = false;
+        foreach ($this->columns as $col) {
+            if (($col['type'] ?? '') === 'row_number') {
+                $hasRowNumber = true;
+                break;
+            }
+        }
+        if (!$hasRowNumber || $rows === []) {
+            return $rows;
+        }
+
+        $first = null;
+        if ($this->pagination !== null) {
+            $p = $this->pagination;
+            $first = $p['totalItems'] - ($p['currentPage'] - 1) * $p['perPage'];
+            if ($first - count($rows) + 1 < 1) {
+                $first = null;
+            }
+        }
+
+        $i = 0;
+        foreach ($rows as $k => $row) {
+            if (is_array($row)) {
+                $rows[$k][self::ROW_NUMBER_KEY] = $first !== null ? $first - $i : $i + 1;
+            }
+            $i++;
+        }
+
+        return $rows;
+    }
+
+    /**
      * 정렬 헤더 링크 정보 생성 (스킨에서 호출)
      *
      * 정렬 컨텍스트가 없거나 sortable 컬럼이 아니면 null 반환 → 스킨은 기존 동작 유지
@@ -243,11 +313,12 @@ class ListRenderHelper
 
         $headerSchema = $this->headerSchema ?? [];
         $columns = $this->columns;
-        $rows = $this->rows;
+        $rows = $this->numberRows($this->rows);
         $wrapAttr = $this->buildAttr($this->wrapAttr);
         $showHeader = $this->showHeader;
         $emptyText = $this->emptyText;
         $self = $this;
+        $this->pagination = null;
 
         ob_start();
         include $skinFile;
@@ -271,6 +342,7 @@ class ListRenderHelper
             'link'      => $this->renderLink($row, $col),
             'actions'   => $this->renderActions($row, $col),
             'callback'  => $this->renderCallback($row, $col),
+            'row_number' => $this->renderRowNumber($row, $col),
             // strict_types 파일이라 int/float 셀 값이 그대로 오면 htmlspecialchars 가
             // TypeError 로 죽는다 (예: 메뉴 목록의 item_id). 문자열로 좁혀서 받는다.
             'html'      => (string) ($row[$col['key']] ?? ''),
@@ -444,6 +516,24 @@ class ListRenderHelper
         }
 
         return $html;
+    }
+
+    /**
+     * TYPE: ROW_NUMBER
+     *
+     * id_key 를 주면 DB 고유번호를 툴팁(title="ID {값}")으로 함께 단다.
+     */
+    protected function renderRowNumber(array $row, array $col): string
+    {
+        $number = htmlspecialchars((string) ($row[self::ROW_NUMBER_KEY] ?? ''), ENT_QUOTES, 'UTF-8');
+
+        $idKey = $col['id_key'] ?? null;
+        if ($idKey === null || !isset($row[$idKey]) || $row[$idKey] === '') {
+            return $number;
+        }
+
+        $id = htmlspecialchars((string) $row[$idKey], ENT_QUOTES, 'UTF-8');
+        return '<span title="ID ' . $id . '">' . $number . '</span>';
     }
 
     /**

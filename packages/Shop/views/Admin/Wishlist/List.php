@@ -20,7 +20,7 @@ unset($row);
 
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'wl_key', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center']])
-    ->add('wishlist_id', '번호', ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
+    ->rowNumber('번호', ['id_key' => 'wishlist_id', '_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-nowrap']])
     ->callback('member', '회원', function ($row) {
         $uid = htmlspecialchars($row['user_id'] ?? '-');
         $html = "<strong>{$uid}</strong>";
@@ -115,6 +115,7 @@ $columns = $this->columns()
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($items)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle mb-0'])
                     ->showHeader(true)

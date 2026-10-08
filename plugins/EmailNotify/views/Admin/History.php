@@ -10,7 +10,7 @@ $logs = $logs ?? [];
 $pagination = $pagination ?? [];
 
 $columns = $this->columns()
-    ->add('log_id', '번호', ['_th_attr' => ['style' => 'width:70px']])
+    ->rowNumber('번호', ['id_key' => 'log_id', '_th_attr' => ['style' => 'width:70px']])
     ->add('template_code', '템플릿', [
         '_th_attr' => ['style' => 'width:160px'],
         'render' => function ($row) {
@@ -59,6 +59,7 @@ $columns = $this->columns()
             <?= $this->listRenderHelper
                 ->setColumns($columns)
                 ->setRows($logs)
+                ->setPagination($pagination ?? [])
                 ->setSkin('table/basic')
                 ->setWrapAttr(['class' => 'table table-hover align-middle'])
                 ->showHeader(true)

@@ -39,7 +39,7 @@ $returnSuffix = $returnQs !== '' ? '?return=' . urlencode($returnQs) : '';
 // 컬럼 정의
 $columns = $this->columns()
     ->checkbox('chk', '', ['id_key' => 'goods_id', '_th_attr' => ['style' => 'width:40px', 'class' => 'text-center'], '_cell_attr' => ['class' => 'text-center']])
-    ->add('goods_id', '번호', ['_th_attr' => ['style' => 'width:60px', 'class' => 'text-nowrap text-center'], '_td_attr' => ['class' => 'text-nowrap text-center']])
+    ->rowNumber('번호', ['id_key' => 'goods_id', '_th_attr' => ['style' => 'width:60px', 'class' => 'text-nowrap text-center'], '_td_attr' => ['class' => 'text-nowrap text-center']])
     ->callback('goods_name', '상품명', function ($row) use ($mainImages, $categoryPathMap, $returnSuffix) {
         $id = $row['goods_id'];
         $name = htmlspecialchars($row['goods_name'] ?? '');
@@ -232,6 +232,7 @@ $columns = $this->columns()
                 <?= $this->listRenderHelper
                     ->setColumns($columns)
                     ->setRows($products)
+                    ->setPagination($pagination ?? [])
                     ->setSkin('table/basic')
                     ->setWrapAttr(['class' => 'table table-hover align-middle'])
                     ->showHeader(true)
