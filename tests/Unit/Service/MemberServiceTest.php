@@ -236,6 +236,56 @@ class MemberServiceTest extends TestCase
         $this->assertTrue($service->withdraw(100, '개인 사유')->isFailure());
     }
 
+    /** 세션이 없는 클라이언트는 비밀번호로 본인을 확인한다 — 틀리면 아무것도 지우지 않는다. */
+    public function testWithdrawWithPasswordRefusesAWrongPassword(): void
+    {
+        $service = new MemberService(
+            $this->repositoryMock,
+            $this->fieldRepositoryMock,
+            $this->encryptionServiceMock,
+            new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 4]),
+        );
+        $this->repositoryMock->method('find')->willReturn($this->withdrawableMember());
+        $this->repositoryMock->expects($this->never())->method('softDelete');
+        $this->repositoryMock->expects($this->never())->method('deleteAllFieldValues');
+
+        $this->assertTrue($service->withdrawWithPassword(100, 'wrong-pw', '앱 탈퇴')->isFailure());
+        $this->assertTrue($service->withdrawWithPassword(100, '', '앱 탈퇴')->isFailure());
+    }
+
+    /** 비밀번호가 맞으면 세션 재확인 없이도 웹 탈퇴와 같은 처리(이벤트·정리)를 거친다. */
+    public function testWithdrawWithPasswordRunsTheSameWithdrawal(): void
+    {
+        $dispatched = [];
+        $dispatcher = $this->createMock(\Mublo\Core\Event\EventDispatcher::class);
+        $dispatcher->method('dispatch')->willReturnCallback(function ($event) use (&$dispatched) {
+            $dispatched[] = get_class($event);
+            return $event;
+        });
+        $db = $this->createMock(\Mublo\Infrastructure\Database\Database::class);
+        $db->method('transaction')->willReturnCallback(fn(callable $fn) => $fn());
+
+        $service = new MemberService(
+            $this->repositoryMock,
+            $this->fieldRepositoryMock,
+            $this->encryptionServiceMock,
+            new PasswordHasher(['algo' => PASSWORD_BCRYPT, 'cost' => 4]),
+            null,
+            null,
+            $dispatcher,
+        );
+        $this->repositoryMock->method('find')->willReturn($this->withdrawableMember());
+        $this->repositoryMock->method('getDb')->willReturn($db);
+        $this->repositoryMock->expects($this->once())->method('deleteAllFieldValues')->with(100);
+        $this->repositoryMock->expects($this->once())->method('softDelete');
+
+        $result = $service->withdrawWithPassword(100, 'pw1234', '앱 탈퇴');
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertContains(\Mublo\Service\Member\Event\MemberWithdrawingEvent::class, $dispatched);
+        $this->assertContains(\Mublo\Service\Member\Event\MemberWithdrawnEvent::class, $dispatched);
+    }
+
     private function withdrawableMember(): \Mublo\Entity\Member\Member
     {
         return \Mublo\Entity\Member\Member::fromArray([

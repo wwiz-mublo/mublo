@@ -42,4 +42,13 @@ interface MemberAccountGatewayInterface
     public function saveCustomFields(int $memberId, int $domainId, array $values): void;
 
     public function customFieldDefinitions(int $domainId): array;
+
+    /**
+     * 현재 비밀번호로 본인을 확인하고 탈퇴시킨다 — 세션이 없는 클라이언트(모바일 앱 API 등)용.
+     *
+     * 웹 마이페이지 탈퇴와 같은 처리를 거친다: 도메인 운영자 차단, MemberWithdrawingEvent
+     * (구독자가 보류시킬 수 있다), 개인정보 정리, MemberWithdrawnEvent. 비밀번호가 맞지 않거나
+     * 비밀번호가 없는 회원(SNS 전용)이면 실패를 돌려준다. 호출자는 시도 횟수를 제한해야 한다.
+     */
+    public function withdrawWithPassword(int $memberId, string $password, string $reason = ''): Result;
 }
