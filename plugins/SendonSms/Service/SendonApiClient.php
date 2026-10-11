@@ -110,21 +110,27 @@ class SendonApiClient
     // === 발신번호 ===
 
     /**
-     * 등록된 발신번호 목록 조회
+     * 등록된 발신번호 목록 조회 (커서 페이징)
+     *
+     * @return array ['code' => 200, 'data' => ['list' => [['senderNumber' => '...', ...]], 'cursor' => 20|null]]
      */
-    public function getSenderNumbers(): array
+    public function getSenderNumbers(int $cursor = 0, int $limit = 100): array
     {
-        return $this->request('GET', '/v2/senders');
+        $query = http_build_query(['cursor' => $cursor, 'limit' => $limit]);
+
+        return $this->request('GET', '/v2/sender/numbers?' . $query);
     }
 
     // === 포인트/잔액 ===
 
     /**
      * 포인트 잔액 조회
+     *
+     * @return array ['code' => 200, 'data' => ['points' => [['general' => ['points' => 10000, 'credits' => 0, ...]]]]]
      */
     public function getPointBalance(): array
     {
-        return $this->request('GET', '/v2/point');
+        return $this->request('GET', '/v2/point/points');
     }
 
     // === HTTP 헬퍼 ===

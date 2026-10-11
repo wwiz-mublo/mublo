@@ -439,7 +439,18 @@ class SendonSmsService
             return Result::failure($response['message'] ?? '잔액 조회에 실패했습니다.');
         }
 
-        return Result::success('잔액 조회 완료', $response['data'] ?? []);
+        // data.points[].general 의 잔액을 합산해 화면용 balance 로 정규화
+        $balance = 0.0;
+        $credits = 0.0;
+        foreach ($response['data']['points'] ?? [] as $entry) {
+            $balance += (float) ($entry['general']['points'] ?? 0);
+            $credits += (float) ($entry['general']['credits'] ?? 0);
+        }
+
+        return Result::success('잔액 조회 완료', [
+            'balance' => $balance,
+            'credits' => $credits,
+        ]);
     }
 
     // === 센드온 발신번호 동기화 ===
@@ -458,14 +469,36 @@ class SendonSmsService
             testMode: !empty($config['test_mode'])
         );
 
-        $response = $client->getSenderNumbers();
-        $code = (int) ($response['code'] ?? 0);
+        // 커서 페이징 — 다음 cursor 가 없을 때까지 (최대 10페이지)
+        $senders = [];
+        $cursor = 0;
+        for ($page = 0; $page < 10; $page++) {
+            $response = $client->getSenderNumbers($cursor);
+            $code = (int) ($response['code'] ?? 0);
 
-        if ($code !== 200) {
-            return Result::failure($response['message'] ?? '발신번호 조회에 실패했습니다.');
+            if ($code !== 200) {
+                return Result::failure($response['message'] ?? '발신번호 조회에 실패했습니다.');
+            }
+
+            foreach ($response['data']['list'] ?? [] as $item) {
+                $number = (string) ($item['senderNumber'] ?? '');
+                if ($number === '') {
+                    continue;
+                }
+                $senders[] = [
+                    'sender_number' => $number,
+                    'name' => $item['displayName'] ?? $number,
+                    'status' => $item['senderStatus'] ?? '',
+                ];
+            }
+
+            $next = $response['data']['cursor'] ?? null;
+            if ($next === null || (int) $next <= $cursor) {
+                break;
+            }
+            $cursor = (int) $next;
         }
 
-        $senders = $response['data'] ?? [];
         $existingChannels = $this->channelRepository->getList($domainId, 100, 0);
         $registeredNumbers = array_column($existingChannels, 'sender_number');
 
