@@ -1366,6 +1366,36 @@ class MemberService
             return Result::failure('본인 확인이 필요합니다.');
         }
 
+        return $this->completeWithdrawal($member, $reason);
+    }
+
+    /**
+     * 회원 탈퇴 — 세션이 없는 클라이언트(모바일 앱 API 등)용.
+     *
+     * 본인 재확인을 세션 대신 현재 비밀번호로 한다. 확인 뒤의 처리(운영자 차단, 탈퇴 보류
+     * 이벤트, 개인정보 정리, 완료 이벤트)는 withdraw() 와 같다. 비밀번호가 없는 회원
+     * (SNS 전용)은 이 경로로 탈퇴할 수 없다.
+     */
+    public function withdrawWithPassword(int $memberId, string $password, string $reason = ''): Result
+    {
+        $member = $this->memberRepository->find($memberId);
+
+        if (!$member) {
+            return Result::failure('회원 정보를 찾을 수 없습니다.');
+        }
+
+        if ($password === '' || $member->getPassword() === '' || !password_verify($password, $member->getPassword())) {
+            return Result::failure('비밀번호가 맞지 않습니다.');
+        }
+
+        return $this->completeWithdrawal($member, $reason);
+    }
+
+    /** 본인 확인을 마친 회원의 탈퇴 처리 — withdraw()·withdrawWithPassword() 공통. */
+    private function completeWithdrawal(Member $member, string $reason): Result
+    {
+        $memberId = $member->getMemberId();
+
         // 도메인 운영자 탈퇴 차단
         if ($this->ownsDomain($memberId)) {
             return Result::failure('운영 중인 도메인(사이트)이 있어 탈퇴할 수 없습니다. 고객센터로 문의해주세요.');

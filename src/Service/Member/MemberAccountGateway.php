@@ -65,4 +65,9 @@ final class MemberAccountGateway implements MemberAccountGatewayInterface
     {
         return $this->memberService->getFieldDefinitions($domainId, true);
     }
+
+    public function withdrawWithPassword(int $memberId, string $password, string $reason = ''): Result
+    {
+        return $this->memberService->withdrawWithPassword($memberId, $password, $reason);
+    }
 }
