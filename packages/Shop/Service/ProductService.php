@@ -555,6 +555,51 @@ class ProductService
     }
 
     /**
+     * 상품 판매 상태 변경 (관리자 목록의 상태 스위치)
+     *
+     * @param list<int|string> $goodsIds
+     */
+    public function changeActiveMultiple(array $goodsIds, bool $isActive, int $domainId): Result
+    {
+        if (empty($goodsIds)) {
+            return Result::failure('상태를 바꿀 상품을 선택해 주세요.');
+        }
+        foreach ($goodsIds as $goodsId) {
+            if ((!is_int($goodsId) && !is_string($goodsId))
+                || filter_var($goodsId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false) {
+                return Result::failure('상품 ID가 올바르지 않습니다.');
+            }
+        }
+        $goodsIds = array_values(array_unique(array_map('intval', $goodsIds)));
+
+        try {
+            // 하나라도 다른 도메인의 상품이거나 없는 상품이면 전체 요청을 거부한다.
+            $verifiedIds = $this->productRepository->filterByDomain($goodsIds, $domainId);
+            if (count($verifiedIds) !== count($goodsIds)) {
+                return Result::failure('권한이 없는 상품이 포함되어 있습니다.');
+            }
+            $changed = $this->productRepository->updateActiveMultiple($domainId, $goodsIds, $isActive);
+        } catch (\Throwable $e) {
+            return Result::failure('판매 상태 변경 중 오류가 발생했습니다.');
+        }
+
+        if ($changed > 0) {
+            // 진열 블록 캐시 무효화 등 (BlockCacheInvalidateSubscriber)
+            $this->dispatchAfterCommit(
+                new ProductChangedEvent($domainId, $goodsIds, ProductChangedEvent::UPDATED, autoBlocksAffected: true),
+                'changeActiveMultiple'
+            );
+        }
+
+        $label = $isActive ? '판매중' : '판매중지';
+        $message = $changed > 0
+            ? "{$changed}개 상품을 {$label} 상태로 바꿨습니다."
+            : "선택한 상품이 이미 {$label} 상태입니다.";
+
+        return Result::success($message, ['changed' => $changed, 'is_active' => $isActive]);
+    }
+
+    /**
      * 상품 가격 계산 (할인/적립 포함)
      *
      * PriceCalculator를 사용하여 계산

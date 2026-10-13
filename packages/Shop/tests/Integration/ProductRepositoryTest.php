@@ -28,7 +28,8 @@ class ProductRepositoryTest extends DatabaseTestCase
             domain_id BIGINT UNSIGNED NOT NULL DEFAULT 1,
             goods_name VARCHAR(100) NOT NULL DEFAULT "",
             stock_quantity INT NULL DEFAULT NULL,
-            is_active TINYINT(1) NOT NULL DEFAULT 1
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            updated_at DATETIME NULL
         ');
 
         $this->createTable('shop_order_details', '
@@ -48,6 +49,25 @@ class ProductRepositoryTest extends DatabaseTestCase
         $rows = $this->fetchAll('SELECT stock_quantity FROM shop_products WHERE goods_id = ?', [$goodsId]);
 
         return $rows[0]['stock_quantity'] === null ? null : (int) $rows[0]['stock_quantity'];
+    }
+
+    public function testActiveUpdateIsDomainScopedAndIdempotent(): void
+    {
+        $this->seed('shop_products', [
+            ['goods_id' => 1, 'domain_id' => 10, 'is_active' => 1],
+            ['goods_id' => 2, 'domain_id' => 20, 'is_active' => 1],
+            ['goods_id' => 3, 'domain_id' => 10, 'is_active' => 0],
+        ]);
+
+        $this->assertSame(1, $this->repository->updateActiveMultiple(10, [1, 2, 3], false));
+        $rows = $this->fetchAll('SELECT goods_id, is_active, updated_at FROM shop_products ORDER BY goods_id');
+        $this->assertSame([0, 1, 0], array_map('intval', array_column($rows, 'is_active')));
+        $this->assertNotNull($rows[0]['updated_at']);
+        $this->assertNull($rows[1]['updated_at']);
+        $this->assertNull($rows[2]['updated_at']);
+        $this->assertSame(0, $this->repository->updateActiveMultiple(10, [1, 3], false));
+        $this->assertSame(2, $this->repository->updateActiveMultiple(10, [1, 2, 3], true));
+        $this->assertSame(0, $this->repository->updateActiveMultiple(10, [], false));
     }
 
     public function testDecrementWithinStockApplies(): void

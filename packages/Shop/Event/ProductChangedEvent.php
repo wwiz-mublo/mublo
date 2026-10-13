@@ -25,11 +25,13 @@ class ProductChangedEvent extends AbstractEvent
      * @param int   $domainId  도메인 ID
      * @param int[] $goodsIds  변경된 상품 ID 목록
      * @param string $changeType updated|created|deleted
+     * @param bool $autoBlocksAffected 수정으로 자동 진열 대상도 달라지는지 (판매 상태 변경 등)
      */
     public function __construct(
         private readonly int $domainId,
         private readonly array $goodsIds,
         private readonly string $changeType,
+        private readonly bool $autoBlocksAffected = false,
     ) {}
 
     public function getDomainId(): int { return $this->domainId; }
@@ -39,9 +41,9 @@ class ProductChangedEvent extends AbstractEvent
 
     public function getChangeType(): string { return $this->changeType; }
 
-    /** 멤버십 변동(자동 진열 영향) 여부 — 등록/삭제만 해당 */
+    /** 등록/삭제 또는 자동 진열 대상이 달라지는 수정인지 */
     public function affectsAutoBlocks(): bool
     {
-        return $this->changeType !== self::UPDATED;
+        return $this->autoBlocksAffected || $this->changeType !== self::UPDATED;
     }
 }

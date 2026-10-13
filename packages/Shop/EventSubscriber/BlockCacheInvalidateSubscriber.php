@@ -16,7 +16,7 @@ use Mublo\Packages\Shop\Event\ProductChangedEvent;
  *
  * - 수동 진열(content_type='product'): content_items에 박힌 상품 ID로 역참조
  * - 자동 진열(content_type='product_auto'): ID 매핑이 없어, 멤버십이 바뀌는
- *   등록/삭제 시에만 도메인 단위로 일괄 무효화 (수정은 멤버십 불변이라 제외)
+ *   등록/삭제·판매 상태 변경 시 도메인 단위로 일괄 무효화
  */
 class BlockCacheInvalidateSubscriber implements EventSubscriberInterface
 {
@@ -43,7 +43,7 @@ class BlockCacheInvalidateSubscriber implements EventSubscriberInterface
             $this->cacheInvalidator->invalidateByContentItem($domainId, 'product', $goodsId);
         }
 
-        // 2) 자동 진열 — 등록/삭제로 목록 구성이 바뀔 때만 도메인 단위 일괄
+        // 2) 자동 진열 — 등록/삭제·판매 상태 변경으로 목록 구성이 바뀔 때 도메인 단위 일괄
         if ($event->affectsAutoBlocks()) {
             $this->cacheInvalidator->invalidateByContentType($domainId, 'product_auto');
         }
