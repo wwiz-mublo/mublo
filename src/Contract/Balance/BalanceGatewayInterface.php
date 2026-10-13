@@ -59,6 +59,13 @@ interface BalanceGatewayInterface
     public function sumGrantedByReference(int $memberId, int $domainId, string $action, string $referenceType, string $referenceId): int;
 
     /**
+     * 회원 원장 action 별 합계 (도메인 스코프) — 적립·충전·사용·출금을 나눠 볼 때 (예: 출금 가능 금액 계산)
+     *
+     * @return array<string, int> action => SUM(amount) (부호 그대로)
+     */
+    public function sumByAction(int $memberId, int $domainId): array;
+
+    /**
      * 멱등키로 원장 행 조회 — 지급/차감 이력 존재 확인용 (없으면 null)
      *
      * @return array<string, mixed>|null

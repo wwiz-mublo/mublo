@@ -214,6 +214,24 @@ class BalanceLogRepository
     }
 
     /**
+     * 회원 원장 action 별 합계 (도메인 스코프) — 적립·충전·사용·출금을 나눠 볼 때.
+     *
+     * @return array<string, int> action => SUM(amount) (부호 그대로)
+     */
+    public function sumByAction(int $domainId, int $memberId): array
+    {
+        $rows = $this->db->select(
+            "SELECT action, SUM(amount) AS total FROM {$this->table} WHERE domain_id = ? AND member_id = ? GROUP BY action",
+            [$domainId, $memberId]
+        );
+        $sums = [];
+        foreach ($rows as $row) {
+            $sums[(string) $row['action']] = (int) $row['total'];
+        }
+        return $sums;
+    }
+
+    /**
      * 회원 스코프 조회의 필터 적용 — 허용 키만 동등 조건으로 반영
      *
      * domain_id 는 filters 에 명시될 때만 적용한다(인스턴스 상태 미사용).

@@ -330,6 +330,16 @@ class BalanceManager implements BalanceGatewayInterface
     }
 
     /**
+     * 회원 원장 action 별 합계 (도메인 스코프)
+     *
+     * @return array<string, int>
+     */
+    public function sumByAction(int $memberId, int $domainId): array
+    {
+        return $this->logRepository->sumByAction($domainId, $memberId);
+    }
+
+    /**
      * 회원별 최근 포인트 내역 (도메인 스코프)
      *
      * 관리자 회원 상세 화면에서 최근 몇 건을 미리 보여줄 때 쓴다.
