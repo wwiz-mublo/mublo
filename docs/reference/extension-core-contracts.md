@@ -18,7 +18,7 @@
 | `ReauthenticationInterface` | 민감한 작업 앞의 본인 재확인 사실을 남기고 조회 — 확인 수단은 확장이 정한다 | SnsLogin |
 | `MemberQueryInterface` | 내부 Member Entity 없이 단건·일괄 프로필 및 활성 회원 닉네임 검색 | Board, Mshop, Rental, MemberPoint, SnsLogin, DirectMessage |
 | `MemberActionQueryInterface` | 로그인·자기 자신·위치·상태 정책을 공통 적용한 회원 액션 단건/일괄 조회 | Board 및 회원 작성자 화면 |
-| `MemberAccountGatewayInterface` | 가입(코어 트랜잭션·완료 이벤트 포함)·자격 검증·커스텀 필드 저장을 회원 테이블과 해시 형식 없이 수행 | Rental, SnsLogin |
+| `MemberAccountGatewayInterface` | 가입(코어 트랜잭션·완료 이벤트 포함)·자격 검증·커스텀 필드 저장·등급 변경을 회원 테이블과 해시 형식 없이 수행 | Rental, SnsLogin |
 | `MemberLevelCatalogInterface` | 내부 레벨 Entity를 `MemberLevelDescriptor`로 변환해 조회 | Board, Mshop, Shop, MemberPoint |
 | `PolicyQueryInterface` | 도메인 소유권이 확인된 활성·단건 약관과 렌더 결과 조회 | Mshop, Rental, Shop, AutoForm |
 | `BalanceRankingQueryInterface` | 코어 원장·잔액으로 현재/기간 랭킹과 회원 순위를 조회 | PointRanking |
@@ -29,6 +29,12 @@
 **호출자가 `create()`를 자기 트랜잭션으로 감싸면 안 됩니다** — 완료 이벤트는 커밋 이후에 발행해야
 하므로 외부 트랜잭션이 열려 있으면 `LogicException`이 납니다. 실패는 반환값이 아니라 예외로
 전달되며, 저장 실패는 `DatabaseException`입니다.
+
+`MemberAccountGatewayInterface::changeLevel($memberId, $toLevel, $onlyFrom)`은 확장이 회원 등급을
+바꾸는 유일한 길입니다. 현재 등급이 `$onlyFrom` 안에 있을 때만 바꾸므로, 확장은 자기가 맡은 등급
+값만 넘겨 관리자가 따로 준 등급을 덮어쓰지 않게 합니다. 관리 권한 등급과 없는 등급은
+`InvalidArgumentException`입니다. 바뀌면 `MemberUpdatedEvent`(source `api`)가 발행됩니다.
+등급 정의 자체는 관리자 화면에서만 만듭니다 — 확장은 운영자가 정해 둔 등급 값을 설정으로 받습니다.
 
 `AuthContextInterface::currentUser()`는 `AuthenticatedUser`를 반환합니다. 표시 이름과 식별자,
 고정 레벨 타입은 DTO가 제공하며 세션 키나 내부 Member Entity는 공개하지 않습니다.

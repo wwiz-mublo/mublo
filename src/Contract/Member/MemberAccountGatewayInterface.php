@@ -51,4 +51,20 @@ interface MemberAccountGatewayInterface
      * 비밀번호가 없는 회원(SNS 전용)이면 실패를 돌려준다. 호출자는 시도 횟수를 제한해야 한다.
      */
     public function withdrawWithPassword(int $memberId, string $password, string $reason = ''): Result;
+
+    /**
+     * 확장이 회원 등급을 바꾼다 — 현재 등급이 $onlyFrom 안에 있을 때만.
+     *
+     * 확장이 맡은 등급 사이에서만 옮기게 하려는 것이다: 관리자가 따로 준 등급은 $onlyFrom 밖이라
+     * 덮어쓰지 않는다. 조건 확인과 변경은 한 UPDATE 로 해 동시에 바꾼 값을 되돌리지 않는다.
+     * 관리 권한이 있는 등급(최고관리자·관리자·사이트 운영)은 주지도 빼앗지도 못한다 — 그런 등급이
+     * 대상이나 $onlyFrom 에 있으면 InvalidArgumentException. 없는 등급도 마찬가지다.
+     *
+     * 바뀌면 커밋 뒤 MemberUpdatedEvent(source=api, changes=['level_value'])를 발행한다.
+     * 로그인 중인 웹 세션의 등급은 다시 로그인할 때 바뀐다 (관리자 수정과 같다).
+     *
+     * @param int[] $onlyFrom 바꿔도 되는 현재 등급 값
+     * @return bool 바꿨으면 true, 이미 그 등급이거나 현재 등급이 $onlyFrom 밖·회원 없음이면 false
+     */
+    public function changeLevel(int $memberId, int $toLevel, array $onlyFrom): bool;
 }
