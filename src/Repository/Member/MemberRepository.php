@@ -452,6 +452,27 @@ class MemberRepository extends BaseRepository
     }
 
     /**
+     * 현재 등급이 $fromLevels 안에 있을 때만 등급을 바꾼다 (확인과 변경을 한 UPDATE 로).
+     *
+     * @param int[] $fromLevels
+     * @return int 바뀐 행 수 (0 또는 1)
+     */
+    public function updateLevelIfIn(int $memberId, int $levelValue, array $fromLevels): int
+    {
+        if ($fromLevels === []) {
+            return 0;
+        }
+
+        return $this->db->table($this->table)
+            ->where($this->primaryKey, '=', $memberId)
+            ->whereIn('level_value', array_values($fromLevels))
+            ->update([
+                'level_value' => $levelValue,
+                'updated_at' => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
      * DB 로우를 Member Entity로 변환 (등급 정보 포함)
      *
      * @override
