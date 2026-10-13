@@ -87,6 +87,25 @@ class ProductRepository extends BaseRepository
     }
 
     /**
+     * 현재 도메인 소유 상품들의 판매 상태(is_active)를 한 번에 바꾼다.
+     *
+     * @param list<int> $goodsIds
+     * @return int 실제로 바뀐 행 수(이미 같은 상태인 상품은 세지 않는다)
+     */
+    public function updateActiveMultiple(int $domainId, array $goodsIds, bool $isActive): int
+    {
+        if (empty($goodsIds)) {
+            return 0;
+        }
+
+        return $this->getDb()->table($this->table)
+            ->whereIn($this->primaryKey, $goodsIds)
+            ->where('domain_id', '=', $domainId)
+            ->where('is_active', '!=', $isActive ? 1 : 0)
+            ->update(['is_active' => $isActive ? 1 : 0, 'updated_at' => date('Y-m-d H:i:s')]);
+    }
+
+    /**
      * 현재 도메인 소유 상품만 삭제한다.
      */
     public function deleteInDomain(int $domainId, int $goodsId): int

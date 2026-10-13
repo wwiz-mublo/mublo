@@ -125,11 +125,15 @@ $columns = $this->columns()
         return '<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">' . htmlspecialchars($label) . '</span>';
     }, ['_th_attr' => ['class' => 'text-center text-nowrap', 'style' => 'width:72px'], '_td_attr' => ['class' => 'text-center text-nowrap']])
     ->callback('is_active', '상태', function ($row) {
-        if ($row['is_active']) {
-            return '<span class="badge bg-success-subtle text-success-emphasis border border-success-subtle">판매중</span>';
-        }
-        return '<span class="badge bg-secondary-subtle text-secondary-emphasis border border-secondary-subtle">중지</span>';
-    }, ['_th_attr' => ['class' => 'text-center text-nowrap', 'style' => 'width:64px'], '_td_attr' => ['class' => 'text-center text-nowrap']])
+        // 상태 = is_active 하나(판매중/판매중지). 스위치로 바로 바꾼다(listActive).
+        $id = (int) $row['goods_id'];
+        $on = !empty($row['is_active']);
+        return '<div class="form-check form-switch d-inline-flex justify-content-center m-0 p-0" title="' . ($on ? '판매중' : '판매중지') . '">'
+            . '<input class="form-check-input m-0 cursor-pointer js-product-active" type="checkbox" role="switch" data-goods-id="' . $id . '"'
+            . ($on ? ' checked' : '') . ' aria-label="' . htmlspecialchars($row['goods_name'] ?? '', ENT_QUOTES) . ' 판매 상태">'
+            . '</div>'
+            . '<div class="small js-product-active-label ' . ($on ? 'text-success-emphasis' : 'text-secondary') . '">' . ($on ? '판매중' : '중지') . '</div>';
+    }, ['_th_attr' => ['class' => 'text-center text-nowrap', 'style' => 'width:72px'], '_td_attr' => ['class' => 'text-center text-nowrap']])
     ->callback('hit', '조회', function ($row) {
         return number_format($row['hit'] ?? 0);
     }, ['_th_attr' => ['class' => 'text-center text-nowrap', 'style' => 'width:60px'], '_td_attr' => ['class' => 'text-center text-nowrap']])
@@ -296,6 +300,39 @@ function deleteProduct(goodsId) {
             alert('삭제 중 오류가 발생했습니다.');
         });
 }
+
+// 판매 상태 변경 요청 (행 스위치)
+// 실패하면 MubloRequest 가 알림을 띄우고 예외를 던진다 — 여기서는 되돌리기만 한다.
+function requestProductActive(goodsIds, isActive) {
+    return MubloRequest.requestJson('/admin/shop/products/listActive', {
+        goods_ids: goodsIds,
+        is_active: isActive
+    }, { method: 'POST', loading: false });
+}
+
+// 행 스위치: 바로 바꾸고, 실패하면 스위치를 되돌린다
+document.addEventListener('change', function(e) {
+    const input = e.target.closest('.js-product-active');
+    if (!input) return;
+    const goodsId = parseInt(input.dataset.goodsId, 10);
+    const isActive = input.checked;
+    const label = input.closest('td').querySelector('.js-product-active-label');
+    input.disabled = true;
+    requestProductActive([goodsId], isActive)
+        .then(function() {
+            if (label) {
+                label.textContent = isActive ? '판매중' : '중지';
+                label.className = 'small js-product-active-label ' + (isActive ? 'text-success-emphasis' : 'text-secondary');
+            }
+            input.parentElement.title = isActive ? '판매중' : '판매중지';
+        })
+        .catch(function() {
+            input.checked = !isActive;
+        })
+        .finally(function() {
+            input.disabled = false;
+        });
+});
 
 // 일괄 삭제 후 콜백
 function afterBulkDelete(data) {

@@ -30,6 +30,7 @@ use Mublo\Helper\Form\FormHelper;
  * - POST /admin/shop/products/store        → store (생성/수정)
  * - POST /admin/shop/products/{id}/delete  → delete (삭제)
  * - POST /admin/shop/products/listDelete   → listDelete (일괄 삭제)
+ * - POST /admin/shop/products/listActive   → listActive (목록의 판매 상태 스위치)
  */
 class ProductController
 {
@@ -342,6 +343,35 @@ class ProductController
 
         if ($result->isSuccess()) {
             return JsonResponse::success(null, $result->getMessage());
+        }
+
+        return JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 판매 상태 변경 (목록의 행별 스위치)
+     *
+     * POST /admin/shop/products/listActive
+     * body(JSON): { goods_ids: [1], is_active: true|false } — 목록에서는 한 건씩 보낸다
+     */
+    public function listActive(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $request = $context->getRequest();
+
+        $goodsIds = $request->json('goods_ids', []);
+        $isActive = $request->json('is_active');
+        if (!is_array($goodsIds) || $goodsIds === []) {
+            return JsonResponse::error('상태를 바꿀 상품을 선택해 주세요.');
+        }
+        if (!is_bool($isActive) && !in_array($isActive, [0, 1, '0', '1'], true)) {
+            return JsonResponse::error('바꿀 판매 상태가 올바르지 않습니다.');
+        }
+
+        $result = $this->productService->changeActiveMultiple($goodsIds, (bool) (int) $isActive, $domainId);
+
+        if ($result->isSuccess()) {
+            return JsonResponse::success($result->getData(), $result->getMessage());
         }
 
         return JsonResponse::error($result->getMessage());

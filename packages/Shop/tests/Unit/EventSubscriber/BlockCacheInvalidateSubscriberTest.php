@@ -40,4 +40,15 @@ final class BlockCacheInvalidateSubscriberTest extends TestCase
             new ProductChangedEvent(19, [7], ProductChangedEvent::UPDATED)
         );
     }
+
+    public function testSalesStateUpdateAlsoInvalidatesAutomaticBlocks(): void
+    {
+        $invalidator = $this->createMock(BlockContentCacheInvalidatorInterface::class);
+        $invalidator->expects($this->once())->method('invalidateByContentItem')->with(19, 'product', 7);
+        $invalidator->expects($this->once())->method('invalidateByContentType')->with(19, 'product_auto');
+
+        (new BlockCacheInvalidateSubscriber($invalidator))->onProductChanged(
+            new ProductChangedEvent(19, [7], ProductChangedEvent::UPDATED, autoBlocksAffected: true)
+        );
+    }
 }
