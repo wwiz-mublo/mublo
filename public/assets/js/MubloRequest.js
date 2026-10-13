@@ -78,6 +78,12 @@
  *   저장
  * </button>
  *
+ * 버튼이 폼 밖(헤더·모달 푸터 등)에 있으면 data-target 에 폼 id 를 주고,
+ * 주소·콜백은 폼의 data-target / data-callback 에 둔다.
+ *
+ * <button class="mublo-submit" data-target="settingsForm">저장</button>
+ * <form id="settingsForm" data-target="/admin/settings/store" data-callback="onSaved">...</form>
+ *
  * ------------------------------------------------------------
  * JS 직접 호출 예시 (JSON)
  * ------------------------------------------------------------
@@ -723,10 +729,21 @@ const MubloRequest = (() => {
     const submittingForms = new WeakSet();
 
     async function submitForm(button) {
-        const form = button.closest('form');
-        const url = button.dataset.target;
-        const callback = button.dataset.callback;
-        const containerId = button.dataset.container;
+        let form = button.closest('form');
+        let url = button.dataset.target;
+        let callback = button.dataset.callback;
+        let containerId = button.dataset.container;
+
+        // 폼 밖 버튼(헤더·모달 푸터 등): data-target 이 폼 id 면 그 폼의 data-target/data-callback 을 쓴다
+        if (!form && url) {
+            const targetForm = document.getElementById(url);
+            if (targetForm instanceof HTMLFormElement) {
+                form = targetForm;
+                url = targetForm.dataset.target;
+                callback = callback || targetForm.dataset.callback;
+                containerId = containerId || targetForm.dataset.container;
+            }
+        }
         const loading = button.dataset.loading === 'true';
 
         if (!form || !url) {
