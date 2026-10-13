@@ -24,6 +24,7 @@ if (!defined('MUBLO_PUBLIC_PATH')) {
 // Bootstrap 로드
 require_once __DIR__ . '/../../bootstrap.php';
 
+use Mublo\Core\App\Application;
 use Mublo\Core\Install\Installer;
 use Mublo\Core\Install\LicenseAgreement;
 
@@ -60,7 +61,7 @@ if ($installer->isInstalled()) {
                 </div>
             </div>
             <div class="footer">
-                Mublo Framework v1.0.0 | &copy; 2026 All rights reserved
+                Mublo Framework v' . htmlspecialchars(Application::VERSION) . ' | &copy; 2026 All rights reserved
             </div>
         </div>
     </body>
@@ -203,7 +204,7 @@ if ($licenseAccepted) {
         ?>
 
         <div class="footer">
-            Mublo Framework v1.0.0 | &copy; 2026 All rights reserved
+            Mublo Framework v<?= htmlspecialchars(Application::VERSION) ?> | &copy; 2026 All rights reserved
         </div>
     </div>
 </body>

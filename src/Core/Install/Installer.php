@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Core\Install;
 
+use Mublo\Core\App\Application;
 use Mublo\Core\ConfigFile;
 use Mublo\Core\UploadConfig;
 use PDO;
@@ -723,8 +724,9 @@ class Installer
         $lockFile = MUBLO_STORAGE_PATH . '/installed.lock';
 
         $content = sprintf(
-            "installed_at=%s\nversion=1.0.0\n",
-            date('Y-m-d H:i:s')
+            "installed_at=%s\nversion=%s\n",
+            date('Y-m-d H:i:s'),
+            Application::VERSION
         );
 
         $result = file_put_contents($lockFile, $content);
