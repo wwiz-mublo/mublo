@@ -4,6 +4,8 @@ namespace Tests\Unit\Core\App;
 
 use PHPUnit\Framework\TestCase;
 use Mublo\Core\App\Router;
+use Mublo\Core\App\RouteCache;
+use FastRoute\RouteCollector;
 use Mublo\Core\Http\Request;
 use Mublo\Core\Context\Context;
 use Mublo\Entity\Domain\Domain;
@@ -13,7 +15,7 @@ use Mublo\Entity\Domain\Domain;
  *
  * 활성 확장/routes.php 시그니처가 바뀌면 새 시그니처 캐시가 생성되는데,
  * 이전 시그니처 파일은 더는 참조되지 않아 영영 안 지워진다(디스크·inode 누적).
- * purgeSupersededCacheFiles 가 같은 도메인의 '유지 대상 외' 형제만 정리함을 고정한다.
+ * 새 캐시의 공개가 같은 도메인의 '유지 대상 외' 형제만 정리함을 고정한다.
  */
 class RouterCachePurgeTest extends TestCase
 {
@@ -63,17 +65,12 @@ class RouterCachePurgeTest extends TestCase
         return $path;
     }
 
-    private function invokePurge(Router $router, string $domain, string $keepFile): void
+    private function publishCache(string $domain, string $keepFile): void
     {
-        $ref = new \ReflectionClass($router);
-
-        $domainProp = $ref->getProperty('currentDomain');
-        $domainProp->setAccessible(true);
-        $domainProp->setValue($router, $domain);
-
-        $method = $ref->getMethod('purgeSupersededCacheFiles');
-        $method->setAccessible(true);
-        $method->invoke($router, $keepFile);
+        preg_match('/\.([a-f0-9]{12})\.cache\.php$/', $keepFile, $matches);
+        (new RouteCache($this->cacheDir))->getDispatcher($domain, $matches[1], static function (RouteCollector $r): void {
+            $r->addRoute('GET', '/', 'home');
+        });
     }
 
     public function testPurgeRemovesOtherSignaturesButKeepsCurrent(): void
@@ -81,7 +78,7 @@ class RouterCachePurgeTest extends TestCase
         $keep = $this->touch('purge-test.local.a1b2c3d4e5f6.cache.php');
         $stale = $this->touch('purge-test.local.f6e5d4c3b2a1.cache.php');
 
-        $this->invokePurge(new Router(), 'purge-test.local', $keep);
+        $this->publishCache('purge-test.local', $keep);
 
         $this->assertFileExists($keep, '현재 시그니처 파일은 유지되어야 한다');
         $this->assertFileDoesNotExist($stale, '구 시그니처 파일은 제거되어야 한다');
@@ -92,7 +89,7 @@ class RouterCachePurgeTest extends TestCase
         $keep = $this->touch('purge-test.local.a1b2c3d4e5f6.cache.php');
         $otherDomain = $this->touch('other-domain.local.abcabcabcabc.cache.php');
 
-        $this->invokePurge(new Router(), 'purge-test.local', $keep);
+        $this->publishCache('purge-test.local', $keep);
 
         $this->assertFileExists($keep);
         $this->assertFileExists($otherDomain, '다른 도메인의 캐시는 건드리지 않아야 한다');
@@ -133,7 +130,7 @@ class RouterCachePurgeTest extends TestCase
         $keep = $this->touch('purge-test.local.a1b2c3d4e5f6.cache.php');
         $superstring = $this->touch('purge-test.local.au.a1b2c3d4e5f6.cache.php');
 
-        $this->invokePurge(new Router(), 'purge-test.local', $keep);
+        $this->publishCache('purge-test.local', $keep);
 
         $this->assertFileExists($keep);
         $this->assertFileExists($superstring, '점을 포함한 슈퍼스트링 도메인 캐시는 건드리지 않아야 한다');

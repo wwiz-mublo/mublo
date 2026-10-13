@@ -15,7 +15,6 @@ use Mublo\Core\Extension\NestedPlugin;
 use Mublo\Service\Extension\ExtensionService;
 use Mublo\Exception\HttpNotFoundException;
 use function FastRoute\simpleDispatcher;
-use function FastRoute\cachedDispatcher;
 
 /**
  * Class Router
@@ -358,7 +357,7 @@ class Router
         // ==================================================
         // 2. FastRoute Dispatcher 생성
         //
-        // 프로덕션: cachedDispatcher 사용 (도메인별 캐시)
+        // 프로덕션: 도메인 잠금과 원자적 파일 교체 사용 (도메인별 캐시)
         //          - 캐시 파일이 있으면 로드
         //          - 없으면 생성 후 캐시
         //
@@ -454,7 +453,7 @@ class Router
      * [프로덕션 모드 (useCache = true)]
      * ----------------------------------------------------
      *
-     * cachedDispatcher를 사용하여 라우트 정보를 도메인별로 캐시한다.
+     * RouteCache를 사용하여 라우트 정보를 도메인별로 캐시한다.
      *
      * 캐시 파일: storage/cache/routes/{domain}.{signature}.cache.php
      *
@@ -507,7 +506,7 @@ class Router
         };
 
         // ------------------------------------------------
-        // 프로덕션 모드: cachedDispatcher 사용 (도메인별)
+        // 프로덕션 모드: 도메인 잠금과 원자적 파일 교체 사용 (도메인별)
         //
         // 캐시 파일은 '등록된 도메인'에 대해서만 생성한다. currentDomain 은 임의 조작 가능한
         // Host 헤더에서 오고, /serve·/csrf 같은 public API 경로는 도메인 검증을 건너뛰므로,
@@ -516,26 +515,11 @@ class Router
         // 있다. 미등록 도메인은 캐시하지 않고 매 요청 라우트 테이블을 구성한다(정상 트래픽 아님).
         // ------------------------------------------------
         if ($this->useCache && $context->hasDomainInfo()) {
-            // 캐시 디렉토리 확인 및 생성
-            $this->ensureCacheDirectoryExists();
-
-            // 도메인별 + 활성 확장/routes.php 시그니처 기반 캐시 파일 경로
-            $cacheFile = $this->getCacheFilePath($context);
-
-            // 오래된 캐시 파일 정리
-            $this->invalidateStaleCacheFile($cacheFile);
-
-            // 이 시그니처 캐시가 아직 없다 = 곧 새로 생성됨(활성 확장/라우트 변경 후 첫 요청).
-            // 이때만 같은 도메인의 '구 시그니처' 형제 파일을 정리한다 — 매 요청 glob 비용을
-            // 피하면서, 참조되지 않아 영영 안 지워지는 낡은 캐시의 누적을 막는다.
-            if (!file_exists($cacheFile)) {
-                $this->purgeSupersededCacheFiles($cacheFile);
-            }
-
-            return cachedDispatcher($routeDefinitionCallback, [
-                'cacheFile' => $cacheFile,
-                'cacheDisabled' => false,
-            ]);
+            return (new RouteCache(self::CACHE_DIR))->getDispatcher(
+                $this->currentDomain ?? $context->getDomain(),
+                $this->buildRouteCacheSignature($context),
+                $routeDefinitionCallback
+            );
         }
 
         // ------------------------------------------------
@@ -567,10 +551,8 @@ class Router
         // - : (포트 구분자) → _
         // - / (경로 구분자) → _ (혹시 모를 상황 대비)
         // ------------------------------------------------
-        $safeDomain = str_replace([':', '/'], '_', $this->currentDomain);
         $signature = $context !== null ? $this->buildRouteCacheSignature($context) : 'legacy';
-
-        return self::CACHE_DIR . '/' . $safeDomain . '.' . $signature . '.cache.php';
+        return (new RouteCache(self::CACHE_DIR))->filePath($this->currentDomain ?? '', $signature);
     }
 
     /**
@@ -1980,68 +1962,6 @@ class Router
     }
 
     /**
-     * 캐시 디렉토리 존재 확인 및 생성
-     *
-     * 캐시 파일을 저장할 디렉토리가 없으면 생성한다.
-     * 재귀적으로 상위 디렉토리도 함께 생성된다.
-     *
-     * 경로: storage/cache/routes/
-     */
-    private function ensureCacheDirectoryExists(): void
-    {
-        if (!is_dir(self::CACHE_DIR)) {
-            // 0755: 소유자 rwx, 그룹 rx, 기타 rx
-            // true: 재귀적 생성 (중간 디렉토리도 생성)
-            mkdir(self::CACHE_DIR, 0755, true);
-        }
-    }
-
-    /**
-     * 캐시 파일이 TTL을 초과했으면 삭제
-     *
-     * 캐시 파일 생성 후 일정 시간(1시간)이 지나면 삭제하여
-     * 다음 요청에서 라우트를 재구성하도록 한다.
-     */
-    private function invalidateStaleCacheFile(string $cacheFile): void
-    {
-        if (!file_exists($cacheFile)) {
-            return;
-        }
-
-        if (time() - filemtime($cacheFile) > 3600) {
-            unlink($cacheFile);
-        }
-    }
-
-    /**
-     * 같은 도메인의 '다른 시그니처' 캐시 파일 정리.
-     *
-     * 활성 확장/routes.php 가 바뀌면 새 시그니처의 캐시 파일이 생성되는데, 이전
-     * 시그니처 파일은 더는 참조되지 않아 invalidateStaleCacheFile(현재 파일만 검사)로는
-     * 절대 지워지지 않는다. 한 도메인의 활성 시그니처는 한 시점에 하나뿐이므로,
-     * 유지할 파일을 제외한 형제는 낡은 것이며 즉시 제거한다(디스크·inode 누적 방지).
-     */
-    private function purgeSupersededCacheFiles(string $keepFile): void
-    {
-        if ($this->currentDomain === null) {
-            return;
-        }
-
-        $safeDomain = str_replace([':', '/'], '_', $this->currentDomain);
-        $keepBase = basename($keepFile);
-        // 시그니처는 12자리 hex(buildRouteCacheSignature). 이 형태로 앵커링해야
-        // glob 의 '*' 가 점을 포함하는 탓에 '정식 슈퍼스트링' 도메인(example.com 이
-        // example.com.au 캐시를 지움)까지 삼키는 것을 막는다.
-        $pattern = '/^' . preg_quote($safeDomain, '/') . '\.[0-9a-f]{12}\.cache\.php$/';
-        foreach (glob(self::CACHE_DIR . '/' . $safeDomain . '.*.cache.php') ?: [] as $file) {
-            $base = basename($file);
-            if ($base !== $keepBase && preg_match($pattern, $base) === 1 && is_file($file)) {
-                @unlink($file);
-            }
-        }
-    }
-
-    /**
      * 현재 도메인의 라우트 캐시 클리어
      *
      * 현재 설정된 도메인의 캐시 파일을 삭제하여
@@ -2064,20 +1984,7 @@ class Router
             return false;
         }
 
-        $safeDomain = str_replace([':', '/'], '_', $this->currentDomain);
-        $cacheFiles = glob(self::CACHE_DIR . '/' . $safeDomain . '.*.cache.php') ?: [];
-        $legacyCacheFile = self::CACHE_DIR . '/' . $safeDomain . '.cache.php';
-        if (is_file($legacyCacheFile)) {
-            $cacheFiles[] = $legacyCacheFile;
-        }
-
-        foreach ($cacheFiles as $cacheFile) {
-            if (is_file($cacheFile) && !unlink($cacheFile)) {
-                return false;
-            }
-        }
-
-        return true;  // 파일이 없으면 이미 클리어된 상태
+        return (new RouteCache(self::CACHE_DIR))->clear($this->currentDomain);
     }
 
     /**
@@ -2090,20 +1997,7 @@ class Router
      */
     public static function clearRouteCache(string $domain): bool
     {
-        $safeDomain = str_replace([':', '/'], '_', $domain);
-        $cacheFiles = glob(MUBLO_STORAGE_PATH . '/cache/routes/' . $safeDomain . '.*.cache.php') ?: [];
-        $legacyCacheFile = MUBLO_STORAGE_PATH . '/cache/routes/' . $safeDomain . '.cache.php';
-        if (is_file($legacyCacheFile)) {
-            $cacheFiles[] = $legacyCacheFile;
-        }
-
-        foreach ($cacheFiles as $cacheFile) {
-            if (is_file($cacheFile) && !unlink($cacheFile)) {
-                return false;
-            }
-        }
-
-        return true;
+        return (new RouteCache(self::CACHE_DIR))->clear($domain);
     }
 
     /**
@@ -2125,22 +2019,7 @@ class Router
      */
     public static function clearAllRouteCache(): int
     {
-        $cacheDir = MUBLO_STORAGE_PATH . '/cache/routes';
-        $deletedCount = 0;
-
-        if (!is_dir($cacheDir)) {
-            return 0;
-        }
-
-        $cacheFiles = glob($cacheDir . '/*.cache.php');
-
-        foreach ($cacheFiles as $file) {
-            if (unlink($file)) {
-                $deletedCount++;
-            }
-        }
-
-        return $deletedCount;
+        return (new RouteCache(self::CACHE_DIR))->clearAll();
     }
 
     /**
@@ -2195,23 +2074,6 @@ class Router
      */
     public static function getCachedDomains(): array
     {
-        $cacheDir = MUBLO_STORAGE_PATH . '/cache/routes';
-        $domains = [];
-
-        if (!is_dir($cacheDir)) {
-            return [];
-        }
-
-        $cacheFiles = glob($cacheDir . '/*.cache.php');
-
-        foreach ($cacheFiles as $file) {
-            $filename = basename($file, '.cache.php');
-            // 파일명에서 시그니처 제거 후 도메인 복원 (_ → :)
-            $domainPart = preg_replace('/\.[a-f0-9]{12}$/', '', $filename) ?? $filename;
-            $domain = str_replace('_', ':', $domainPart);
-            $domains[] = $domain;
-        }
-
-        return array_values(array_unique($domains));
+        return (new RouteCache(self::CACHE_DIR))->domains();
     }
 }

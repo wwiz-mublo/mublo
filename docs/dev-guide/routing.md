@@ -154,11 +154,24 @@ Controller: member-field → MemberFieldController (kebab → PascalCase)
 - **운영 모드** (`APP_DEBUG=false`): 도메인별 캐시 파일 생성
 
 ```
-storage/cache/routes/example.com.cache.php
-storage/cache/routes/shop.example.com.cache.php
+storage/cache/routes/example.com.a1b2c3d4e5f6.cache.php
+storage/cache/routes/shop.example.com.a1b2c3d4e5f6.cache.php
 ```
 
-캐시 TTL은 1시간입니다. 수동 삭제:
+캐시 키에는 도메인과 활성 확장·라우트 파일·코어 버전의 시그니처가 포함됩니다.
+TTL은 마지막 접속이 아니라 파일 생성·갱신 시각부터 1시간입니다.
+
+캐시 읽기는 도메인별 공유 잠금, 재생성과 삭제는 같은 도메인의 배타 잠금을 사용합니다.
+만료된 파일을 먼저 지우지 않고, 같은 디렉터리의 임시 파일에 기록을 마친 뒤 원자적으로
+교체합니다. 새 파일을 공개한 뒤에만 구 시그니처 파일을 정리합니다.
+`{domain}.lock` 파일은 잠금 대기 중인 요청과 공유하므로 삭제하지 않습니다.
+
+사라지거나 깨진 캐시는 다시 구성합니다. 캐시 디렉터리·잠금·저장에 문제가 생겨도
+정상적으로 구성된 라우트로 현재 요청을 처리하고 캐시 오류를 기록합니다.
+중복 라우트 같은 정의 오류는 캐시 장애로 숨기지 않습니다.
+
+수동 삭제도 잠금 규칙을 따르도록 아래 API를 사용합니다. 전체 삭제는 발견한 도메인별로
+진행하며, 해당 도메인에서 진행 중인 캐시 생성이 끝난 뒤 삭제합니다.
 
 ```php
 Router::clearAllRouteCache();                    // 전체
