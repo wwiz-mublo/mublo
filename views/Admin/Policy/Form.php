@@ -13,7 +13,7 @@
 
 // 정책 데이터 추출
 $policyId = $policy?->getPolicyId() ?? 0;
-$policyType = $policy?->getPolicyType() ?? 'custom';
+$policyType = $policy?->getPolicyType()->value ?? 'custom'; // enum → 문자열 (선택지 값과 비교)
 $policyTitle = $policy?->getPolicyTitle() ?? '';
 $policyContent = $policy?->getPolicyContent() ?? '';
 $policyVersion = $policy?->getPolicyVersion() ?? '1.0';
