@@ -2,7 +2,7 @@
     "name": "Survey",
     "label": "설문",
     "description": "설문 생성, 참여, 결과 집계 플러그인. 블록 시스템 연동 지원.",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "author": "Mublo",
     "author_url": "https://github.com/wwiz-mublo/mublo",
     "vendor": "mublo",
@@ -10,6 +10,6 @@
     "category": "marketing",
     "icon": "bi-clipboard-check",
     "requires": {
-        "core": ">=1.0.0"
+        "core": ">=1.7.0"
     }
 }
