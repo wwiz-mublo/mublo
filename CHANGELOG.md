@@ -6,11 +6,14 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-14
+
 ### Added
 - Shop: 관리자 상품 목록의 상태 칸에서 스위치로 판매중·판매중지를 바로 바꿀 수 있습니다. 수정 화면을 열 필요 없이 저장하며, 요청 중에는 스위치를 잠그고 실패하면 원래 상태로 되돌립니다. 현재 도메인의 상품만 변경할 수 있고, 상태가 바뀌면 수동·자동 상품 진열의 캐시도 갱신합니다. 재고와 품절 표시는 기존 재고 칸에서 따로 확인합니다
 - Shop: `ProductChangedEvent` 생성자에 선택 인자 `bool $autoBlocksAffected = false`를 추가했습니다. 판매 상태처럼 자동 진열 대상을 바꾸는 수정은 `UPDATED` 이벤트에 이 값을 `true`로 전달해 자동 진열 캐시도 무효화할 수 있습니다. 기존 세 인자 호출은 그대로 동작합니다
 - Core: 회원 계정 계약에 `withdrawWithPassword(int $memberId, string $password, string $reason = '')` 가 추가됐습니다. 세션이 없는 클라이언트(모바일 앱 API 등)가 현재 비밀번호로 본인을 확인하고 탈퇴시킬 때 씁니다. 확인 뒤의 처리는 웹 마이페이지 탈퇴와 같습니다 — 도메인 운영자 차단, 탈퇴 보류 이벤트(`MemberWithdrawingEvent`), 개인정보 정리, 완료 이벤트. 종전에는 탈퇴가 세션 재확인을 거치는 웹 경로에만 있어 확장이 앱 회원을 탈퇴시킬 방법이 없었습니다. 시도 횟수 제한은 호출하는 쪽이 합니다
 - Core: 회원 계정 계약에 `changeLevel(int $memberId, int $toLevel, array $onlyFrom): bool` 이 추가됐습니다. 확장이 회원 등급을 바꿀 때 씁니다(예: 인증된 셀러를 셀러 등급으로). 현재 등급이 `$onlyFrom` 안에 있을 때만 한 UPDATE 로 바꾸므로 관리자가 따로 준 등급은 덮어쓰지 않습니다. 관리 권한 등급(최고관리자·관리자·사이트 운영)과 없는 등급은 주거나 빼앗을 수 없습니다(`InvalidArgumentException`). 바뀌면 커밋 뒤 `MemberUpdatedEvent`(source `api`, 변경 `level_value`)를 발행해 등급 쿠폰 같은 기존 구독자가 그대로 반응합니다. 종전에는 등급을 바꾸는 길이 관리자 회원 수정 화면뿐이라 확장이 등급을 맞출 방법이 없었습니다. 계약을 직접 구현한 확장은 이 메서드를 추가해야 합니다
+- Core: 잔액 계약(`BalanceGatewayInterface`)에 `sumByAction(int $memberId, int $domainId): array` 가 추가됐습니다. 회원 원장을 action 별 합계(`action => SUM(amount)`, 부호 그대로)로 돌려주므로, 확장이 적립·충전·사용·출금을 나눠 볼 때 씁니다(예: 적립금만으로 출금 가능 금액 계산). 계약을 직접 구현한 확장은 이 메서드를 추가해야 합니다
 
 ### Changed
 - **관리자 목록의 '번호'가 DB 고유번호가 아니라 목록 번호로 나옵니다.** 게시판처럼 "전체 건수 − 앞 페이지 건수 − 순서"로 매기므로 첫 행이 가장 큰 수이고 검색·필터 결과에도 맞춰집니다. 고유번호는 다른 사이트에서 회원·상품을 옮겨 오거나 지운 뒤에는 가입·등록 순서와 어긋나고 빈 번호도 생겨, 몇 번째인지 가늠하는 데 쓸 수 없었습니다. 고유번호는 번호에 마우스를 올리면 `ID 123` 으로 보입니다 — 문의 대응·오류 추적에는 여전히 필요합니다. 회원·도메인·메뉴·상품·쿠폰·기획전·문의·리뷰·배송·찜·옵션 프리셋·상품정보고시 템플릿과 배너·팝업·설문·Q&A·메일/문자/알림톡 발송 목록에 적용했습니다. 목록 번호 칸은 정렬 대상이 아니므로 회원·메뉴 목록의 번호 정렬은 없어졌습니다. 제목이 'ID' 인 블록 페이지·블록 행·게시판 관리 목록은 고유번호를 그대로 보여 줍니다
@@ -290,7 +293,8 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/wwiz-mublo/mublo/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/wwiz-mublo/mublo/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/wwiz-mublo/mublo/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/wwiz-mublo/mublo/compare/v1.4.0...v1.5.0
