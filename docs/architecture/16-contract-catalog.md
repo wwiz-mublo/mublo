@@ -298,7 +298,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | Extension | `ExtensionCatalogInterface` | 현재 도메인의 활성 Plugin·Package 이름 목록 |
 | Frame | `DomainFrameEditorInterface` | 도메인 프레임(header/footer) 초안·발행 상태 조회 ([18장](18-theme-rendering.md)) |
 | Balance | `BalanceResetGatewayInterface` | 출처별 잔액 원장 초기화 — 코어 소유 테이블을 직접 지우지 않는다 |
-| Balance | `BalanceRankingQueryInterface`, `BalanceRankingMetric`, `BalanceRankingFilter` | 현재 잔액과 기간별 획득·순증감 점수의 도메인 랭킹 조회 |
+| Balance | `BalanceRankingQueryInterface`, `BalanceRankingMetric`, `BalanceRankingFilter` | 현재 잔액과 기간별 획득·순증감 점수의 도메인 랭킹 조회 — 원장 action·출처로 점수에 넣을 지급을 고를 수 있다 ([확장 계약](../reference/extension-core-contracts.md#포인트-랭킹)) |
 
 ### 사이트를 코드로 짓는 계약 — Provisioning 계열
 

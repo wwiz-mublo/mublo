@@ -46,6 +46,26 @@ final class BalanceRankingQueryServiceTest extends TestCase
         $service->paginate(1, BalanceRankingMetric::EARNED);
     }
 
+    public function testCurrentBalanceRejectsActionFilter(): void
+    {
+        $repo = $this->createMock(BalanceRankingRepository::class);
+        $repo->expects(self::never())->method('paginate');
+        $service = new BalanceRankingQueryService($repo);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $service->paginate(1, BalanceRankingMetric::BALANCE, filter: new BalanceRankingFilter(actions: ['ad_mission']));
+    }
+
+    public function testCurrentBalanceRejectsSourceFilter(): void
+    {
+        $repo = $this->createMock(BalanceRankingRepository::class);
+        $repo->expects(self::never())->method('findMemberRank');
+        $service = new BalanceRankingQueryService($repo);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $service->findMemberRank(1, 5, BalanceRankingMetric::BALANCE, filter: new BalanceRankingFilter(sources: ['MemberPoint']));
+    }
+
     public function testFindMemberRankIgnoresResultKeyword(): void
     {
         $repo = $this->createMock(BalanceRankingRepository::class);
