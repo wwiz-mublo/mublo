@@ -198,6 +198,110 @@ class DomainServiceAliasTest extends TestCase
     }
 
     // =========================================================================
+    // 사이트 소유자의 별칭 추가 — 다른 사이트로 해석되는 주소는 가로챌 수 없다
+    // =========================================================================
+
+    private function resolvesTo(int $domainId): void
+    {
+        $this->resolver->method('resolve')->willReturn(
+            Domain::fromArray(['domain_id' => $domainId, 'domain' => 'site' . $domainId . '.kr', 'domain_group' => '1'])
+        );
+    }
+
+    public function testOwnerCannotClaimHostResolvingToAnotherSite(): void
+    {
+        // pay.raaaa.kr 은 등록돼 있지 않지만 서브도메인 폴백으로 사이트 2(raaaa.kr)로 간다
+        $this->resolvesTo(2);
+        $this->verificationService->expects($this->never())->method('consumeForChange');
+        $this->aliasRepository->expects($this->never())->method('add');
+
+        $result = $this->service()->addAlias(1, 'pay.raaaa.kr', 7, false);
+
+        $this->assertTrue($result->isFailure());
+        $this->assertStringContainsString('다른 사이트', $result->getMessage());
+    }
+
+    public function testSuperAdminMayHandOverHostResolvingToAnotherSite(): void
+    {
+        $this->resolvesTo(2);
+        $this->passVerification();
+        $this->aliasRepository->expects($this->once())->method('add')->with(1, 'pay.raaaa.kr', 7);
+
+        $this->assertTrue($this->service()->addAlias(1, 'pay.raaaa.kr', 7)->isSuccess());
+    }
+
+    public function testOwnerMayAddHostResolvingToOwnSiteOrNowhere(): void
+    {
+        $this->passVerification();
+        $this->aliasRepository->expects($this->exactly(2))->method('add');
+
+        // 아무 사이트로도 해석되지 않는 주소
+        $this->assertTrue($this->service()->addAlias(1, 'free.kr', 7, false)->isSuccess());
+
+        // 자기 사이트로 해석되는 주소 (shop.wizcoin.kr → wizcoin.kr)
+        $this->resolvesTo(1);
+        $this->assertTrue($this->service()->addAlias(1, 'shop.wizcoin.kr', 7, false)->isSuccess());
+    }
+
+    // =========================================================================
+    // 별칭을 대표 도메인으로 지정
+    // =========================================================================
+
+    public function testPromoteAliasRejectsHostsThatAreNotOwnAlias(): void
+    {
+        $this->verificationService->expects($this->never())->method('verify');
+
+        foreach (['rbbbb.kr', 'wizcoin.kr', 'free.kr', ''] as $host) {
+            $result = $this->service()->promoteAlias(1, $host, 7);
+            $this->assertTrue($result->isFailure(), $host);
+            $this->assertStringContainsString('등록된 별칭이 아닙니다', $result->getMessage());
+        }
+        $this->assertSame([], $this->writes);
+    }
+
+    public function testPromoteAliasStopsWhenDnsCheckFails(): void
+    {
+        $this->verificationService->expects($this->once())->method('verify')->with('rankcash.kr', 1, 7)
+            ->willReturn(Result::failure('DNS에 A/AAAA/CNAME 레코드가 없습니다.', ['dns' => ['a' => []]]));
+        $this->verificationService->expects($this->never())->method('consumeForChange');
+
+        $result = $this->service()->promoteAlias(1, 'RankCash.kr', 7);
+
+        $this->assertTrue($result->isFailure());
+        // 화면이 DNS 리포트를 보여줄 수 있게 그대로 돌려준다
+        $this->assertArrayHasKey('dns', $result->getData());
+        $this->assertSame([], $this->writes);
+    }
+
+    public function testPromoteAliasReverifiesThenSwapsWithOldDomain(): void
+    {
+        $this->verificationService->expects($this->once())->method('verify')->with('rankcash.kr', 1, 7)
+            ->willReturn(Result::success('이 서버로 정상 연결됩니다.', ['verification_id' => 42]));
+        $this->verificationService->expects($this->once())->method('consumeForChange')
+            ->with('rankcash.kr', 1, 'wizcoin.kr', 7)
+            ->willReturn(Result::success('검증 확인됨', ['verification_id' => 42, 'verdict' => 'reachable']));
+        $this->aliasRepository->method('removeHost')->willReturnCallback(function (int $id, string $host): bool {
+            $this->writes[] = "alias-remove:{$id}:{$host}";
+            return true;
+        });
+        $this->aliasRepository->method('add')->willReturnCallback(function (int $id, string $host, ?int $by): int {
+            $this->writes[] = "alias-add:{$id}:{$host}";
+            return 1;
+        });
+
+        $result = $this->service()->promoteAlias(1, 'rankcash.kr', 7);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+        $this->assertSame('rankcash.kr', $result->get('new_domain'));
+        $this->assertTrue($result->get('old_kept_as_alias'));
+        $this->assertSame([
+            'alias-remove:1:rankcash.kr',
+            'alias-add:1:wizcoin.kr',
+            'update:rankcash.kr',
+        ], $this->writes);
+    }
+
+    // =========================================================================
     // 별칭 삭제
     // =========================================================================
 

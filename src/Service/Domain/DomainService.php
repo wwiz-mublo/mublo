@@ -787,9 +787,13 @@ class DomainService
      * 호스트명 변경과 같은 이유로 DNS 확인(도달 검증)을 통과해야 한다. 확인 없이 아무 호스트나
      * 등록되면 다른 사이트가 쓸 주소를 미리 차지하거나 오타가 그대로 남는다.
      *
-     * 호출자(Controller)가 권한(슈퍼관리자)과 계층을 먼저 검증해야 한다.
+     * 호출자(Controller)가 권한(최고관리자 또는 자기 사이트 소유자)과 계층을 먼저 검증해야 한다.
+     *
+     * @param bool $allowClaimedHost false면 지금 다른 사이트로 해석되는 호스트(서브도메인 폴백 등)를 거부한다.
+     *        하위 사이트 소유자가 상위 사이트의 와일드카드 DNS 아래 주소(pay.상위.kr 등)를 별칭으로
+     *        가로채지 못하게 하기 위함이다. 최고관리자는 의도적으로 넘겨줄 수 있어 true로 부른다.
      */
-    public function addAlias(int $domainId, string $host, ?int $actorMemberId = null): Result
+    public function addAlias(int $domainId, string $host, ?int $actorMemberId = null, bool $allowClaimedHost = true): Result
     {
         if ($this->aliasRepository === null) {
             return $this->fail('별칭 기능을 사용할 수 없습니다.');
@@ -814,6 +818,10 @@ class DomainService
         // 검증 게이트보다 앞에 둬서 통과 기록을 낭비하지 않게 한다.
         if ($this->isDomainTaken($host)) {
             return $this->fail('이미 등록된 도메인입니다.');
+        }
+
+        if (!$allowClaimedHost && $this->isHostClaimedByOtherSite($host, $domainId)) {
+            return $this->fail('다른 사이트로 연결되는 주소라 별칭으로 추가할 수 없습니다.');
         }
 
         if (!$this->verificationService) {
@@ -857,9 +865,56 @@ class DomainService
     }
 
     /**
+     * 별칭을 대표 주소로 지정 — 대표 주소와 별칭을 맞바꾼다 (이전 대표 주소는 별칭으로 남는다).
+     *
+     * 별칭은 추가할 때 DNS 확인을 거쳤지만 그사이 DNS가 바뀌었을 수 있다. 대표 주소가 연결되지
+     * 않으면 사이트 전체가 끊기므로, 여기서 DNS 확인을 다시 실행하고 통과해야만 바꾼다
+     * (확인 → 소진을 한 요청 안에서 — 화면에서 따로 "DNS 확인"을 누를 필요가 없다).
+     * 실패하면 확인 리포트를 data에 담아 돌려준다.
+     *
+     * 호출자(Controller)가 권한(최고관리자 또는 자기 사이트 소유자)과 계층을 먼저 검증해야 한다.
+     */
+    public function promoteAlias(int $domainId, string $host, ?int $actorMemberId = null): Result
+    {
+        if ($this->aliasRepository === null) {
+            return $this->fail('별칭 기능을 사용할 수 없습니다.');
+        }
+
+        $host = DomainVerificationService::normalizeHost($host);
+        if ($host === '' || $this->aliasRepository->findDomainIdByHost($host) !== $domainId) {
+            return $this->fail('이 사이트에 등록된 별칭이 아닙니다.');
+        }
+
+        if (!$this->verificationService) {
+            return $this->fail('도메인 검증 서비스를 사용할 수 없어 변경할 수 없습니다.');
+        }
+
+        $check = $this->verificationService->verify($host, $domainId, $actorMemberId);
+        if ($check->isFailure()) {
+            return $check;
+        }
+
+        return $this->changeDomainName($domainId, $host, $actorMemberId, true);
+    }
+
+    /**
+     * 호스트가 지금 다른 사이트로 해석되는가 (서브도메인 폴백 포함)
+     *
+     * 등록 여부(isDomainTaken)는 정확히 같은 이름만 본다. 하지만 해석기는 pay.a.kr 처럼
+     * 등록되지 않은 호스트도 a.kr 사이트로 보낸다 — 이런 주소를 다른 사이트가 별칭으로
+     * 가져가면 a.kr 사이트로 가던 요청을 가로채게 된다.
+     */
+    public function isHostClaimedByOtherSite(string $host, int $domainId): bool
+    {
+        $resolved = $this->domainResolver->resolve($host);
+
+        return $resolved !== null && $resolved->getDomainId() !== $domainId;
+    }
+
+    /**
      * 별칭 삭제 — 그 주소로는 더 이상 접속되지 않는다.
      *
-     * 호출자(Controller)가 권한(슈퍼관리자)과 계층을 먼저 검증해야 한다.
+     * 호출자(Controller)가 권한(최고관리자 또는 자기 사이트 소유자)과 계층을 먼저 검증해야 한다.
      */
     public function removeAlias(int $domainId, string $host, ?int $actorMemberId = null): Result
     {

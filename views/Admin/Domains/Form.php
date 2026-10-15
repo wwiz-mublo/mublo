@@ -14,7 +14,8 @@
  * @var bool $isSelf 현재 접속 중인 사이트인지
  * @var bool $canChangeDomain 호스트명 변경 권한(최고관리자) 여부
  * @var array $changeHistory 실제 변경 이력 [{changed_at, from, to, actor, verdict}] (최신순)
- * @var array $aliases 별칭 목록 [{alias_id, alias_host, created_by, created_at}] (최고관리자에게만 전달)
+ * @var bool $canManageAliases 별칭 관리 권한(최고관리자 또는 자기 사이트 소유자) 여부
+ * @var array $aliases 별칭 목록 [{alias_id, alias_host, created_by, created_at}] (별칭 관리 권한자에게만 전달)
  */
 
 // 도메인 데이터 추출
@@ -26,6 +27,7 @@ $status = $domain?->getStatus() ?? 'active';
 
 $isSelf = (bool) ($isSelf ?? false);
 $canChangeDomain = $isEdit && (bool) ($canChangeDomain ?? false);
+$canManageAliases = $isEdit && (bool) ($canManageAliases ?? false);
 $changeHistory = $changeHistory ?? [];
 $aliases = $aliases ?? [];
 
@@ -297,13 +299,14 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                 </div>
                 <?php endif; ?>
             </div>
+            <?php endif; ?>
 
-            <!-- 도메인 별칭 — 최고관리자 전용. 대표 주소 외에 이 사이트로 연결되는 주소 -->
+            <?php if ($canManageAliases): ?>
+            <!-- 도메인 별칭 — 최고관리자, 또는 자기 사이트 소유자. 대표 주소 외에 이 사이트로 연결되는 주소 -->
             <div class="card mb-4" id="domain-alias-card">
                 <div class="card-hero">
                     <i class="bi bi-signpost-split text-pastel-blue"></i>
                     <span>도메인 별칭</span>
-                    <span class="badge bg-danger ms-auto">최고관리자</span>
                 </div>
                 <div class="card-body">
                     <p class="text-muted small mb-3">
@@ -327,7 +330,11 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                                 <tr>
                                     <td><strong><?= htmlspecialchars($alias['alias_host']) ?></strong></td>
                                     <td class="text-nowrap"><?= htmlspecialchars($alias['created_at'] ?: '-') ?></td>
-                                    <td class="text-end">
+                                    <td class="text-end text-nowrap">
+                                        <button type="button" class="btn btn-sm btn-outline-primary btn-alias-promote"
+                                                data-alias="<?= htmlspecialchars($alias['alias_host']) ?>">
+                                            <i class="bi bi-star"></i> 대표로 지정
+                                        </button>
                                         <button type="button" class="btn btn-sm btn-outline-danger btn-alias-delete"
                                                 data-alias="<?= htmlspecialchars($alias['alias_host']) ?>">
                                             <i class="bi bi-trash"></i> 삭제
@@ -557,23 +564,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     <?php endif; ?>
 
-    <?php if ($canChangeDomain): ?>
+    <?php if ($canChangeDomain || $canManageAliases): ?>
     // =========================================================================
-    // 도메인(호스트명) 변경 — DNS 확인 통과 후에만 변경 가능
-    //
-    // 확인 결과는 서버에 기록되고, 변경 요청 시 서버가 그 기록을 다시 확인한다.
-    // 따라서 이 화면의 상태를 조작해도 검증을 건너뛸 수는 없다.
+    // 주소 변경·별칭 공통 — DNS 확인, 결과 표시, 대표 주소가 바뀐 뒤 이동
     // =========================================================================
     const isSelfDomain = <?= $isSelf ? 'true' : 'false' ?>;
-    const newDomainInput = document.getElementById('new-domain');
-    const confirmBlock = document.getElementById('domain-change-confirm');
-    const confirmInput = document.getElementById('confirm-domain');
-    const dnsResultDiv = document.getElementById('dns-check-result');
-    const btnVerifyDns = document.getElementById('btn-verify-dns');
-    const btnChangeDomain = document.getElementById('btn-change-domain');
-    const keepOldAliasInput = document.getElementById('keep-old-alias');
-
-    let verifiedDomain = '';
 
     function escapeHtml(value) {
         const div = document.createElement('div');
@@ -633,6 +628,45 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * 대표 주소가 바뀐 뒤 이동 — 주소 변경·별칭 대표 지정 공통
+     */
+    function goAfterAddressChange(response) {
+        const redirect = response.data && response.data.redirect;
+        if (isSelfDomain && redirect) {
+            // 세션 쿠키는 호스트별이므로, 새 주소로 이동해 인계 토큰으로 다시 로그인한다.
+            // 토큰 수명이 30초라 안내창을 닫는 즉시 이동하고, 방치 시에도 5초 후 자동 이동한다.
+            MubloRequest.showAlert(
+                (response.message || '변경되었습니다.') + ' 새 주소로 이동합니다.',
+                'success',
+                { onClose: function() { location.href = redirect; } }
+            );
+            setTimeout(function() { location.href = redirect; }, 5000);
+            return;
+        }
+
+        MubloRequest.showToast(response.message || '변경되었습니다.', 'success');
+        location.href = redirect || '/admin/domains?activeCode=002_003';
+    }
+    <?php endif; ?>
+
+    <?php if ($canChangeDomain): ?>
+    // =========================================================================
+    // 도메인(호스트명) 변경 — DNS 확인 통과 후에만 변경 가능
+    //
+    // 확인 결과는 서버에 기록되고, 변경 요청 시 서버가 그 기록을 다시 확인한다.
+    // 따라서 이 화면의 상태를 조작해도 검증을 건너뛸 수는 없다.
+    // =========================================================================
+    const newDomainInput = document.getElementById('new-domain');
+    const confirmBlock = document.getElementById('domain-change-confirm');
+    const confirmInput = document.getElementById('confirm-domain');
+    const dnsResultDiv = document.getElementById('dns-check-result');
+    const btnVerifyDns = document.getElementById('btn-verify-dns');
+    const btnChangeDomain = document.getElementById('btn-change-domain');
+    const keepOldAliasInput = document.getElementById('keep-old-alias');
+
+    let verifiedDomain = '';
+
     function resetVerification() {
         verifiedDomain = '';
         confirmBlock.hidden = true;
@@ -682,23 +716,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 domain: candidate,
                 confirm: confirmInput.value.trim(),
                 keep_old_alias: keepOldAlias ? '1' : '0'
-            }, { loading: true }).then(response => {
-                const redirect = response.data && response.data.redirect;
-                if (isSelfDomain && redirect) {
-                    // 세션 쿠키는 호스트별이므로, 새 주소로 이동해 인계 토큰으로 다시 로그인한다.
-                    // 토큰 수명이 30초라 안내창을 닫는 즉시 이동하고, 방치 시에도 5초 후 자동 이동한다.
-                    MubloRequest.showAlert(
-                        (response.message || '변경되었습니다.') + ' 새 주소로 이동합니다.',
-                        'success',
-                        { onClose: function() { location.href = redirect; } }
-                    );
-                    setTimeout(function() { location.href = redirect; }, 5000);
-                    return;
-                }
-
-                MubloRequest.showToast(response.message || '변경되었습니다.', 'success');
-                location.href = redirect || '/admin/domains?activeCode=002_003';
-            }).catch(err => {
+            }, { loading: true }).then(goAfterAddressChange).catch(err => {
                 // 실패 사유 알림은 MubloRequest가 이미 띄운다 (중복 알림 방지).
                 // 검증 기록은 1회성이라 실패 후에는 DNS 확인부터 다시 해야 한다.
                 verifiedDomain = '';
@@ -707,7 +725,9 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }, { type: 'warning' });
     });
+    <?php endif; ?>
 
+    <?php if ($canManageAliases): ?>
     // =========================================================================
     // 도메인 별칭 — 추가는 DNS 확인(purpose=alias) 통과 후에만
     // =========================================================================
@@ -775,6 +795,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 },
                 { type: 'warning' }
             );
+        });
+    });
+
+    // 대표로 지정 — 서버가 DNS 확인을 다시 실행하고 통과하면 대표 주소와 맞바꾼다.
+    document.querySelectorAll('.btn-alias-promote').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const alias = button.dataset.alias;
+            const warning = '별칭 "' + alias + '"을(를) 대표 도메인으로 지정합니다.\n\n'
+                + '현재 대표 주소 "' + <?= json_encode($domainName, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?> + '"는 별칭으로 남아 계속 접속됩니다.\n'
+                + '지정 전에 DNS 확인을 다시 실행합니다.'
+                + (isSelfDomain ? '\n지금 이 화면은 새 주소로 자동 이동합니다.' : '');
+
+            MubloRequest.showConfirm(warning, function() {
+                MubloRequest.requestJson('/admin/domains/alias-promote', {
+                    domain_id: domainId,
+                    alias: alias
+                }, { loading: true }).then(goAfterAddressChange).catch(err => {
+                    // 실패 사유 알림은 MubloRequest가 이미 띄운다. DNS 확인 리포트가 있으면 화면에 남긴다.
+                    const failed = err && err.response;
+                    if (failed && failed.data && failed.data.dns) {
+                        renderDnsReport(aliasResultDiv, failed.data, false, failed.message || '확인에 실패했습니다.');
+                    }
+                    console.error(err);
+                });
+            }, { type: 'warning' });
         });
     });
     <?php endif; ?>

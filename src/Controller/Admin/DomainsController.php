@@ -13,6 +13,7 @@ namespace Mublo\Controller\Admin;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
+use Mublo\Entity\Domain\Domain;
 use Mublo\Service\Domain\DomainService;
 use Mublo\Service\Domain\DomainVerificationService;
 use Mublo\Service\Auth\AuthService;
@@ -333,6 +334,9 @@ class DomainsController
             ? $return
             : '/admin/domains';
 
+        // 별칭 관리 — 최고관리자, 또는 자기 사이트의 소유자(하위 사이트 운영자)
+        $canManageAliases = $isSuper || ($isSelf && $this->ownsDomain($domain));
+
         return ViewResponse::view('domains/form')
             ->withData([
                 'pageTitle' => $isSelf ? '현재 도메인' : '도메인 수정',
@@ -346,7 +350,8 @@ class DomainsController
                 'isSelf' => $isSelf,
                 'canChangeDomain' => $isSuper,
                 'changeHistory' => $isSuper ? $this->getDomainChangeHistory($domainId) : [],
-                'aliases' => $isSuper ? $this->domainService->getAliases($domainId) : [],
+                'canManageAliases' => $canManageAliases,
+                'aliases' => $canManageAliases ? $this->domainService->getAliases($domainId) : [],
                 'activeCode' => '002_003',
             ]);
     }
@@ -739,10 +744,6 @@ class DomainsController
      */
     public function dnsCheck(array $params, Context $context): JsonResponse
     {
-        if (!$this->authService->isSuper()) {
-            return JsonResponse::error('도메인 검증은 최고관리자만 실행할 수 있습니다.');
-        }
-
         if (!$this->verificationService) {
             return JsonResponse::error('도메인 검증 서비스를 사용할 수 없습니다.');
         }
@@ -750,18 +751,31 @@ class DomainsController
         $request = $context->getRequest();
         $domain = (string) ($request->input('domain') ?? $request->json('domain') ?? '');
         $domainId = (int) ($request->input('domain_id') ?? $request->json('domain_id') ?? 0);
+        $forAlias = (string) ($request->input('purpose') ?? $request->json('purpose') ?? '') === 'alias';
+        $isSuper = $this->authService->isSuper();
 
-        $error = $this->authorizeDomainChange($domainId, $context);
+        // 주소 변경용 확인은 최고관리자만, 별칭 추가용 확인은 자기 사이트 소유자도 할 수 있다.
+        if (!$isSuper && !$forAlias) {
+            return JsonResponse::error('도메인 검증은 최고관리자만 실행할 수 있습니다.');
+        }
+
+        $error = $forAlias
+            ? $this->authorizeAliasManagement($domainId, $context)
+            : $this->authorizeDomainChange($domainId, $context);
         if ($error !== null) {
             return $error;
         }
 
         // 형식·중복은 먼저 걸러낸다 (DNS 조회·프로브를 낭비하지 않도록).
         // 별칭 추가용 확인은 자기 대표 주소·자기 별칭도 중복이다 — 주소 변경(자기 별칭을 대표로 올리기 허용)과 다르다.
-        $forAlias = (string) ($request->input('purpose') ?? $request->json('purpose') ?? '') === 'alias';
         $availability = $this->domainService->checkDomainAvailability($domain, $forAlias ? null : $domainId);
         if ($availability->isFailure()) {
             return JsonResponse::error($availability->getMessage());
+        }
+
+        // 소유자는 다른 사이트로 해석되는 주소를 별칭으로 가져갈 수 없다 (addAlias와 같은 규칙).
+        if ($forAlias && !$isSuper && $this->domainService->isHostClaimedByOtherSite($domain, $domainId)) {
+            return JsonResponse::error('다른 사이트로 연결되는 주소라 별칭으로 추가할 수 없습니다.');
         }
 
         $result = $this->verificationService->verify($domain, $domainId, $this->authService->id());
@@ -827,20 +841,21 @@ class DomainsController
      */
     public function aliasAdd(array $params, Context $context): JsonResponse
     {
-        if (!$this->authService->isSuper()) {
-            return JsonResponse::error('별칭은 최고관리자만 추가할 수 있습니다.');
-        }
-
         $request = $context->getRequest();
         $domainId = (int) ($request->input('domain_id') ?? $request->json('domain_id') ?? 0);
 
-        $error = $this->authorizeDomainChange($domainId, $context);
+        $error = $this->authorizeAliasManagement($domainId, $context);
         if ($error !== null) {
             return $error;
         }
 
         $alias = (string) ($request->input('alias') ?? $request->json('alias') ?? '');
-        $result = $this->domainService->addAlias($domainId, $alias, $this->authService->id());
+        $result = $this->domainService->addAlias(
+            $domainId,
+            $alias,
+            $this->authService->id(),
+            $this->authService->isSuper()
+        );
 
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())
@@ -854,14 +869,10 @@ class DomainsController
      */
     public function aliasDelete(array $params, Context $context): JsonResponse
     {
-        if (!$this->authService->isSuper()) {
-            return JsonResponse::error('별칭은 최고관리자만 삭제할 수 있습니다.');
-        }
-
         $request = $context->getRequest();
         $domainId = (int) ($request->input('domain_id') ?? $request->json('domain_id') ?? 0);
 
-        $error = $this->authorizeDomainChange($domainId, $context);
+        $error = $this->authorizeAliasManagement($domainId, $context);
         if ($error !== null) {
             return $error;
         }
@@ -872,6 +883,44 @@ class DomainsController
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())
             : JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 별칭을 대표 도메인으로 지정 — 대표 주소와 맞바꾼다 (이전 대표 주소는 별칭으로 남는다)
+     *
+     * DNS 확인은 서버가 이 요청 안에서 다시 실행한다(DomainService::promoteAlias).
+     * 자기 사이트면 새 주소로 세션을 인계하는 redirect를 돌려준다.
+     *
+     * POST /admin/domains/alias-promote
+     */
+    public function aliasPromote(array $params, Context $context): JsonResponse
+    {
+        $request = $context->getRequest();
+        $domainId = (int) ($request->input('domain_id') ?? $request->json('domain_id') ?? 0);
+
+        $error = $this->authorizeAliasManagement($domainId, $context);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $actorMemberId = $this->authService->id();
+        $alias = (string) ($request->input('alias') ?? $request->json('alias') ?? '');
+        $result = $this->domainService->promoteAlias($domainId, $alias, $actorMemberId);
+
+        if ($result->isFailure()) {
+            return JsonResponse::error($result->getMessage(), $result->getData());
+        }
+
+        $data = $result->getData();
+        $data['redirect'] = $this->buildPostChangeRedirect(
+            $domainId,
+            (string) ($data['new_domain'] ?? ''),
+            $context,
+            $actorMemberId,
+            '/admin/domains/edit/' . $domainId . '?activeCode=002_003'
+        );
+
+        return JsonResponse::success($data, $result->getMessage());
     }
 
     private function isTruthy(mixed $value): bool
@@ -885,15 +934,18 @@ class DomainsController
      * 자기 도메인이면 새 호스트로 세션을 인계한다(옛 호스트의 세션 쿠키는
      * 새 호스트에서 쓸 수 없다). 하위 도메인이면 현재 주소가 그대로 유효하므로
      * 목록으로 돌아간다.
+     *
+     * @param string $returnPath 이동(인계) 후 열 관리자 화면 경로
      */
     private function buildPostChangeRedirect(
         int $domainId,
         string $newDomain,
         Context $context,
-        ?int $actorMemberId
+        ?int $actorMemberId,
+        string $returnPath = '/admin/domains?activeCode=002_003'
     ): string {
         if ($domainId !== $context->getDomainId() || $newDomain === '') {
-            return '/admin/domains?activeCode=002_003';
+            return $returnPath;
         }
 
         $loginUrl = '//' . $newDomain . '/admin/login';
@@ -906,7 +958,7 @@ class DomainsController
             $domainId,
             $domainId,
             $actorMemberId,
-            '/admin/domains?activeCode=002_003',
+            $returnPath,
             $actorMemberId
         );
 
@@ -978,6 +1030,46 @@ class DomainsController
         }
 
         return $this->verifyDomainHierarchy($domainId, $context);
+    }
+
+    /**
+     * 별칭 관리(추가·삭제·대표 지정) 대상 권한 검증
+     *
+     * 허용:
+     * - 최고관리자 — 자기 도메인 또는 자신의 하위 도메인 (authorizeDomainChange와 같다)
+     * - 그 외 관리자 — 자기 도메인이고, 그 도메인의 소유자일 때만
+     *
+     * 소유자 판정은 등급(can_operate_domain)이 아니라 소유 원장(domain_configs.member_id)으로 한다.
+     * 등급만 보면 같은 사이트의 운영자 등급 스태프도 주소를 바꿀 수 있게 된다.
+     */
+    private function authorizeAliasManagement(int $domainId, Context $context): ?JsonResponse
+    {
+        if ($this->authService->isSuper()) {
+            return $this->authorizeDomainChange($domainId, $context);
+        }
+
+        if ($domainId <= 0 || $domainId !== $context->getDomainId()) {
+            return JsonResponse::error('별칭은 자기 사이트에서만 관리할 수 있습니다.');
+        }
+
+        $domain = $this->domainService->findById($domainId);
+        if (!$domain) {
+            return JsonResponse::error('도메인을 찾을 수 없습니다.');
+        }
+
+        return $this->ownsDomain($domain)
+            ? null
+            : JsonResponse::error('별칭은 사이트 소유자만 관리할 수 있습니다.');
+    }
+
+    /**
+     * 현재 로그인 관리자가 이 도메인의 소유자인가 (domain_configs.member_id)
+     */
+    private function ownsDomain(Domain $domain): bool
+    {
+        $actorId = (int) ($this->authService->id() ?? 0);
+
+        return $actorId > 0 && (int) ($domain->getMemberId() ?? 0) === $actorId;
     }
 
     // =========================================================================
