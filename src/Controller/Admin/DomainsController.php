@@ -346,6 +346,7 @@ class DomainsController
                 'isSelf' => $isSelf,
                 'canChangeDomain' => $isSuper,
                 'changeHistory' => $isSuper ? $this->getDomainChangeHistory($domainId) : [],
+                'aliases' => $isSuper ? $this->domainService->getAliases($domainId) : [],
                 'activeCode' => '002_003',
             ]);
     }
@@ -755,8 +756,10 @@ class DomainsController
             return $error;
         }
 
-        // 형식·중복은 먼저 걸러낸다 (DNS 조회·프로브를 낭비하지 않도록)
-        $availability = $this->domainService->checkDomainAvailability($domain, $domainId);
+        // 형식·중복은 먼저 걸러낸다 (DNS 조회·프로브를 낭비하지 않도록).
+        // 별칭 추가용 확인은 자기 대표 주소·자기 별칭도 중복이다 — 주소 변경(자기 별칭을 대표로 올리기 허용)과 다르다.
+        $forAlias = (string) ($request->input('purpose') ?? $request->json('purpose') ?? '') === 'alias';
+        $availability = $this->domainService->checkDomainAvailability($domain, $forAlias ? null : $domainId);
         if ($availability->isFailure()) {
             return JsonResponse::error($availability->getMessage());
         }
@@ -799,7 +802,8 @@ class DomainsController
         }
 
         $actorMemberId = $this->authService->id();
-        $result = $this->domainService->changeDomainName($domainId, $newDomain, $actorMemberId);
+        $keepOldAsAlias = $this->isTruthy($request->input('keep_old_alias') ?? $request->json('keep_old_alias'));
+        $result = $this->domainService->changeDomainName($domainId, $newDomain, $actorMemberId, $keepOldAsAlias);
 
         if ($result->isFailure()) {
             return JsonResponse::error($result->getMessage());
@@ -814,6 +818,65 @@ class DomainsController
         );
 
         return JsonResponse::success($data, $result->getMessage());
+    }
+
+    /**
+     * 도메인 별칭 추가 — DNS 확인(purpose=alias) 통과 후에만
+     *
+     * POST /admin/domains/alias-add
+     */
+    public function aliasAdd(array $params, Context $context): JsonResponse
+    {
+        if (!$this->authService->isSuper()) {
+            return JsonResponse::error('별칭은 최고관리자만 추가할 수 있습니다.');
+        }
+
+        $request = $context->getRequest();
+        $domainId = (int) ($request->input('domain_id') ?? $request->json('domain_id') ?? 0);
+
+        $error = $this->authorizeDomainChange($domainId, $context);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $alias = (string) ($request->input('alias') ?? $request->json('alias') ?? '');
+        $result = $this->domainService->addAlias($domainId, $alias, $this->authService->id());
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 도메인 별칭 삭제
+     *
+     * POST /admin/domains/alias-delete
+     */
+    public function aliasDelete(array $params, Context $context): JsonResponse
+    {
+        if (!$this->authService->isSuper()) {
+            return JsonResponse::error('별칭은 최고관리자만 삭제할 수 있습니다.');
+        }
+
+        $request = $context->getRequest();
+        $domainId = (int) ($request->input('domain_id') ?? $request->json('domain_id') ?? 0);
+
+        $error = $this->authorizeDomainChange($domainId, $context);
+        if ($error !== null) {
+            return $error;
+        }
+
+        $alias = (string) ($request->input('alias') ?? $request->json('alias') ?? '');
+        $result = $this->domainService->removeAlias($domainId, $alias, $this->authService->id());
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
+    }
+
+    private function isTruthy(mixed $value): bool
+    {
+        return $value === true || in_array(strtolower(trim((string) $value)), ['1', 'true', 'on', 'yes'], true);
     }
 
     /**

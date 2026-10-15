@@ -14,6 +14,7 @@
  * @var bool $isSelf 현재 접속 중인 사이트인지
  * @var bool $canChangeDomain 호스트명 변경 권한(최고관리자) 여부
  * @var array $changeHistory 실제 변경 이력 [{changed_at, from, to, actor, verdict}] (최신순)
+ * @var array $aliases 별칭 목록 [{alias_id, alias_host, created_by, created_at}] (최고관리자에게만 전달)
  */
 
 // 도메인 데이터 추출
@@ -26,6 +27,7 @@ $status = $domain?->getStatus() ?? 'active';
 $isSelf = (bool) ($isSelf ?? false);
 $canChangeDomain = $isEdit && (bool) ($canChangeDomain ?? false);
 $changeHistory = $changeHistory ?? [];
+$aliases = $aliases ?? [];
 
 $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/store';
 ?>
@@ -203,7 +205,8 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                 <div class="card-body">
                     <div class="alert alert-warning py-2">
                         <i class="bi bi-exclamation-triangle"></i>
-                        변경하면 <strong><?= htmlspecialchars($domainName) ?></strong> 주소로는 더 이상 이 사이트에 접속할 수 없습니다.
+                        사이트의 대표 주소를 바꿉니다. 아래 <strong>이전 주소를 별칭으로 남기기</strong>를 끄면
+                        <strong><?= htmlspecialchars($domainName) ?></strong> 주소로는 더 이상 접속할 수 없습니다.
                         <?php if ($isSelf): ?>
                         지금 이 화면도 새 주소로 이동합니다.
                         <?php endif; ?>
@@ -220,11 +223,19 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                         <div class="form-text">
                             먼저 이 도메인의 DNS를 이 서버로 설정한 뒤 <strong>DNS 확인</strong>을 실행하세요.
                             실제로 이 서버에 연결되는지 확인되어야 변경할 수 있습니다.
+                            이 사이트의 별칭을 입력하면 그 별칭이 대표 주소가 됩니다.
                         </div>
                         <div id="dns-check-result" class="mt-2"></div>
                     </div>
 
                     <div class="mb-0" id="domain-change-confirm" hidden>
+                        <div class="form-check mb-2">
+                            <input class="form-check-input" type="checkbox" id="keep-old-alias" checked>
+                            <label class="form-check-label" for="keep-old-alias">
+                                이전 주소 <strong><?= htmlspecialchars($domainName) ?></strong>를 별칭으로 남기기
+                                <span class="text-muted">(변경 후에도 이전 주소로 계속 접속됩니다)</span>
+                            </label>
+                        </div>
                         <label class="form-label" for="confirm-domain">확인을 위해 새 도메인명을 다시 입력 <span class="text-danger">*</span></label>
                         <div class="input-group">
                             <input type="text" id="confirm-domain" class="form-control" placeholder="새 도메인명 재입력" autocomplete="off">
@@ -284,6 +295,65 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                     <div class="form-text mt-2 mb-0">확인만 하고 변경하지 않은 시도는 표시되지 않습니다.</div>
                 </div>
                 <?php endif; ?>
+            </div>
+
+            <!-- 도메인 별칭 — 최고관리자 전용. 대표 주소 외에 이 사이트로 연결되는 주소 -->
+            <div class="card mb-4" id="domain-alias-card">
+                <div class="card-hero">
+                    <i class="bi bi-signpost-split text-pastel-blue"></i>
+                    <span>도메인 별칭</span>
+                    <span class="badge bg-danger ms-auto">최고관리자</span>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        별칭으로 들어온 요청도 이 사이트(<strong><?= htmlspecialchars($domainName) ?></strong>)로 처리합니다.
+                        회원·설정·데이터는 그대로이고 주소만 하나 더 생깁니다.
+                        주소를 옮기는 동안 이전 주소와 새 주소를 함께 살려 둘 때 씁니다.
+                    </p>
+
+                    <?php if (!empty($aliases)): ?>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="text-nowrap">별칭</th>
+                                    <th class="text-nowrap">등록일</th>
+                                    <th class="text-end"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <?php foreach ($aliases as $alias): ?>
+                                <tr>
+                                    <td><strong><?= htmlspecialchars($alias['alias_host']) ?></strong></td>
+                                    <td class="text-nowrap"><?= htmlspecialchars($alias['created_at'] ?: '-') ?></td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-danger btn-alias-delete"
+                                                data-alias="<?= htmlspecialchars($alias['alias_host']) ?>">
+                                            <i class="bi bi-trash"></i> 삭제
+                                        </button>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                    <?php endif; ?>
+
+                    <label class="form-label" for="new-alias">별칭 추가</label>
+                    <div class="input-group">
+                        <input type="text" id="new-alias" class="form-control" placeholder="example.com" autocomplete="off">
+                        <button type="button" class="btn btn-outline-secondary" id="btn-verify-alias">
+                            <i class="bi bi-hdd-network"></i> DNS 확인
+                        </button>
+                        <button type="button" class="btn btn-primary" id="btn-add-alias" disabled>
+                            <i class="bi bi-plus-lg"></i> 추가
+                        </button>
+                    </div>
+                    <div class="form-text">
+                        대표 주소 변경과 같이, DNS를 이 서버로 설정하고 <strong>DNS 확인</strong>을 통과해야 추가할 수 있습니다.
+                    </div>
+                    <div id="alias-check-result" class="mt-2"></div>
+                </div>
             </div>
             <?php endif; ?>
 
@@ -499,6 +569,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const dnsResultDiv = document.getElementById('dns-check-result');
     const btnVerifyDns = document.getElementById('btn-verify-dns');
     const btnChangeDomain = document.getElementById('btn-change-domain');
+    const keepOldAliasInput = document.getElementById('keep-old-alias');
 
     let verifiedDomain = '';
 
@@ -508,7 +579,7 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 
-    function renderDnsReport(report, ok, message) {
+    function renderDnsReport(target, report, ok, message) {
         const dns = (report && report.dns) || {};
         const records = []
             .concat(dns.a || [], dns.aaaa || [], (dns.cname || []).map(function(c) { return 'CNAME ' + c; }));
@@ -521,11 +592,43 @@ document.addEventListener('DOMContentLoaded', function() {
             detail += '<div class="small text-warning mt-1"><i class="bi bi-tools"></i> 개발환경 판정(dev_local) — 운영 서버에서는 실제 연결 확인이 필요합니다.</div>';
         }
 
-        dnsResultDiv.innerHTML =
+        target.innerHTML =
             '<div class="alert alert-' + (ok ? 'success' : 'danger') + ' py-2 mb-0">' +
             '<i class="bi bi-' + (ok ? 'check-circle-fill' : 'x-circle-fill') + '"></i> ' + escapeHtml(message) +
             detail +
             '</div>';
+    }
+
+    /**
+     * DNS 확인 실행 — 통과하면 true로 끝나는 Promise.
+     * purpose: 'change'(대표 주소 변경) | 'alias'(별칭 추가) — 서버의 중복 판정이 다르다.
+     */
+    function runDnsCheck(candidate, purpose, button, target) {
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 확인 중...';
+
+        return MubloRequest.requestJson('/admin/domains/dns-check', {
+            domain: candidate,
+            domain_id: domainId,
+            purpose: purpose
+        }).then(response => {
+            renderDnsReport(target, response.data, true, response.message || '확인되었습니다.');
+            return true;
+        }).catch(err => {
+            // MubloRequest는 실패 응답(result=error, 4xx)을 reject하며 사유 알림까지 띄운다.
+            // 여기서는 리포트(어떤 DNS 레코드가 보였는지)만 화면에 남긴다 — 알림 중복 금지.
+            const failed = err && err.response;
+            if (failed && failed.data) {
+                renderDnsReport(target, failed.data, false, failed.message || '확인에 실패했습니다.');
+            } else {
+                target.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill"></i> '
+                    + escapeHtml((err && err.message) || '확인 중 오류가 발생했습니다.') + '</div>';
+            }
+            return false;
+        }).finally(() => {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-hdd-network"></i> DNS 확인';
+        });
     }
 
     function resetVerification() {
@@ -545,32 +648,9 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        btnVerifyDns.disabled = true;
-        btnVerifyDns.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 확인 중...';
-
-        MubloRequest.requestJson('/admin/domains/dns-check', {
-            domain: candidate,
-            domain_id: domainId
-        }).then(response => {
-            renderDnsReport(response.data, true, response.message || '확인되었습니다.');
-            verifiedDomain = candidate.toLowerCase();
-            confirmBlock.hidden = false;
-        }).catch(err => {
-            // MubloRequest는 실패 응답(result=error, 4xx)을 reject하며 사유 알림까지 띄운다.
-            // 여기서는 리포트(어떤 DNS 레코드가 보였는지)만 화면에 남긴다 — 알림 중복 금지.
-            verifiedDomain = '';
-            confirmBlock.hidden = true;
-
-            const failed = err && err.response;
-            if (failed && failed.data) {
-                renderDnsReport(failed.data, false, failed.message || '확인에 실패했습니다.');
-            } else {
-                dnsResultDiv.innerHTML = '<div class="alert alert-danger py-2 mb-0"><i class="bi bi-x-circle-fill"></i> '
-                    + escapeHtml((err && err.message) || '확인 중 오류가 발생했습니다.') + '</div>';
-            }
-        }).finally(() => {
-            btnVerifyDns.disabled = false;
-            btnVerifyDns.innerHTML = '<i class="bi bi-hdd-network"></i> DNS 확인';
+        runDnsCheck(candidate, 'change', btnVerifyDns, dnsResultDiv).then(passed => {
+            verifiedDomain = passed ? candidate.toLowerCase() : '';
+            confirmBlock.hidden = !passed;
         });
     });
 
@@ -588,14 +668,18 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        const warning = isSelfDomain
-            ? '이 사이트의 주소를 "' + candidate + '"(으)로 변경합니다.\n\n변경 후 현재 주소로는 접속할 수 없고, 새 주소로 자동 이동합니다.'
-            : '이 사이트의 주소를 "' + candidate + '"(으)로 변경합니다.\n\n변경 후 이전 주소로는 접속할 수 없습니다.';
+        const keepOldAlias = keepOldAliasInput.checked;
+        const oldNotice = keepOldAlias
+            ? '이전 주소는 별칭으로 남아 계속 접속됩니다.'
+            : '변경 후 이전 주소로는 접속할 수 없습니다.';
+        const warning = '이 사이트의 주소를 "' + candidate + '"(으)로 변경합니다.\n\n' + oldNotice
+            + (isSelfDomain ? '\n지금 이 화면은 새 주소로 자동 이동합니다.' : '');
 
         MubloRequest.showConfirm(warning, function() {
             MubloRequest.requestJson('/admin/domains/domain-edit/' + domainId, {
                 domain: candidate,
-                confirm: confirmInput.value.trim()
+                confirm: confirmInput.value.trim(),
+                keep_old_alias: keepOldAlias ? '1' : '0'
             }, { loading: true }).then(response => {
                 const redirect = response.data && response.data.redirect;
                 if (isSelfDomain && redirect) {
@@ -620,6 +704,76 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error(err);
             });
         }, { type: 'warning' });
+    });
+
+    // =========================================================================
+    // 도메인 별칭 — 추가는 DNS 확인(purpose=alias) 통과 후에만
+    // =========================================================================
+    const newAliasInput = document.getElementById('new-alias');
+    const aliasResultDiv = document.getElementById('alias-check-result');
+    const btnVerifyAlias = document.getElementById('btn-verify-alias');
+    const btnAddAlias = document.getElementById('btn-add-alias');
+
+    let verifiedAlias = '';
+
+    newAliasInput.addEventListener('input', function() {
+        verifiedAlias = '';
+        btnAddAlias.disabled = true;
+        aliasResultDiv.innerHTML = '';
+    });
+
+    btnVerifyAlias.addEventListener('click', function() {
+        const candidate = newAliasInput.value.trim();
+        if (!candidate) {
+            MubloRequest.showAlert('추가할 도메인명을 입력해주세요.', 'warning');
+            newAliasInput.focus();
+            return;
+        }
+
+        runDnsCheck(candidate, 'alias', btnVerifyAlias, aliasResultDiv).then(passed => {
+            verifiedAlias = passed ? candidate.toLowerCase() : '';
+            btnAddAlias.disabled = !passed;
+        });
+    });
+
+    btnAddAlias.addEventListener('click', function() {
+        const candidate = newAliasInput.value.trim();
+        if (!verifiedAlias || verifiedAlias !== candidate.toLowerCase()) {
+            MubloRequest.showAlert('DNS 확인을 먼저 통과해야 합니다.', 'warning');
+            return;
+        }
+
+        MubloRequest.requestJson('/admin/domains/alias-add', {
+            domain_id: domainId,
+            alias: candidate
+        }, { loading: true }).then(response => {
+            MubloRequest.showToast(response.message || '추가되었습니다.', 'success');
+            location.reload();
+        }).catch(err => {
+            // 검증 기록은 1회성이라 실패 후에는 DNS 확인부터 다시 해야 한다.
+            verifiedAlias = '';
+            btnAddAlias.disabled = true;
+            console.error(err);
+        });
+    });
+
+    document.querySelectorAll('.btn-alias-delete').forEach(function(button) {
+        button.addEventListener('click', function() {
+            const alias = button.dataset.alias;
+            MubloRequest.showConfirm(
+                '별칭 "' + alias + '"을(를) 삭제합니다.\n\n삭제하면 이 주소로는 더 이상 접속할 수 없습니다.',
+                function() {
+                    MubloRequest.requestJson('/admin/domains/alias-delete', {
+                        domain_id: domainId,
+                        alias: alias
+                    }, { loading: true }).then(response => {
+                        MubloRequest.showToast(response.message || '삭제되었습니다.', 'success');
+                        location.reload();
+                    }).catch(err => console.error(err));
+                },
+                { type: 'warning' }
+            );
+        });
     });
     <?php endif; ?>
 

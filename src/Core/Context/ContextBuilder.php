@@ -10,6 +10,7 @@ use Mublo\Infrastructure\Cache\CacheFactory;
 use Mublo\Infrastructure\Cache\CacheInterface;
 use Mublo\Infrastructure\Cache\DomainCache;
 use Mublo\Infrastructure\Database\DatabaseManager;
+use Mublo\Repository\Domain\DomainAliasRepository;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Repository\Menu\MenuItemRepository;
 use Mublo\Service\Domain\DomainResolver;
@@ -230,7 +231,8 @@ class ContextBuilder
         if ($this->domainResolver === null) {
             $this->domainResolver = new DomainResolver(
                 new DomainCache(),
-                new DomainRepository()
+                new DomainRepository(),
+                new DomainAliasRepository()
             );
         }
 

@@ -12,6 +12,7 @@ use Mublo\Core\Event\Domain\DomainDeletedEvent;
 use Mublo\Core\Event\Domain\DomainOwnerValidatingEvent;
 use Mublo\Entity\Domain\Domain;
 use Mublo\Entity\Member\Member;
+use Mublo\Repository\Domain\DomainAliasRepository;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Repository\Member\MemberRepository;
 use Mublo\Service\Member\FieldEncryptionService;
@@ -39,6 +40,7 @@ class DomainService
     private ?ExtensionService $extensionService;
     private ?DomainVerificationService $verificationService;
     private ?Logger $logger;
+    private ?DomainAliasRepository $aliasRepository;
 
     public function __construct(
         DomainRepository $domainRepository,
@@ -48,7 +50,8 @@ class DomainService
         FieldEncryptionService $encryptionService,
         ?ExtensionService $extensionService = null,
         ?DomainVerificationService $verificationService = null,
-        ?Logger $logger = null
+        ?Logger $logger = null,
+        ?DomainAliasRepository $aliasRepository = null
     ) {
         $this->domainRepository = $domainRepository;
         $this->domainResolver = $domainResolver;
@@ -58,6 +61,7 @@ class DomainService
         $this->extensionService = $extensionService;
         $this->verificationService = $verificationService;
         $this->logger = $logger;
+        $this->aliasRepository = $aliasRepository;
     }
 
     // =========================================================================
@@ -588,6 +592,11 @@ class DomainService
      * (DomainVerificationService)을 통과한 기록이 있어야만 저장한다. 검증 기록은
      * 1회만 소진되므로 확인 없이/재사용해서 바꿀 수 없다.
      *
+     * 별칭과의 관계:
+     * - 새 주소가 이 사이트의 별칭이면 그 별칭을 대표 주소로 올린다(별칭 행은 지운다).
+     * - $keepOldAsAlias 면 옛 주소를 별칭으로 남겨, 변경 후에도 옛 주소로 계속 접속된다
+     *   (주소가 박힌 앱·북마크·외부 링크가 끊기지 않게). 둘 다 주소 변경과 한 트랜잭션이다.
+     *
      * 부수 정리:
      * - 도메인 해석 캐시: update()가 구·신 도메인 양쪽을 무효화한다.
      * - 라우트 캐시: 파일명이 도메인 문자열 기반이라 옛 도메인 캐시를 직접 지운다.
@@ -598,9 +607,14 @@ class DomainService
      * @param int $domainId 대상 도메인 ID
      * @param string $newDomain 새 호스트명
      * @param int|null $actorMemberId 변경을 실행한 관리자 회원 ID (감사용)
+     * @param bool $keepOldAsAlias 옛 주소를 별칭으로 남길지
      */
-    public function changeDomainName(int $domainId, string $newDomain, ?int $actorMemberId = null): Result
-    {
+    public function changeDomainName(
+        int $domainId,
+        string $newDomain,
+        ?int $actorMemberId = null,
+        bool $keepOldAsAlias = false
+    ): Result {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->fail('도메인을 찾을 수 없습니다.');
@@ -640,8 +654,14 @@ class DomainService
             return $gate;
         }
 
+        $promoteAlias = $this->aliasRepository !== null
+            && $this->aliasRepository->findDomainIdByHost($newHost) === $domainId;
+        $keepOldAsAlias = $keepOldAsAlias && $this->aliasRepository !== null;
+
         // 저장 (형식·중복 재검증, 구·신 도메인 캐시 무효화, DomainUpdatedEvent 발행)
-        $updated = $this->update($domainId, ['domain' => $newHost]);
+        $updated = ($promoteAlias || $keepOldAsAlias)
+            ? $this->updateDomainNameWithAliases($domainId, $oldDomain, $newHost, $promoteAlias, $keepOldAsAlias, $actorMemberId)
+            : $this->update($domainId, ['domain' => $newHost]);
         if ($updated->isFailure()) {
             return $updated;
         }
@@ -653,18 +673,216 @@ class DomainService
             'domain_id' => $domainId,
             'old_domain' => $oldDomain,
             'new_domain' => $newHost,
+            'promoted_alias' => $promoteAlias,
+            'old_kept_as_alias' => $keepOldAsAlias,
             'actor_member_id' => $actorMemberId,
             'verification_id' => $gate->get('verification_id'),
             'verdict' => $gate->get('verdict'),
         ]);
+
+        $message = "도메인이 '{$newHost}'(으)로 변경되었습니다.";
+        if ($keepOldAsAlias) {
+            $message .= " 이전 주소 '{$oldDomain}'도 별칭으로 계속 접속됩니다.";
+        }
 
         return $this->success(
             [
                 'domain_id' => $domainId,
                 'old_domain' => $oldDomain,
                 'new_domain' => $newHost,
+                'old_kept_as_alias' => $keepOldAsAlias,
             ],
-            "도메인이 '{$newHost}'(으)로 변경되었습니다."
+            $message
+        );
+    }
+
+    /**
+     * 주소 변경 + 별칭 정리를 한 트랜잭션으로 (changeDomainName 전용)
+     *
+     * 별칭 행과 대표 주소가 어긋나면(같은 호스트가 양쪽에 있거나, 옛 주소가 어디에도 없거나)
+     * 해석 결과가 바뀌므로 셋 중 하나라도 실패하면 모두 되돌린다.
+     */
+    private function updateDomainNameWithAliases(
+        int $domainId,
+        string $oldDomain,
+        string $newHost,
+        bool $promoteAlias,
+        bool $keepOldAsAlias,
+        ?int $actorMemberId
+    ): Result {
+        $aliases = $this->aliasRepository;
+        if ($aliases === null) {
+            return $this->fail('별칭 저장소를 사용할 수 없습니다.');
+        }
+
+        // update()의 검증 실패는 그 사유를 그대로 돌려줘야 한다. 트랜잭션은 예외를
+        // DatabaseException으로 감싸 다시 던지므로, 사유는 예외가 아니라 이 변수로 꺼낸다.
+        $rejected = null;
+
+        try {
+            $updated = $this->domainRepository->getDb()->transaction(
+                function () use ($aliases, $domainId, $oldDomain, $newHost, $promoteAlias, $keepOldAsAlias, $actorMemberId, &$rejected): Result {
+                    if ($promoteAlias) {
+                        $aliases->removeHost($domainId, $newHost);
+                    }
+
+                    if ($keepOldAsAlias) {
+                        $aliases->add($domainId, DomainVerificationService::normalizeHost($oldDomain), $actorMemberId);
+                    }
+
+                    // DomainUpdatedEvent를 발행하므로 실패할 수 있는 별칭 작업 뒤, 마지막에 둔다.
+                    $updated = $this->update($domainId, ['domain' => $newHost]);
+                    if ($updated->isFailure()) {
+                        $rejected = $updated;
+                        throw new \RuntimeException('domain update rejected: ' . $updated->getMessage());
+                    }
+
+                    return $updated;
+                }
+            );
+        } catch (\Throwable $e) {
+            if ($rejected instanceof Result) {
+                return $rejected;
+            }
+
+            error_log(sprintf(
+                '[DomainService] domain_rename_with_alias_failed domain_id=%d new=%s error=%s',
+                $domainId,
+                $newHost,
+                $e->getMessage()
+            ));
+
+            return $this->fail('도메인 변경 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.');
+        }
+
+        // update()는 트랜잭션 안에서 캐시를 지웠다 — 커밋 전 다른 요청이 옛 값을 다시 채웠을 수 있어
+        // 커밋 뒤에 한 번 더 지운다.
+        $this->invalidateCache($oldDomain);
+        $this->invalidateCache($newHost);
+
+        return $updated;
+    }
+
+    // =========================================================================
+    // 별칭
+    // =========================================================================
+
+    /**
+     * 사이트의 별칭 목록
+     *
+     * @return array<int,array{alias_id:int,alias_host:string,created_by:?int,created_at:string}>
+     */
+    public function getAliases(int $domainId): array
+    {
+        if ($this->aliasRepository === null || $domainId <= 0) {
+            return [];
+        }
+
+        return $this->aliasRepository->findByDomainId($domainId);
+    }
+
+    /**
+     * 별칭 추가 (검증 통과 필수)
+     *
+     * 호스트명 변경과 같은 이유로 DNS 확인(도달 검증)을 통과해야 한다. 확인 없이 아무 호스트나
+     * 등록되면 다른 사이트가 쓸 주소를 미리 차지하거나 오타가 그대로 남는다.
+     *
+     * 호출자(Controller)가 권한(슈퍼관리자)과 계층을 먼저 검증해야 한다.
+     */
+    public function addAlias(int $domainId, string $host, ?int $actorMemberId = null): Result
+    {
+        if ($this->aliasRepository === null) {
+            return $this->fail('별칭 기능을 사용할 수 없습니다.');
+        }
+
+        $domain = $this->domainRepository->find($domainId);
+        if (!$domain) {
+            return $this->fail('도메인을 찾을 수 없습니다.');
+        }
+
+        $host = DomainVerificationService::normalizeHost($host);
+        if ($host === '') {
+            return $this->fail('추가할 도메인명을 입력해주세요.');
+        }
+
+        $validation = $this->validateDomainName($host);
+        if ($validation->isFailure()) {
+            return $validation;
+        }
+
+        // 자기 대표 주소·자기 별칭도 중복이다 (제외 ID 없이 판정).
+        // 검증 게이트보다 앞에 둬서 통과 기록을 낭비하지 않게 한다.
+        if ($this->isDomainTaken($host)) {
+            return $this->fail('이미 등록된 도메인입니다.');
+        }
+
+        if (!$this->verificationService) {
+            return $this->fail('도메인 검증 서비스를 사용할 수 없어 추가할 수 없습니다.');
+        }
+
+        $gate = $this->verificationService->consumeForChange($host, $domainId, null, $actorMemberId, 'alias');
+        if ($gate->isFailure()) {
+            return $gate;
+        }
+
+        try {
+            $this->aliasRepository->add($domainId, $host, $actorMemberId);
+        } catch (\Throwable $e) {
+            // uk_alias_host — 위 판정과 저장 사이에 같은 호스트가 먼저 등록된 경우
+            error_log(sprintf(
+                '[DomainService] alias_add_failed domain_id=%d host=%s error=%s',
+                $domainId,
+                $host,
+                $e->getMessage()
+            ));
+
+            return $this->fail('별칭을 저장하지 못했습니다. 이미 등록된 도메인인지 확인해 주세요.');
+        }
+
+        $this->invalidateCache($host);
+
+        $this->logger?->channel('domain')->info('도메인 별칭 추가', [
+            'domain_id' => $domainId,
+            'domain' => $domain->getDomain(),
+            'alias' => $host,
+            'actor_member_id' => $actorMemberId,
+            'verification_id' => $gate->get('verification_id'),
+            'verdict' => $gate->get('verdict'),
+        ]);
+
+        return $this->success(
+            ['domain_id' => $domainId, 'alias' => $host],
+            "별칭 '{$host}'을(를) 추가했습니다. 이 주소로도 사이트에 접속됩니다."
+        );
+    }
+
+    /**
+     * 별칭 삭제 — 그 주소로는 더 이상 접속되지 않는다.
+     *
+     * 호출자(Controller)가 권한(슈퍼관리자)과 계층을 먼저 검증해야 한다.
+     */
+    public function removeAlias(int $domainId, string $host, ?int $actorMemberId = null): Result
+    {
+        if ($this->aliasRepository === null) {
+            return $this->fail('별칭 기능을 사용할 수 없습니다.');
+        }
+
+        $host = DomainVerificationService::normalizeHost($host);
+        if ($host === '' || !$this->aliasRepository->removeHost($domainId, $host)) {
+            return $this->fail('이 사이트에 등록된 별칭이 아닙니다.');
+        }
+
+        $this->invalidateCache($host);
+
+        $this->logger?->channel('domain')->info('도메인 별칭 삭제', [
+            'domain_id' => $domainId,
+            'alias' => $host,
+            'actor_member_id' => $actorMemberId,
+        ]);
+
+        return $this->success(
+            ['domain_id' => $domainId, 'alias' => $host],
+            "별칭 '{$host}'을(를) 삭제했습니다."
         );
     }
 
@@ -719,11 +937,17 @@ class DomainService
             }
         }
 
+        // 별칭 행은 FK CASCADE로 함께 지워진다 — 캐시를 지우려면 삭제 전에 목록을 받아 둔다.
+        $aliasHosts = array_column($this->getAliases($domainId), 'alias_host');
+
         // 삭제
         $this->domainRepository->delete($domainId);
 
         // 캐시 무효화
         $this->invalidateCache($domain->getDomain());
+        foreach ($aliasHosts as $aliasHost) {
+            $this->invalidateCache($aliasHost);
+        }
 
         // 도메인 삭제 이벤트 발행 (관련 데이터 정리용)
         $this->dispatch(new DomainDeletedEvent($domainId, $domain));
@@ -864,7 +1088,11 @@ class DomainService
      * 과거에 이 판정이 생성·수정·AJAX 확인 세 곳에 복사돼 있었고, AJAX 확인만 포트를 뗀
      * 형태로 비교해 "이미 있는 도메인"을 사용 가능으로 답했다. 판정은 이 메서드 하나로 모은다.
      *
-     * @param int|null $excludeId 자기 자신 제외 (수정 시)
+     * 별칭(domain_aliases)도 같은 이름 공간이다 — 호스트 하나는 대표 주소와 별칭을 통틀어
+     * 한 곳에만 있어야 해석이 갈리지 않는다. 두 테이블에 걸친 제약은 DB로 걸 수 없어 여기서 막는다.
+     *
+     * @param int|null $excludeId 자기 자신 제외 (수정 시) — 자기 사이트의 별칭도 제외한다.
+     *                            자기 별칭을 대표 주소로 올리는 쪽은 그 별칭 행을 지워야 한다(changeDomainName).
      */
     public function isDomainTaken(string $domain, ?int $excludeId = null): bool
     {
@@ -883,6 +1111,11 @@ class DomainService
                 : $this->domainRepository->existsByDomain($candidate);
 
             if ($exists) {
+                return true;
+            }
+
+            $aliasOwner = $this->aliasRepository?->findDomainIdByHost($candidate);
+            if ($aliasOwner !== null && $aliasOwner !== $excludeId) {
                 return true;
             }
         }

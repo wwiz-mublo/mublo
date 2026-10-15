@@ -4,6 +4,7 @@ namespace Mublo\Service\Domain;
 
 use Mublo\Entity\Domain\Domain;
 use Mublo\Infrastructure\Cache\DomainCache;
+use Mublo\Repository\Domain\DomainAliasRepository;
 use Mublo\Repository\Domain\DomainRepository;
 
 /**
@@ -16,15 +17,19 @@ use Mublo\Repository\Domain\DomainRepository;
  * - 캐시 우선 조회 → DB 폴백
  * - 도메인 유효성 검증
  *
- * 조회 흐름:
+ * 조회 흐름 (이름 하나당):
  * 1. 메모리 캐시 (static, 같은 요청 내)
- * 2. 파일 캐시 (DomainCache, 요청 간)
- * 3. DB 조회 (DomainRepository, 캐시 미스 시)
+ * 2. 파일 캐시 — 대표 주소, 그다음 별칭 (DomainCache, 요청 간)
+ * 3. DB 조회 — 대표 주소(domain_configs), 없으면 별칭(domain_aliases)
+ *
+ * 별칭으로 찾아도 돌려주는 Domain은 그 사이트 자체다(getDomain()은 대표 주소).
+ * 요청이 들어온 호스트는 Context::getDomain()에 그대로 남는다.
  */
 class DomainResolver
 {
     protected DomainCache $cache;
     protected DomainRepository $repository;
+    protected ?DomainAliasRepository $aliasRepository;
 
     /**
      * 메모리 캐시 (같은 요청 내 재사용)
@@ -36,10 +41,14 @@ class DomainResolver
      */
     protected bool $throwOnNotFound = false;
 
-    public function __construct(DomainCache $cache, DomainRepository $repository)
-    {
+    public function __construct(
+        DomainCache $cache,
+        DomainRepository $repository,
+        ?DomainAliasRepository $aliasRepository = null
+    ) {
         $this->cache = $cache;
         $this->repository = $repository;
+        $this->aliasRepository = $aliasRepository;
     }
 
     /**
@@ -98,7 +107,12 @@ class DomainResolver
     }
 
     /**
-     * 단일 도메인명으로 해결 시도 (캐시 → DB)
+     * 단일 도메인명으로 해결 시도 (캐시 → DB, 각각 대표 주소 → 별칭 순)
+     *
+     * 별칭 캐시를 대표 주소 DB 조회보다 먼저 보는 이유: 별칭으로 들어오는 요청마다
+     * domain_configs 를 한 번씩 헛짚지 않기 위함이다. 호스트 하나는 대표 주소와 별칭 중
+     * 한 곳에만 있으므로(DomainService::isDomainTaken) 순서가 결과를 바꾸지 않는다.
+     * 별칭이 대표 주소로 올라갈 때는 DomainService가 그 호스트의 캐시를 지운다.
      */
     private function resolveByName(string $normalizedDomain): ?Domain
     {
@@ -107,24 +121,84 @@ class DomainResolver
             return self::$memoryCache[$normalizedDomain];
         }
 
-        // 2. 파일 캐시 확인
-        $domain = $this->cache->get($normalizedDomain);
+        $domain = $this->cache->get($normalizedDomain)
+            ?? $this->findCachedAlias($normalizedDomain)
+            ?? $this->findCanonicalInDb($normalizedDomain)
+            ?? $this->findAliasInDb($normalizedDomain);
 
         if ($domain !== null) {
             self::$memoryCache[$normalizedDomain] = $domain;
-            return $domain;
         }
 
-        // 3. DB 조회
-        $domain = $this->repository->findByDomain($normalizedDomain);
+        return $domain;
+    }
+
+    /**
+     * 대표 주소로 찾기 (캐시 → DB). 별칭은 보지 않는다.
+     */
+    private function findCanonical(string $domainName): ?Domain
+    {
+        return $this->cache->get($domainName) ?? $this->findCanonicalInDb($domainName);
+    }
+
+    private function findCanonicalInDb(string $domainName): ?Domain
+    {
+        $domain = $this->repository->findByDomain($domainName);
 
         if ($domain !== null) {
             $this->cache->set($domain);
-            self::$memoryCache[$normalizedDomain] = $domain;
+        }
+
+        return $domain;
+    }
+
+    /**
+     * 캐시된 별칭으로 찾기
+     *
+     * 캐시에는 가리키는 사이트의 ID·대표 주소만 있다. 그 대표 주소로 다시 찾은 사이트의
+     * ID가 다르거나 없으면(그사이 주소 변경·사이트 삭제) 캐시를 버리고 DB에서 다시 찾게 한다.
+     */
+    private function findCachedAlias(string $host): ?Domain
+    {
+        if ($this->aliasRepository === null) {
+            return null;
+        }
+
+        $cached = $this->cache->getAlias($host);
+        if ($cached === null) {
+            return null;
+        }
+
+        $domain = $this->findCanonical($cached['domain']);
+        if ($domain !== null && $domain->getDomainId() === $cached['domain_id']) {
             return $domain;
         }
 
+        $this->cache->deleteAlias($host);
+
         return null;
+    }
+
+    private function findAliasInDb(string $host): ?Domain
+    {
+        if ($this->aliasRepository === null) {
+            return null;
+        }
+
+        $domainId = $this->aliasRepository->findDomainIdByHost($host);
+        if ($domainId === null) {
+            return null;
+        }
+
+        $domain = $this->repository->findById($domainId);
+        if ($domain === null) {
+            return null;
+        }
+
+        $this->cache->set($domain);
+        $this->cache->setAlias($host, $domain);
+
+        return $domain;
     }
 
     /**
@@ -151,7 +225,10 @@ class DomainResolver
     /**
      * Domain 캐시 무효화
      *
-     * @param string $domainName 도메인명
+     * 그 이름의 대표 주소 캐시와 별칭 캐시를 함께 지운다 — 호스트가 별칭에서 대표 주소로,
+     * 또는 그 반대로 옮겨 갈 수 있어 호출자가 어느 쪽인지 따지지 않게 한다.
+     *
+     * @param string $domainName 도메인명 (대표 주소 또는 별칭 호스트)
      */
     public function invalidate(string $domainName): void
     {
@@ -162,6 +239,7 @@ class DomainResolver
 
         // 파일 캐시 삭제
         $this->cache->delete($normalizedDomain);
+        $this->cache->deleteAlias($normalizedDomain);
     }
 
     /**
