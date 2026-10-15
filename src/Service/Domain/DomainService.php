@@ -1055,6 +1055,13 @@ class DomainService
             $domain = $m[1];
         }
 
+        // www. 주소는 등록하지 않는다 — 해석기가 www.를 떼고 찾으므로(DomainResolver::stripWww)
+        // www.x.kr 로 등록해도 요청은 x.kr 로 간다. 등록돼도 쓰이지 않고, x.kr 이 다른 사이트면
+        // 그쪽으로 간다. www. 없는 주소만 등록하면 www. 주소는 저절로 같은 사이트로 연결된다.
+        if (str_starts_with(strtolower($domain), 'www.')) {
+            return $this->fail('www. 없이 입력해주세요. www. 주소는 자동으로 같은 사이트로 연결됩니다.');
+        }
+
         // 도메인 형식 검증 (간단한 정규식)
         // localhost, IP 주소, 일반 도메인 모두 허용
         if ($domain === 'localhost') {

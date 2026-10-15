@@ -111,6 +111,35 @@ class DomainServiceAliasTest extends TestCase
     }
 
     // =========================================================================
+    // www. 금지 — 해석기가 www.를 떼므로 www. 주소는 등록해도 그 주소로 가지 않는다
+    // =========================================================================
+
+    public function testWwwHostsAreRejected(): void
+    {
+        foreach (['www.raaaa.kr', 'WWW.raaaa.kr', 'www.raaaa.kr:8080'] as $host) {
+            $result = $this->service()->validateDomainName($host);
+            $this->assertTrue($result->isFailure(), $host);
+            $this->assertStringContainsString('www.', $result->getMessage());
+        }
+    }
+
+    public function testHostsMerelyContainingWwwAreAllowed(): void
+    {
+        foreach (['wwwx.kr', 'api.www-shop.kr', 'raaaa.kr'] as $host) {
+            $this->assertTrue($this->service()->validateDomainName($host)->isSuccess(), $host);
+        }
+    }
+
+    public function testWwwAliasIsRejectedBeforeConsumingVerification(): void
+    {
+        $this->verificationService->expects($this->never())->method('consumeForChange');
+        $this->aliasRepository->expects($this->never())->method('add');
+
+        $this->assertTrue($this->service()->addAlias(1, 'www.raaaa.kr', 7)->isFailure());
+        $this->assertTrue($this->service()->changeDomainName(1, 'www.new.kr', 7, true)->isFailure());
+    }
+
+    // =========================================================================
     // 별칭 추가
     // =========================================================================
 

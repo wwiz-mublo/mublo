@@ -35,6 +35,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // 유효성 검사 후 세션에 담기만 한다. 도메인 생성·시딩은 마지막 설치 단계에서 수행한다.
     if (empty($domainData['domain_name'])) {
         $error = '도메인명을 입력하세요.';
+    } elseif (str_starts_with(strtolower($domainData['domain_name']), 'www.')) {
+        // 해석기가 www.를 떼고 찾으므로 www. 주소로 등록하면 설치 후 사이트를 찾지 못한다
+        // (DomainService::validateDomainName 과 같은 규칙).
+        $error = 'www. 없이 입력하세요. www. 주소는 자동으로 같은 사이트로 연결됩니다.';
     } elseif (empty($domainData['site_title'])) {
         $error = '사이트 제목을 입력하세요.';
     } else {
@@ -46,8 +50,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// 현재 도메인 자동 감지
+// 현재 도메인 자동 감지 (www. 는 등록하지 않으므로 떼고 채운다)
 $currentDomain = $_SERVER['HTTP_HOST'] ?? 'localhost';
+$suggestedDomain = preg_replace('/^www\./i', '', $currentDomain);
 ?>
 
 <div class="content">
@@ -64,7 +69,7 @@ $currentDomain = $_SERVER['HTTP_HOST'] ?? 'localhost';
         <div class="form-group">
             <label>도메인명 *</label>
             <input type="text" name="domain_name"
-                   value="<?= htmlspecialchars($_POST['domain_name'] ?? $currentDomain) ?>"
+                   value="<?= htmlspecialchars($_POST['domain_name'] ?? $suggestedDomain) ?>"
                    required placeholder="example.com">
             <small>현재 접속 중인 도메인: <?= htmlspecialchars($currentDomain) ?></small>
         </div>

@@ -181,7 +181,7 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                                     중복 확인
                                 </button>
                             </div>
-                            <div class="form-text">영문, 숫자, 하이픈, 점만 사용 가능합니다.</div>
+                            <div class="form-text">영문, 숫자, 하이픈, 점만 사용 가능합니다. www. 없이 입력하세요(www. 주소는 자동 연결).</div>
                             <div id="domain-check-result" class="mt-1"></div>
                         </div>
 
@@ -224,6 +224,7 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                             먼저 이 도메인의 DNS를 이 서버로 설정한 뒤 <strong>DNS 확인</strong>을 실행하세요.
                             실제로 이 서버에 연결되는지 확인되어야 변경할 수 있습니다.
                             이 사이트의 별칭을 입력하면 그 별칭이 대표 주소가 됩니다.
+                            www. 없이 입력하세요(www. 주소는 자동 연결).
                         </div>
                         <div id="dns-check-result" class="mt-2"></div>
                     </div>
@@ -351,6 +352,7 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                     </div>
                     <div class="form-text">
                         대표 주소 변경과 같이, DNS를 이 서버로 설정하고 <strong>DNS 확인</strong>을 통과해야 추가할 수 있습니다.
+                        www. 없이 입력하세요(www. 주소는 자동 연결).
                     </div>
                     <div id="alias-check-result" class="mt-2"></div>
                 </div>
