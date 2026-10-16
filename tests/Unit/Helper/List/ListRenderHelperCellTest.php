@@ -75,4 +75,14 @@ class ListRenderHelperCellTest extends TestCase
         $img = $this->helper->renderCell(['v' => 12345], ['key' => 'v', 'type' => 'image']);
         $this->assertStringContainsString('src="12345"', $img);
     }
+
+    public function testCallbackCellAcceptsNonStringReturn(): void
+    {
+        // 기획전 목록의 정렬 칸이 (int) 를 돌려줘 목록이 첫 행에서 끊겼다 (2026-10-16)
+        $int = ['key' => 'v', 'type' => 'callback', 'callback' => fn($row) => (int) $row['v']];
+        $this->assertSame('3', $this->helper->renderCell(['v' => '3'], $int));
+
+        $null = ['key' => 'v', 'type' => 'callback', 'callback' => fn($row) => null];
+        $this->assertSame('', $this->helper->renderCell([], $null));
+    }
 }
