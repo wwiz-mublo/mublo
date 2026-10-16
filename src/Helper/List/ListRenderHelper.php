@@ -541,7 +541,8 @@ class ListRenderHelper
      */
     protected function renderCallback(array $row, array $col): string
     {
-        return isset($col['callback']) ? call_user_func($col['callback'], $row) : '';
+        // 콜백이 정렬 순서 같은 숫자를 그대로 돌려줘도 strict_types 반환 타입에 죽지 않게 한다
+        return isset($col['callback']) ? (string) call_user_func($col['callback'], $row) : '';
     }
 
     /**

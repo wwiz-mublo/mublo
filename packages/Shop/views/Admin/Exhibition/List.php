@@ -66,7 +66,7 @@ $columns = $this->columns()
         return '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">대기/종료</span>';
     }, ['_th_attr' => ['class' => 'text-center', 'style' => 'width:80px'], '_td_attr' => ['class' => 'text-center']])
     ->callback('sort_order', '정렬', function ($row) {
-        return (int) $row['sort_order'];
+        return (string) (int) $row['sort_order'];
     }, ['_th_attr' => ['class' => 'text-center', 'style' => 'width:70px'], '_td_attr' => ['class' => 'text-center']])
     ->callback('created_at', '등록일', function ($row) {
         return '<small>' . htmlspecialchars(substr($row['created_at'] ?? '', 0, 10)) . '</small>';
