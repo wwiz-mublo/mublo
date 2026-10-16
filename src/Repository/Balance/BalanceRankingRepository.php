@@ -135,6 +135,8 @@ class BalanceRankingRepository
             ];
         }
 
+        [$ledgerSql, $ledgerParams] = $this->ledgerCondition($filter);
+
         if ($metric === BalanceRankingMetric::BALANCE) {
             return [
                 'sql' => "SELECT m.member_id, m.nickname, SUM(bl.amount) AS score
@@ -143,10 +145,10 @@ class BalanceRankingRepository
                               ON bl.domain_id = m.domain_id AND bl.member_id = m.member_id
                        LEFT JOIN member_levels ml ON ml.level_value = m.level_value
                            WHERE {$eligibilitySql}
-                             AND bl.created_at < ?
+                             AND bl.created_at < ?{$ledgerSql}
                         GROUP BY m.member_id, m.nickname
                           HAVING score > 0",
-                'params' => array_merge($eligibilityParams, [$this->formatDate($to)]),
+                'params' => array_merge($eligibilityParams, [$this->formatDate($to)], $ledgerParams),
             ];
         }
 
@@ -163,14 +165,39 @@ class BalanceRankingRepository
                    LEFT JOIN member_levels ml ON ml.level_value = m.level_value
                        WHERE {$eligibilitySql}
                          AND bl.created_at >= ?
-                         AND bl.created_at < ?{$positiveOnly}
+                         AND bl.created_at < ?{$positiveOnly}{$ledgerSql}
                     GROUP BY m.member_id, m.nickname
                       HAVING score > 0",
             'params' => array_merge(
                 $eligibilityParams,
-                [$this->formatDate($from), $this->formatDate($to)]
+                [$this->formatDate($from), $this->formatDate($to)],
+                $ledgerParams
             ),
         ];
+    }
+
+    /**
+     * 원장 행 조건 — action·출처(source_name). 빈 목록은 조건을 걸지 않는다.
+     *
+     * 이 컬럼들은 기간 인덱스(idx_domain_created_member)에 없어, 조건을 주면 인덱스만으로 끝나지 않고
+     * 기간 안의 원장 행을 읽는다. 원장이 아주 큰 도메인에서 긴 기간을 자주 조회하면 결과를 캐시한다.
+     *
+     * @return array{0:string,1:list<string>}
+     */
+    private function ledgerCondition(BalanceRankingFilter $filter): array
+    {
+        $sql = '';
+        $params = [];
+
+        foreach (['bl.action' => $filter->actions, 'bl.source_name' => $filter->sources] as $column => $values) {
+            if ($values === []) {
+                continue;
+            }
+            $sql .= " AND {$column} IN (" . implode(',', array_fill(0, count($values), '?')) . ')';
+            $params = array_merge($params, $values);
+        }
+
+        return [$sql, $params];
     }
 
     /** @return array{0:string,1:list<mixed>} */

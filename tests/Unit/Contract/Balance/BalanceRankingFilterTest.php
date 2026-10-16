@@ -33,4 +33,32 @@ final class BalanceRankingFilterTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         new BalanceRankingFilter(excludedLevelTypes: ['OWNER']);
     }
+
+    public function testLedgerConditionsAreDeduplicatedAndKeptWithoutKeyword(): void
+    {
+        $filter = new BalanceRankingFilter(
+            keyword: 'kim',
+            actions: ['ad_mission', 'ad_mission', 'referral_l1'],
+            sources: ['RankCash', 'RankCash'],
+        );
+
+        self::assertSame(['ad_mission', 'referral_l1'], $filter->actions);
+        self::assertSame(['RankCash'], $filter->sources);
+        self::assertSame(['ad_mission', 'referral_l1'], $filter->withoutKeyword()->actions);
+        self::assertSame(['RankCash'], $filter->withoutKeyword()->sources);
+        self::assertSame([], (new BalanceRankingFilter())->actions);
+        self::assertSame([], (new BalanceRankingFilter())->sources);
+    }
+
+    public function testRejectsMalformedAction(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new BalanceRankingFilter(actions: ["ad_mission' OR 1=1"]);
+    }
+
+    public function testRejectsMalformedSource(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        new BalanceRankingFilter(sources: [str_repeat('a', 51)]);
+    }
 }

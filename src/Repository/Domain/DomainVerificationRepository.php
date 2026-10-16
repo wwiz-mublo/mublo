@@ -128,15 +128,20 @@ class DomainVerificationRepository extends BaseRepository
      *
      * @param string|null $previousHost 변경 직전 호스트명
      * @param int|null $consumedBy 변경을 실행한 관리자 회원 ID (requested_by와 다를 수 있음)
+     * @param string $purpose 소진 용도 (change: 호스트명 변경, alias: 별칭 추가)
      * @return bool 이 호출이 실제로 소진시켰으면 true (경합 시 한 번만 true)
      */
-    public function consume(int $verificationId, ?string $previousHost = null, ?int $consumedBy = null): bool
-    {
+    public function consume(
+        int $verificationId,
+        ?string $previousHost = null,
+        ?int $consumedBy = null,
+        string $purpose = 'change'
+    ): bool {
         $affected = $this->getDb()->execute(
             "UPDATE domain_verifications
-                SET status = 'consumed', consumed_at = NOW(), previous_host = ?, consumed_by = ?
+                SET status = 'consumed', purpose = ?, consumed_at = NOW(), previous_host = ?, consumed_by = ?
               WHERE verification_id = ? AND status = 'passed'",
-            [$previousHost ?: null, $consumedBy ?: null, $verificationId]
+            [$purpose, $previousHost ?: null, $consumedBy ?: null, $verificationId]
         );
 
         return $affected > 0;
@@ -147,6 +152,7 @@ class DomainVerificationRepository extends BaseRepository
      *
      * status='consumed'만 본다 — passed/failed/pending은 "확인만 해본 것"이라
      * 변경 이력이 아니다. 이 구분이 흐려지면 감사 목적이 사라진다.
+     * 별칭 추가에 쓰인 검증(purpose='alias')도 주소가 바뀐 것이 아니라 제외한다.
      *
      * @return array<int,array<string,mixed>> 최신순
      */
@@ -157,7 +163,7 @@ class DomainVerificationRepository extends BaseRepository
         return $this->getDb()->select(
             "SELECT verification_id, host, previous_host, verdict, requested_by, consumed_by, consumed_at
                FROM domain_verifications
-              WHERE domain_id = ? AND status = 'consumed'
+              WHERE domain_id = ? AND status = 'consumed' AND purpose = 'change'
               ORDER BY consumed_at DESC, verification_id DESC
               LIMIT {$limit}",
             [$domainId]

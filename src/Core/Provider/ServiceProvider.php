@@ -77,6 +77,7 @@ use Mublo\Infrastructure\Security\CsrfManager;
 use Mublo\Repository\Balance\BalanceLogRepository;
 use Mublo\Repository\Balance\BalanceRankingRepository;
 use Mublo\Repository\Balance\BalanceRepairAuditRepository;
+use Mublo\Repository\Domain\DomainAliasRepository;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Repository\Member\AdminPermissionRepository;
 use Mublo\Repository\Member\MemberLevelRepository;
@@ -206,7 +207,8 @@ class ServiceProvider
         $container->singleton(DomainResolver::class, function (DependencyContainer $c) {
             return new DomainResolver(
                 $c->get(DomainCache::class),
-                $c->get(DomainRepository::class)
+                $c->get(DomainRepository::class),
+                $c->get(DomainAliasRepository::class)
             );
         });
 
