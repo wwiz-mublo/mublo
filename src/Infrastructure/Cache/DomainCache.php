@@ -23,6 +23,7 @@ class DomainCache
     private int $ttl;
 
     private const KEY_PREFIX = 'domain:';
+    private const ALIAS_KEY_PREFIX = 'domain-alias:';
     private const DEFAULT_TTL = 600;
 
     /**
@@ -91,6 +92,42 @@ class DomainCache
         return $this->get($domainName) !== null;
     }
 
+    // =========================================================================
+    // 별칭 (alias 호스트 → 사이트)
+    //
+    // Domain 전체가 아니라 가리키는 사이트의 ID·대표 주소만 둔다. 사이트 정보(상태·설정)는
+    // 대표 주소의 캐시 하나에만 있어야, 상태 변경 등에서 대표 주소만 무효화해도 별칭으로
+    // 들어온 요청에 바로 반영된다.
+    // =========================================================================
+
+    /**
+     * @return array{domain_id:int,domain:string}|null
+     */
+    public function getAlias(string $host): ?array
+    {
+        $data = $this->cache->get($this->aliasKey($host));
+
+        if (!is_array($data) || !isset($data['domain_id'], $data['domain'])) {
+            return null;
+        }
+
+        return ['domain_id' => (int) $data['domain_id'], 'domain' => (string) $data['domain']];
+    }
+
+    public function setAlias(string $host, Domain $domain): bool
+    {
+        return $this->cache->set(
+            $this->aliasKey($host),
+            ['domain_id' => $domain->getDomainId(), 'domain' => $domain->getDomain()],
+            $this->ttl
+        );
+    }
+
+    public function deleteAlias(string $host): bool
+    {
+        return $this->cache->delete($this->aliasKey($host));
+    }
+
     /**
      * 전체 캐시 삭제
      */
@@ -125,5 +162,10 @@ class DomainCache
     private function key(string $domainName): string
     {
         return self::KEY_PREFIX . strtolower($domainName);
+    }
+
+    private function aliasKey(string $host): string
+    {
+        return self::ALIAS_KEY_PREFIX . strtolower($host);
     }
 }

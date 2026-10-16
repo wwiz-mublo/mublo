@@ -249,13 +249,15 @@ class DomainVerificationService
      *
      * @param string|null $previousHost 변경 직전 호스트명 (감사용)
      * @param int|null $actorMemberId 변경을 실행한 관리자 (검증 요청자와 다를 수 있음)
+     * @param string $purpose 'change'(호스트명 변경) 또는 'alias'(별칭 추가) — 변경 이력은 change만 보인다
      * @return Result 성공 시 data.verification_id
      */
     public function consumeForChange(
         string $host,
         ?int $domainId,
         ?string $previousHost = null,
-        ?int $actorMemberId = null
+        ?int $actorMemberId = null,
+        string $purpose = 'change'
     ): Result {
         $host = self::normalizeHost($host);
 
@@ -268,7 +270,8 @@ class DomainVerificationService
         $consumed = $this->repository->consume(
             (int) $row['verification_id'],
             $previousHost !== null ? self::normalizeHost($previousHost) : null,
-            $actorMemberId
+            $actorMemberId,
+            $purpose === 'alias' ? 'alias' : 'change'
         );
 
         if (!$consumed) {
