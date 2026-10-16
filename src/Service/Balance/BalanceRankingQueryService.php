@@ -29,6 +29,7 @@ final class BalanceRankingQueryService implements BalanceRankingQueryInterface
         $page = max(1, $page);
         $perPage = min(100, max(1, $perPage));
         $filter ??= new BalanceRankingFilter();
+        $this->assertFilterFits($metric, $to, $filter);
 
         $result = $this->rankings->paginate(
             $domainId,
@@ -68,6 +69,7 @@ final class BalanceRankingQueryService implements BalanceRankingQueryInterface
             $filter = new BalanceRankingFilter();
         }
         $filter = $filter->withoutKeyword();
+        $this->assertFilterFits($metric, $to, $filter);
         $row = $this->rankings->findMemberRank(
             $domainId,
             $memberId,
@@ -104,6 +106,7 @@ final class BalanceRankingQueryService implements BalanceRankingQueryInterface
             $filter = new BalanceRankingFilter();
         }
         $filter = $filter->withoutKeyword();
+        $this->assertFilterFits($metric, $to, $filter);
 
         return array_map(
             $this->toEntry(...),
@@ -142,6 +145,17 @@ final class BalanceRankingQueryService implements BalanceRankingQueryInterface
         }
 
         return [$from, $to];
+    }
+
+    /**
+     * 원장 action·출처 조건은 원장을 합산하는 점수에만 쓸 수 있다. 현재 잔액(balance, to=null)은
+     * members.point_balance 를 그대로 읽으므로 action·출처로 나눌 수 없다.
+     */
+    private function assertFilterFits(BalanceRankingMetric $metric, ?\DateTimeImmutable $to, BalanceRankingFilter $filter): void
+    {
+        if (($filter->actions !== [] || $filter->sources !== []) && $metric === BalanceRankingMetric::BALANCE && $to === null) {
+            throw new \InvalidArgumentException('현재 잔액 랭킹에는 원장 action·출처 조건을 쓸 수 없습니다.');
+        }
     }
 
     /** @param array{member_id:mixed,score:mixed,rank_position:mixed} $row */

@@ -44,6 +44,40 @@
 endpoint에는 대상·쿼리·fragment를 넣지 않으며 최종 URL과 POST hidden 필드는 코어가
 검증된 `public_id`로 조립합니다.
 
+### 포인트 랭킹
+
+`BalanceRankingQueryInterface`는 확장이 코어 원장(`balance_logs`)과 잔액을 직접 읽지 않고 순위를
+조회하는 길입니다. 지표는 셋입니다 — `earned`(기간 안의 양수 지급 합), `net`(기간 안의 순증감),
+`balance`(현재 잔액, 또는 `to`를 주면 그 시각 직전까지의 원장 합). 기간은 `[from, to)`이고
+동점은 같은 순위(1, 2, 2, 4)입니다.
+
+원장에는 성격이 다른 지급이 함께 쌓입니다 — 환불로 돌려준 포인트(Shop `refund_point`), 가입·등급
+보너스(MemberPoint `signup`·`level_up`), 관리자 조정 등. "활동으로 번 것"만 세려면
+`BalanceRankingFilter`의 원장 조건으로 점수에 넣을 행을 고릅니다.
+
+| 인자 | 고르는 것 | 비우면 |
+|---|---|---|
+| `actions` | `balance_logs.action` | 모든 action |
+| `sources` | `balance_logs.source_name` (Plugin/Package 이름) | 모든 출처 |
+
+```php
+$filter = new BalanceRankingFilter(
+    excludedLevelTypes: ['SUPER', 'STAFF'],
+    actions: ['article_write', 'comment_write'],
+    sources: ['MemberPoint'],
+);
+$page = $rankings->paginate($domainId, BalanceRankingMetric::EARNED, $from, $to, 1, 10, $filter);
+```
+
+- action 이름은 확장마다 자유롭게 지어 겹칠 수 있습니다(`signup`, `admin_adjust` 등). 특정 확장의
+  적립만 세려면 `sources`를 함께 줍니다. 둘 다 주면 둘 다 맞는 행만 셉니다.
+- 원장 조건은 원장을 합산하는 지표에만 쓸 수 있습니다. 현재 잔액(`balance`, `to = null`)은
+  `members.point_balance`를 그대로 읽으므로 함께 주면 `InvalidArgumentException`입니다.
+- 원장 조건을 주면 기간 인덱스(`idx_domain_created_member`)만으로 끝나지 않고 기간 안의 원장 행을
+  읽습니다. 원장이 아주 큰 도메인에서 긴 기간(월간 등)을 화면마다 조회한다면 결과를 짧게 캐시합니다.
+- `BalanceRankingEntry::memberId`는 서버 내부 키입니다. 화면에 보낼 때는 닉네임 등으로 바꾸고
+  `member_id`를 빼야 합니다([회원 식별자 정책](member-identifier-policy.md)).
+
 ## 블록, 메뉴와 도메인
 
 | Contract | 책임 | 실제 소비자 |

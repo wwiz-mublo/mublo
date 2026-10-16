@@ -64,6 +64,61 @@ final class BalanceRankingRepositoryTest extends TestCase
         self::assertCount(2, $result['items']);
     }
 
+    public function testLedgerFilterNarrowsScoreInBothSourceCopies(): void
+    {
+        $db = $this->createMock(Database::class);
+        $from = new \DateTimeImmutable('2026-08-01 00:00:00');
+        $to = new \DateTimeImmutable('2026-08-02 00:00:00');
+        $source = [7, 'active', '2026-08-01 00:00:00', '2026-08-02 00:00:00', 'ad_mission', 'referral_l1', 'RankCash'];
+        $hasLedgerCondition = static fn(string $sql): int => substr_count($sql, 'bl.action IN (?,?) AND bl.source_name IN (?)');
+
+        $db->expects(self::once())
+            ->method('selectOne')
+            ->with(self::callback(static fn(string $sql): bool => $hasLedgerCondition($sql) === 1), $source)
+            ->willReturn(['total' => 1]);
+        // 순위 계산(higher)도 같은 모집단이어야 한다 — 두 복사본 모두 원장 조건을 가진다
+        $db->expects(self::once())
+            ->method('select')
+            ->with(
+                self::callback(static fn(string $sql): bool => $hasLedgerCondition($sql) === 2),
+                array_merge($source, $source)
+            )
+            ->willReturn([['member_id' => 10, 'score' => 500, 'rank_position' => 1]]);
+
+        (new BalanceRankingRepository($db))->paginate(
+            7,
+            BalanceRankingMetric::EARNED,
+            $from,
+            $to,
+            1,
+            10,
+            new BalanceRankingFilter(actions: ['ad_mission', 'referral_l1'], sources: ['RankCash'])
+        );
+    }
+
+    public function testSourceFilterAloneLeavesActionsOpen(): void
+    {
+        $db = $this->createMock(Database::class);
+        $db->expects(self::once())
+            ->method('selectOne')
+            ->with(
+                self::callback(static fn(string $sql): bool =>
+                    str_contains($sql, 'bl.source_name IN (?,?)') && !str_contains($sql, 'bl.action IN')),
+                [7, 'active', '2026-08-01 00:00:00', '2026-08-02 00:00:00', 'MemberPoint', 'Board']
+            )
+            ->willReturn(['total' => 0]);
+
+        (new BalanceRankingRepository($db))->paginate(
+            7,
+            BalanceRankingMetric::EARNED,
+            new \DateTimeImmutable('2026-08-01 00:00:00'),
+            new \DateTimeImmutable('2026-08-02 00:00:00'),
+            1,
+            10,
+            new BalanceRankingFilter(sources: ['MemberPoint', 'Board'])
+        );
+    }
+
     public function testCurrentBalanceUsesSnapshotWithoutLedgerPeriod(): void
     {
         $db = $this->createMock(Database::class);
