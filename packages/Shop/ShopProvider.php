@@ -172,6 +172,7 @@ use Mublo\Packages\Shop\EventSubscriber\PaymentMismatchSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\PointPaymentSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\CouponAutoIssueSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\WithdrawalGuardSubscriber;
+use Mublo\Packages\Shop\EventSubscriber\WithdrawnMemberAddressSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\DomainEventSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\ExhibitionMenuSubscriber;
 use Mublo\Packages\Shop\EventSubscriber\CategoryMenuSubscriber;
@@ -1059,6 +1060,12 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $eventDispatcher->addSubscriber(new WithdrawalGuardSubscriber(
             $container->get(WithdrawalBlockerRepository::class),
             $container->get(OrderStateResolver::class),
+            $container->get(\Mublo\Infrastructure\Log\Logger::class)->channel('shop'),
+        ));
+
+        // 탈퇴한 회원의 배송지 주소록 삭제 — 소프트 삭제라 FK CASCADE 가 동작하지 않는다
+        $eventDispatcher->addSubscriber(new WithdrawnMemberAddressSubscriber(
+            $container->get(MemberAddressRepository::class),
             $container->get(\Mublo\Infrastructure\Log\Logger::class)->channel('shop'),
         ));
 
