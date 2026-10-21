@@ -613,9 +613,12 @@ var __d = (function () {
         // 주문인 정보 검증 (회원·비회원 공통)
         var ordererName = $('ordererName').value.trim();
         var ordererPhone = $('ordererPhone').value.trim();
+        var ordererEmailInput = $('ordererEmail');
+        var ordererEmail = ordererEmailInput ? ordererEmailInput.value.trim() : '';
 
         if (!ordererName) { MubloRequest.showAlert('주문인을 입력해주세요.', 'warning'); return; }
         if (!ordererPhone) { MubloRequest.showAlert('주문인 연락처를 입력해주세요.', 'warning'); return; }
+        if (ordererEmail && !ordererEmailInput.checkValidity()) { MubloRequest.showAlert('이메일 형식이 올바르지 않습니다.', 'warning'); return; }
 
         var recipientName = $('recipientName').value.trim();
         var recipientPhone = $('recipientPhone').value.trim();
@@ -712,6 +715,7 @@ var __d = (function () {
         // 주문인 정보 추가 (회원·비회원 공통)
         paymentData.orderer_name = ordererName;
         paymentData.orderer_phone = ordererPhone;
+        paymentData.orderer_email = ordererEmail;
         if (isGuest) {
             paymentData.is_guest = true;
         }
