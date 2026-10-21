@@ -951,11 +951,17 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             }
         }
 
-        // 주문 엑셀/CSV 리포트 정의 등록 (코어 Report 프레임워크)
-        $container->get(\Mublo\Core\Report\Engine\ReportDefinitionRegistry::class)->register(
+        // 주문·상품 엑셀/CSV 리포트 정의 등록 (코어 Report 프레임워크)
+        $reportRegistry = $container->get(\Mublo\Core\Report\Engine\ReportDefinitionRegistry::class);
+        $reportRegistry->register(
             new \Mublo\Packages\Shop\Report\ShopOrderReportDefinition(
                 $container->get(OrderService::class),
                 $container->get(OrderStateResolver::class)
+            )
+        );
+        $reportRegistry->register(
+            new \Mublo\Packages\Shop\Report\ShopProductReportDefinition(
+                $container->get(ProductService::class)
             )
         );
 
