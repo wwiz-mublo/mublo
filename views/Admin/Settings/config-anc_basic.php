@@ -128,6 +128,18 @@
                 <div class="form-text">체크한 문자 종류를 반드시 포함 (기존 로그인 영향 없음)</div>
             </div>
         </div>
+        <div class="row gy-3 gy-md-0 mt-3">
+            <div class="col-12 col-sm-6 col-md-3">
+                <?php $nicknameMode = $siteConfig['nickname_mode'] ?? 'required'; ?>
+                <label for="nickname_mode" class="form-label">닉네임 입력</label>
+                <select name="formData[site][nickname_mode]" id="nickname_mode" class="form-select">
+                    <option value="required" <?= $nicknameMode === 'required' ? 'selected' : '' ?>>필수</option>
+                    <option value="optional" <?= $nicknameMode === 'optional' ? 'selected' : '' ?>>선택</option>
+                    <option value="hidden" <?= $nicknameMode === 'hidden' ? 'selected' : '' ?>>사용 안 함</option>
+                </select>
+                <div class="form-text">사용 안 함이면 가입·내 정보에서 닉네임 칸을 숨깁니다. 닉네임이 없는 회원은 게시판에 "회원 + 고유번호"로 표시됩니다</div>
+            </div>
+        </div>
     </div>
 </div>
 
