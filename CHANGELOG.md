@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-21
+
 ### Added
 - Core(도메인): **한 사이트에 여러 접속 주소를 두는 도메인 별칭을 추가했습니다.** 관리자 도메인 수정 화면에서 DNS 확인을 거쳐 별칭을 추가·삭제할 수 있고, 별칭으로 접속해도 같은 사이트의 회원·설정·데이터를 사용합니다. 최고관리자는 자기 도메인과 하위 도메인, 사이트 소유자는 자기 사이트의 별칭을 관리합니다. 소유자는 서브도메인 폴백 등을 통해 이미 다른 사이트로 연결되는 주소를 가져갈 수 없습니다. 적용하려면 마이그레이션 `029_create_domain_aliases.sql`이 필요합니다
 - Core(도메인): 별칭을 **대표 도메인으로 지정**할 수 있습니다. 서버가 DNS를 다시 확인한 뒤 대표 주소와 맞바꾸며, 이전 대표 주소는 별칭으로 남아 계속 접속됩니다. 최고관리자의 호스트명 변경 화면에도 `이전 주소를 별칭으로 남기기` 옵션이 생겼고 기본으로 켜져 있습니다. 별칭 접속은 대표 주소로 리다이렉트하지 않습니다. 다만 Shop 결제 성공·실패 복귀 주소는 아직 대표 도메인을 사용하므로, 별칭에서 시작한 결제는 복귀 시 세션이 이어지지 않는 제한이 있습니다
@@ -305,7 +307,8 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/wwiz-mublo/mublo/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/wwiz-mublo/mublo/compare/v1.6.0...v1.7.0
 [1.6.0]: https://github.com/wwiz-mublo/mublo/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/wwiz-mublo/mublo/compare/v1.5.0...v1.5.1
