@@ -112,4 +112,40 @@ final class VisitorStatsServiceTest extends TestCase
         self::assertSame(100, $result['pagination']['perPage']);
         self::assertSame(1, $result['pagination']['totalPages']);
     }
+
+    public function testCustomPeriodUsesGivenDates(): void
+    {
+        self::assertSame(
+            ['2026-09-01', '2026-09-15'],
+            $this->service->periodToDates('custom:2026-09-01:2026-09-15')
+        );
+    }
+
+    public function testSingleDayCustomPeriodIsAllowed(): void
+    {
+        self::assertSame(
+            ['2026-09-01', '2026-09-01'],
+            $this->service->periodToDates('custom:2026-09-01:2026-09-01')
+        );
+    }
+
+    /**
+     * 날짜가 아니거나 거꾸로 된 기간은 최근 7일로 본다 — 프리셋의 모르는 값과 같은 처리.
+     */
+    public function testInvalidCustomPeriodFallsBackToLastSevenDays(): void
+    {
+        $lastSevenDays = $this->service->periodToDates('last_7_days');
+
+        foreach (['custom:2026-09-15:2026-09-01', 'custom:2026-02-30:2026-03-01', 'custom:abc', 'custom:2026-9-1:2026-9-5'] as $period) {
+            self::assertSame($lastSevenDays, $this->service->periodToDates($period), $period);
+        }
+    }
+
+    public function testCustomPeriodIsCappedAtOneYearBeforeEndDate(): void
+    {
+        self::assertSame(
+            ['2025-09-15', '2026-09-15'],
+            $this->service->periodToDates('custom:2020-01-01:2026-09-15')
+        );
+    }
 }
