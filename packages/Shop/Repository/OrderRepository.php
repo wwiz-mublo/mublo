@@ -829,6 +829,41 @@ class OrderRepository extends BaseRepository
             ->count() > 0;
     }
 
+    /**
+     * 회원별 구매 합계 (결제 완료 이후 상태, sumRevenue 와 같은 금액 공식) — 쿠폰 일괄 지급 대상 선정용
+     *
+     * 주문이 없는 회원은 결과에 없다.
+     *
+     * @param list<int> $memberIds
+     * @return array<int, int> member_id => 합계
+     */
+    public function getPaidTotalsByMembers(int $domainId, array $memberIds): array
+    {
+        $memberIds = array_values(array_filter(array_map('intval', $memberIds), fn(int $id) => $id > 0));
+        if ($memberIds === []) {
+            return [];
+        }
+
+        $statuses = OrderAction::paidOrBeyondValues();
+        $totals = [];
+        foreach (array_chunk($memberIds, 1000) as $chunk) {
+            $rows = $this->getDb()->select(
+                "SELECT member_id, COALESCE(SUM(total_price + shipping_fee + extra_price + tax_amount - point_used - coupon_discount), 0) AS total
+                 FROM {$this->table}
+                 WHERE domain_id = ?
+                   AND member_id IN (" . implode(',', array_fill(0, count($chunk), '?')) . ")
+                   AND order_status IN (" . implode(',', array_fill(0, count($statuses), '?')) . ")
+                 GROUP BY member_id",
+                array_merge([$domainId], $chunk, $statuses)
+            );
+            foreach ($rows as $row) {
+                $totals[(int) $row['member_id']] = (int) $row['total'];
+            }
+        }
+
+        return $totals;
+    }
+
     // ── 대시보드 통계 ────────────────────────────────────────────────────────
 
     /**
