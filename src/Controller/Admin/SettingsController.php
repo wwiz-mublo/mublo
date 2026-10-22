@@ -13,6 +13,7 @@ use Mublo\Infrastructure\Storage\UploadedFile;
 use Mublo\Helper\Sns\SnsHelper;
 use Mublo\Helper\Directory\DirectoryHelper;
 use Mublo\Service\Member\MemberLevelService;
+use Mublo\Service\Member\MemberFieldService;
 use Mublo\Core\Rendering\ThemeSkinPolicy;
 
 /**
@@ -28,14 +29,17 @@ class SettingsController
     private FileUploader $fileUploader;
     private CoreMigrationService $migrationService;
     private MemberLevelService $levelService;
+    private ?MemberFieldService $fieldService;
 
     public function __construct(
         DomainService $domainService,
         DomainSettingsService $settingsService,
         FileUploader $fileUploader,
         CoreMigrationService $migrationService,
-        MemberLevelService $levelService
+        MemberLevelService $levelService,
+        ?MemberFieldService $fieldService = null
     ) {
+        $this->fieldService = $fieldService;
         $this->domainService = $domainService;
         $this->settingsService = $settingsService;
         $this->fileUploader = $fileUploader;
@@ -98,7 +102,43 @@ class SettingsController
                 'migrationResult' => $migrationResult,
                 'activeCode' => '002_001',
                 'levels' => array_map(fn($l) => $l->toArray(), $this->levelService->getAll()),
+                'joinLevelFields' => $this->getJoinLevelFields($domainId),
             ]);
+    }
+
+    /**
+     * 가입 등급 배정에 쓸 수 있는 추가필드 — 가입 화면에 보이는 선택·라디오형 (선택지 포함)
+     *
+     * @return array<int, array{field_id:int, label:string, options:array<int, array{value:string, label:string}>}>
+     */
+    private function getJoinLevelFields(int $domainId): array
+    {
+        if ($this->fieldService === null) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($this->fieldService->getFields($domainId) as $field) {
+            if (!in_array($field['field_type'] ?? '', ['select', 'radio'], true)
+                || empty($field['is_visible_signup']) || !empty($field['is_admin_only'])) {
+                continue;
+            }
+            $options = is_string($field['field_options'] ?? null)
+                ? (json_decode($field['field_options'], true) ?: [])
+                : (is_array($field['field_options'] ?? null) ? $field['field_options'] : []);
+
+            $out[] = [
+                'field_id' => (int) $field['field_id'],
+                'label' => (string) ($field['field_label'] ?? $field['field_name'] ?? ''),
+                'options' => array_values(array_filter(array_map(
+                    fn($o) => is_array($o)
+                        ? ['value' => (string) ($o['value'] ?? ''), 'label' => (string) ($o['label'] ?? $o['value'] ?? '')]
+                        : ['value' => (string) $o, 'label' => (string) $o],
+                    is_array($options) ? $options : []
+                ), fn($o) => $o['value'] !== '')),
+            ];
+        }
+        return $out;
     }
 
     /**

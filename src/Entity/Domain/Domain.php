@@ -299,6 +299,35 @@ class Domain
     }
 
     /**
+     * 가입 등급 배정에 쓰는 추가필드 ID (0 = 쓰지 않음)
+     */
+    public function getJoinLevelFieldId(): int
+    {
+        return max(0, (int) ($this->siteConfig['join_level_field_id'] ?? 0));
+    }
+
+    /**
+     * 가입 등급 배정 — 선택지 값 => 등급 값
+     *
+     * @return array<string, int>
+     */
+    public function getJoinLevelMap(): array
+    {
+        $map = $this->siteConfig['join_level_map'] ?? [];
+        if (!is_array($map)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($map as $option => $level) {
+            if ((int) $level > 0) {
+                $out[(string) $option] = (int) $level;
+            }
+        }
+        return $out;
+    }
+
+    /**
      * 회원가입 방식 (immediate: 바로 가입, approval: 관리자 승인)
      */
     public function getJoinType(): string
