@@ -399,7 +399,8 @@ class FrontViewRenderer implements ViewRendererInterface
             memberId: $this->authService->user()['member_id'] ?? null,
             ipAddress: $request->getClientIp(),
             userAgent: $request->header('User-Agent') ?? '',
-            referer: $request->header('Referer') ?? ''
+            referer: $request->header('Referer') ?? '',
+            pageTitle: (string) (($viewData['seoTitle'] ?? '') ?: ($viewData['pageTitle'] ?? ''))
         ));
 
         } finally {

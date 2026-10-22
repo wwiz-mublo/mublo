@@ -942,6 +942,13 @@ class ServiceProvider
             new \Mublo\Subscriber\BlockPageMenuSubscriber($container)
         );
 
+        // 회원 활동 기록 (사이트 설정에서 켠 경우만 쌓음) + 관리자 회원 화면 "최근 활동"
+        $eventDispatcher->addSubscriber(new \Mublo\Subscriber\MemberActivitySubscriber(
+            new \Mublo\Repository\Member\MemberActivityRepository($container->get(Database::class)),
+            fn() => $container->has(Context::class) ? $container->get(Context::class)->getDomainInfo() : null,
+            $container->has(Logger::class) ? $container->get(Logger::class) : null
+        ));
+
     }
 
     /**
