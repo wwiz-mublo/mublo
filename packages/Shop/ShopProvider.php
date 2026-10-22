@@ -745,7 +745,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $container->singleton(AddressController::class, fn(DependencyContainer $c) =>
             new AddressController(
                 $c->get(MemberAddressService::class),
-                $c->get(AuthContextInterface::class)
+                $c->get(AuthContextInterface::class),
+                $c->get(ShopConfigService::class)
             )
         );
         $container->singleton(FrontCouponController::class, fn(DependencyContainer $c) =>
@@ -1097,7 +1098,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
             $container->get(WishlistService::class),
             $container->get(ReviewService::class),
             $container->get(InquiryService::class),
-            $container->get(ShopConfigService::class)
+            $container->get(ShopConfigService::class),
+            $container->get(MemberAddressService::class)
         ));
 
         // 블록 콘텐츠 타입 등록
