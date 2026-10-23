@@ -9,6 +9,8 @@ use Mublo\Core\Event\EventInterface;
 use Mublo\Packages\Shop\Repository\CouponRepository;
 use Mublo\Packages\Shop\Repository\OrderRepository;
 use Mublo\Packages\Shop\Entity\Coupon;
+use Mublo\Packages\Shop\Entity\CouponPolicy;
+use Mublo\Packages\Shop\Enum\CouponType;
 
 /**
  * CouponService
@@ -196,8 +198,44 @@ class CouponService
     }
 
     /**
+     * 회원이 쿠폰함에서 내려받는 발행
+     *
+     * 이 사이트의 다운로드형 정책만 허용한다. 정책 번호는 순번이라 추측할 수 있으므로,
+     * 번호를 직접 보내 관리자 발행·자동 발행 정책이나 다른 사이트 정책을 받아 가지 못하게 막는다.
+     */
+    public function downloadCoupon(int $couponGroupId, int $memberId, int $domainId): Result
+    {
+        $policy = $this->findPolicyInDomain($couponGroupId, $domainId);
+        if (!$policy || $policy->getCouponType() !== CouponType::DOWNLOAD) {
+            return Result::failure('쿠폰 정책을 찾을 수 없습니다.');
+        }
+
+        return $this->issueCoupon($couponGroupId, $memberId);
+    }
+
+    /**
+     * 관리자 수동 발행 — 관리 중인 사이트의 정책만 발행한다.
+     */
+    public function issueByAdmin(int $couponGroupId, int $memberId, int $domainId): Result
+    {
+        if (!$this->findPolicyInDomain($couponGroupId, $domainId)) {
+            return Result::failure('쿠폰 정책을 찾을 수 없습니다.');
+        }
+
+        return $this->issueCoupon($couponGroupId, $memberId);
+    }
+
+    private function findPolicyInDomain(int $couponGroupId, int $domainId): ?CouponPolicy
+    {
+        $policy = $this->couponRepository->find($couponGroupId);
+
+        return ($policy && $policy->getDomainId() === $domainId) ? $policy : null;
+    }
+
+    /**
      * 쿠폰 발행
      *
+     * 진입점(다운로드·프로모션 코드·관리자·자동 발행)에서 정책 유형과 사이트를 검증한 뒤 부른다.
      * 발행 한도, 발행 기간, 회원별 제한 검증 후 쿠폰 발행
      *
      * @param int $couponGroupId 쿠폰 그룹 ID
@@ -875,16 +913,16 @@ class CouponService
     /**
      * 프로모션 코드로 쿠폰 등록 (발급)
      *
-     * 프론트에서 코드 입력 → 정책 매칭 → 쿠폰 발행
+     * 프론트에서 코드 입력 → 이 사이트 정책 매칭 → 쿠폰 발행
      */
-    public function registerByPromotionCode(string $code, int $memberId): Result
+    public function registerByPromotionCode(string $code, int $memberId, int $domainId): Result
     {
         $code = trim(strtoupper($code));
         if (empty($code)) {
             return Result::failure('프로모션 코드를 입력해주세요.');
         }
 
-        $policy = $this->couponRepository->findByPromotionCode($code);
+        $policy = $this->couponRepository->findByPromotionCode($code, $domainId);
         if (!$policy) {
             return Result::failure('유효하지 않은 프로모션 코드입니다.');
         }

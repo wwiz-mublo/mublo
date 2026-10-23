@@ -281,9 +281,10 @@ class CouponRepository extends BaseRepository
     /**
      * 프로모션 코드로 쿠폰 정책 조회
      */
-    public function findByPromotionCode(string $code): ?CouponPolicy
+    public function findByPromotionCode(string $code, int $domainId): ?CouponPolicy
     {
         $row = $this->getDb()->table($this->table)
+            ->where('domain_id', '=', $domainId)
             ->where('promotion_code', '=', $code)
             ->where('is_active', '=', 1)
             ->first();
