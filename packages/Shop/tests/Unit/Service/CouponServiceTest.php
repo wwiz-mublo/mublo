@@ -7,6 +7,8 @@
  * 검증 항목:
  * - create()       — 이름 누락 거부, 할인값 0 거부, 기간 역전 거부, 성공
  * - issueCoupon()  — 비활성 거부, 발행 기간 외 거부, 한도 초과 거부, 성공
+ * - downloadCoupon() — 다운로드형이 아닌 정책·다른 사이트 정책 거부, 성공
+ * - issueByAdmin() — 다른 사이트 정책 거부, 관리자 발행 정책 성공
  * - useCoupon()    — 이미 사용됨 거부, 만료됨 거부, 최소금액 미달 거부, 성공
  * - restoreCoupon() — 미사용 거부, 만료 시 EXPIRED 처리, 유효 시 ISSUED 복원
  * - registerByPromotionCode() — 코드 없음 거부, 유효하지 않은 코드 거부, 성공 시 issueCoupon 호출
@@ -21,6 +23,7 @@ use Mublo\Packages\Shop\Repository\OrderRepository;
 use Mublo\Packages\Shop\Entity\Coupon;
 use Mublo\Packages\Shop\Entity\CouponPolicy;
 use Mublo\Infrastructure\Database\Database;
+use PHPUnit\Framework\Attributes\DataProvider;
 
 class CouponServiceTest extends TestCase
 {
@@ -222,6 +225,73 @@ class CouponServiceTest extends TestCase
     }
 
     // =========================================================
+    // downloadCoupon() / issueByAdmin()
+    // =========================================================
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function nonDownloadTypeProvider(): array
+    {
+        return [
+            'ADMIN' => ['ADMIN'],
+            'AUTO'  => ['AUTO'],
+        ];
+    }
+
+    #[DataProvider('nonDownloadTypeProvider')]
+    public function testDownloadCouponRejectsNonDownloadPolicy(string $couponType): void
+    {
+        $this->couponRepo->method('find')->willReturn($this->makePolicyEntity(['coupon_type' => $couponType]));
+        $this->couponRepo->expects($this->never())->method('issueCoupon');
+
+        $result = $this->service->downloadCoupon(1, 42, 1);
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    public function testDownloadCouponRejectsOtherDomainPolicy(): void
+    {
+        $this->couponRepo->method('find')->willReturn($this->makePolicyEntity(['domain_id' => 2]));
+        $this->couponRepo->expects($this->never())->method('issueCoupon');
+
+        $result = $this->service->downloadCoupon(1, 42, 1);
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    public function testDownloadCouponIssuesDownloadPolicyOfSameDomain(): void
+    {
+        $this->couponRepo->method('find')->willReturn($this->makePolicyEntity());
+        $this->couponRepo->method('issueCoupon')->willReturn(7);
+
+        $result = $this->service->downloadCoupon(1, 42, 1);
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertSame(7, $result->get('coupon_id'));
+    }
+
+    public function testIssueByAdminRejectsOtherDomainPolicy(): void
+    {
+        $this->couponRepo->method('find')->willReturn($this->makePolicyEntity(['domain_id' => 2, 'coupon_type' => 'ADMIN']));
+        $this->couponRepo->expects($this->never())->method('issueCoupon');
+
+        $result = $this->service->issueByAdmin(1, 42, 1);
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    public function testIssueByAdminIssuesAdminPolicyOfSameDomain(): void
+    {
+        $this->couponRepo->method('find')->willReturn($this->makePolicyEntity(['coupon_type' => 'ADMIN']));
+        $this->couponRepo->method('issueCoupon')->willReturn(7);
+
+        $result = $this->service->issueByAdmin(1, 42, 1);
+
+        $this->assertTrue($result->isSuccess());
+    }
+
+    // =========================================================
     // useCoupon()
     // =========================================================
 
@@ -399,7 +469,7 @@ class CouponServiceTest extends TestCase
 
     public function testRegisterByPromotionCodeFailsWhenCodeIsEmpty(): void
     {
-        $result = $this->service->registerByPromotionCode('', 1);
+        $result = $this->service->registerByPromotionCode('', 1, 1);
 
         $this->assertTrue($result->isFailure());
         $this->assertStringContainsString('코드', $result->getMessage());
@@ -409,10 +479,20 @@ class CouponServiceTest extends TestCase
     {
         $this->couponRepo->method('findByPromotionCode')->willReturn(null);
 
-        $result = $this->service->registerByPromotionCode('INVALID123', 1);
+        $result = $this->service->registerByPromotionCode('INVALID123', 1, 1);
 
         $this->assertTrue($result->isFailure());
         $this->assertStringContainsString('유효하지 않은', $result->getMessage());
+    }
+
+    public function testRegisterByPromotionCodeLooksUpCodeWithinDomain(): void
+    {
+        $this->couponRepo->expects($this->once())
+            ->method('findByPromotionCode')
+            ->with('SPRING', 3)
+            ->willReturn(null);
+
+        $this->service->registerByPromotionCode('spring', 1, 3);
     }
 
     // =========================================================

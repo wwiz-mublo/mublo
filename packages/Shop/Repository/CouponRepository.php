@@ -281,9 +281,10 @@ class CouponRepository extends BaseRepository
     /**
      * 프로모션 코드로 쿠폰 정책 조회
      */
-    public function findByPromotionCode(string $code): ?CouponPolicy
+    public function findByPromotionCode(string $code, int $domainId): ?CouponPolicy
     {
         $row = $this->getDb()->table($this->table)
+            ->where('domain_id', '=', $domainId)
             ->where('promotion_code', '=', $code)
             ->where('is_active', '=', 1)
             ->first();
@@ -378,5 +379,77 @@ class CouponRepository extends BaseRepository
 
         $now = date('Y-m-d H:i:s');
         return $this->getDb()->execute($sql, [$now, $now]);
+    }
+
+    /**
+     * 정책별 발급 내역 (최근 발급순)
+     *
+     * 상태 필터: available(사용 가능) | used | expired — 만료는 쿠폰함과 같이 valid_until 로도 본다.
+     *
+     * @return array{items: array, total: int}
+     */
+    public function getIssuedPage(int $couponGroupId, int $page = 1, int $perPage = 50, string $status = ''): array
+    {
+        [$where, $params] = $this->issuedStatusWhere($couponGroupId, $status);
+        $page = max(1, $page);
+        $perPage = max(1, min(200, $perPage));
+
+        $total = (int) ($this->getDb()->selectOne(
+            "SELECT COUNT(*) AS cnt FROM {$this->issueTable} WHERE {$where}",
+            $params
+        )['cnt'] ?? 0);
+
+        $items = $this->getDb()->select(
+            "SELECT coupon_id, member_id, coupon_number, issued_at, valid_until, is_used, used_at, order_no, used_amount, status, staff_id
+             FROM {$this->issueTable} WHERE {$where}
+             ORDER BY coupon_id DESC LIMIT {$perPage} OFFSET " . (($page - 1) * $perPage),
+            $params
+        );
+
+        return ['items' => $items, 'total' => $total];
+    }
+
+    /**
+     * 정책별 발급 요약 — 전체·사용·만료·사용 가능 건수
+     *
+     * @return array{total:int, used:int, expired:int, available:int}
+     */
+    public function getIssueSummary(int $couponGroupId): array
+    {
+        $row = $this->getDb()->selectOne(
+            "SELECT COUNT(*) AS total,
+                    SUM(is_used = 1) AS used,
+                    SUM(is_used = 0 AND (status = 'EXPIRED' OR valid_until < ?)) AS expired
+             FROM {$this->issueTable} WHERE coupon_group_id = ?",
+            [date('Y-m-d H:i:s'), $couponGroupId]
+        ) ?? [];
+
+        $total = (int) ($row['total'] ?? 0);
+        $used = (int) ($row['used'] ?? 0);
+        $expired = (int) ($row['expired'] ?? 0);
+
+        return ['total' => $total, 'used' => $used, 'expired' => $expired, 'available' => max(0, $total - $used - $expired)];
+    }
+
+    /**
+     * @return array{0: string, 1: array}
+     */
+    private function issuedStatusWhere(int $couponGroupId, string $status): array
+    {
+        $where = 'coupon_group_id = ?';
+        $params = [$couponGroupId];
+        $now = date('Y-m-d H:i:s');
+
+        if ($status === 'used') {
+            $where .= ' AND is_used = 1';
+        } elseif ($status === 'expired') {
+            $where .= " AND is_used = 0 AND (status = 'EXPIRED' OR valid_until < ?)";
+            $params[] = $now;
+        } elseif ($status === 'available') {
+            $where .= " AND is_used = 0 AND status <> 'EXPIRED' AND valid_until >= ?";
+            $params[] = $now;
+        }
+
+        return [$where, $params];
     }
 }

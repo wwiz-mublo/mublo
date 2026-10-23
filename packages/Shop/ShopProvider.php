@@ -643,6 +643,25 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $container->singleton(CouponController::class, fn(DependencyContainer $c) =>
             new CouponController($c->get(CouponService::class), $c->get(ProductService::class))
         );
+        // 쿠폰 일괄 지급·발급 내역
+        $container->singleton(\Mublo\Packages\Shop\Service\CouponBulkIssueService::class, fn(DependencyContainer $c) =>
+            new \Mublo\Packages\Shop\Service\CouponBulkIssueService(
+                $c->get(CouponService::class),
+                $c->get(\Mublo\Contract\Member\MemberSegmentQueryInterface::class),
+                $c->get(OrderRepository::class)
+            )
+        );
+        $container->singleton(\Mublo\Packages\Shop\Service\CouponIssueHistoryService::class, fn(DependencyContainer $c) =>
+            new \Mublo\Packages\Shop\Service\CouponIssueHistoryService($c->get(CouponRepository::class))
+        );
+        $container->singleton(\Mublo\Packages\Shop\Controller\Admin\CouponIssueController::class, fn(DependencyContainer $c) =>
+            new \Mublo\Packages\Shop\Controller\Admin\CouponIssueController(
+                $c->get(\Mublo\Packages\Shop\Service\CouponIssueHistoryService::class),
+                $c->get(\Mublo\Packages\Shop\Service\CouponBulkIssueService::class),
+                $c->get(MemberLevelCatalogInterface::class),
+                $c->get(MemberQueryInterface::class)
+            )
+        );
         $container->singleton(ShippingTemplateController::class, fn(DependencyContainer $c) =>
             new ShippingTemplateController($c->get(ShippingService::class), $c->get(ShopConfigService::class))
         );

@@ -446,6 +446,11 @@ class ServiceProvider
             return new MemberQueryService($c->get(MemberRepository::class));
         });
 
+        // 조건으로 회원 고르기 (쿠폰 일괄 지급 등 대상 선정)
+        $container->singleton(\Mublo\Contract\Member\MemberSegmentQueryInterface::class, fn(DependencyContainer $c) =>
+            new \Mublo\Service\Member\MemberSegmentQueryService($c->get(Database::class))
+        );
+
         $container->singleton(MemberActionRegistry::class, function (DependencyContainer $c) {
             return new MemberActionRegistry(
                 $c->get(EventDispatcher::class),
