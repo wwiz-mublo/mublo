@@ -179,7 +179,7 @@ class ArticleSubscriber implements EventSubscriberInterface
 | Search | `SearchSourceCollectEvent` | 검색 설정에서 각 Package가 제공하는 검색 소스 등록 |
 | Storage | `SecureFileAccessEvent` | Core가 모르는 category의 다운로드 권한을 구독자가 `grant()` — 아무도 허용하지 않으면 관리자만 허용 |
 | Storage | `SecureFileDownloadedEvent` | 보안 파일 다운로드 완료 직전 발행 |
-| Tracking | `PageViewedEvent` | 프론트 페이지 렌더링 완료 통지 — 현재 번들 구독자 없이 서드파티 추적 확장점으로 제공 |
+| Tracking | `PageViewedEvent` | 프론트 페이지 렌더링 완료 통지 — 코어 회원 활동 기록(설정으로 켤 때만)이 구독하며, 서드파티 추적 확장점으로도 제공 |
 
 `src/Core/Event/` 밖에도 Core 발행 Event가 있다. `AdminMenuBuildingEvent`(`src/Service/Admin/Event/AdminMenuBuildingEvent.php`), `MemberRegisteredByUserEvent`·`MemberUpdatedBySelfEvent`(`src/Service/Member/Event/`), `MemberNotificationPublishedEvent`(`src/Contract/Notification/`) 등 도메인 서비스나 중립 계약 곁에 두는 Event다. 이벤트 실행 규약과 주요 발행 시점은 `docs/dev-guide/event-system.md`에서 설명한다. 현재 VisitorStats는 `PageViewedEvent`가 아니라 `SiteContextReadyEvent`를 구독한다([26. 통계·트래킹](26-tracking.md)).
 

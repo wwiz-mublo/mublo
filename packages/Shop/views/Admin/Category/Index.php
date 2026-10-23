@@ -26,8 +26,10 @@ function renderCategoryTreeNodes(array $nodes, int $depth = 0): string {
         $code = htmlspecialchars($node['category_code']);
         $name = htmlspecialchars($node['name']);
 
-        $html .= '<li class="tree-node" data-code="' . $code . '" data-name="' . $name . '" data-depth="' . $depth . '">';
+        $nodeClass = !empty($node['children']) ? 'tree-node has-children' : 'tree-node';
+        $html .= '<li class="' . $nodeClass . '" data-code="' . $code . '" data-name="' . $name . '" data-depth="' . $depth . '">';
         $html .= '<div class="node-content d-flex align-items-center gap-2">';
+        $html .= '<button type="button" class="btn btn-sm btn-tree-toggle" title="펼치기/접기"><i class="bi bi-chevron-down"></i></button>';
 
         // 깊이 표시
         if ($depth > 0) {
@@ -230,9 +232,17 @@ function renderCategoryTreeNodes(array $nodes, int $depth = 0): string {
                             <span class="fw-semibold" style="font-size:0.9rem">
                                 <i class="bi bi-diagram-3 text-pastel-green"></i> 카테고리 트리 구조
                             </span>
-                            <button type="button" class="btn btn-primary btn-sm" id="btn-save-tree">
-                                <i class="bi bi-check-lg"></i> 저장
-                            </button>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-default btn-sm" id="btn-tree-expand-all">
+                                    <i class="bi bi-arrows-expand"></i> 전체 펼치기
+                                </button>
+                                <button type="button" class="btn btn-default btn-sm" id="btn-tree-collapse-all">
+                                    <i class="bi bi-arrows-collapse"></i> 전체 접기
+                                </button>
+                                <button type="button" class="btn btn-primary btn-sm" id="btn-save-tree">
+                                    <i class="bi bi-check-lg"></i> 저장
+                                </button>
+                            </div>
                         </div>
                         <div class="card-body" style="min-height: 400px;">
                             <div id="category-tree">
@@ -462,7 +472,28 @@ document.addEventListener('DOMContentLoaded', function() {
         restoreToPool(node.dataset.code);
 
         node.remove();
+        refreshTreeToggles();
         checkTreeEmpty();
+    });
+
+    // 트리 노드 접기/펼치기
+    document.getElementById('category-tree').addEventListener('click', function(e) {
+        var toggleBtn = e.target.closest('.btn-tree-toggle');
+        if (!toggleBtn) return;
+
+        toggleBtn.closest('.tree-node').classList.toggle('is-collapsed');
+    });
+
+    document.getElementById('btn-tree-expand-all').addEventListener('click', function() {
+        document.querySelectorAll('#category-tree .tree-node.is-collapsed').forEach(function(node) {
+            node.classList.remove('is-collapsed');
+        });
+    });
+
+    document.getElementById('btn-tree-collapse-all').addEventListener('click', function() {
+        document.querySelectorAll('#category-tree .tree-node.has-children').forEach(function(node) {
+            node.classList.add('is-collapsed');
+        });
     });
 
     // 트리 저장
@@ -512,6 +543,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 });
                 updateDepthIndicators();
+                refreshTreeToggles();
             },
 
             onAdd: function(evt) {
@@ -559,6 +591,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         zone.style.display = 'none';
                     }
                 });
+                refreshTreeToggles();
             }
         });
     }
@@ -587,6 +620,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         li.innerHTML =
             '<div class="node-content d-flex align-items-center gap-2">' +
+                '<button type="button" class="btn btn-sm btn-tree-toggle" title="펼치기/접기"><i class="bi bi-chevron-down"></i></button>' +
                 leadingIcon +
                 '<span class="node-label">' + escapeHtml(name) + '</span>' +
                 '<code class="node-code text-muted small">' + escapeHtml(code) + '</code>' +
@@ -629,7 +663,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 leadingEl.className = 'bi bi-folder text-muted';
             }
 
-            nodeContent.insertBefore(leadingEl, nodeContent.firstChild);
+            var toggleBtn = nodeContent.querySelector(':scope > .btn-tree-toggle');
+            nodeContent.insertBefore(leadingEl, toggleBtn ? toggleBtn.nextSibling : nodeContent.firstChild);
+        });
+    }
+
+    // 자식 유무에 맞춰 접기 버튼을 보이거나 숨긴다 (드래그·추가·제거 뒤 호출)
+    function refreshTreeToggles() {
+        document.querySelectorAll('#category-tree .tree-node').forEach(function(node) {
+            var hasChildren = !!node.querySelector(':scope > .children-container > .tree-list > .tree-node');
+            node.classList.toggle('has-children', hasChildren);
+            if (!hasChildren) node.classList.remove('is-collapsed');
         });
     }
 

@@ -52,7 +52,7 @@ Head.php → Header.php → [subhead 블록] → LayoutOpen.php
 
 사이드바 유무는 `LayoutManager::resolve()`가 결정한다. 레이아웃 타입은 `full`(1)/`left-sidebar`(2)/`right-sidebar`(3)/`both-sidebar`(4)이고, 페이지별 설정(`_pageConfig`, BlockPage 등이 전달)이 사이트 설정(`siteConfig['layout_type']`)보다 우선한다. 사이드바 너비·모바일 노출도 같은 우선순위를 따른다.
 
-조립 완료 후 `PageViewedEvent`를 발행하며, 이때 페이지 유형 판별을 `PageTypeResolveEvent`(`src/Core/Event/Rendering/PageTypeResolveEvent.php`)로 확장에 위임한다 — 코어가 모르는 뷰 경로(`shop/...` 등)의 유형을 Package가 답할 수 있다. `PageViewedEvent`는 현재 번들 구독자가 없는 렌더 완료 확장점이고, VisitorStats의 실제 수집은 라우팅 전 `SiteContextReadyEvent`에서 일어난다([26. 통계·트래킹](26-tracking.md)).
+조립 완료 후 `PageViewedEvent`를 발행하며, 이때 페이지 유형 판별을 `PageTypeResolveEvent`(`src/Core/Event/Rendering/PageTypeResolveEvent.php`)로 확장에 위임한다 — 코어가 모르는 뷰 경로(`shop/...` 등)의 유형을 Package가 답할 수 있다. `PageViewedEvent`는 렌더 완료 확장점이고(번들 구독자는 설정으로 켜는 코어 회원 활동 기록뿐), VisitorStats의 실제 수집은 라우팅 전 `SiteContextReadyEvent`에서 일어난다([26. 통계·트래킹](26-tracking.md)).
 
 ### 콘텐츠 스킨 해석과 per-file 폴백
 

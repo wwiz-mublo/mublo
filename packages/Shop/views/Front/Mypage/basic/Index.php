@@ -8,7 +8,8 @@
  * @var int   $orderCount      전체 주문 수
  * @var int   $couponCount     사용가능 쿠폰 수
  * @var int   $wishlistCount   찜한상품 수
- * @var array $recentReviews   최근 구매후기(최대 5)
+ * @var int   $addressCount    저장된 배송지 수
+ * @var array $recentReviews  최근 구매후기(최대 5)
  * @var int   $reviewCount     내 구매후기 수
  * @var array $recentInquiries 최근 상품문의(최대 5)
  * @var int   $inquiryCount    내 상품문의 수
@@ -18,7 +19,8 @@ $recentOrders    = $recentOrders ?? [];
 $orderCount      = (int) ($orderCount ?? 0);
 $couponCount     = (int) ($couponCount ?? 0);
 $wishlistCount   = (int) ($wishlistCount ?? 0);
-$recentReviews   = $recentReviews ?? [];
+$addressCount    = (int) ($addressCount ?? 0);
+$recentReviews  = $recentReviews ?? [];
 $reviewCount     = (int) ($reviewCount ?? 0);
 $recentInquiries = $recentInquiries ?? [];
 $inquiryCount    = (int) ($inquiryCount ?? 0);
@@ -46,6 +48,10 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Mypage/basic/_assets/css/
         <a href="/shop/coupons" class="myshop__stat">
             <span class="myshop__stat-num"><?= number_format($couponCount) ?></span>
             <span class="myshop__stat-label">할인쿠폰</span>
+        </a>
+        <a href="/shop/address" class="myshop__stat">
+            <span class="myshop__stat-num"><?= number_format($addressCount) ?></span>
+            <span class="myshop__stat-label">배송지</span>
         </a>
         <a href="/shop/wishlist" class="myshop__stat">
             <span class="myshop__stat-num"><?= number_format($wishlistCount) ?></span>

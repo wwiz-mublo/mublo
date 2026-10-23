@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Packages\Shop\Report;
 
-use Mublo\Core\Report\Contract\ReportDefinitionInterface;
+use Mublo\Core\Report\Contract\MenuScopedReportInterface;
 use Mublo\Core\Report\Document\ReportDocument;
 use Mublo\Core\Report\Document\ColumnDefinition;
 use Mublo\Core\Report\Document\Section\TableSection;
@@ -17,7 +17,7 @@ use Mublo\Packages\Shop\Service\OrderStateResolver;
  * 운영자가 출력할 필드를 지정하면(filters['columns']) 그 컬럼만 구성한다(필드 피커).
  * 미지정 시 기본 컬럼셋을 사용한다.
  */
-class ShopOrderReportDefinition implements ReportDefinitionInterface
+class ShopOrderReportDefinition implements MenuScopedReportInterface
 {
     /** 출력 가능한 전체 필드: key => [label, type, align] */
     public const FIELDS = [
@@ -61,6 +61,12 @@ class ShopOrderReportDefinition implements ReportDefinitionInterface
     public function name(): string
     {
         return 'shop_orders';
+    }
+
+    /** 주문 관리 메뉴 — 주문인·수령인 개인정보가 담기므로 요청 menuCode 를 믿지 않는다 */
+    public function menuCode(): string
+    {
+        return 'K_Shop_005';
     }
 
     public function build(array $filters): ReportDocument

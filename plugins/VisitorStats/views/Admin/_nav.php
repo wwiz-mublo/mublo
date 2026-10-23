@@ -44,3 +44,6 @@ $tabDesc = $tabs[$currentTab]['desc'] ?? '';
 
 <?php // 캠페인키 인터랙티브 가이드 (탭 강조 + 설정 페이지 투어) — serve max-age 24h 대응 filemtime 버전 ?>
 <script src="/serve/plugin/VisitorStats/assets/js/campaign-tour.js?<?= @filemtime(MUBLO_PLUGIN_PATH . '/VisitorStats/assets/js/campaign-tour.js') ?: 1 ?>" defer></script>
+
+<?php // 기간 select 에 '기간 지정'(날짜 직접 선택)을 붙인다 — defer 라 탭 화면의 select 가 그려진 뒤 실행된다 ?>
+<script src="/serve/plugin/VisitorStats/assets/js/period-picker.js?<?= @filemtime(MUBLO_PLUGIN_PATH . '/VisitorStats/assets/js/period-picker.js') ?: 1 ?>" defer></script>

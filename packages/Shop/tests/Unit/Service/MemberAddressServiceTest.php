@@ -172,4 +172,50 @@ class MemberAddressServiceTest extends TestCase
         $this->assertSame('이영희', $addresses[0]['recipient_name']);
         $this->assertSame('대전시 유성구', $addresses[0]['address1']);
     }
+
+    public function testUpdateRejectsAddressFromAnotherDomain(): void
+    {
+        $repo = $this->createMock(MemberAddressRepository::class);
+        $repo->method('find')->with(99)->willReturn($this->address(99, 7, 20));
+        $repo->expects($this->never())->method('updateAddress');
+
+        $result = (new MemberAddressService($repo))->update(7, 10, 99, [
+            'recipient_name' => '홍길동',
+            'zip_code' => '12345',
+            'address1' => '서울시',
+        ]);
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    public function testDeleteRejectsAddressFromAnotherDomain(): void
+    {
+        $repo = $this->createMock(MemberAddressRepository::class);
+        $repo->method('find')->with(99)->willReturn($this->address(99, 7, 20));
+        $repo->expects($this->never())->method('delete');
+
+        $result = (new MemberAddressService($repo))->delete(7, 10, 99);
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    public function testSetDefaultRejectsAddressFromAnotherDomain(): void
+    {
+        $repo = $this->createMock(MemberAddressRepository::class);
+        $repo->method('find')->with(99)->willReturn($this->address(99, 7, 20));
+        $repo->expects($this->never())->method('setDefault');
+
+        $result = (new MemberAddressService($repo))->setDefault(7, 10, 99);
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    private function address(int $addressId, int $memberId, int $domainId): MemberAddress
+    {
+        return MemberAddress::fromArray([
+            'address_id' => $addressId,
+            'member_id' => $memberId,
+            'domain_id' => $domainId,
+        ]);
+    }
 }

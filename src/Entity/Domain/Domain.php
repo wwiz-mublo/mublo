@@ -336,11 +336,37 @@ class Domain
     }
 
     /**
+     * 회원가입 닉네임 입력 (required: 필수, optional: 선택, hidden: 받지 않음)
+     */
+    public function getNicknameMode(): string
+    {
+        $mode = $this->siteConfig['nickname_mode'] ?? 'required';
+
+        return in_array($mode, ['required', 'optional', 'hidden'], true) ? $mode : 'required';
+    }
+
+    /**
      * 가입 시 적용할 기본 레벨
      */
     public function getDefaultLevelValue(): int
     {
         return (int) ($this->siteConfig['default_level_value'] ?? 1);
+    }
+
+    /**
+     * 회원 활동 기록 사용 여부 (기본 꺼짐 — 켜기 전에 개인정보 처리방침에 수집 항목을 알려야 한다)
+     */
+    public function isMemberActivityLogEnabled(): bool
+    {
+        return !empty($this->siteConfig['member_activity_log']);
+    }
+
+    /**
+     * 회원 활동 기록 보관 일수 (30~365, 기본 90)
+     */
+    public function getMemberActivityRetentionDays(): int
+    {
+        return max(30, min(365, (int) ($this->siteConfig['member_activity_days'] ?? 90)));
     }
 
     /**

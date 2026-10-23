@@ -185,6 +185,18 @@
                 <div class="form-text">체크한 문자 종류를 반드시 포함 (기존 로그인 영향 없음)</div>
             </div>
         </div>
+        <div class="row gy-3 gy-md-0 mt-3">
+            <div class="col-12 col-sm-6 col-md-3">
+                <?php $nicknameMode = $siteConfig['nickname_mode'] ?? 'required'; ?>
+                <label for="nickname_mode" class="form-label">닉네임 입력</label>
+                <select name="formData[site][nickname_mode]" id="nickname_mode" class="form-select">
+                    <option value="required" <?= $nicknameMode === 'required' ? 'selected' : '' ?>>필수</option>
+                    <option value="optional" <?= $nicknameMode === 'optional' ? 'selected' : '' ?>>선택</option>
+                    <option value="hidden" <?= $nicknameMode === 'hidden' ? 'selected' : '' ?>>사용 안 함</option>
+                </select>
+                <div class="form-text">사용 안 함이면 가입·내 정보에서 닉네임 칸을 숨깁니다. 닉네임이 없는 회원은 게시판에 "회원 + 고유번호"로 표시됩니다</div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -294,6 +306,38 @@
                 <label class="form-check-label" for="use_main_layout">메인화면에 레이아웃 적용</label>
             </div>
             <div class="form-text">OFF 시 메인화면은 사이드바 없이 전체 넓이로 표시됩니다.</div>
+        </div>
+    </div>
+</div>
+
+<!-- 회원 활동 기록 -->
+<div class="card mb-4">
+    <div class="card-hero">
+        <i class="bi bi-clock-history text-pastel-purple"></i>
+        <span>회원 활동 기록</span>
+    </div>
+    <div class="card-body">
+        <div class="row gy-3 gy-md-0">
+            <div class="col-12 col-md-6">
+                <div class="form-check form-switch">
+                    <input type="checkbox" class="form-check-input" id="member_activity_log"
+                           name="formData[site][member_activity_log]" value="1"
+                           <?= !empty($siteConfig['member_activity_log']) ? 'checked' : '' ?>>
+                    <label class="form-check-label" for="member_activity_log">로그인한 회원이 본 페이지를 기록</label>
+                </div>
+                <div class="form-text">
+                    상품·게시글 등 회원이 본 페이지의 주소·제목·시각을 남기고, 회원 수정 화면의 "최근 활동"에서 봅니다.
+                    켜기 전에 개인정보 처리방침에 수집 항목(서비스 이용 기록)과 보관 기간을 알려야 합니다.
+                    탈퇴한 회원의 기록은 바로 지웁니다.
+                </div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-3">
+                <label for="member_activity_days" class="form-label">보관 기간 (일)</label>
+                <input type="number" name="formData[site][member_activity_days]" id="member_activity_days"
+                       class="form-control" min="30" max="365"
+                       value="<?= (int)($siteConfig['member_activity_days'] ?? 90) ?>">
+                <div class="form-text">30~365일. 지난 기록은 자동으로 지웁니다</div>
+            </div>
         </div>
     </div>
 </div>

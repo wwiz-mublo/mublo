@@ -446,6 +446,11 @@ class ServiceProvider
             return new MemberQueryService($c->get(MemberRepository::class));
         });
 
+        // 조건으로 회원 고르기 (쿠폰 일괄 지급 등 대상 선정)
+        $container->singleton(\Mublo\Contract\Member\MemberSegmentQueryInterface::class, fn(DependencyContainer $c) =>
+            new \Mublo\Service\Member\MemberSegmentQueryService($c->get(Database::class))
+        );
+
         $container->singleton(MemberActionRegistry::class, function (DependencyContainer $c) {
             return new MemberActionRegistry(
                 $c->get(EventDispatcher::class),
@@ -735,8 +740,13 @@ class ServiceProvider
         // ------------------------------------
         // Report
         // ------------------------------------
-        $container->singleton(ReportDefinitionRegistry::class, function () {
-            return new ReportDefinitionRegistry();
+        $container->singleton(ReportDefinitionRegistry::class, function (DependencyContainer $c) {
+            $registry = new ReportDefinitionRegistry();
+
+            // 코어 리포트: 관리자 회원 목록 (회원 서비스는 내보낼 때 꺼낸다)
+            $registry->register(new \Mublo\Service\Member\Report\MemberListReportDefinition($c));
+
+            return $registry;
         });
 
         $container->singleton(AdminPermissionGate::class, function (DependencyContainer $c) {
@@ -941,6 +951,13 @@ class ServiceProvider
         $eventDispatcher->addSubscriber(
             new \Mublo\Subscriber\BlockPageMenuSubscriber($container)
         );
+
+        // 회원 활동 기록 (사이트 설정에서 켠 경우만 쌓음) + 관리자 회원 화면 "최근 활동"
+        $eventDispatcher->addSubscriber(new \Mublo\Subscriber\MemberActivitySubscriber(
+            new \Mublo\Repository\Member\MemberActivityRepository($container->get(Database::class)),
+            fn() => $container->has(Context::class) ? $container->get(Context::class)->getDomainInfo() : null,
+            $container->has(Logger::class) ? $container->get(Logger::class) : null
+        ));
 
     }
 

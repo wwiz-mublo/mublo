@@ -37,9 +37,10 @@ class DomainSettingsService implements CompanyInfoInterface
         'layout_type', 'layout_left_width', 'layout_right_width',
         'sidebar_left_mobile', 'sidebar_right_mobile',
         'layout_max_width', 'content_max_width', 'use_main_layout',
+        'member_activity_log', 'member_activity_days',
         'primary_color',
         'search_source_order', 'search_enabled_sources', 'search_per_source',
-        'join_type', 'default_level_value',
+        'join_type', 'default_level_value', 'nickname_mode',
     ];
 
     /** Company config keys */
@@ -161,6 +162,9 @@ class DomainSettingsService implements CompanyInfoInterface
             'layout_max_width' => 1200,
             'content_max_width' => 0,
             'use_main_layout' => false,
+            // 회원 활동 기록 (기본 꺼짐)
+            'member_activity_log'  => false,
+            'member_activity_days' => 90,
             // 전체 검색 설정. enabled_sources: null=미설정(전체 활성) / []=전체 해제 / [목록]=명시
             'search_source_order'    => [],
             'search_enabled_sources' => null,
@@ -168,6 +172,7 @@ class DomainSettingsService implements CompanyInfoInterface
             // 회원가입 설정
             'join_type'           => 'immediate',
             'default_level_value' => 1,
+            'nickname_mode'       => 'required',
         ];
     }
 
@@ -458,16 +463,21 @@ class DomainSettingsService implements CompanyInfoInterface
             'use_main_layout' => !empty($data['use_main_layout']),
             // 전체 검색 설정
             'search_source_order'    => $this->sanitizeSearchSourceList($data['search_source_order'] ?? []),
-            'search_enabled_sources' => $this->sanitizeSearchSourceList($data['search_enabled_sources'] ?? []),
+            // 전체 해제는 두지 않는다 — 빈 목록은 미설정(null, 전체 활성)으로 저장
+            'search_enabled_sources' => $this->sanitizeSearchSourceList($data['search_enabled_sources'] ?? []) ?: null,
             'search_per_source'      => max(1, min(20, (int)($data['search_per_source'] ?? 5))),
             // 회원가입 설정
             'join_type'           => in_array($data['join_type'] ?? '', ['immediate', 'approval']) ? $data['join_type'] : 'immediate',
             'default_level_value' => max(1, (int)($data['default_level_value'] ?? 1)),
+            'nickname_mode'       => in_array($data['nickname_mode'] ?? '', ['required', 'optional', 'hidden'], true) ? $data['nickname_mode'] : 'required',
             // 비밀번호 정책 (기본 최소 6자, 복잡도 규칙 기본 off)
             'password_min_length'      => max(4, min(32, (int)($data['password_min_length'] ?? 6))),
             'password_require_number'  => !empty($data['password_require_number']),
             'password_require_special' => !empty($data['password_require_special']),
             'password_require_lower'   => !empty($data['password_require_lower']),
+            // 회원 활동 기록 (보관 30~365일)
+            'member_activity_log'  => !empty($data['member_activity_log']),
+            'member_activity_days' => max(30, min(365, (int)($data['member_activity_days'] ?? 90))),
         ];
     }
 
@@ -555,7 +565,6 @@ class DomainSettingsService implements CompanyInfoInterface
             }
         }
 
-        // 빈 배열 허용 (빈 배열 = 전체 활성화 의미)
         return $result;
     }
 

@@ -215,10 +215,10 @@ MemberRegisteredByUserEvent::class => 'onUserRegistration',  // 사용자 직접
 - 렌더 완료 후처리 (감사, 외부 시스템 연동 등)
 
 특징:
-- URL, 페이지 타입, 회원 ID, IP, UA, Referer를 함께 전달
-- **현재 번들 구독자는 없다** — 서버 방문 통계(VisitorStats)는 라우팅 직전의
-  `SiteContextReadyEvent` 시점에 수집하고, 외부 픽셀은 클라이언트(MubloTracking.js)가 담당한다.
-  이 이벤트는 렌더 완료 시점이 필요한 확장을 위한 열린 확장 포인트다
+- URL, 페이지 타입, 회원 ID, IP, UA, Referer, 페이지 제목(seoTitle → pageTitle)을 함께 전달
+- 번들 구독자는 코어 `MemberActivitySubscriber` 하나다 — 사이트 설정 '회원 활동 기록'을 켠 경우에만
+  로그인 회원의 페이지 조회를 `member_activity_logs`에 남긴다. 서버 방문 통계(VisitorStats)는
+  라우팅 직전의 `SiteContextReadyEvent` 시점에 수집하고, 외부 픽셀은 클라이언트(MubloTracking.js)가 담당한다
 
 ### 2.4 `PageTypeResolveEvent`
 
