@@ -8,7 +8,9 @@ $siteConfig = $mublo['site']['config'];
  *
  * @var array $fields 추가 필드 정의 (is_visible_signup=1)
  * @var bool $useEmailAsUserId 이메일=아이디 모드 여부
+ * @var string $nicknameMode 닉네임 입력 (required|optional|hidden)
  */
+$nicknameMode = $nicknameMode ?? 'required';
 $this->layout(['header' => false, 'footer' => false]);
 $this->assets->addCss('/serve/front/view/member/basic/css/register.css');
 
@@ -105,8 +107,9 @@ $brandName = $siteConfig['site_title'] ?? 'MUBLO';
         </div>
 
         <!-- 닉네임 -->
+        <?php if ($nicknameMode !== 'hidden'): ?>
         <div class="form-group">
-            <label for="nickname">닉네임 <span class="required">*</span></label>
+            <label for="nickname">닉네임<?php if ($nicknameMode === 'required'): ?> <span class="required">*</span><?php endif; ?></label>
             <div class="input-group">
                 <input
                     type="text"
@@ -114,12 +117,13 @@ $brandName = $siteConfig['site_title'] ?? 'MUBLO';
                     name="formData[nickname]"
                     class="form-control"
                     placeholder="2~20자"
-                    required
+                    <?= $nicknameMode === 'required' ? 'required' : '' ?>
                 >
                 <button type="button" class="btn btn-check" id="check-nickname">중복확인</button>
             </div>
             <div id="nickname-message" class="form-help"></div>
         </div>
+        <?php endif; ?>
 
         <!-- 추가 필드 (CustomFieldRenderer 사용) -->
         <?php if (!empty($fields)): ?>
@@ -170,8 +174,9 @@ document.getElementById('check-user-id').addEventListener('click', function() {
         });
 });
 
-// 닉네임 중복 확인
-document.getElementById('check-nickname').addEventListener('click', function() {
+// 닉네임 중복 확인 (닉네임 사용 안 함이면 칸이 없다)
+var checkNicknameBtn = document.getElementById('check-nickname');
+if (checkNicknameBtn) checkNicknameBtn.addEventListener('click', function() {
     var nickname = document.getElementById('nickname').value;
     var messageDiv = document.getElementById('nickname-message');
 

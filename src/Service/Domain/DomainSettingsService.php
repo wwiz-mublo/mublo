@@ -38,7 +38,7 @@ class DomainSettingsService implements CompanyInfoInterface
         'layout_max_width', 'content_max_width', 'use_main_layout',
         'primary_color',
         'search_source_order', 'search_enabled_sources', 'search_per_source',
-        'join_type', 'default_level_value',
+        'join_type', 'default_level_value', 'nickname_mode',
     ];
 
     /** Company config keys */
@@ -164,6 +164,7 @@ class DomainSettingsService implements CompanyInfoInterface
             // 회원가입 설정
             'join_type'           => 'immediate',
             'default_level_value' => 1,
+            'nickname_mode'       => 'required',
         ];
     }
 
@@ -451,11 +452,13 @@ class DomainSettingsService implements CompanyInfoInterface
             'use_main_layout' => !empty($data['use_main_layout']),
             // 전체 검색 설정
             'search_source_order'    => $this->sanitizeSearchSourceList($data['search_source_order'] ?? []),
-            'search_enabled_sources' => $this->sanitizeSearchSourceList($data['search_enabled_sources'] ?? []),
+            // 전체 해제는 두지 않는다 — 빈 목록은 미설정(null, 전체 활성)으로 저장
+            'search_enabled_sources' => $this->sanitizeSearchSourceList($data['search_enabled_sources'] ?? []) ?: null,
             'search_per_source'      => max(1, min(20, (int)($data['search_per_source'] ?? 5))),
             // 회원가입 설정
             'join_type'           => in_array($data['join_type'] ?? '', ['immediate', 'approval']) ? $data['join_type'] : 'immediate',
             'default_level_value' => max(1, (int)($data['default_level_value'] ?? 1)),
+            'nickname_mode'       => in_array($data['nickname_mode'] ?? '', ['required', 'optional', 'hidden'], true) ? $data['nickname_mode'] : 'required',
             // 비밀번호 정책 (기본 최소 6자, 복잡도 규칙 기본 off)
             'password_min_length'      => max(4, min(32, (int)($data['password_min_length'] ?? 6))),
             'password_require_number'  => !empty($data['password_require_number']),
@@ -526,7 +529,6 @@ class DomainSettingsService implements CompanyInfoInterface
             }
         }
 
-        // 빈 배열 허용 (빈 배열 = 전체 활성화 의미)
         return $result;
     }
 

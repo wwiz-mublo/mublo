@@ -129,6 +129,11 @@ class MypageController
             'fields'   => $request->post('fields', []),
         ];
 
+        // 닉네임을 사용하지 않는 사이트에서는 화면을 우회한 직접 요청도 무시한다.
+        if ($context->getDomainInfo()?->getNicknameMode() === 'hidden') {
+            unset($data['nickname']);
+        }
+
         $newPassword = $request->post('new_password', '');
         if (!empty($newPassword)) {
             // 본인 재확인 — 세션 탈취·미인증 단말에서 비밀번호 재설정으로 계정을

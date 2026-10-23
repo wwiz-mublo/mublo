@@ -90,6 +90,41 @@ class ReportFileStoreTest extends TestCase
         ], $this->store->resolveMergedFile($registered['fileId']));
     }
 
+    public function testLegacyUnexpiredFileCannotBeResolvedAndIsDiscarded(): void
+    {
+        $path = $this->store->createExportPath('csv');
+        file_put_contents($path, "orderer_name\nexample\n");
+        $registered = $this->store->registerMergedFile($path, 'orders.csv', 7, 'NOT_A_MENU');
+        $metaPath = $this->storagePath . '/report/meta/' . $registered['fileId'] . '.json';
+        $meta = json_decode(file_get_contents($metaPath), true);
+        unset($meta['version']); // 패치 전 형식
+        file_put_contents($metaPath, json_encode($meta));
+
+        $this->assertGreaterThan(time(), $meta['expires_at']);
+        $this->assertNull($this->store->resolveMergedFile($registered['fileId']));
+        $this->assertFileDoesNotExist($path);
+        $this->assertFileDoesNotExist($metaPath);
+    }
+
+    public function testCleanupDiscardsLegacyFilesBeforeExpiryButKeepsCurrentFiles(): void
+    {
+        $legacy = $this->store->createExportPath('csv');
+        file_put_contents($legacy, 'legacy');
+        $registered = $this->store->registerMergedFile($legacy, 'old.csv', 7, 'NOT_A_MENU');
+        $metaPath = $this->storagePath . '/report/meta/' . $registered['fileId'] . '.json';
+        $meta = json_decode(file_get_contents($metaPath), true);
+        unset($meta['version']);
+        file_put_contents($metaPath, json_encode($meta));
+
+        $current = $this->store->createExportPath('csv');
+        file_put_contents($current, 'current');
+        $new = $this->store->registerMergedFile($current, 'new.csv', 7, 'K_Shop_005');
+        $this->assertSame(1, $this->store->cleanupExpired());
+        $this->assertFileDoesNotExist($legacy);
+        $this->assertFileDoesNotExist($metaPath);
+        $this->assertNotNull($this->store->resolveMergedFile($new['fileId']));
+    }
+
     public function testSiblingDirectoryWithSamePrefixIsOutsideBoundary(): void
     {
         $sibling = $this->storagePath . '/report/exports-evil';

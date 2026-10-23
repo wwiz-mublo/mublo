@@ -332,14 +332,25 @@ class VisitorStatsService
         return $result;
     }
 
+    /** 직접 지정 기간의 최대 일수 — 일별 추이를 한 화면에 그릴 수 있는 범위 */
+    private const CUSTOM_PERIOD_MAX_DAYS = 366;
+
     /**
      * 기간 문자열 → [startDate, endDate] 변환
+     *
+     * 프리셋(today, last_7_days …) 외에 'custom:YYYY-MM-DD:YYYY-MM-DD' 로 직접 지정한다.
+     * 형식이 틀리거나 시작일이 종료일보다 늦으면 최근 7일로 본다.
      *
      * @return array{0: string, 1: string}
      */
     public function periodToDates(string $period): array
     {
         $today = date('Y-m-d');
+
+        if (str_starts_with($period, 'custom:')) {
+            return $this->customPeriodToDates($period)
+                ?? [date('Y-m-d', strtotime('-6 days')), $today];
+        }
 
         return match ($period) {
             'today'       => [$today, $today],
@@ -349,6 +360,31 @@ class VisitorStatsService
             'this_month'  => [date('Y-m-01'), $today],
             default       => [date('Y-m-d', strtotime('-6 days')), $today],
         };
+    }
+
+    /**
+     * 'custom:YYYY-MM-DD:YYYY-MM-DD' 해석 — 너무 긴 기간은 종료일 기준으로 자른다.
+     *
+     * @return array{0: string, 1: string}|null 형식이 틀리면 null
+     */
+    private function customPeriodToDates(string $period): ?array
+    {
+        if (!preg_match('/^custom:(\d{4})-(\d{2})-(\d{2}):(\d{4})-(\d{2})-(\d{2})$/', $period, $m)) {
+            return null;
+        }
+        if (!checkdate((int) $m[2], (int) $m[3], (int) $m[1]) || !checkdate((int) $m[5], (int) $m[6], (int) $m[4])) {
+            return null;
+        }
+
+        $startDate = "{$m[1]}-{$m[2]}-{$m[3]}";
+        $endDate   = "{$m[4]}-{$m[5]}-{$m[6]}";
+        if ($startDate > $endDate) {
+            return null;
+        }
+
+        $earliest = date('Y-m-d', strtotime($endDate . ' -' . (self::CUSTOM_PERIOD_MAX_DAYS - 1) . ' days'));
+
+        return [max($startDate, $earliest), $endDate];
     }
 
     /**
