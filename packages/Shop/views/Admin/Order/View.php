@@ -150,6 +150,12 @@ foreach ($orderReturns as $ret) {
                             <span class="text-muted flex-shrink-0">연락처</span>
                             <span class="text-end"><?= htmlspecialchars($order['orderer_phone'] ?? '') ?></span>
                         </div>
+                        <?php if (!empty($order['orderer_email'])): ?>
+                        <div class="d-flex justify-content-between gap-2 mb-1">
+                            <span class="text-muted flex-shrink-0">이메일</span>
+                            <span class="text-end text-break"><?= htmlspecialchars((string) $order['orderer_email']) ?></span>
+                        </div>
+                        <?php endif; ?>
                         <div class="d-flex justify-content-between gap-2 mb-1">
                             <span class="text-muted flex-shrink-0">결제수단</span>
                             <span class="text-end">

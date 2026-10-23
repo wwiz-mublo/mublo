@@ -17,6 +17,35 @@
 - `name(): string` — 리포트 식별자. URL의 `{reportName}`이 이 값이다.
 - `build(array $filters): ReportDocument` — 필터를 받아 문서를 구성한다. `ReportManager`가 호출 전에 항상 `$filters['domain_id']`를 현재 도메인으로 강제 주입하므로, 정의는 이 값으로 도메인 격리를 지켜야 한다.
 
+### MenuScopedReportInterface — 다운로드 메뉴 고정
+
+새 리포트는 `ReportDefinitionInterface`를 확장한 `MenuScopedReportInterface`를 구현하고
+`menuCode(): string`에서 실제 관리자 메뉴 코드를 반환한다. `name()`과 `build()`는 그대로 유지한다.
+Shop 주문 리포트의 예:
+
+```php
+public function menuCode(): string
+{
+    return 'K_Shop_005';
+}
+```
+
+`ReportManager`는 다운로드·청크 생성·병합에서 요청의 `menuCode` 대신 이 값을 사용한다.
+병합 파일에도 같은 값을 저장하므로 파일을 받을 때 현재 사용자의 권한을 다시 확인한다.
+
+기존 `ReportDefinitionInterface`만 구현한 리포트는 호환성을 위해 요청 메뉴 코드를 계속 사용한다.
+거부 목록 방식에서는 다른 메뉴 코드를 보내 권한 검사를 우회할 수 있으므로, 개인정보·주문 정보를
+내보내는 커스텀 리포트도 이 인터페이스로 전환해야 한다. 번들 `shop_orders`에는 적용되어 있지만,
+별도 사이트의 Mshop·Rental 등 외부 리포트에는 자동 적용되지 않는다.
+
+### 배포 시 기존 병합 파일
+
+메뉴 고정 도입 이후 병합 파일 메타데이터는 `version: 2`로 저장된다. 버전이 없거나 다른 파일은
+저장된 메뉴 코드를 신뢰할 수 없어 유효기간이 남아 있어도 수령을 거부하고 폐기한다.
+`cleanupExpired()`도 이전 형식의 파일을 정리한다. 따라서 배포 전에 생성한 다운로드 링크는
+사용할 수 없으며 리포트를 다시 생성해야 한다. DB 마이그레이션이나 수동 파일 삭제는 필요 없다.
+새로 생성한 파일의 기본 유효기간은 종전과 같이 1시간이다.
+
 ### 등록 경로
 
 `src/Core/Report/Engine/ReportDefinitionRegistry.php`는 `name()`을 키로 정의 인스턴스를 보관하는 단순 레지스트리다. 코어 컨테이너에 싱글톤으로 등록되며(`src/Core/Provider/ServiceProvider.php`), 확장은 Provider의 `boot()`에서 꺼내 등록한다. 번들 Shop Package의 실제 등록부(`packages/Shop/ShopProvider.php`의 `boot()`):
@@ -96,11 +125,11 @@ $container->get(\Mublo\Core\Report\Engine\ReportDefinitionRegistry::class)->regi
 
 ### 권한 게이트
 
-`src/Core/Report/Contract/PermissionGateInterface.php`의 `assertDownloadAllowed(int $domainId, string $menuCode): void`가 유일한 관문이며, 기본 구현은 `src/Core/Report/Security/AdminPermissionGate.php`다: 관리자 인증 필수 → 슈퍼는 통과 → 일반 관리자는 `menuCode` 필수 + `AdminPermissionService::isDenied(domainId, level, menuCode, 'download')` 검사. 즉 리포트 권한은 별도 체계가 아니라 [20장](20-permission-model.md)의 관리자 메뉴 권한의 `download` 액션을 그대로 쓴다. `menuCode`는 클라이언트가 요청 본문으로 보낸다.
+`src/Core/Report/Contract/PermissionGateInterface.php`의 `assertDownloadAllowed(int $domainId, string $menuCode): void`가 유일한 관문이며, 기본 구현은 `src/Core/Report/Security/AdminPermissionGate.php`다: 관리자 인증 필수 → 슈퍼는 통과 → 일반 관리자는 `menuCode` 필수 + `AdminPermissionService::isDenied(domainId, level, menuCode, 'download')` 검사. 즉 리포트 권한은 별도 체계가 아니라 [20장](20-permission-model.md)의 관리자 메뉴 권한의 `download` 액션을 그대로 쓴다. `MenuScopedReportInterface` 구현 리포트는 정의의 `menuCode()`를 사용하며, 미구현 리포트만 요청 본문의 `menuCode`를 사용한다.
 
 ### 저장소와 정리
 
-`src/Core/Report/Store/ReportFileStore.php`는 `MUBLO_STORAGE_PATH/report/` 아래 `exports/`(산출물)·`chunks/`(청크 JSON)·`meta/`(병합 파일 메타)를 관리한다. 모든 경로 접근은 `basename()` + `realpath` 기반 디렉토리 내부 검증을 거친다. `cleanupExpired()`가 만료 메타·파일과 1시간 지난 청크를 삭제한다(cron 등 외부 호출 전제 — 자동 스케줄은 코어에 없다).
+`src/Core/Report/Store/ReportFileStore.php`는 `MUBLO_STORAGE_PATH/report/` 아래 `exports/`(산출물)·`chunks/`(청크 JSON)·`meta/`(병합 파일 메타)를 관리한다. 모든 경로 접근은 `basename()` + `realpath` 기반 디렉토리 내부 검증을 거친다. `cleanupExpired()`가 이전 버전 또는 만료된 메타·파일과 1시간 지난 청크를 삭제한다(cron 등 외부 호출 전제 — 자동 스케줄은 코어에 없다).
 
 ### 감사와 예외
 
@@ -123,20 +152,25 @@ $container->get(\Mublo\Core\Report\Engine\ReportDefinitionRegistry::class)->regi
 
 번들 Shop Package의 주문 내보내기(`packages/Shop/Report/ShopOrderReportDefinition.php`, name `shop_orders`)가 실동작 레퍼런스다. 절차는 두 단계 + 호출뿐이다.
 
-1. **정의 작성** — `ReportDefinitionInterface` 구현. `build()`에서 `ColumnDefinition` 배열과 RowProvider로 `TableSection`을 만든다. Shop 정의는 `filters['columns']`로 출력 필드를 고르는 필드 피커까지 구현했다(허용 목록 `FIELDS` 밖의 키는 무시). 최소 골격은 다음과 같다 (Shop 정의의 축약형 — 실제 컬럼·RowProvider 구성은 `packages/Shop/Report/ShopOrderReportDefinition.php` 참조):
+1. **정의 작성** — `MenuScopedReportInterface` 구현. `menuCode()`는 실제 등록한 관리자 메뉴 코드로 고정한다. `build()`에서 `ColumnDefinition` 배열과 RowProvider로 `TableSection`을 만든다. Shop 정의는 `filters['columns']`로 출력 필드를 고르는 필드 피커까지 구현했다(허용 목록 `FIELDS` 밖의 키는 무시). 최소 골격은 다음과 같다 (Shop 정의의 축약형 — 실제 컬럼·RowProvider 구성은 `packages/Shop/Report/ShopOrderReportDefinition.php` 참조):
 
 ```php
-use Mublo\Core\Report\Contract\ReportDefinitionInterface;
+use Mublo\Core\Report\Contract\MenuScopedReportInterface;
 use Mublo\Core\Report\Document\ColumnDefinition;
 use Mublo\Core\Report\Document\ReportDocument;
 use Mublo\Core\Report\Document\Section\TableSection;
 use Mublo\Core\Report\Formatter\ReportFormatters;
 
-class MySalesReportDefinition implements ReportDefinitionInterface
+class MySalesReportDefinition implements MenuScopedReportInterface
 {
     public function name(): string
     {
         return 'my_sales';
+    }
+
+    public function menuCode(): string
+    {
+        return 'K_MyPackage_001'; // 실제 등록한 매출 관리 메뉴 코드로 교체
     }
 
     public function build(array $filters): ReportDocument
@@ -158,7 +192,7 @@ class MySalesReportDefinition implements ReportDefinitionInterface
 ```
 
 2. **Provider `boot()`에서 등록** — 위 "등록 경로"의 코드처럼 컨테이너에서 `ReportDefinitionRegistry`를 받아 `register()` 한 줄.
-3. **관리자 화면에서 호출** — 자기 Package의 관리자 뷰에서 `POST /admin/report/shop_orders/download`(또는 chunks→merge)를 호출한다. `menuCode`는 그 화면의 관리자 메뉴 코드를 넘긴다. Shop은 주문 목록 화면(`packages/Shop/views/Admin/Order/List.php`)에서 필드 피커 UI와 함께 이 API를 쓴다.
+3. **관리자 화면에서 호출** — 자기 Package의 관리자 뷰에서 `POST /admin/report/shop_orders/download`(또는 chunks→merge)를 호출한다. `menuCode`는 기존 호출 호환성을 위해 보낼 수 있지만, 메뉴 고정 리포트의 권한 판정에는 정의의 값을 사용한다. Shop은 주문 목록 화면(`packages/Shop/views/Admin/Order/List.php`)에서 필드 피커 UI와 함께 이 API를 쓴다.
 
 컨트롤러·라우트·권한 코드·파일 응답 처리는 한 줄도 쓰지 않는다는 점이 이 서브시스템의 요지다.
 

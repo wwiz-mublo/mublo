@@ -7,6 +7,9 @@ use Mublo\Core\Report\Exception\ReportOutputException;
 
 class ReportFileStore
 {
+    // v2: 메뉴 권한 고정 도입 이후 생성한 파일만 수령을 허용한다.
+    private const MERGED_METADATA_VERSION = 2;
+
     private string $baseDir;
     private string $exportDir;
     private string $chunkDir;
@@ -106,6 +109,7 @@ class ReportFileStore
         $fileId = 'rep_' . date('Ymd_His') . '_' . bin2hex(random_bytes(16));
         $expiresAt = time() + $ttlSeconds;
         $meta = [
+            'version' => self::MERGED_METADATA_VERSION,
             'file_path' => $filePath,
             'filename' => $filename,
             'domain_id' => $domainId,
@@ -156,8 +160,9 @@ class ReportFileStore
             return null;
         }
 
-        // 만료 확인
-        if ((int) ($meta['expires_at'] ?? 0) < time()) {
+        // 이전 형식은 요청이 지정한 메뉴 코드로 등록됐을 수 있어 만료 전에도 폐기한다.
+        if (($meta['version'] ?? null) !== self::MERGED_METADATA_VERSION
+            || (int) ($meta['expires_at'] ?? 0) < time()) {
             $this->safeUnlink($meta['file_path'] ?? '', $this->exportDir);
             $this->safeUnlink($metaPath, $this->metaDir);
             return null;
@@ -204,7 +209,8 @@ class ReportFileStore
                 continue;
             }
 
-            if ((int) ($meta['expires_at'] ?? 0) < time()) {
+            if (($meta['version'] ?? null) !== self::MERGED_METADATA_VERSION
+                || (int) ($meta['expires_at'] ?? 0) < time()) {
                 $this->safeUnlink($meta['file_path'] ?? '', $this->exportDir);
                 $this->safeUnlink($metaPath, $this->metaDir);
                 $count++;

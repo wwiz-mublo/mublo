@@ -34,7 +34,7 @@ $columns = $this->columns()
         $html = '<a href="/admin/shop/coupons/' . $id . '/edit">' . $name . '</a>';
         $issued = (int) ($row['issued_count'] ?? 0);
         if ($issued > 0) {
-            $html .= ' <span class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1" title="발급된 쿠폰 수 (삭제 불가)">발급 ' . $issued . '</span>';
+            $html .= ' <a href="/admin/shop/coupons/' . $id . '/issued" class="badge bg-info-subtle text-info-emphasis border border-info-subtle ms-1 text-decoration-none" title="발급 내역 보기 (발급된 쿠폰이 있어 삭제 불가)">발급 ' . $issued . '</a>';
         }
         return $html;
     })
@@ -67,12 +67,14 @@ $columns = $this->columns()
     ->actions('actions', '관리', function ($row) {
         $id = $row['coupon_group_id'];
         $name = htmlspecialchars($row['name'] ?? '');
-        $html = '<a href="/admin/shop/coupons/' . $id . '/edit" class="btn btn-sm btn-default">수정</a>';
+        $html = '<a href="/admin/shop/coupons/' . $id . '/edit" class="btn btn-sm btn-default">수정</a>'
+            . ' <a href="/admin/shop/coupons/' . $id . '/bulk-issue" class="btn btn-sm btn-default">지급</a>'
+            . ' <a href="/admin/shop/coupons/' . $id . '/issued" class="btn btn-sm btn-default">내역</a>';
         if (empty($row['_no_delete'])) {
             $html .= ' <button type="button" class="btn btn-sm btn-default btn-delete" data-id="' . $id . '" data-name="' . $name . '">삭제</button>';
         }
         return $html;
-    }, ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:110px'], '_td_attr' => ['class' => 'text-nowrap']])
+    }, ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:210px'], '_td_attr' => ['class' => 'text-nowrap']])
     ->build();
 ?>
 <div class="page-container">
