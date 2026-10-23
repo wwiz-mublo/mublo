@@ -11,6 +11,7 @@ $csrfToken = $mublo['security']['csrfToken'];
  * @var array[] $mypageMenus     사이드바 메뉴 목록
  * @var string $currentSection   현재 활성 섹션
  */
+$showNickname = ($mublo['site']['config']['nickname_mode'] ?? 'required') !== 'hidden';
 ?>
 
 <?php ob_start(); ?>
@@ -25,7 +26,9 @@ $csrfToken = $mublo['security']['csrfToken'];
     <!-- 기본 정보 -->
     <div class="profile-info">
         <p><strong>아이디</strong> <?= htmlspecialchars($user['user_id'] ?? '') ?></p>
+        <?php if ($showNickname): ?>
         <p><strong>닉네임</strong> <?= htmlspecialchars($user['nickname'] ?? '') ?></p>
+        <?php endif; ?>
         <p><strong>회원등급</strong> <?= htmlspecialchars($user['level_name'] ?? '일반회원') ?></p>
         <p><strong>가입일</strong> <?= htmlspecialchars(substr($user['created_at'] ?? '', 0, 10)) ?></p>
         <?php if (!empty($user['last_login_at'])): ?>
@@ -36,6 +39,7 @@ $csrfToken = $mublo['security']['csrfToken'];
     <form id="profile-form" method="POST" action="/mypage/profile">
         <input type="hidden" name="_token" value="<?= htmlspecialchars($csrfToken ?? '') ?>">
 
+        <?php if ($showNickname): ?>
         <h3 class="section-title">기본 정보</h3>
         <div class="profile-form-group">
             <label for="nickname">닉네임</label>
@@ -47,6 +51,7 @@ $csrfToken = $mublo['security']['csrfToken'];
             </div>
             <div id="nickname-message" class="profile-form-help"></div>
         </div>
+        <?php endif; ?>
 
         <?php
             $pw = $passwordPolicy ?? ['min' => 6, 'lower' => false, 'number' => false, 'special' => false];
@@ -125,8 +130,9 @@ $csrfToken = $mublo['security']['csrfToken'];
 </div>
 
 <script>
-// 닉네임 중복 확인 (본인이 쓰던 닉네임은 서버가 중복에서 제외)
-document.getElementById('check-nickname').addEventListener('click', function() {
+// 닉네임 중복 확인 (본인이 쓰던 닉네임은 서버가 중복에서 제외, 닉네임 사용 안 함이면 칸이 없다)
+var checkNicknameBtn = document.getElementById('check-nickname');
+if (checkNicknameBtn) checkNicknameBtn.addEventListener('click', function() {
     var nickname = document.getElementById('nickname').value;
     var messageDiv = document.getElementById('nickname-message');
 

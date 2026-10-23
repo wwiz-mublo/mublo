@@ -180,6 +180,7 @@ class MemberController
         $fields = $this->memberService->getFieldDefinitions($domainId, true);
 
         $useEmailAsUserId = $context->getDomainInfo()?->isUseEmailAsUserId() ?? false;
+        $nicknameMode = $context->getDomainInfo()?->getNicknameMode() ?? 'required';
 
         // 플러그인 폼 확장 이벤트
         $formEvent = new RegisterFormRenderingEvent($context);
@@ -189,6 +190,7 @@ class MemberController
             ->withData([
                 'fields' => $fields,
                 'useEmailAsUserId' => $useEmailAsUserId,
+                'nicknameMode' => $nicknameMode,
                 'registerFormExtras' => $formEvent->getHtmlSorted(),
                 'registerFormScripts' => $formEvent->getScriptsSorted(),
             ]);
@@ -262,12 +264,17 @@ class MemberController
         $joinType = $domainInfo?->getJoinType() ?? 'immediate';
         $defaultLevel = $domainInfo?->getDefaultLevelValue() ?? 1;
 
+        // 닉네임 입력 설정이 '사용 안 함'이면 보내 와도 버린다.
+        // '필수'는 스킨이 화면에서만 강제한다 — 닉네임 칸이 없는 사이트 스킨의 가입을 막지 않도록.
+        $nicknameMode = $domainInfo?->getNicknameMode() ?? 'required';
+        $nickname = $nicknameMode === 'hidden' ? '' : trim($formData['nickname'] ?? '');
+
         $data = [
             'domain_id' => $domainId,
             'domain_group' => $context->getDomainGroup(),
             'user_id' => trim($formData['user_id'] ?? ''),
             'password' => $password,
-            'nickname' => trim($formData['nickname'] ?? ''),
+            'nickname' => $nickname,
             'fields' => $formData['fields'] ?? [],
             'agreements' => $agreements,
             'ip_address' => $request->getClientIp(),
