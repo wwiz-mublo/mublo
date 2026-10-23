@@ -513,7 +513,7 @@ class ProductController
         }
 
         parse_str($return, $parsed);
-        $allowed = ['keyword', 'search_field', 'category_code', 'is_active', 'page'];
+        $allowed = ['keyword', 'search_field', 'category_code', 'is_active', 'sort', 'page'];
         $params = array_filter(
             array_intersect_key($parsed, array_flip($allowed)),
             fn($v) => $v !== '' && $v !== null
