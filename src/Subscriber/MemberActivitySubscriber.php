@@ -29,6 +29,9 @@ class MemberActivitySubscriber implements EventSubscriberInterface
     /** 같은 주소 재조회를 하나로 보는 간격 (초) */
     private const DEDUPE_SECONDS = 60;
 
+    /** 회원의 개인정보를 직접 다루는 마이페이지 경로 */
+    private const SENSITIVE_PATHS = ['/mypage/profile', '/mypage/withdraw'];
+
     /** 관리자 화면에 보여 줄 최근 기록 수 */
     private const RECENT_LIMIT = 30;
 
@@ -57,7 +60,13 @@ class MemberActivitySubscriber implements EventSubscriberInterface
     {
         $memberId = (int) ($event->getMemberId() ?? 0);
         $domainId = $event->getDomainId();
-        if ($memberId <= 0 || $domainId <= 0 || in_array($event->getPageType(), self::SKIP_PAGE_TYPES, true)) {
+        $url = $event->getUrl();
+        $path = rtrim((string) (parse_url($url, PHP_URL_PATH) ?? ''), '/') ?: '/';
+        if ($memberId <= 0
+            || $domainId <= 0
+            || in_array($event->getPageType(), self::SKIP_PAGE_TYPES, true)
+            || in_array($path, self::SENSITIVE_PATHS, true)
+        ) {
             return;
         }
 
@@ -66,7 +75,7 @@ class MemberActivitySubscriber implements EventSubscriberInterface
             return;
         }
 
-        $url = mb_substr($event->getUrl(), 0, 500);
+        $url = mb_substr($url, 0, 500);
 
         try {
             $latest = $this->repository->findLatest($domainId, $memberId);

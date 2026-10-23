@@ -515,12 +515,13 @@ class FrontViewRenderer implements ViewRendererInterface
         }
 
         $viewPath = $response->getViewPath();
+        $normalizedViewPath = strtolower($viewPath);
 
         // Core 고유 페이지 타입
-        if (str_starts_with($viewPath, 'Index/')) return 'index';
-        if (str_starts_with($viewPath, 'Auth/')) return 'auth';
-        if (str_starts_with($viewPath, 'Member/')) return 'member';
-        if (str_starts_with($viewPath, 'Search/')) return 'search';
+        if (str_starts_with($normalizedViewPath, 'index/')) return 'index';
+        if (str_starts_with($normalizedViewPath, 'auth/')) return 'auth';
+        if (str_starts_with($normalizedViewPath, 'member/')) return 'member';
+        if (str_starts_with($normalizedViewPath, 'search/')) return 'search';
 
         // Package/Plugin에 위임
         $event = $this->eventDispatcher->dispatch(

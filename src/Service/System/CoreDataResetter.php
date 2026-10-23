@@ -126,7 +126,10 @@ class CoreDataResetter implements DataResettableInterface, DataResetFilesystemIn
         }
 
         if ($this->db->tableExists('member_activity_logs')) {
-            $this->db->execute('DELETE FROM member_activity_logs WHERE domain_id = ?', [$domainId]);
+            $this->db->execute(
+                "DELETE FROM member_activity_logs WHERE domain_id = ? AND member_id IN ({$placeholders})",
+                array_merge([$domainId], $memberIds)
+            );
             $cleared++;
         }
 

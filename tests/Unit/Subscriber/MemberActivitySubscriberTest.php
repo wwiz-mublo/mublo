@@ -54,6 +54,9 @@ final class MemberActivitySubscriberTest extends TestCase
         $sub->onPageViewed($this->view(null));
         $sub->onPageViewed($this->view(7, 'auth', '/login'));
         $sub->onPageViewed($this->view(7, 'member', '/mypage/profile'));
+        $sub->onPageViewed($this->view(7, 'other', '/mypage/profile'));
+        $sub->onPageViewed($this->view(7, 'other', '/mypage/profile/'));
+        $sub->onPageViewed($this->view(7, 'other', '/mypage/withdraw'));
     }
 
     public function testMemberPageViewIsRecordedWithTitle(): void

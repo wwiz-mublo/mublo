@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS member_activity_logs (
     domain_id BIGINT UNSIGNED NOT NULL COMMENT '사이트 도메인 ID',
     member_id BIGINT UNSIGNED NOT NULL COMMENT '회원 ID',
     page_type VARCHAR(30) NOT NULL DEFAULT 'other' COMMENT 'PageViewedEvent 페이지 유형',
-    page_url VARCHAR(500) NOT NULL COMMENT '본 페이지 (경로+쿼리)',
+    page_url VARCHAR(500) NOT NULL COMMENT '본 페이지 경로 (쿼리 제외)',
     page_title VARCHAR(200) NOT NULL DEFAULT '' COMMENT '페이지 제목',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '본 시각',
 
