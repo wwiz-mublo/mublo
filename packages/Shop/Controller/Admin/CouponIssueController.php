@@ -141,6 +141,7 @@ class CouponIssueController
         $levels = $request->json('level_values') ?? [];
 
         return [
+            'after_member_id' => max(0, (int) ($request->json('after_member_id') ?? 0)),
             'level_values' => is_array($levels) ? array_map('intval', $levels) : [],
             'joined_from' => (string) ($request->json('joined_from') ?? ''),
             'joined_to' => (string) ($request->json('joined_to') ?? ''),

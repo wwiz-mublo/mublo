@@ -113,11 +113,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var purchase = document.getElementById('purchase');
     var base = '/admin/shop/coupons/<?= $couponId ?>/bulk-issue';
 
+    var pendingCriteria = null;
+
     purchase.addEventListener('change', function () {
         document.getElementById('min-purchase-box').hidden = purchase.value !== 'yes';
     });
 
     function criteria() {
+        if (pendingCriteria) return Object.assign({}, pendingCriteria);
         return {
             level_values: Array.prototype.map.call(box.querySelectorAll('input[name="level_values"]:checked'), function (el) { return parseInt(el.value, 10); }),
             joined_from: box.querySelector('[name="joined_from"]').value,
@@ -135,23 +138,35 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.getElementById('btn-issue').addEventListener('click', function () {
         var btn = this;
-        MubloRequest.requestJson(base + '/preview', criteria(), { loading: true }).then(function (res) {
+        var selected = criteria();
+        btn.disabled = true;
+        MubloRequest.requestJson(base + '/preview', selected, { loading: true }).then(function (res) {
             var count = (res.data && res.data.count) || 0;
             if (count === 0) {
                 result.textContent = '조건에 맞는 회원이 없습니다.';
+                btn.disabled = false;
                 return;
             }
-            if (!confirm(count.toLocaleString() + '명에게 이 쿠폰을 지급할까요?\n지급한 쿠폰은 일괄 회수할 수 없습니다.')) {
+            if (!confirm('남은 대상 ' + count.toLocaleString() + '명 중 이번에 최대 <?= (int) $maxTargets ?>명에게 지급할까요?\n지급한 쿠폰은 일괄 회수할 수 없습니다.')) {
+                btn.disabled = false;
                 return;
             }
             btn.disabled = true;
-            MubloRequest.requestJson(base, criteria(), { loading: true })
+            return MubloRequest.requestJson(base, selected, { loading: true })
                 .then(function (r) {
+                    result.textContent = r.message || '지급했습니다.';
+                    if (r.data && r.data.truncated && r.data.next_after_member_id) {
+                        pendingCriteria = Object.assign({}, selected, { after_member_id: r.data.next_after_member_id });
+                        box.querySelectorAll('input, select').forEach(function (el) { el.disabled = true; });
+                        btn.textContent = '계속 지급';
+                        btn.disabled = false;
+                        return;
+                    }
                     alert(r.message || '지급했습니다.');
                     location.href = '/admin/shop/coupons/<?= $couponId ?>/issued';
                 })
                 .catch(function () { btn.disabled = false; });
-        });
+        }).catch(function () { btn.disabled = false; });
     });
 });
 </script>

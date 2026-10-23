@@ -34,4 +34,14 @@ final class MemberSegmentQueryServiceTest extends TestCase
 
         $this->assertSame([7, 9], $ids);
     }
+    public function testCursorIsBoundAlongsideDomain(): void
+    {
+        $db = $this->createMock(Database::class);
+        $db->expects($this->once())->method('select')->with(
+            $this->callback(fn(string $sql) => str_contains($sql, 'm.member_id > ?') && str_contains($sql, 'ORDER BY m.member_id ASC LIMIT 5000')),
+            [3, 50000]
+        )->willReturn([['member_id' => 50001]]);
+        self::assertSame([50001], (new MemberSegmentQueryService($db))->findActiveMemberIds(3, [], null, null, 5000, 50000));
+    }
+
 }

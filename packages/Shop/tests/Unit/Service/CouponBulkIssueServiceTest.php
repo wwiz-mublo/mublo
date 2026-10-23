@@ -18,7 +18,11 @@ class CouponBulkIssueServiceTest extends TestCase
     private function service(CouponService $coupons, array $memberIds, array $totals = []): CouponBulkIssueService
     {
         $members = $this->createMock(MemberSegmentQueryInterface::class);
-        $members->method('findActiveMemberIds')->willReturn($memberIds);
+        $members->method('findActiveMemberIds')->willReturnCallback(
+            fn($domain, $levels, $from, $to, $limit, $after) => array_slice(
+                array_values(array_filter($memberIds, fn($id) => $id > $after)), 0, $limit
+            )
+        );
 
         $orders = $this->createMock(OrderRepository::class);
         $orders->method('getPaidTotalsByMembers')->willReturn($totals);
@@ -87,4 +91,44 @@ class CouponBulkIssueServiceTest extends TestCase
 
         $this->assertFalse($this->service($coupons, [])->issue(5, 9, [])->isSuccess());
     }
+    public function testContinuationReachesRemainingMembersWithoutIssuingTwice(): void
+    {
+        $coupons = $this->createMock(CouponService::class);
+        $seen = [];
+        $coupons->method('issueByAdmin')->willReturnCallback(function ($group, $member, $domain) use (&$seen) {
+            // 한도가 여러 장이어도 앞 묶음에 중복 지급하면 안 된다.
+            self::assertArrayNotHasKey($member, $seen);
+            $seen[$member] = true;
+            return Result::success('발행');
+        });
+        $service = $this->service($coupons, range(1, 5001));
+        $first = $service->issue(5, 9, []);
+        self::assertSame(5000, $first->get('issued'));
+        self::assertTrue($first->get('truncated'));
+        $last = $service->issue(5, 9, ['after_member_id' => $first->get('next_after_member_id')]);
+        self::assertSame(1, $last->get('issued'));
+        self::assertFalse($last->get('truncated'));
+        self::assertCount(5001, $seen);
+    }
+
+    public function testPurchaseFilterFindsMembersBeyondOldFiftyThousandLimit(): void
+    {
+        $coupons = $this->createMock(CouponService::class);
+        $service = $this->service($coupons, range(1, 50001), [50001 => 100000]);
+        self::assertSame([50001], $service->findTargets(5, ['purchase' => 'yes', 'min_purchase' => 100000]));
+        self::assertCount(50001, $service->findTargets(5, []));
+    }
+
+    public function testSkippedBatchStillAdvancesCursor(): void
+    {
+        $coupons = $this->createMock(CouponService::class);
+        $coupons->method('issueByAdmin')->willReturn(Result::failure('쿠폰 발행 한도를 초과했습니다.'));
+        $service = $this->service($coupons, range(1, 5001));
+        $first = $service->issue(5, 9, []);
+        self::assertSame(5000, $first->get('skipped'));
+        $last = $service->issue(5, 9, ['after_member_id' => $first->get('next_after_member_id')]);
+        self::assertSame(1, $last->get('skipped'));
+        self::assertFalse($last->get('truncated'));
+    }
+
 }

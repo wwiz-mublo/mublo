@@ -17,6 +17,7 @@ interface MemberSegmentQueryInterface
      * @param string|null $joinedFrom  가입일 시작 (Y-m-d, 포함)
      * @param string|null $joinedTo    가입일 끝 (Y-m-d, 포함)
      * @param int         $limit       최대 건수 (1~50000)
+     * @param int         $afterMemberId 이 ID 다음부터 조회 (0이면 처음부터)
      * @return list<int>
      */
     public function findActiveMemberIds(
@@ -24,6 +25,7 @@ interface MemberSegmentQueryInterface
         array $levelValues = [],
         ?string $joinedFrom = null,
         ?string $joinedTo = null,
-        int $limit = 10000
+        int $limit = 10000,
+        int $afterMemberId = 0
     ): array;
 }

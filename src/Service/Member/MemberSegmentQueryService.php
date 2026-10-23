@@ -21,13 +21,18 @@ class MemberSegmentQueryService implements MemberSegmentQueryInterface
         array $levelValues = [],
         ?string $joinedFrom = null,
         ?string $joinedTo = null,
-        int $limit = 10000
+        int $limit = 10000,
+        int $afterMemberId = 0
     ): array {
         $limit = max(1, min(50000, $limit));
 
         // 관리자·최고관리자 등급은 대상에서 늘 뺀다
         $where = ['m.domain_id = ?', "m.status = 'active'", 'COALESCE(l.is_admin, 0) = 0', 'COALESCE(l.is_super, 0) = 0'];
         $params = [$domainId];
+        if ($afterMemberId > 0) {
+            $where[] = 'm.member_id > ?';
+            $params[] = $afterMemberId;
+        }
 
         $levelValues = array_values(array_unique(array_filter(array_map('intval', $levelValues), fn(int $v) => $v > 0)));
         if ($levelValues !== []) {
