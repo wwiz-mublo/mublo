@@ -81,6 +81,7 @@ class MemberAddressRepository extends BaseRepository
         $this->getDb()->table($this->table)
             ->where('address_id', '=', $addressId)
             ->where('member_id', '=', $memberId)
+            ->where('domain_id', '=', $domainId)
             ->update(['is_default' => 1]);
     }
 

@@ -110,13 +110,14 @@ class AddressController
         }
 
         $request = $context->getRequest();
+        $domainId = $context->getDomainId() ?? 1;
         $addressId = (int) ($request->json('address_id') ?? 0);
 
         if ($addressId <= 0) {
             return JsonResponse::error('잘못된 요청입니다.');
         }
 
-        $result = $this->addressService->update($memberId, $addressId, [
+        $result = $this->addressService->update($memberId, $domainId, $addressId, [
             'address_name' => $request->json('address_name') ?? '',
             'recipient_name' => $request->json('recipient_name') ?? '',
             'recipient_phone' => $request->json('recipient_phone') ?? '',

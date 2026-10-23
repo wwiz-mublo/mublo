@@ -145,11 +145,11 @@ class MemberAddressService
     /**
      * 배송지 수정
      */
-    public function update(int $memberId, int $addressId, array $data): Result
+    public function update(int $memberId, int $domainId, int $addressId, array $data): Result
     {
         $existing = $this->repository->find($addressId);
 
-        if (!$existing || $existing->getMemberId() !== $memberId) {
+        if (!$existing || $existing->getMemberId() !== $memberId || $existing->getDomainId() !== $domainId) {
             return Result::failure('배송지를 찾을 수 없습니다.');
         }
 
@@ -182,7 +182,7 @@ class MemberAddressService
     {
         $existing = $this->repository->find($addressId);
 
-        if (!$existing || $existing->getMemberId() !== $memberId) {
+        if (!$existing || $existing->getMemberId() !== $memberId || $existing->getDomainId() !== $domainId) {
             return Result::failure('배송지를 찾을 수 없습니다.');
         }
 
@@ -256,7 +256,7 @@ class MemberAddressService
     {
         $existing = $this->repository->find($addressId);
 
-        if (!$existing || $existing->getMemberId() !== $memberId) {
+        if (!$existing || $existing->getMemberId() !== $memberId || $existing->getDomainId() !== $domainId) {
             return Result::failure('배송지를 찾을 수 없습니다.');
         }
 
