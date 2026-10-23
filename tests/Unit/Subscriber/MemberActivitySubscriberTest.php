@@ -56,6 +56,7 @@ final class MemberActivitySubscriberTest extends TestCase
         $sub->onPageViewed($this->view(7, 'member', '/mypage/profile'));
         $sub->onPageViewed($this->view(7, 'other', '/mypage/profile'));
         $sub->onPageViewed($this->view(7, 'other', '/mypage/profile/'));
+        $sub->onPageViewed($this->view(7, 'other', '/mypage/profile?return=%2Fshop'));
         $sub->onPageViewed($this->view(7, 'other', '/mypage/withdraw'));
     }
 
