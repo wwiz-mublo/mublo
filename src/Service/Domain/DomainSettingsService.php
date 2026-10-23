@@ -526,7 +526,7 @@ class DomainSettingsService implements CompanyInfoInterface
             }
         }
 
-        // 빈 배열 허용 (빈 배열 = 전체 활성화 의미)
+        // 빈 배열 허용 (search_enabled_sources 에서 빈 배열 = 전체 해제, 미설정 null 과 구분)
         return $result;
     }
 
