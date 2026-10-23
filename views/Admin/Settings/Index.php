@@ -112,7 +112,12 @@ var themeConfig = <?= json_encode($themeConfig ?? [], JSON_UNESCAPED_UNICODE) ?>
 
 document.addEventListener('DOMContentLoaded', function() {
     // 사이트 설정 채우기
-    MubloForm.fill(siteConfig, 'formData[site]');
+    // 검색 소스 순서·활성 목록은 검색 섹션이 직접 그리고 hidden input 을 JSON 으로 맞추므로 제외한다.
+    // fill 이 덮어쓰면 미설정(null)이 빈 문자열로 들어가 "전체 해제"로 저장된다.
+    var siteFillData = Object.assign({}, siteConfig);
+    delete siteFillData.search_source_order;
+    delete siteFillData.search_enabled_sources;
+    MubloForm.fill(siteFillData, 'formData[site]');
     // 회사 정보 채우기
     MubloForm.fill(companyConfig, 'formData[company]');
     // SEO 설정 채우기 (sns_channels, 이미지 필드 제외 - 별도 처리)
