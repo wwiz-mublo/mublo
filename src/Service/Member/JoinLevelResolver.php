@@ -17,7 +17,8 @@ use Mublo\Entity\Domain\Domain;
 class JoinLevelResolver
 {
     public function __construct(
-        private MemberLevelService $levelService
+        private MemberLevelService $levelService,
+        private MemberFieldService $fieldService,
     ) {
     }
 
@@ -41,6 +42,18 @@ class JoinLevelResolver
             return $defaultLevel;
         }
 
+        // 설정 뒤 필드가 숨김·관리자 전용·다른 유형으로 바뀌거나 선택지가 삭제될 수 있다.
+        // 가입 시점의 현재 정의를 다시 확인해 예전 설정이나 직접 만든 요청을 적용하지 않는다.
+        $field = $this->fieldService->getField($fieldId, $domain->getDomainId());
+        if ($field === null
+            || !in_array($field['field_type'] ?? '', ['select', 'radio'], true)
+            || empty($field['is_visible_signup'])
+            || !empty($field['is_admin_only'])
+            || !in_array((string) $value, $this->optionValues($field['field_options'] ?? null), true)
+        ) {
+            return $defaultLevel;
+        }
+
         $levelValue = $map[(string) $value] ?? null;
         if ($levelValue === null || $levelValue <= 0) {
             return $defaultLevel;
@@ -52,5 +65,23 @@ class JoinLevelResolver
         }
 
         return $levelValue;
+    }
+
+    /** @return list<string> */
+    private function optionValues(mixed $rawOptions): array
+    {
+        $options = is_string($rawOptions) ? json_decode($rawOptions, true) : $rawOptions;
+        if (!is_array($options)) {
+            return [];
+        }
+
+        $values = [];
+        foreach ($options as $option) {
+            $value = is_array($option) ? ($option['value'] ?? null) : $option;
+            if (is_string($value) || is_int($value)) {
+                $values[] = (string) $value;
+            }
+        }
+        return $values;
     }
 }

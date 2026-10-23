@@ -6,6 +6,7 @@ namespace Tests\Unit\Service\Member;
 use Mublo\Entity\Domain\Domain;
 use Mublo\Entity\Member\MemberLevel;
 use Mublo\Service\Member\JoinLevelResolver;
+use Mublo\Service\Member\MemberFieldService;
 use Mublo\Service\Member\MemberLevelService;
 use PHPUnit\Framework\TestCase;
 
@@ -23,7 +24,7 @@ final class JoinLevelResolverTest extends TestCase
         ]);
     }
 
-    private function resolver(): JoinLevelResolver
+    private function resolver(?array $field = null): JoinLevelResolver
     {
         $levels = [
             3 => MemberLevel::fromArray(['level_value' => 3, 'level_name' => '병사']),
@@ -33,7 +34,17 @@ final class JoinLevelResolverTest extends TestCase
         $service = $this->createMock(MemberLevelService::class);
         $service->method('findByValue')->willReturnCallback(fn(int $v) => $levels[$v] ?? null);
 
-        return new JoinLevelResolver($service);
+        $fieldService = $this->createMock(MemberFieldService::class);
+        $fieldService->method('getField')->willReturn($field ?? [
+            'field_id' => 12,
+            'domain_id' => 1,
+            'field_type' => 'select',
+            'field_options' => json_encode(['병사', '간부', '관리', '없음']),
+            'is_visible_signup' => 1,
+            'is_admin_only' => 0,
+        ]);
+
+        return new JoinLevelResolver($service, $fieldService);
     }
 
     public function testMappedOptionGivesItsLevel(): void
@@ -61,5 +72,30 @@ final class JoinLevelResolverTest extends TestCase
 
         $this->assertSame(1, $this->resolver()->resolve($domain, [12 => '관리'], 1));
         $this->assertSame(1, $this->resolver()->resolve($domain, [12 => '없음'], 1));
+    }
+
+    public function testChangedOrIneligibleFieldKeepsDefault(): void
+    {
+        $domain = $this->domain(12, ['간부' => 5]);
+
+        $this->assertSame(1, $this->resolver([
+            'field_type' => 'select',
+            'field_options' => json_encode(['병사']),
+            'is_visible_signup' => 1,
+            'is_admin_only' => 0,
+        ])->resolve($domain, [12 => '간부'], 1));
+        $this->assertSame(1, $this->resolver([
+            'field_type' => 'select',
+            'field_options' => json_encode(['간부']),
+            'is_visible_signup' => 0,
+            'is_admin_only' => 0,
+        ])->resolve($domain, [12 => '간부'], 1));
+        $this->assertSame(1, $this->resolver([
+            'field_type' => 'radio',
+            'field_options' => [['value' => '간부', 'label' => '간부']],
+            'is_visible_signup' => 1,
+            'is_admin_only' => 1,
+        ])->resolve($domain, [12 => '간부'], 1));
+        $this->assertSame(1, $this->resolver([])->resolve($domain, [12 => '간부'], 1));
     }
 }
