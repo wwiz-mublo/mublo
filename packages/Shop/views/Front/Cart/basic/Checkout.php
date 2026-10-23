@@ -49,6 +49,12 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/ca
                             <input type="tel" id="ordererPhone" class="shop-checkout__input shop-checkout__input--short mask-hp">
                         </div>
                     </div>
+                    <div class="shop-checkout__form-row">
+                        <span class="shop-checkout__label">이메일</span>
+                        <div class="shop-checkout__input-wrap">
+                            <input type="email" id="ordererEmail" class="shop-checkout__input" placeholder="주문 안내 메일을 받을 주소" autocomplete="email">
+                        </div>
+                    </div>
                     <?php if ($isGuest): ?>
                     <div class="shop-checkout__address-footer">
                         <div class="shop-checkout__field-help">비회원 주문은 입력하신 주문인·연락처로 로그인 없이 주문을 조회할 수 있습니다.</div>
