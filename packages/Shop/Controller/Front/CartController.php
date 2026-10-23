@@ -614,17 +614,22 @@ class CartController
             $couponIds = $single > 0 ? [$single] : [];
         }
 
-        // 주문인 정보 — 회원·비회원 공통으로 수집한다. (이메일은 추후 메일 발송과 함께 재도입 예정)
+        // 주문인 정보 — 회원·비회원 공통으로 수집한다.
         // 회원도 가입 시 연락처를 받지 않으므로 결제 단계에서 직접 입력받는다.
         // 비회원 주문조회는 "주문인명 + 연락처"로 수행하므로 둘 다 필수.
+        // 이메일은 선택 — 넣으면 주문 알림 메일(orderer 수신자)을 받는다.
         $ordererName = trim($request->json('orderer_name') ?? '');
         $ordererPhone = trim($request->json('orderer_phone') ?? '');
+        $ordererEmail = trim((string) ($request->json('orderer_email') ?? ''));
 
         if ($ordererName === '') {
             return JsonResponse::error('주문인을 입력해주세요.');
         }
         if ($ordererPhone === '') {
             return JsonResponse::error('주문인 연락처를 입력해주세요.');
+        }
+        if ($ordererEmail !== '' && (mb_strlen($ordererEmail) > 255 || filter_var($ordererEmail, FILTER_VALIDATE_EMAIL) === false)) {
+            return JsonResponse::error('이메일 형식이 올바르지 않습니다.');
         }
 
         // 배송 정보
@@ -856,6 +861,7 @@ class CartController
         // (수령인 폴백에 의존하지 않으므로 주문인 ≠ 수령인이 정확히 보존됨)
         $orderPayload['orderer_name'] = $ordererName;
         $orderPayload['orderer_phone'] = $ordererPhone;
+        $orderPayload['orderer_email'] = $ordererEmail !== '' ? $ordererEmail : null;
 
         // 무통장입금 선택 계좌 (JSON 직렬화하여 단일 컬럼 저장)
         if ($bankAccountInfo !== null) {

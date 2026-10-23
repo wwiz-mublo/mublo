@@ -81,6 +81,7 @@ class MemberAddressRepository extends BaseRepository
         $this->getDb()->table($this->table)
             ->where('address_id', '=', $addressId)
             ->where('member_id', '=', $memberId)
+            ->where('domain_id', '=', $domainId)
             ->update(['is_default' => 1]);
     }
 
@@ -96,5 +97,17 @@ class MemberAddressRepository extends BaseRepository
             ->update($data);
 
         return $affected > 0;
+    }
+
+    /**
+     * 회원의 배송지 전체 삭제
+     *
+     * @return int 삭제된 행 수
+     */
+    public function deleteByMember(int $memberId): int
+    {
+        return $this->getDb()->table($this->table)
+            ->where('member_id', '=', $memberId)
+            ->delete();
     }
 }

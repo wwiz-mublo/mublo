@@ -18,7 +18,7 @@ final class MenuContractTest extends TestCase
     {
         $provisioning = $this->createMock(SiteProvisioningInterface::class);
         $captured = [];
-        $provisioning->expects($this->exactly(9))
+        $provisioning->expects($this->exactly(10))
             ->method('createMenuItem')
             ->willReturnCallback(function (int $domainId, array $data) use (&$captured): Result {
                 $this->assertSame(7, $domainId);
@@ -38,6 +38,7 @@ final class MenuContractTest extends TestCase
                 '/shop/inquiries',
                 '/shop/orders',
                 '/shop/coupons',
+                '/shop/address',
                 '/shop/wishlist',
                 '/mypage/shop',
             ],
@@ -45,6 +46,8 @@ final class MenuContractTest extends TestCase
         );
         $this->assertSame(['package'], array_values(array_unique(array_column($captured, 'provider_type'))));
         $this->assertSame(['Shop'], array_values(array_unique(array_column($captured, 'provider_name'))));
+        $address = array_values(array_filter($captured, static fn(array $item): bool => $item['url'] === '/shop/address'));
+        $this->assertSame('member', $address[0]['visibility']);
     }
 
     public function testCategorySynchronizationKeepsDomainOwnershipAtContractBoundary(): void

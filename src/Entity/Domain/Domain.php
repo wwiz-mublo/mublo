@@ -307,6 +307,16 @@ class Domain
     }
 
     /**
+     * 회원가입 닉네임 입력 (required: 필수, optional: 선택, hidden: 받지 않음)
+     */
+    public function getNicknameMode(): string
+    {
+        $mode = $this->siteConfig['nickname_mode'] ?? 'required';
+
+        return in_array($mode, ['required', 'optional', 'hidden'], true) ? $mode : 'required';
+    }
+
+    /**
      * 가입 시 적용할 기본 레벨
      */
     public function getDefaultLevelValue(): int

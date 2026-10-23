@@ -152,6 +152,19 @@
 
 .children-container { margin-left: 24px; }
 
+/* 접기/펼치기 — 자식이 없으면 버튼 자리만 남긴다 */
+.tree-node .btn-tree-toggle {
+    width: 24px;
+    padding: 0;
+    border: 0;
+    line-height: 1;
+    color: var(--bs-secondary-color);
+}
+.tree-node .btn-tree-toggle i { display: inline-block; transition: transform 0.15s; }
+.tree-node:not(.has-children) > .node-content > .btn-tree-toggle { visibility: hidden; }
+.tree-node.is-collapsed > .node-content > .btn-tree-toggle i { transform: rotate(-90deg); }
+.tree-node.is-collapsed > .children-container { display: none; }
+
 .tree-node.sortable-ghost { opacity: 1; }
 .tree-node.sortable-ghost > .node-content {
     background-color: var(--bs-primary-bg-subtle);

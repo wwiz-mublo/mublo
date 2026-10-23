@@ -193,6 +193,14 @@ class DomainEventSubscriber implements EventSubscriberInterface
         ]);
 
         $menuService->createMenuItem($domainId, [
+            'label' => '배송지 관리',
+            'url' => '/shop/address',
+            'visibility' => 'member',
+            'provider_type' => 'package',
+            'provider_name' => 'Shop',
+        ]);
+
+        $menuService->createMenuItem($domainId, [
             'label' => '찜한상품',
             'url' => '/shop/wishlist',
             'visibility' => 'member',

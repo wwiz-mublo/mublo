@@ -221,6 +221,10 @@ return function (PrefixedRouteCollector $r): void {
     ]);
 
     // 회원 배송지 주소록
+    $r->addRoute('GET', '/address', [
+        'controller' => AddressController::class,
+        'method'     => 'index',
+    ]);
     $r->addRoute('GET', '/address/list', [
         'controller' => AddressController::class,
         'method'     => 'list',
@@ -717,6 +721,28 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRoute('POST', '/admin/coupons/issue', [
         'controller' => CouponController::class,
         'method'     => 'issue',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
+    // 조건별 일괄 지급 · 발급 내역
+    $r->addRoute('GET', '/admin/coupons/{id:\d+}/bulk-issue', [
+        'controller' => \Mublo\Packages\Shop\Controller\Admin\CouponIssueController::class,
+        'method'     => 'bulkForm',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRoute('POST', '/admin/coupons/{id:\d+}/bulk-issue/preview', [
+        'controller' => \Mublo\Packages\Shop\Controller\Admin\CouponIssueController::class,
+        'method'     => 'preview',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRoute('POST', '/admin/coupons/{id:\d+}/bulk-issue', [
+        'controller' => \Mublo\Packages\Shop\Controller\Admin\CouponIssueController::class,
+        'method'     => 'bulkIssue',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+    $r->addRoute('GET', '/admin/coupons/{id:\d+}/issued', [
+        'controller' => \Mublo\Packages\Shop\Controller\Admin\CouponIssueController::class,
+        'method'     => 'issued',
         'middleware' => [AdminMiddleware::class],
     ]);
 

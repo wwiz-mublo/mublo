@@ -23,7 +23,7 @@ use Mublo\Contract\Security\SensitiveValueCodecInterface;
  */
 class MemberAddressService
 {
-    private const MAX_ADDRESSES = 10;
+    public const MAX_ADDRESSES = 10;
 
     /** 암호화 대상 PII 필드 */
     private const ENCRYPTED_FIELDS = [
@@ -92,6 +92,14 @@ class MemberAddressService
     }
 
     /**
+     * 저장된 배송지 수 (마이페이지 요약용 — 복호화 없이 센다)
+     */
+    public function count(int $memberId, int $domainId): int
+    {
+        return $this->repository->countByMember($memberId, $domainId);
+    }
+
+    /**
      * 배송지 추가
      */
     public function create(int $memberId, int $domainId, array $data): Result
@@ -137,11 +145,11 @@ class MemberAddressService
     /**
      * 배송지 수정
      */
-    public function update(int $memberId, int $addressId, array $data): Result
+    public function update(int $memberId, int $domainId, int $addressId, array $data): Result
     {
         $existing = $this->repository->find($addressId);
 
-        if (!$existing || $existing->getMemberId() !== $memberId) {
+        if (!$existing || $existing->getMemberId() !== $memberId || $existing->getDomainId() !== $domainId) {
             return Result::failure('배송지를 찾을 수 없습니다.');
         }
 
@@ -174,7 +182,7 @@ class MemberAddressService
     {
         $existing = $this->repository->find($addressId);
 
-        if (!$existing || $existing->getMemberId() !== $memberId) {
+        if (!$existing || $existing->getMemberId() !== $memberId || $existing->getDomainId() !== $domainId) {
             return Result::failure('배송지를 찾을 수 없습니다.');
         }
 
@@ -248,7 +256,7 @@ class MemberAddressService
     {
         $existing = $this->repository->find($addressId);
 
-        if (!$existing || $existing->getMemberId() !== $memberId) {
+        if (!$existing || $existing->getMemberId() !== $memberId || $existing->getDomainId() !== $domainId) {
             return Result::failure('배송지를 찾을 수 없습니다.');
         }
 
