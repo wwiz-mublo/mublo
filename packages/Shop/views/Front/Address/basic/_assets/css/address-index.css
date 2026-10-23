@@ -1,0 +1,48 @@
+/* 배송지 관리 (Address/Index) 스타일 */
+
+.shop-address { max-width: 720px; margin: 0 auto; }
+.shop-address__head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.shop-address__title { font-size: 1.5rem; font-weight: 700; margin-bottom: 8px; color: var(--foreground); }
+.shop-address__count { font-size: 0.9rem; color: var(--muted-foreground); margin: 0; }
+.shop-address__add { flex-shrink: 0; padding: 8px 16px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.shop-address__add:disabled { opacity: .5; cursor: not-allowed; }
+
+.shop-address__form { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.shop-address__form[hidden] { display: none; }
+.shop-address__form-title { font-size: 1.05rem; font-weight: 700; margin: 0 0 16px; }
+.shop-address__field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.shop-address__field label { font-size: 0.85rem; font-weight: 600; color: var(--foreground); }
+.shop-address__field input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.95rem; background: var(--background); color: var(--foreground); }
+.shop-address__field input[readonly] { background: var(--muted); }
+.shop-address__req { color: var(--destructive); }
+.shop-address__zip { display: flex; gap: 8px; }
+.shop-address__zip input { max-width: 140px; }
+.shop-address__zip button { padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--foreground); font-size: 0.9rem; cursor: pointer; white-space: nowrap; }
+.shop-address__check { display: flex; align-items: center; gap: 6px; font-size: 0.9rem; margin-bottom: 16px; cursor: pointer; }
+.shop-address__check[hidden] { display: none; }
+.shop-address__form-btns { display: flex; justify-content: flex-end; gap: 8px; }
+.shop-address__form-btns button { padding: 9px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.shop-address__cancel { background: var(--card); color: var(--foreground); border: 1px solid var(--border); }
+.shop-address__save { background: var(--primary); color: var(--primary-foreground); border: none; }
+
+.shop-address__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.shop-address__card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+.shop-address__card--default { border-color: var(--primary); }
+.shop-address__card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.shop-address__card-name { font-weight: 700; color: var(--foreground); }
+.shop-address__badge { font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); }
+.shop-address__card-info { font-size: 0.9rem; line-height: 1.6; color: var(--muted-foreground); word-break: keep-all; overflow-wrap: anywhere; }
+.shop-address__card-btns { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.shop-address__card-btns button { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--foreground); font-size: 0.85rem; cursor: pointer; }
+.shop-address__card-btns button:hover { background: var(--muted); }
+.shop-address__card-btns .shop-address__danger { color: var(--destructive); }
+
+.shop-address__empty { text-align: center; padding: 60px 16px; }
+.shop-address__empty p { color: var(--muted-foreground); margin-bottom: 6px; }
+.shop-address__empty-sub { font-size: 0.85rem; }
+
+@media (max-width: 576px) {
+    .shop-address__head { align-items: flex-start; flex-direction: column; }
+    .shop-address__add { width: 100%; }
+    .shop-address__zip input { max-width: none; flex: 1; }
+}

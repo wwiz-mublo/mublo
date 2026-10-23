@@ -7,6 +7,7 @@ use Mublo\Core\Event\EventSubscriberInterface;
 use Mublo\Core\Event\Mypage\MypageSectionBuildingEvent;
 use Mublo\Packages\Shop\Service\CouponService;
 use Mublo\Packages\Shop\Service\InquiryService;
+use Mublo\Packages\Shop\Service\MemberAddressService;
 use Mublo\Packages\Shop\Service\OrderService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\ReviewService;
@@ -29,6 +30,7 @@ class MypageSectionSubscriber implements EventSubscriberInterface
         private ReviewService      $reviewService,
         private InquiryService     $inquiryService,
         private ShopConfigService  $shopConfigService,
+        private MemberAddressService $addressService,
     ) {}
 
     public static function getSubscribedEvents(): array
@@ -65,6 +67,7 @@ class MypageSectionSubscriber implements EventSubscriberInterface
                     'orderCount'      => (int) ($orderData['pagination']['totalItems'] ?? 0),
                     'couponCount'     => count($coupons),
                     'wishlistCount'   => (int) ($wishlist['pagination']['totalItems'] ?? 0),
+                    'addressCount'    => $this->addressService->count($memberId, $domainId),
                     'recentReviews'   => $reviewList['items'] ?? [],
                     'reviewCount'     => (int) ($reviewList['pagination']['totalItems'] ?? 0),
                     'recentInquiries' => $inquiryList['items'] ?? [],

@@ -221,6 +221,10 @@ return function (PrefixedRouteCollector $r): void {
     ]);
 
     // 회원 배송지 주소록
+    $r->addRoute('GET', '/address', [
+        'controller' => AddressController::class,
+        'method'     => 'index',
+    ]);
     $r->addRoute('GET', '/address/list', [
         'controller' => AddressController::class,
         'method'     => 'list',

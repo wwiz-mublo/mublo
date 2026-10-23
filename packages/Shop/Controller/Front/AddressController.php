@@ -5,25 +5,52 @@ namespace Mublo\Packages\Shop\Controller\Front;
 
 use Mublo\Core\Context\Context;
 use Mublo\Core\Response\JsonResponse;
+use Mublo\Core\Response\RedirectResponse;
+use Mublo\Core\Response\ViewResponse;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Packages\Shop\Service\MemberAddressService;
+use Mublo\Packages\Shop\Service\ShopConfigService;
 
 /**
  * Front 배송지 주소록 컨트롤러
  *
+ * /shop/address — 마이페이지 배송지 관리 화면
  * /shop/address/* JSON API
  */
 class AddressController
 {
     private MemberAddressService $addressService;
     private AuthContextInterface $authService;
+    private ShopConfigService $shopConfigService;
 
     public function __construct(
         MemberAddressService $addressService,
-        AuthContextInterface $authService
+        AuthContextInterface $authService,
+        ShopConfigService $shopConfigService
     ) {
         $this->addressService = $addressService;
         $this->authService = $authService;
+        $this->shopConfigService = $shopConfigService;
+    }
+
+    /**
+     * 배송지 관리 화면
+     */
+    public function index(array $params, Context $context): ViewResponse|RedirectResponse
+    {
+        $memberId = $this->authService->id();
+        if (!$memberId) {
+            return RedirectResponse::to('/login');
+        }
+
+        $domainId = $context->getDomainId() ?? 1;
+        $result = $this->addressService->getList($memberId, $domainId);
+
+        return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Address/Index'))
+            ->withData([
+                'addresses'    => $result->get('addresses', []),
+                'maxAddresses' => MemberAddressService::MAX_ADDRESSES,
+            ]);
     }
 
     /**
@@ -83,13 +110,14 @@ class AddressController
         }
 
         $request = $context->getRequest();
+        $domainId = $context->getDomainId() ?? 1;
         $addressId = (int) ($request->json('address_id') ?? 0);
 
         if ($addressId <= 0) {
             return JsonResponse::error('잘못된 요청입니다.');
         }
 
-        $result = $this->addressService->update($memberId, $addressId, [
+        $result = $this->addressService->update($memberId, $domainId, $addressId, [
             'address_name' => $request->json('address_name') ?? '',
             'recipient_name' => $request->json('recipient_name') ?? '',
             'recipient_phone' => $request->json('recipient_phone') ?? '',
