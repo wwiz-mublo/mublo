@@ -49,13 +49,13 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Mypage/basic/_assets/css/
             <span class="myshop__stat-num"><?= number_format($couponCount) ?></span>
             <span class="myshop__stat-label">할인쿠폰</span>
         </a>
-        <a href="/shop/wishlist" class="myshop__stat">
-            <span class="myshop__stat-num"><?= number_format($wishlistCount) ?></span>
-            <span class="myshop__stat-label">찜한상품</span>
-        </a>
         <a href="/shop/address" class="myshop__stat">
             <span class="myshop__stat-num"><?= number_format($addressCount) ?></span>
             <span class="myshop__stat-label">배송지</span>
+        </a>
+        <a href="/shop/wishlist" class="myshop__stat">
+            <span class="myshop__stat-num"><?= number_format($wishlistCount) ?></span>
+            <span class="myshop__stat-label">찜한상품</span>
         </a>
     </div>
 
