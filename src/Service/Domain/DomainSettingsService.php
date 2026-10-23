@@ -452,7 +452,8 @@ class DomainSettingsService implements CompanyInfoInterface
             'use_main_layout' => !empty($data['use_main_layout']),
             // 전체 검색 설정
             'search_source_order'    => $this->sanitizeSearchSourceList($data['search_source_order'] ?? []),
-            'search_enabled_sources' => $this->sanitizeSearchSourceList($data['search_enabled_sources'] ?? []),
+            // 전체 해제는 두지 않는다 — 빈 목록은 미설정(null, 전체 활성)으로 저장
+            'search_enabled_sources' => $this->sanitizeSearchSourceList($data['search_enabled_sources'] ?? []) ?: null,
             'search_per_source'      => max(1, min(20, (int)($data['search_per_source'] ?? 5))),
             // 회원가입 설정
             'join_type'           => in_array($data['join_type'] ?? '', ['immediate', 'approval']) ? $data['join_type'] : 'immediate',
@@ -528,7 +529,6 @@ class DomainSettingsService implements CompanyInfoInterface
             }
         }
 
-        // 빈 배열 허용 (빈 배열 = 전체 활성화 의미)
         return $result;
     }
 

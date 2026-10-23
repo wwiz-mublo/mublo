@@ -31,6 +31,7 @@ $listParams = array_filter([
     'search_field' => $filters['search_field'] ?? '',
     'category_code' => $filters['category_code'] ?? '',
     'is_active' => $filters['is_active'] ?? '',
+    'sort' => $filters['sort'] ?? '',
     'page' => (($pagination['currentPage'] ?? 1) > 1) ? (string) $pagination['currentPage'] : '',
 ], fn($v) => $v !== '' && $v !== null);
 $returnQs = http_build_query($listParams);
@@ -172,6 +173,11 @@ $columns = $this->columns()
             <p>쇼핑몰 상품을 관리합니다.</p>
         </div>
         <div class="page-title-actions">
+            <button type="button" class="btn btn-sm btn-default"
+                    onclick="MubloReportDownload.fromCurrentQuery('shop_products', { button: this, filename: 'products.xlsx' })"
+                    title="지금 검색 조건의 상품 전체를 내려받습니다">
+                <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+            </button>
             <a href="/admin/shop/products/create<?= $returnSuffix ?>" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus-lg"></i> 상품 등록
             </a>
@@ -206,6 +212,13 @@ $columns = $this->columns()
                                 <option value="">전체 상태</option>
                                 <option value="1" <?= ($filters['is_active'] ?? '') === '1' ? 'selected' : '' ?>>판매중</option>
                                 <option value="0" <?= ($filters['is_active'] ?? '') === '0' ? 'selected' : '' ?>>판매중지</option>
+                            </select>
+                        </div>
+                        <div class="col col-xl-auto">
+                            <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <?php foreach (['newest' => '최신순', 'price_asc' => '낮은가격순', 'price_desc' => '높은가격순', 'popular' => '조회순'] as $sortKey => $sortLabel): ?>
+                                <option value="<?= $sortKey ?>" <?= (($filters['sort'] ?? '') ?: 'newest') === $sortKey ? 'selected' : '' ?>><?= $sortLabel ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col col-xl-auto">
@@ -267,6 +280,7 @@ $columns = $this->columns()
     </div>
 </div>
 
+<script src="<?= asset('/assets/js/admin/report-download.js') ?>"></script>
 <script>
 // 전체 선택
 document.addEventListener('DOMContentLoaded', function() {

@@ -9,10 +9,10 @@
  */
 
 $sourceOrder    = $siteConfig['search_source_order']    ?? [];
-// enabled_sources: null=미설정(전체 활성) / []=전체 해제 / [목록]=명시
+// enabled_sources: null 또는 []=전체 활성 / [목록]=명시 (전체 해제는 두지 않음)
 $enabledConfig  = $siteConfig['search_enabled_sources'] ?? null;
-$allEnabled     = ($enabledConfig === null);
 $enabledSources = (array) $enabledConfig;
+$allEnabled     = ($enabledSources === []);
 $perSource      = (int) ($siteConfig['search_per_source'] ?? 5);
 
 // sourceOrder 기준으로 searchSources 정렬, 목록에 없는 소스는 뒤에 추가
@@ -127,9 +127,13 @@ foreach ($sourceMap as $s) {
         document.getElementById('searchEnabledSourcesHidden').value = JSON.stringify(enabled);
     }
 
-    // 체크박스 변경 시 동기화
+    // 체크박스 변경 시 동기화 (마지막 하나는 해제할 수 없다 — 전체 해제 시 검색 결과가 사라짐)
     document.getElementById('searchSourceList').addEventListener('change', function (e) {
         if (e.target.classList.contains('search-enable-check')) {
+            if (!e.target.checked && !document.querySelector('#searchSourceList .search-enable-check:checked')) {
+                e.target.checked = true;
+                MubloRequest.showAlert('검색 소스를 하나 이상 선택해야 합니다.', 'warning');
+            }
             syncSearchSources();
         }
     });

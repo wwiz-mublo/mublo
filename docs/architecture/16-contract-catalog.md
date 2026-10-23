@@ -286,6 +286,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | Member | `MemberQueryInterface`, `MemberProfile`, `MemberIdentity`, `MemberExtensionIdentity` | 내부 Member Entity·Repository 없이 읽기 전용 회원 조회·활성 회원 닉네임 검색과 안전한 확장 이벤트 식별 정보 |
 | Member Action | `MemberActionQueryInterface`, Definition·Variant·Scope·View·StateResolver | 확장이 회원 문맥 액션을 등록하고 소비 화면이 일괄 조회 |
 | Member | `MemberAccountGatewayInterface`, `MemberRegistrationRequest` | 가입·자격 검증·커스텀 필드 저장 |
+| Member | `MemberSegmentQueryInterface` | 사이트·등급·가입일로 정상 일반 회원 ID 조회. `afterMemberId`와 `limit`으로 회원 ID 오름차순 페이지 조회 (쿠폰 일괄 지급 대상 선정) |
 | Member | `MemberLevelCatalogInterface`, `MemberLevelDescriptor`, `MemberLevelType` | 회원 등급 목록·타입 판정 ([19장](19-member-custom-fields.md)) |
 | Member | `MemberCustomFieldQueryInterface`, `PolicyQueryInterface`, `PolicyDocument` | 회원 커스텀 필드 값 조회, 약관 문서 조회·렌더 |
 | CustomField | `CustomFieldValueValidatorInterface`, `CustomFieldFileManagerInterface` | 커스텀 필드 검증·정규화와 파일 타입 2단계 업로드 처리 |
