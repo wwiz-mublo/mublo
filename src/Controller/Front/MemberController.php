@@ -15,6 +15,7 @@ use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Service\Member\MemberService;
 use Mublo\Service\Member\MemberFieldService;
+use Mublo\Service\Member\JoinLevelResolver;
 use Mublo\Service\Member\PolicyService;
 use Mublo\Service\Auth\AuthService;
 use Mublo\Infrastructure\Storage\SecureFileService;
@@ -56,6 +57,7 @@ class MemberController
         ?SecureFileService $secureFileService = null,
         private ?EventDispatcher $eventDispatcher = null,
         ?FileUploader $fileUploader = null,
+        private ?JoinLevelResolver $joinLevelResolver = null,
     ) {
         $this->memberService = $memberService;
         $this->policyService = $policyService;
@@ -263,6 +265,10 @@ class MemberController
         $useEmailAsUserId = $domainInfo?->isUseEmailAsUserId() ?? false;
         $joinType = $domainInfo?->getJoinType() ?? 'immediate';
         $defaultLevel = $domainInfo?->getDefaultLevelValue() ?? 1;
+        // 가입 때 고른 유형(추가필드)에 등급이 매핑돼 있으면 그 등급으로 (기본 설정 > 회원가입)
+        if ($this->joinLevelResolver !== null && is_array($formData['fields'] ?? null)) {
+            $defaultLevel = $this->joinLevelResolver->resolve($domainInfo, $formData['fields'], $defaultLevel);
+        }
 
         // 닉네임 입력 설정이 '사용 안 함'이면 보내 와도 버린다.
         // '필수'는 스킨이 화면에서만 강제한다 — 닉네임 칸이 없는 사이트 스킨의 가입을 막지 않도록.

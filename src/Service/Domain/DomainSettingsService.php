@@ -33,6 +33,7 @@ class DomainSettingsService implements CompanyInfoInterface
     public const SITE_KEYS = [
         'site_title', 'site_subtitle', 'admin_email', 'timezone', 'language',
         'editor', 'per_page', 'use_email_as_userid',
+        'join_level_field_id', 'join_level_map',
         'layout_type', 'layout_left_width', 'layout_right_width',
         'sidebar_left_mobile', 'sidebar_right_mobile',
         'layout_max_width', 'content_max_width', 'use_main_layout',
@@ -149,6 +150,9 @@ class DomainSettingsService implements CompanyInfoInterface
             'language' => 'ko',
             'editor' => 'mublo-editor',
             'per_page' => 20,
+            // 가입 등급 배정 (추가필드 선택지 → 등급, 0/빈 값이면 기본 레벨만)
+            'join_level_field_id' => 0,
+            'join_level_map' => [],
             // 레이아웃 설정
             'layout_type' => 'full',
             'layout_left_width' => 250,
@@ -445,6 +449,9 @@ class DomainSettingsService implements CompanyInfoInterface
             'editor' => $data['editor'] ?? 'mublo-editor',
             'per_page' => (int)($data['per_page'] ?? 20),
             'use_email_as_userid' => (int)!empty($data['use_email_as_userid']),
+            // 가입 등급 배정 (관리자 등급 매핑은 가입 시점 JoinLevelResolver 가 다시 막는다)
+            'join_level_field_id' => max(0, (int)($data['join_level_field_id'] ?? 0)),
+            'join_level_map' => $this->sanitizeJoinLevelMap($data['join_level_map'] ?? []),
             // 레이아웃 설정
             'layout_type' => in_array($data['layout_type'] ?? '', $validLayouts) ? $data['layout_type'] : 'full',
             'layout_left_width' => max(0, (int)($data['layout_left_width'] ?? 250)),
@@ -507,6 +514,28 @@ class DomainSettingsService implements CompanyInfoInterface
         $event = new SearchSourceCollectEvent();
         $this->eventDispatcher?->dispatch($event);
         return $event->getSources();
+    }
+
+    /**
+     * 가입 등급 배정 매핑 정제 — 선택지 값(문자열, 200자) => 등급(양수). 등급 미지정(0)은 버린다.
+     *
+     * @return array<string, int>
+     */
+    private function sanitizeJoinLevelMap(mixed $value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($value as $option => $level) {
+            $option = mb_substr(trim((string) $option), 0, 200);
+            $level = (int) $level;
+            if ($option !== '' && $level > 0) {
+                $out[$option] = $level;
+            }
+        }
+        return $out;
     }
 
     /**

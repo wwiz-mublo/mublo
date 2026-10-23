@@ -98,6 +98,63 @@
                 </select>
                 <div class="form-text">신규 가입 회원 레벨</div>
             </div>
+            <?php
+            // 가입 유형별 등급: 가입 화면의 선택·라디오형 추가필드 선택지마다 등급을 정한다 (관리자 등급 제외)
+            $joinLevelFields = $joinLevelFields ?? [];
+            $joinLevelFieldId = (int) ($siteConfig['join_level_field_id'] ?? 0);
+            $joinLevelMap = is_array($siteConfig['join_level_map'] ?? null) ? $siteConfig['join_level_map'] : [];
+            $memberLevels = array_filter($levels ?? [], fn($l) => (int) ($l['level_value'] ?? 0) > 0
+                && empty($l['is_admin']) && empty($l['is_super']));
+            ?>
+            <div class="col-12 col-md-5" id="join-level-box">
+                <label for="join_level_field_id" class="form-label">가입 유형별 등급</label>
+                <select name="formData[site][join_level_field_id]" id="join_level_field_id" class="form-select">
+                    <option value="0">사용 안 함 (모두 기본 레벨)</option>
+                    <?php foreach ($joinLevelFields as $jf): ?>
+                    <option value="<?= (int) $jf['field_id'] ?>" <?= $joinLevelFieldId === (int) $jf['field_id'] ? 'selected' : '' ?>>
+                        추가필드: <?= htmlspecialchars($jf['label']) ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
+                <?php foreach ($joinLevelFields as $jf): $isCurrent = $joinLevelFieldId === (int) $jf['field_id']; ?>
+                <div class="join-level-map border rounded p-2 mt-2" data-field-id="<?= (int) $jf['field_id'] ?>" <?= $isCurrent ? '' : 'hidden' ?>>
+                    <?php if (empty($jf['options'])): ?>
+                    <div class="small text-muted">이 필드에 선택지가 없습니다.</div>
+                    <?php endif; ?>
+                    <?php foreach ($jf['options'] as $opt):
+                        $mapped = $isCurrent ? (int) ($joinLevelMap[$opt['value']] ?? 0) : 0;
+                    ?>
+                    <div class="d-flex align-items-center gap-2 mb-1">
+                        <span class="small flex-grow-1 text-truncate"><?= htmlspecialchars($opt['label']) ?></span>
+                        <select name="formData[site][join_level_map][<?= htmlspecialchars($opt['value']) ?>]"
+                                class="form-select form-select-sm" style="max-width:200px" <?= $isCurrent ? '' : 'disabled' ?>>
+                            <option value="0">기본 레벨</option>
+                            <?php foreach ($memberLevels as $level): $lv = (int) $level['level_value']; ?>
+                            <option value="<?= $lv ?>" <?= $mapped === $lv ? 'selected' : '' ?>>Lv<?= $lv ?> <?= htmlspecialchars($level['level_name'] ?? '') ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+                <?php endforeach; ?>
+                <div class="form-text">
+                    가입 화면에 보이는 선택·라디오형 추가필드(예: 회원 유형)의 선택지마다 등급을 정합니다.
+                    회원 관리 &gt; 추가 필드에서 필드를 먼저 만들어 주세요. 관리자 등급은 고를 수 없습니다.
+                </div>
+            </div>
+            <script>
+            (function () {
+                var sel = document.getElementById('join_level_field_id');
+                if (!sel) return;
+                sel.addEventListener('change', function () {
+                    document.querySelectorAll('#join-level-box .join-level-map').forEach(function (box) {
+                        var on = box.getAttribute('data-field-id') === sel.value;
+                        box.hidden = !on;
+                        box.querySelectorAll('select').forEach(function (s) { s.disabled = !on; });
+                    });
+                });
+            })();
+            </script>
             <div class="col-12 col-sm-6 col-md-2">
                 <label for="password_min_length" class="form-label">비밀번호 최소 글자</label>
                 <input type="number" name="formData[site][password_min_length]" id="password_min_length"
