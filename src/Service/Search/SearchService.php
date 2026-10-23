@@ -39,18 +39,12 @@ class SearchService
         }
 
         $sourceOrder    = $config['search_source_order'] ?? [];
-        // enabled_sources: null=미설정(전체 활성) / []=전체 해제 / [목록]=명시 활성
+        // enabled_sources: null 또는 []=전체 활성 / [목록]=명시 활성
+        // "전체 해제"는 두지 않는다 — 저장된 []는 의도와 구분할 수 없어 전체 활성으로 본다.
         $enabledConfig  = $config['search_enabled_sources'] ?? null;
-        $allEnabled     = ($enabledConfig === null);
         $enabledSources = (array) $enabledConfig;
+        $allEnabled     = ($enabledSources === []);
         $perSource      = max(1, (int) ($config['search_per_source'] ?? 5));
-
-        // 전체 해제([])면 dispatch 자체를 생략한다 — SearchEvent는 빈 배열을
-        // "전체 활성"으로 해석하므로, 여기서 걸러야 구독자들의 검색 쿼리가
-        // 실행됐다가 정렬 단계에서 전부 버려지는 낭비를 막는다.
-        if (!$allEnabled && $enabledSources === []) {
-            return ['keyword' => $keyword, 'groups' => []];
-        }
 
         $event = new SearchEvent($keyword, $domainId, $sourceOrder, $enabledSources, $perSource, $extras);
         $event = $this->dispatch($event);
