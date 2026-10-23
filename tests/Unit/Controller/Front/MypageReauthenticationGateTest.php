@@ -11,6 +11,7 @@ use Mublo\Core\Http\Request;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Session\SessionInterface;
+use Mublo\Entity\Domain\Domain;
 use Mublo\Service\Auth\AuthService;
 use Mublo\Service\Balance\BalanceManager;
 use Mublo\Service\Member\MemberService;
@@ -104,6 +105,18 @@ final class MypageReauthenticationGateTest extends TestCase
         $this->controller->updateProfile($this->request(['nickname' => '새닉네임']), $this->context());
     }
 
+    public function testHiddenNicknameModeIgnoresDirectProfilePost(): void
+    {
+        $this->members->expects($this->once())->method('update')
+            ->with(7, $this->callback(static fn (array $data): bool => !array_key_exists('nickname', $data)))
+            ->willReturn(Result::success('수정되었습니다.'));
+
+        $this->controller->updateProfile(
+            $this->request(['nickname' => '우회변경']),
+            $this->context('hidden')
+        );
+    }
+
     private function passwordChangeRequest(string $currentPassword): Request&MockObject
     {
         return $this->request([
@@ -126,9 +139,13 @@ final class MypageReauthenticationGateTest extends TestCase
         return $request;
     }
 
-    private function context(): Context
+    private function context(string $nicknameMode = 'required'): Context
     {
-        return $this->createStub(Context::class);
+        $context = $this->createStub(Context::class);
+        $context->method('getDomainInfo')->willReturn(
+            new Domain(1, 'example.com', siteConfig: ['nickname_mode' => $nicknameMode])
+        );
+        return $context;
     }
 
     private function payload(mixed $response): string
