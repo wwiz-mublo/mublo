@@ -80,6 +80,7 @@ class ProductController
             'category_code' => $request->get('category_code') ?? '',
             'is_active' => $request->get('is_active'),
             'option_mode' => $request->get('option_mode') ?? '',
+            'sort' => $request->get('sort') ?? '',
         ];
 
         $result = $this->productService->getList($domainId, $filters, $page, $perPage);
@@ -512,7 +513,7 @@ class ProductController
         }
 
         parse_str($return, $parsed);
-        $allowed = ['keyword', 'search_field', 'category_code', 'is_active', 'page'];
+        $allowed = ['keyword', 'search_field', 'category_code', 'is_active', 'sort', 'page'];
         $params = array_filter(
             array_intersect_key($parsed, array_flip($allowed)),
             fn($v) => $v !== '' && $v !== null

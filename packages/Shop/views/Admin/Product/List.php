@@ -31,6 +31,7 @@ $listParams = array_filter([
     'search_field' => $filters['search_field'] ?? '',
     'category_code' => $filters['category_code'] ?? '',
     'is_active' => $filters['is_active'] ?? '',
+    'sort' => $filters['sort'] ?? '',
     'page' => (($pagination['currentPage'] ?? 1) > 1) ? (string) $pagination['currentPage'] : '',
 ], fn($v) => $v !== '' && $v !== null);
 $returnQs = http_build_query($listParams);
@@ -211,6 +212,13 @@ $columns = $this->columns()
                                 <option value="">전체 상태</option>
                                 <option value="1" <?= ($filters['is_active'] ?? '') === '1' ? 'selected' : '' ?>>판매중</option>
                                 <option value="0" <?= ($filters['is_active'] ?? '') === '0' ? 'selected' : '' ?>>판매중지</option>
+                            </select>
+                        </div>
+                        <div class="col col-xl-auto">
+                            <select name="sort" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <?php foreach (['newest' => '최신순', 'price_asc' => '낮은가격순', 'price_desc' => '높은가격순', 'popular' => '조회순'] as $sortKey => $sortLabel): ?>
+                                <option value="<?= $sortKey ?>" <?= (($filters['sort'] ?? '') ?: 'newest') === $sortKey ? 'selected' : '' ?>><?= $sortLabel ?></option>
+                                <?php endforeach; ?>
                             </select>
                         </div>
                         <div class="col col-xl-auto">
