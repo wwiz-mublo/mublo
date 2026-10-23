@@ -325,6 +325,22 @@ class Domain
     }
 
     /**
+     * 회원 활동 기록 사용 여부 (기본 꺼짐 — 켜기 전에 개인정보 처리방침에 수집 항목을 알려야 한다)
+     */
+    public function isMemberActivityLogEnabled(): bool
+    {
+        return !empty($this->siteConfig['member_activity_log']);
+    }
+
+    /**
+     * 회원 활동 기록 보관 일수 (30~365, 기본 90)
+     */
+    public function getMemberActivityRetentionDays(): int
+    {
+        return max(30, min(365, (int) ($this->siteConfig['member_activity_days'] ?? 90)));
+    }
+
+    /**
      * 활성화된 플러그인 목록
      */
     public function getEnabledPlugins(): array

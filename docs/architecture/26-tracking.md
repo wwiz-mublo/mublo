@@ -49,11 +49,11 @@ VisitorCollector.track()
 
 ### 코어 표면: PageViewedEvent
 
-`src/Core/Rendering/FrontViewRenderer.php`가 프론트 페이지 조립을 마친 뒤(Foot 출력 직후) 발행한다. payload는 `domainId`, `url`, `pageType`, `memberId`(비로그인 null), `ipAddress`, `userAgent`, `referer`다 (`src/Core/Event/Tracking/PageViewedEvent.php`).
+`src/Core/Rendering/FrontViewRenderer.php`가 프론트 페이지 조립을 마친 뒤(Foot 출력 직후) 발행한다. payload는 `domainId`, `url`, `pageType`, `memberId`(비로그인 null), `ipAddress`, `userAgent`, `referer`, `pageTitle`이다 (`src/Core/Event/Tracking/PageViewedEvent.php`).
 
 `pageType`은 `FrontViewRenderer::resolvePageType()`이 판별한다 — 블록페이지면 `page`, view path 접두사로 `index`/`auth`/`member`/`search`를 판별하고, 못 하면 `PageTypeResolveEvent`(`src/Core/Event/Rendering/PageTypeResolveEvent.php`)를 발행해 Package/Plugin에 위임한다. 응답이 없으면 `other`다.
 
-**주의 — 실제 수집 경로는 이 이벤트가 아니다.** 현재 번들 VisitorStats는 `PageViewedEvent`가 아니라, 라우팅 직전에 `src/Core/App/Application.php`가 발행하는 `SiteContextReadyEvent`를 구독해 수집한다(`plugins/VisitorStats/Subscriber/VisitorTrackingSubscriber.php`). `PageViewedEvent`는 페이지 타입·회원 ID가 확정된 렌더링 완료 시점의 확장 포인트로 열려 있으며, 현재 저장소 안에 구독자는 없다. 서드파티 추적 플러그인이 붙기 좋은 지점이라는 위치는 유효하다 ([이벤트 시스템](../dev-guide/event-system.md) §2.3).
+**주의 — 실제 수집 경로는 이 이벤트가 아니다.** 현재 번들 VisitorStats는 `PageViewedEvent`가 아니라, 라우팅 직전에 `src/Core/App/Application.php`가 발행하는 `SiteContextReadyEvent`를 구독해 수집한다(`plugins/VisitorStats/Subscriber/VisitorTrackingSubscriber.php`). `PageViewedEvent`는 페이지 타입·회원 ID가 확정된 렌더링 완료 시점의 확장 포인트다. 저장소 안의 구독자는 코어 `MemberActivitySubscriber`(`src/Subscriber/`) 하나로, 사이트 설정 '회원 활동 기록'(기본 꺼짐)을 켠 경우에만 로그인 회원의 페이지 조회를 `member_activity_logs`에 남기고 관리자 회원 수정 화면에 "최근 활동"으로 보여 준다. 서드파티 추적 플러그인이 붙기 좋은 지점이라는 위치는 유효하다 ([이벤트 시스템](../dev-guide/event-system.md) §2.3).
 
 ### VisitorStats의 수집 필터
 

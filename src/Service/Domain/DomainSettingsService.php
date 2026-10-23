@@ -36,6 +36,7 @@ class DomainSettingsService implements CompanyInfoInterface
         'layout_type', 'layout_left_width', 'layout_right_width',
         'sidebar_left_mobile', 'sidebar_right_mobile',
         'layout_max_width', 'content_max_width', 'use_main_layout',
+        'member_activity_log', 'member_activity_days',
         'primary_color',
         'search_source_order', 'search_enabled_sources', 'search_per_source',
         'join_type', 'default_level_value', 'nickname_mode',
@@ -157,6 +158,9 @@ class DomainSettingsService implements CompanyInfoInterface
             'layout_max_width' => 1200,
             'content_max_width' => 0,
             'use_main_layout' => false,
+            // 회원 활동 기록 (기본 꺼짐)
+            'member_activity_log'  => false,
+            'member_activity_days' => 90,
             // 전체 검색 설정. enabled_sources: null=미설정(전체 활성) / []=전체 해제 / [목록]=명시
             'search_source_order'    => [],
             'search_enabled_sources' => null,
@@ -464,6 +468,9 @@ class DomainSettingsService implements CompanyInfoInterface
             'password_require_number'  => !empty($data['password_require_number']),
             'password_require_special' => !empty($data['password_require_special']),
             'password_require_lower'   => !empty($data['password_require_lower']),
+            // 회원 활동 기록 (보관 30~365일)
+            'member_activity_log'  => !empty($data['member_activity_log']),
+            'member_activity_days' => max(30, min(365, (int)($data['member_activity_days'] ?? 90))),
         ];
     }
 
