@@ -73,6 +73,15 @@
                 return;
             }
 
+            // 서버와 같은 양 끝 날짜 포함 366일 제한. UTC 날짜 연산으로 DST 영향을 피한다.
+            var earliestDate = new Date(endInput.value + 'T00:00:00Z');
+            earliestDate.setUTCDate(earliestDate.getUTCDate() - 365);
+            var earliest = earliestDate.toISOString().slice(0, 10);
+            if (startInput.value < earliest) {
+                startInput.value = earliest;
+                warn('조회 기간은 최대 366일입니다. 시작일을 ' + earliest + '로 조정했습니다.');
+            }
+
             option.value = 'custom:' + startInput.value + ':' + endInput.value;
             select.value = option.value;
             select.dispatchEvent(new Event('change'));
