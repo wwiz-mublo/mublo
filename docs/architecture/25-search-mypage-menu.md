@@ -38,7 +38,7 @@
 
 `GET /search?q=키워드`(`src/Core/App/Router.php`)는 `src/Controller/Front/SearchController.php`의 `index()`로 들어온다. 컨트롤러는 `DomainSettingsService::getSiteConfig()`로 도메인 설정을 읽고 `src/Service/Search/SearchService.php`의 `search()`를 호출한다. `SearchService`가 하는 일이 곧 액자의 전부다.
 
-1. `SearchEvent`를 생성해 발행한다. 이벤트에는 키워드·도메인 ID와 함께 site_config의 세 키가 실린다 — `search_source_order`(소스 표시 순서), `search_enabled_sources`(활성 소스: `null`=미설정 전체 활성 / `[]`=전체 해제 / 목록=명시 활성), `search_per_source`(소스별 최대 결과 수, 기본 5).
+1. `SearchEvent`를 생성해 발행한다. 이벤트에는 키워드·도메인 ID와 함께 site_config의 세 키가 실린다 — `search_source_order`(소스 표시 순서), `search_enabled_sources`(활성 소스: `null` 또는 `[]`=전체 활성 / 비어 있지 않은 목록=명시 활성), `search_per_source`(소스별 최대 결과 수, 기본 5).
 2. 각 구독자(Package)가 `addResults()`로 자기 소스의 결과를 추가한다.
 3. `SearchService`가 `search_source_order` 순서로 결과 그룹을 정렬하고, 비활성 소스를 제외한다. 순서 목록에 없는 소스의 결과는 뒤에 붙인다.
 
@@ -53,7 +53,7 @@
 - `$options['view_path']`: 소스 전용 렌더 파일 절대 경로. 지정하면 기본 목록 템플릿 대신 이 파일로 항목을 렌더한다(`views/Front/Search/basic/Index.php`가 분기).
 - `$options['more_url']`: "더보기" 링크 URL.
 
-구독자는 결과 추가 전에 `isSourceEnabled($source)`로 자기 소스의 활성 여부를 확인한다. 이 메서드는 빈 배열을 전체 활성으로 해석하지만, 설정값의 `[]`는 전체 해제를 뜻한다. 그래서 `SearchService::search()`는 설정이 명시적인 빈 배열이면 `SearchEvent`를 발행하지 않고 즉시 빈 결과를 반환한다. 미설정 `null`만 전체 활성으로 처리한다.
+구독자는 결과 추가 전에 `isSourceEnabled($source)`로 자기 소스의 활성 여부를 확인한다. 이 메서드와 `SearchService::search()`는 빈 배열을 전체 활성으로 해석한다. 설정값이 `null`이거나 `[]`여도 검색어가 있으면 `SearchEvent`를 발행하므로, 기존 버그로 빈 목록이 저장된 사이트도 전체 검색이 복구된다. 설정 저장 시 빈 목록은 `null`로 정규화하며, 관리자 화면에서는 마지막 활성 소스를 해제할 수 없다.
 
 ### 검색 소스 등록 — SearchSourceCollectEvent
 
