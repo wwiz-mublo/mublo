@@ -740,8 +740,13 @@ class ServiceProvider
         // ------------------------------------
         // Report
         // ------------------------------------
-        $container->singleton(ReportDefinitionRegistry::class, function () {
-            return new ReportDefinitionRegistry();
+        $container->singleton(ReportDefinitionRegistry::class, function (DependencyContainer $c) {
+            $registry = new ReportDefinitionRegistry();
+
+            // 코어 리포트: 관리자 회원 목록 (회원 서비스는 내보낼 때 꺼낸다)
+            $registry->register(new \Mublo\Service\Member\Report\MemberListReportDefinition($c));
+
+            return $registry;
         });
 
         $container->singleton(AdminPermissionGate::class, function (DependencyContainer $c) {
