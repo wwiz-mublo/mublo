@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Core\Report\Engine;
 
 use Mublo\Core\Report\Audit\ReportAuditLogger;
+use Mublo\Core\Report\Contract\MenuScopedReportInterface;
 use Mublo\Core\Report\Contract\PermissionGateInterface;
 use Mublo\Core\Report\Document\ColumnDefinition;
 use Mublo\Core\Report\Document\Section\TableSection;
@@ -47,6 +48,7 @@ class ReportManager
         int $domainId,
         string $menuCode
     ): Result {
+        $menuCode = $this->resolveMenuCode($reportName, $menuCode);
         try {
             $this->permissionGate->assertDownloadAllowed($domainId, $menuCode);
         } catch (ReportPermissionDeniedException $e) {
@@ -101,6 +103,7 @@ class ReportManager
         int $domainId,
         string $menuCode
     ): Result {
+        $menuCode = $this->resolveMenuCode($reportName, $menuCode);
         try {
             $this->permissionGate->assertDownloadAllowed($domainId, $menuCode);
         } catch (ReportPermissionDeniedException $e) {
@@ -183,6 +186,7 @@ class ReportManager
         int $domainId,
         string $menuCode
     ): Result {
+        $menuCode = $this->resolveMenuCode($reportName, $menuCode);
         try {
             $this->permissionGate->assertDownloadAllowed($domainId, $menuCode);
         } catch (ReportPermissionDeniedException $e) {
@@ -301,6 +305,20 @@ class ReportManager
             'file_path' => $resolved['file_path'],
             'filename' => $resolved['filename'],
         ]);
+    }
+
+    /**
+     * 권한 판정에 쓸 메뉴 코드 — 리포트가 메뉴를 정했으면 요청 값 대신 그것을 쓴다.
+     */
+    private function resolveMenuCode(string $reportName, string $requested): string
+    {
+        if (!$this->definitions->has($reportName)) {
+            return $requested;
+        }
+
+        $definition = $this->definitions->get($reportName);
+
+        return $definition instanceof MenuScopedReportInterface ? $definition->menuCode() : $requested;
     }
 
     private function firstTableSection($document): TableSection
