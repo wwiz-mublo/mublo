@@ -177,6 +177,11 @@ $columns = $columnBuilder
             <p>사이트 회원을 관리합니다.</p>
         </div>
         <div class="page-title-actions">
+            <button type="button" class="btn btn-sm btn-default"
+                    onclick="MubloReportDownload.fromCurrentQuery('members', { button: this, filename: 'members.xlsx' })"
+                    title="지금 검색 조건의 회원 전체를 내려받습니다">
+                <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+            </button>
             <a href="/admin/member/create" class="btn btn-sm btn-primary">
                 <i class="bi bi-person-plus"></i> 회원 등록
             </a>
@@ -301,6 +306,7 @@ $columns = $columnBuilder
     </div>
 </div>
 
+<script src="<?= asset('/assets/js/admin/report-download.js') ?>"></script>
 <script>
 // 전체 선택
 document.addEventListener('DOMContentLoaded', function() {

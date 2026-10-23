@@ -113,7 +113,8 @@ class CouponController
             return JsonResponse::error('쿠폰 정보가 올바르지 않습니다.');
         }
 
-        $result = $this->couponService->issueCoupon($couponGroupId, $member->memberId);
+        $domainId = $context->getDomainId() ?? 1;
+        $result = $this->couponService->downloadCoupon($couponGroupId, $member->memberId, $domainId);
 
         if ($result->isSuccess()) {
             return JsonResponse::success($result->getData(), $result->getMessage());
@@ -172,7 +173,8 @@ class CouponController
             return JsonResponse::error('프로모션 코드를 입력해주세요.');
         }
 
-        $result = $this->couponService->registerByPromotionCode($code, $member->memberId);
+        $domainId = $context->getDomainId() ?? 1;
+        $result = $this->couponService->registerByPromotionCode($code, $member->memberId, $domainId);
 
         if ($result->isSuccess()) {
             return JsonResponse::success($result->getData(), $result->getMessage());

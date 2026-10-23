@@ -172,6 +172,11 @@ $columns = $this->columns()
             <p>쇼핑몰 상품을 관리합니다.</p>
         </div>
         <div class="page-title-actions">
+            <button type="button" class="btn btn-sm btn-default"
+                    onclick="MubloReportDownload.fromCurrentQuery('shop_products', { button: this, filename: 'products.xlsx' })"
+                    title="지금 검색 조건의 상품 전체를 내려받습니다">
+                <i class="bi bi-file-earmark-excel"></i> 엑셀 다운로드
+            </button>
             <a href="/admin/shop/products/create<?= $returnSuffix ?>" class="btn btn-sm btn-primary">
                 <i class="bi bi-plus-lg"></i> 상품 등록
             </a>
@@ -267,6 +272,7 @@ $columns = $this->columns()
     </div>
 </div>
 
+<script src="<?= asset('/assets/js/admin/report-download.js') ?>"></script>
 <script>
 // 전체 선택
 document.addEventListener('DOMContentLoaded', function() {

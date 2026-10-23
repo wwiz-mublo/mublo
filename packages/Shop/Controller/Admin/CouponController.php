@@ -226,7 +226,8 @@ class CouponController
             return JsonResponse::error('회원을 선택해주세요.');
         }
 
-        $result = $this->couponService->issueCoupon($couponGroupId, $memberId);
+        $domainId = $context->getDomainId() ?? 1;
+        $result = $this->couponService->issueByAdmin($couponGroupId, $memberId, $domainId);
 
         if ($result->isSuccess()) {
             return JsonResponse::success($result->getData(), $result->getMessage());
