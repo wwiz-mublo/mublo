@@ -9,6 +9,8 @@ use Mublo\Plugin\Popup\Repository\PopupConfigRepository;
 
 class PopupService
 {
+    private const INVALID_LINK_MESSAGE = '링크 URL은 http(s)·mailto·tel 주소나 / 로 시작하는 경로만 쓸 수 있습니다.';
+
     public function __construct(
         private PopupRepository $repository,
         private PopupConfigRepository $configRepository
@@ -65,7 +67,13 @@ class PopupService
             return Result::failure('제목은 필수 항목입니다.');
         }
 
+        $link = $this->normalizeLinkUrl($data['link_url'] ?? null);
+        if ($link === false) {
+            return Result::failure(self::INVALID_LINK_MESSAGE);
+        }
+
         $data['title'] = $title;
+        $data['link_url'] = $link;
         $popupId = $this->repository->create($domainId, $data);
 
         if ($popupId <= 0) {
@@ -87,7 +95,13 @@ class PopupService
             return Result::failure('제목은 필수 항목입니다.');
         }
 
+        $link = $this->normalizeLinkUrl($data['link_url'] ?? null);
+        if ($link === false) {
+            return Result::failure(self::INVALID_LINK_MESSAGE);
+        }
+
         $data['title'] = $title;
+        $data['link_url'] = $link;
         $updated = $this->repository->update($domainId, $popupId, $data);
 
         return $updated
@@ -128,5 +142,31 @@ class PopupService
     public function getActivePopups(int $domainId): array
     {
         return $this->repository->findActiveForPage($domainId);
+    }
+
+    /**
+     * 팝업 전체 링크 정제
+     *
+     * 상대 경로(/, ./, ../, #)와 http·https·mailto·tel 만 허용한다.
+     * 스킴 없는 주소(example.com)는 브라우저가 상대 경로로 읽으므로 https:// 를 붙인다.
+     *
+     * @return string|null|false 빈 값이면 null, 허용하지 않는 스킴(javascript: 등)이면 false
+     */
+    public function normalizeLinkUrl(mixed $url): string|null|false
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return null;
+        }
+
+        if (preg_match('#^[/\#]#', $url) || preg_match('#^\.{1,2}/#', $url)) {
+            return $url;
+        }
+
+        if (preg_match('#^([a-z][a-z0-9+.\-]*):#i', $url, $matches)) {
+            return in_array(strtolower($matches[1]), ['http', 'https', 'mailto', 'tel'], true) ? $url : false;
+        }
+
+        return 'https://' . $url;
     }
 }

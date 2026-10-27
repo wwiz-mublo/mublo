@@ -48,6 +48,20 @@
         return div.innerHTML;
     }
 
+    // 허용 스킴만 통과 (javascript:, data: 등 차단) — 서버 저장 전 정제와 같은 규칙
+    function safeLinkUrl(url) {
+        if (!url) return null;
+        var trimmed = String(url).trim();
+        if (trimmed === '') return null;
+
+        // 상대 경로(/, ./, ../, #)는 허용
+        if (/^[/#]/.test(trimmed) || /^\.{1,2}\//.test(trimmed)) return trimmed;
+
+        var scheme = trimmed.match(/^([a-z][a-z0-9+.-]*):/i);
+        if (!scheme) return 'https://' + trimmed; // example.com 형태 — 그대로 두면 상대 경로가 된다
+        return /^(https?|mailto|tel)$/i.test(scheme[1]) ? trimmed : null;
+    }
+
     function renderPopup(popup) {
         var cookieName = 'mublo_popup_hide_' + popup.popup_id;
         if (getCookie(cookieName)) return;
@@ -95,6 +109,23 @@
             setCookie(cookieName, '1', duration);
             overlay.remove();
         });
+
+        // 팝업 전체 링크 (콘텐츠 영역 한정 — 닫기/보지 않기 버튼은 제외)
+        var linkUrl = safeLinkUrl(popup.link_url);
+        if (linkUrl) {
+            var content = overlay.querySelector('.mublo-popup__content');
+            content.classList.add('mublo-popup__content--linked');
+            content.addEventListener('click', function (e) {
+                // 본문에 개별 링크를 건 경우 그쪽을 우선
+                if (e.target.closest('a')) return;
+
+                if (popup.link_target === '_blank') {
+                    window.open(linkUrl, '_blank', 'noopener,noreferrer');
+                } else {
+                    window.location.href = linkUrl;
+                }
+            });
+        }
 
         document.body.appendChild(overlay);
     }
