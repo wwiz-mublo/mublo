@@ -351,11 +351,17 @@ class PolicyService implements PolicyQueryInterface
         $documentChanged = $newTitle !== $policy->getPolicyTitle()
             || $newContent !== $policy->getPolicyContent();
         if ($documentChanged && $newVersion === $policy->getPolicyVersion()) {
-            return Result::failure('정책 제목이나 내용을 변경할 때는 버전을 올려주세요.');
+            return Result::failure(
+                "정책 제목이나 내용을 바꾸려면 버전을 올려주세요. (현재 버전 {$policy->getPolicyVersion()})",
+                ['field' => 'version']
+            );
         }
         if ($newVersion !== $policy->getPolicyVersion()
             && !version_compare($newVersion, $policy->getPolicyVersion(), '>')) {
-            return Result::failure('정책 버전은 현재 버전보다 높아야 합니다.');
+            return Result::failure(
+                "정책 버전은 현재 버전({$policy->getPolicyVersion()})보다 높아야 합니다.",
+                ['field' => 'version']
+            );
         }
 
         // 데이터 정규화
@@ -544,7 +550,7 @@ class PolicyService implements PolicyQueryInterface
 
         // 버전 형식 검증 (간단한 형식)
         if (!empty($data['version']) && !preg_match('/^[\d\.]+$/', $data['version'])) {
-            return Result::failure('버전은 숫자와 점(.)만 사용 가능합니다.');
+            return Result::failure('버전은 숫자와 점(.)만 사용 가능합니다.', ['field' => 'version']);
         }
 
         return Result::success();
