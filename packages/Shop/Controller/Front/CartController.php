@@ -21,6 +21,7 @@ use Mublo\Packages\Shop\Service\OrderFieldService;
 use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Packages\Shop\Enum\PaymentMethod;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Contract\Tracking\TrackingKeys;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Infrastructure\Storage\UploadedFile;
@@ -74,6 +75,21 @@ class CartController
         $this->orderPointService = $orderPointService;
         $this->couponService = $couponService;
         $this->policyService = $policyService;
+    }
+
+    /**
+     * 가격 공개 대상이 아니면 그 안내 문구, 공개 대상이면 null
+     *
+     * 가격을 볼 수 없는 방문자는 담기·금액 계산·주문을 할 수 없다 —
+     * 장바구니와 주문서가 금액을 그대로 보여주기 때문이다. (쇼핑몰 설정 price_display)
+     */
+    private function priceBlockedText(int $domainId): ?string
+    {
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+
+        return PriceVisibility::allows($shopConfig, $this->authService->currentUser()?->levelValue)
+            ? null
+            : PriceVisibility::hiddenText($shopConfig);
     }
 
     /**
@@ -149,6 +165,19 @@ class CartController
     public function index(array $params, Context $context): ViewResponse
     {
         $domainId = $context->getDomainId() ?? 1;
+
+        // 가격 공개 대상이 아니면 담긴 상품·금액 대신 안내만 보여준다
+        $blocked = $this->priceBlockedText($domainId);
+        if ($blocked !== null) {
+            return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Cart/List'))
+                ->withData([
+                    'groups'          => [],
+                    'totals'          => ['itemTotal' => 0, 'shippingTotal' => 0, 'pointTotal' => 0, 'grandTotal' => 0],
+                    'productData'     => [],
+                    'priceHiddenText' => $blocked,
+                ]);
+        }
+
         $cartSessionId = $this->getCartSession($context);
         $memberId = $this->authService->id() ?? 0;
 
@@ -175,6 +204,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $cartSessionId = $this->getCartSession($context);
         $memberId = $this->authService->id() ?? 0;
 
@@ -215,6 +247,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $cartSessionId = $this->getCartSession($context);
         $memberId = $this->authService->id() ?? 0;
 
@@ -250,6 +285,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $cartSessionId = $this->getCartSession($context);
         $memberId = $this->authService->id() ?? 0;
         $cartItemId = (int) ($request->json('cart_item_id') ?? 0);
@@ -307,6 +345,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $cartSessionId = $this->getCartSession($context);
         $memberId = $this->authService->id() ?? 0;
         $cartItemId = (int) ($request->json('cart_item_id') ?? 0);
@@ -333,6 +374,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $cartSessionId = $this->getCartSession($context);
         $memberId = $this->authService->id() ?? 0;
         $cartItemIds = $request->json('cart_item_ids') ?? [];
@@ -352,6 +396,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $shippingZip = trim($request->json('shipping_zip') ?? '');
         $checkoutMode = trim($request->json('checkout_mode') ?? '');
 
@@ -400,6 +447,9 @@ class CartController
     {
         $request = $context->getRequest();
         $domainId = $context->getDomainId() ?? 1;
+        if (($blocked = $this->priceBlockedText($domainId)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $cartSessionId = $this->getCartSession($context);
         $cartItemIds = $request->json('cart_item_ids') ?? [];
         $memberId = $this->authService->id() ?? 0;
@@ -435,6 +485,9 @@ class CartController
     public function checkout(array $params, Context $context): ViewResponse|RedirectResponse
     {
         $request = $context->getRequest();
+        if ($this->priceBlockedText($context->getDomainId() ?? 1) !== null) {
+            return RedirectResponse::to('/shop/cart');
+        }
         $user = $this->authService->currentUser();
         $isGuest = $request->query('guest') === '1';
 
@@ -589,6 +642,9 @@ class CartController
     public function payment(array $params, Context $context): JsonResponse
     {
         $request = $context->getRequest();
+        if (($blocked = $this->priceBlockedText($context->getDomainId() ?? 1)) !== null) {
+            return JsonResponse::error($blocked);
+        }
         $user = $this->authService->currentUser();
         $isGuest = (bool) $request->json('is_guest');
 

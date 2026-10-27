@@ -8,6 +8,7 @@ use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Packages\Shop\Service\WishlistService;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 
@@ -71,10 +72,17 @@ class WishlistController
         $pagination = $data['pagination'];
         $pagination['pageNums'] = 10;
 
+        // 가격 공개 대상이 아니면 진열가 대신 문구를 보여준다 (빈값 = 가격 공개)
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+        $priceHiddenText = PriceVisibility::allows($shopConfig, $this->authService->currentUser()?->levelValue)
+            ? ''
+            : PriceVisibility::hiddenText($shopConfig);
+
         return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Wishlist/Index'))
             ->withData([
                 'items' => $data['items'],
                 'pagination' => $pagination,
+                'priceHiddenText' => $priceHiddenText,
             ]);
     }
 }

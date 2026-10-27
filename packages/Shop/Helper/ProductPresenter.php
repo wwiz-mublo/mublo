@@ -45,11 +45,19 @@ class ProductPresenter
     /** 보고 있는 회원의 등급 ID — 등급별 할인·적립을 표시가에 반영한다 (비회원이면 null) */
     private ?int $levelId;
 
-    public function __construct(array $shopConfig = [], ?PriceCalculator $priceCalculator = null, ?int $levelId = null)
-    {
+    /** 보고 있는 방문자가 가격을 볼 수 있는지 (PriceVisibility::allows 결과) */
+    private bool $priceVisible;
+
+    public function __construct(
+        array $shopConfig = [],
+        ?PriceCalculator $priceCalculator = null,
+        ?int $levelId = null,
+        bool $priceVisible = true
+    ) {
         $this->shopConfig = $shopConfig;
         $this->priceCalculator = $priceCalculator ?? new PriceCalculator();
         $this->levelId = $levelId;
+        $this->priceVisible = $priceVisible;
     }
 
     /* =========================================================
@@ -147,6 +155,12 @@ class ProductPresenter
             is_array($item['combos'] ?? null) ? $item['combos'] : []
         );
 
+        // 가격 비공개면 옵션 추가금액도 내보내지 않는다 (구매도 막히므로 옵션 선택이 필요 없다)
+        if (!$this->priceVisible) {
+            $transformed['options'] = [];
+            $transformed['combos'] = [];
+        }
+
         // 구매후기 적립금 표시
         $rewardReview = (int) ($item['reward_review'] ?? 0);
         $transformed['reward_review'] = $rewardReview;
@@ -185,6 +199,8 @@ class ProductPresenter
      *   point_amount             적립금
      *   point_amount_formatted   적립금 포맷
      *   has_reward               적립금 있는지 여부
+     *   price_hidden             가격 비공개 여부 — true 면 위 가격 필드는 비어 있다
+     *   price_hidden_text        가격 대신 보여줄 문구 (쇼핑몰 설정)
      *
      * [재고/상태]
      *   is_soldout           품절 여부
@@ -238,7 +254,9 @@ class ProductPresenter
             : "/shop/products/{$goodsId}";
 
         // === 가격 ===
-        $item = array_merge($item, $this->buildPriceFields($item));
+        $item = array_merge($item, $this->priceVisible ? $this->buildPriceFields($item) : $this->hiddenPriceFields());
+        $item['price_hidden'] = !$this->priceVisible;
+        $item['price_hidden_text'] = $this->priceVisible ? '' : PriceVisibility::hiddenText($this->shopConfig);
 
         // === 날짜 (7포맷) ===
         $createdAt = $item['created_at'] ?? '';
@@ -346,6 +364,33 @@ class ProductPresenter
             'point_amount' => $rewardResult['point_amount'],
             'point_amount_formatted' => number_format($rewardResult['point_amount']),
             'has_reward' => $rewardResult['point_amount'] > 0,
+        ];
+    }
+
+    /**
+     * 가격 비공개용 필드 — 원본 금액까지 지워 마크업·JSON 어디로도 새지 않게 한다.
+     * sales_price 가 null 이면 구조화 데이터(ProductSeoPresenter)도 offers 를 넣지 않는다.
+     */
+    private function hiddenPriceFields(): array
+    {
+        return [
+            'origin_price' => null,
+            'display_price' => null,
+            'discount_type' => null,
+            'discount_value' => null,
+            'reward_type' => null,
+            'reward_value' => null,
+            'origin_price_formatted' => '',
+            'display_price_formatted' => '',
+            'sales_price' => null,
+            'sales_price_formatted' => '',
+            'discount_amount' => 0,
+            'discount_amount_formatted' => '',
+            'discount_percent' => 0,
+            'has_discount' => false,
+            'point_amount' => 0,
+            'point_amount_formatted' => '',
+            'has_reward' => false,
         ];
     }
 

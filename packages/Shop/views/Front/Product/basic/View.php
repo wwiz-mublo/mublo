@@ -124,8 +124,12 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                 </div>
             <?php endif; ?>
 
+            <?php $priceHidden = !empty($product['price_hidden']); ?>
             <!-- 가격 -->
             <div class="shop-product-view__price-area">
+                <?php if ($priceHidden): ?>
+                <p class="shop-product-view__price-hidden"><?= htmlspecialchars($product['price_hidden_text']) ?></p>
+                <?php else: ?>
                 <div class="shop-product-view__price-row">
                     <div class="shop-product-view__price-final">
                         <span class="shop-product-view__price-value" id="spv-base-price"><?= $product['sales_price_formatted'] ?></span>
@@ -143,6 +147,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                         <span class="shop-product-view__reward-icon">P</span>
                         <?= $product['point_amount_formatted'] ?>원 적립
                     </p>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
 
@@ -170,7 +175,8 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                 <?php endif; ?>
             </dl>
 
-            <!-- 옵션 영역 (ShopProductOption.js가 렌더링) -->
+            <?php if (!$priceHidden): ?>
+            <!-- 옵션 영역 (ShopProductOption.js가 렌더링) — 가격 비공개면 옵션·합계·구매 버튼을 내지 않는다 -->
             <div id="spv-option-area" class="shop-product-view__options"></div>
 
             <!-- 총 금액 -->
@@ -182,10 +188,13 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                     <strong id="spv-total-price"><?= $hasOptions ? '0' : $product['sales_price_formatted'] ?></strong>원
                 </span>
             </div>
+            <?php endif; ?>
 
             <!-- 구매 버튼 -->
             <div class="shop-product-view__actions">
-                <?php if ($product['is_soldout']): ?>
+                <?php if ($priceHidden): ?>
+                    <?php // 가격 비공개 — 찜만 남긴다 ?>
+                <?php elseif ($product['is_soldout']): ?>
                     <button class="shop-product-view__btn shop-product-view__btn--soldout" disabled>품절</button>
                 <?php else: ?>
                     <button type="button"

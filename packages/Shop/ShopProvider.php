@@ -837,7 +837,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductFeedQuery::class),
                 $c->get(TsvWriter::class),
                 $c->get(RssWriter::class),
-                $c->get(PriceCompareChannelRepository::class)
+                $c->get(PriceCompareChannelRepository::class),
+                $c->get(ShopConfigService::class)
             )
         );
         $container->singleton(PriceCompareController::class, fn(DependencyContainer $c) =>

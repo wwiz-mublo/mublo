@@ -8,6 +8,7 @@ use Mublo\Core\Block\Renderer\SkinRendererTrait;
 use Mublo\Contract\Block\BlockColumnView;
 use Mublo\Packages\Shop\Entity\Product;
 use Mublo\Packages\Shop\Helper\ProductPresenter;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Packages\Shop\Repository\CategoryRepository;
 use Mublo\Packages\Shop\Repository\ProductRepository;
 use Mublo\Contract\Auth\AuthContextInterface;
@@ -161,7 +162,12 @@ class ProductAutoRenderer implements RendererInterface
 
         // ProductPresenter 적용 (가격/뱃지/URL 등 가공)
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
+        $presenter = new ProductPresenter(
+            $shopConfig,
+            null,
+            $this->viewerLevelId(),
+            PriceVisibility::allows($shopConfig, $this->authService?->currentUser()?->levelValue)
+        );
 
         return $presenter->toList($items, $mainImages);
     }

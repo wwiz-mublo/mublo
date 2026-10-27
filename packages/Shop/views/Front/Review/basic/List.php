@@ -103,7 +103,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Review/basic/_assets/css/
             <span class="shop-review-item__product-info">
                 <span class="shop-review-item__product-name"><?= e($goodsName) ?></span>
                 <?php $displayPrice = (int) ($item['display_price'] ?? 0); ?>
-                <?php if ($displayPrice > 0): ?>
+                <?php if ($displayPrice > 0 && ($showPrice ?? true)): ?>
                 <span class="shop-review-item__product-price"><?= number_format($displayPrice) ?>원</span>
                 <?php endif; ?>
             </span>

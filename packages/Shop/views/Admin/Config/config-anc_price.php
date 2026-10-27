@@ -1,6 +1,6 @@
 <?php
 /**
- * 쇼핑몰 설정 - 할인 / 적립
+ * 쇼핑몰 설정 - 가격 노출 / 할인 / 적립
  *
  * @var array $config 쇼핑몰 설정
  * @var \Mublo\Contract\Member\MemberLevelDescriptor[] $memberLevels 회원 레벨 목록
@@ -8,8 +8,15 @@
 
 use Mublo\Packages\Shop\Enum\DiscountType;
 use Mublo\Packages\Shop\Enum\RewardType;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 
 $memberLevels = $memberLevels ?? [];
+
+// 가격 노출 — 등급은 등급값(levelValue) 순으로 보여준다
+$currentPriceDisplay = $config['price_display'] ?? PriceVisibility::ALL;
+$currentPriceLevel = (int) ($config['price_display_level'] ?? 0);
+$priceLevels = $memberLevels;
+usort($priceLevels, static fn($a, $b) => $a->levelValue <=> $b->levelValue);
 
 // 레벨별 할인 설정 파싱
 $discountLevelSettings = [];
@@ -28,6 +35,46 @@ if (!empty($config['reward_level_settings'])) {
 $currentDiscountType = $config['discount_type'] ?? 'NONE';
 $currentRewardType = $config['reward_type'] ?? 'NONE';
 ?>
+
+<!-- 가격 노출 -->
+<div class="card mb-4">
+    <div class="card-hero">
+        <i class="bi bi-eye text-pastel-purple"></i>
+        <span>가격 노출</span>
+    </div>
+    <div class="card-body">
+        <div class="row gy-3 gy-md-0 mb-3">
+            <div class="col-12 col-sm-6 col-md-4">
+                <label for="price_display" class="form-label">가격 공개 대상</label>
+                <select name="formData[price_display]" id="price_display" class="form-select">
+                    <?php foreach (PriceVisibility::options() as $value => $label): ?>
+                    <option value="<?= $value ?>" <?= $currentPriceDisplay === $value ? 'selected' : '' ?>><?= $label ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">공개 대상이 아니면 가격 대신 아래 문구가 보이고, 장바구니·구매도 막힙니다.</div>
+            </div>
+            <div class="col-12 col-sm-6 col-md-4" id="priceDisplayLevelWrap" style="display:<?= $currentPriceDisplay === PriceVisibility::LEVEL ? '' : 'none' ?>;">
+                <label for="price_display_level" class="form-label">공개 최소 등급</label>
+                <select name="formData[price_display_level]" id="price_display_level" class="form-select">
+                    <?php foreach ($priceLevels as $level): ?>
+                    <option value="<?= (int) $level->levelValue ?>" <?= $currentPriceLevel === (int) $level->levelValue ? 'selected' : '' ?>><?= htmlspecialchars($level->name) ?> (<?= (int) $level->levelValue ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">이 등급 이상 회원에게만 가격을 보여줍니다.</div>
+            </div>
+            <div class="col-12 col-md-4">
+                <label for="price_hidden_text" class="form-label">가격 대신 표시할 문구</label>
+                <input type="text" name="formData[price_hidden_text]" id="price_hidden_text" class="form-control"
+                       value="<?= htmlspecialchars((string) ($config['price_hidden_text'] ?? '')) ?>" maxlength="100"
+                       placeholder="<?= htmlspecialchars(PriceVisibility::DEFAULT_HIDDEN_TEXT) ?>">
+                <div class="form-text">비워 두면 "<?= htmlspecialchars(PriceVisibility::DEFAULT_HIDDEN_TEXT) ?>"</div>
+            </div>
+        </div>
+        <div class="small text-muted">
+            관리자 화면과 이미 결제한 주문 내역에는 적용되지 않습니다. 비회원에게 가격을 감추면 가격비교 사이트 피드도 내주지 않습니다.
+        </div>
+    </div>
+</div>
 
 <!-- 기본 할인 -->
 <div class="card mb-4">

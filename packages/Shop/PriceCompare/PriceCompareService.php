@@ -8,7 +8,9 @@ use Mublo\Packages\Shop\Contract\PriceCompare\PriceCompareChannelInterface;
 use Mublo\Core\Result\Result;
 use Mublo\Packages\Shop\PriceCompare\Writer\RssWriter;
 use Mublo\Packages\Shop\PriceCompare\Writer\TsvWriter;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Packages\Shop\Repository\PriceCompareChannelRepository;
+use Mublo\Packages\Shop\Service\ShopConfigService;
 
 /**
  * 가격비교 피드 조립
@@ -44,7 +46,25 @@ final class PriceCompareService
         private readonly TsvWriter $tsvWriter,
         private readonly RssWriter $rssWriter,
         private readonly PriceCompareChannelRepository $channelRepository,
+        private readonly ?ShopConfigService $shopConfigService = null,
     ) {
+    }
+
+    /**
+     * 쇼핑몰 설정이 비회원에게 가격을 감추는가 (price_display).
+     *
+     * 피드는 로그인 없이 받아가는 주소라 "비회원" 기준으로 판정한다. 감추는 설정이면
+     * 피드가 전 상품의 가격을 한 번에 내보내는 구멍이 되므로 피드를 내주지 않는다.
+     */
+    public function pricesWithheld(int $domainId): bool
+    {
+        if ($this->shopConfigService === null) {
+            return false;
+        }
+
+        $config = $this->shopConfigService->getConfig($domainId)->get('config', []);
+
+        return !PriceVisibility::allows(is_array($config) ? $config : [], null);
     }
 
     /**
@@ -173,6 +193,11 @@ final class PriceCompareService
         // 켜지 않은 채널은 없는 것처럼 응답한다. 피드는 전 상품을 한 번에 내주므로
         // 운영자가 열기로 결정하기 전에는 내용을 내주지 않는다.
         if (!($state['is_active'] ?? false)) {
+            return null;
+        }
+
+        // 비회원에게 가격을 감추는 쇼핑몰이면 켜진 채널이라도 내주지 않는다
+        if ($this->pricesWithheld($domainId)) {
             return null;
         }
 

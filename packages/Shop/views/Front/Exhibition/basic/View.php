@@ -106,10 +106,14 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                     <a href="<?= $product['url'] ?>" class="spl-card__name"><?= $product['goods_name_safe'] ?></a>
 
                     <div class="spl-card__price">
-                        <?php if ($product['has_discount'] ?? false): ?>
-                            <del class="spl-card__price-origin"><?= $product['display_price_formatted'] ?>원</del>
+                        <?php if (!empty($product['price_hidden'])): ?>
+                            <span class="spl-card__price-hidden"><?= htmlspecialchars($product['price_hidden_text']) ?></span>
+                        <?php else: ?>
+                            <?php if ($product['has_discount'] ?? false): ?>
+                                <del class="spl-card__price-origin"><?= $product['display_price_formatted'] ?>원</del>
+                            <?php endif; ?>
+                            <span class="spl-card__price-current"><?= $product['sales_price_formatted'] ?>원</span>
                         <?php endif; ?>
-                        <span class="spl-card__price-current"><?= $product['sales_price_formatted'] ?>원</span>
                     </div>
 
                     <?php if ($product['has_reward'] ?? false): ?>

@@ -88,7 +88,9 @@ if ($assets) {
                         <div class="block-product__info">
                             <div class="block-product__name"><?= $name ?></div>
 
-                            <?php if ($showPrice): ?>
+                            <?php if ($showPrice && !empty($item['price_hidden'])): ?>
+                                <div class="block-product__price block-product__price--hidden"><?= htmlspecialchars($item['price_hidden_text']) ?></div>
+                            <?php elseif ($showPrice): ?>
                                 <div class="block-product__price">
                                     <?php if ($item['has_discount'] ?? false): ?>
                                         <span class="block-product__discount"><?= $item['discount_percent'] ?>%</span>

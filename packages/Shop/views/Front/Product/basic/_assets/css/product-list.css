@@ -605,6 +605,13 @@
     color: var(--spl-text);
 }
 
+/* 가격 비공개 문구 (쇼핑몰 설정 — 가격 공개 대상) */
+.spl-card__price-hidden {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--spl-text-muted);
+}
+
 /* Wishlist button */
 .spl-card__wish {
     position: absolute;

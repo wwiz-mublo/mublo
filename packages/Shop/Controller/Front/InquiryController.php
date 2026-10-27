@@ -9,6 +9,7 @@ use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Helper\Form\FormHelper;
 use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Packages\Shop\Service\InquiryService;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 
@@ -49,12 +50,16 @@ class InquiryController
         $pagination = $result['pagination'];
         $pagination['pageNums'] = 5;
 
+        // 가격 공개 대상이 아니면 문의의 상품 가격을 빼고 보여준다
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+
         return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Inquiry/List'))
             ->withData([
                 'items' => $result['items'],
                 'pagination' => $pagination,
                 'goodsId' => $goodsId,
                 'currentMemberId' => $memberId,
+                'showPrice' => PriceVisibility::allows($shopConfig, $this->authService->currentUser()?->levelValue),
             ]);
     }
 

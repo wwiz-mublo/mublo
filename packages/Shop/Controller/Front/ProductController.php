@@ -18,6 +18,7 @@ use Mublo\Packages\Shop\Service\InquiryService;
 use Mublo\Packages\Shop\Service\ProductInfoTemplateService;
 use Mublo\Packages\Shop\Helper\ProductPresenter;
 use Mublo\Packages\Shop\Helper\ProductSeoPresenter;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Contract\Auth\AuthContextInterface;
 
 /**
@@ -68,11 +69,34 @@ class ProductController
      */
     private function viewerLevelId(): ?int
     {
-        $levelValue = $this->authService->currentUser()?->levelValue;
+        $levelValue = $this->viewerLevelValue();
 
         return $levelValue === null
             ? null
             : $this->memberLevelResolver?->levelIdForValue($levelValue);
+    }
+
+    /** 보고 있는 회원의 등급값 (비회원이면 null) */
+    private function viewerLevelValue(): ?int
+    {
+        return $this->authService->currentUser()?->levelValue;
+    }
+
+    /** 가격을 볼 수 없는 방문자는 가격순 정렬을 쓸 수 없다 — 순서만으로 가격 차이가 드러난다 */
+    private function sortForViewer(string $sort, bool $priceHidden): string
+    {
+        return $priceHidden && str_starts_with($sort, 'price_') ? 'newest' : $sort;
+    }
+
+    /** 쇼핑몰 설정과 방문자 등급에 맞춘 Presenter (가격 공개 대상 반영) */
+    private function presenterFor(array $shopConfig): ProductPresenter
+    {
+        return new ProductPresenter(
+            $shopConfig,
+            null,
+            $this->viewerLevelId(),
+            PriceVisibility::allows($shopConfig, $this->viewerLevelValue())
+        );
     }
 
     /**
@@ -106,6 +130,10 @@ class ProductController
         $page = max(1, (int) ($request->get('page') ?? 1));
         $perPage = 12;
 
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+        $priceHidden = !PriceVisibility::allows($shopConfig, $this->viewerLevelValue());
+        $sort = $this->sortForViewer($sort, $priceHidden);
+
         $filters = ['is_active' => true];
         if ($categoryCode !== '') {
             $filters['category_code'] = $categoryCode;
@@ -137,8 +165,7 @@ class ProductController
             : [];
 
         // ProductPresenter 적용
-        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
+        $presenter = $this->presenterFor($shopConfig);
         $products = $presenter->toList($items, $mainImages, $reviewStats);
 
         // 회원 찜 상태 매핑
@@ -167,6 +194,7 @@ class ProductController
                 'categoryTree'  => $categoryTree,
                 'wishlistedIds' => $wishlistedIds,
                 'categoryName'  => $categoryName,
+                'priceHidden'   => $priceHidden,
                 'filters'       => [
                     'category_code' => $categoryCode,
                     'keyword'       => $keyword,
@@ -192,6 +220,9 @@ class ProductController
             $perPage = 12;
         }
 
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+        $sort = $this->sortForViewer($sort, !PriceVisibility::allows($shopConfig, $this->viewerLevelValue()));
+
         $filters = ['is_active' => true];
         if ($categoryCode !== '') {
             $filters['category_code'] = $categoryCode;
@@ -213,8 +244,7 @@ class ProductController
             ? $this->reviewService->getStatsByGoodsIds($domainId, $goodsIds)
             : [];
 
-        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
+        $presenter = $this->presenterFor($shopConfig);
         $products = $presenter->toList($items, $mainImages, $reviewStats);
 
         $memberId = $this->authService->id() ?? 0;
@@ -289,7 +319,7 @@ class ProductController
 
         // ProductPresenter 적용
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
+        $presenter = $this->presenterFor($shopConfig);
         $product = $presenter->toView($productData, $reviewStat, 0, $inquiryCount);
 
         $memberId = $this->authService->id() ?? 0;

@@ -146,6 +146,15 @@ HTML,
             'content' => <<<'HTML'
 <p>가격 설정은 쇼핑몰 전체의 기본값입니다.</p>
 <p>상품에서 할인·적립 유형을 <strong>기본값 사용</strong>으로 선택하면 이 설정이 적용됩니다.<br>상품별 정률·정액 또는 등급 설정을 선택한 경우에는 상품 설정이 우선합니다.</p>
+<h3>가격 노출</h3>
+<p>가격을 누구에게 보여줄지 정합니다. 회원 전용가로 운영하는 쇼핑몰에서 씁니다.</p>
+<ul>
+<li><strong>모든 방문자:</strong> 기본값. 누구에게나 가격을 보여줍니다.</li>
+<li><strong>로그인 회원만:</strong> 비회원에게는 가격 대신 안내 문구를 보여줍니다.</li>
+<li><strong>지정 등급 이상 회원만:</strong> 고른 등급 이상의 회원에게만 가격을 보여줍니다. 회원 인증 후 등급을 올려 주는 방식에 맞습니다.</li>
+</ul>
+<p>공개 대상이 아니면 목록·상세·기획전·상품 블록·찜·후기·문의 화면에서 가격이 빠지고, 가격순 정렬과 장바구니·바로구매·주문도 막힙니다. 안내 문구는 직접 정할 수 있고, 비워 두면 "회원인증시 가격 확인가능"이 나옵니다.</p>
+<p>비회원에게 가격을 감추면 가격비교 사이트 피드도 내주지 않습니다. 관리자 화면과 이미 결제한 주문 내역에는 적용되지 않습니다.</p>
 <h3>할인</h3>
 <ul>
 <li><strong>사용 안 함:</strong> 전역 할인 없음</li>
@@ -656,6 +665,7 @@ HTML,
 <li>URL/안전 문자열: <code>url</code>, <code>goods_name_safe</code>, <code>goods_origin_safe</code>, <code>goods_manufacturer_safe</code></li>
 <li>가격: <code>display_price_formatted</code>, <code>sales_price</code>, <code>sales_price_formatted</code>, <code>discount_amount</code>, <code>discount_percent</code>, <code>has_discount</code></li>
 <li>적립: <code>point_amount</code>, <code>point_amount_formatted</code>, <code>has_reward</code></li>
+<li>가격 노출: <code>price_hidden</code>, <code>price_hidden_text</code> — 쇼핑몰 설정의 가격 노출 대상이 아니면 <code>price_hidden</code>이 true이고 위 가격·적립 값은 비어 있습니다. 커스텀 스킨은 이 값을 먼저 확인해 가격 대신 <code>price_hidden_text</code>를 보여주고 구매 버튼을 숨겨야 합니다. 목록 화면에는 <code>$priceHidden</code>도 전달되며, 이때 가격순 정렬은 서버에서 최신순으로 바뀝니다.</li>
 <li>상태: <code>is_soldout</code>, <code>stock_label</code>, <code>badges</code>, <code>is_new</code></li>
 <li>통계: <code>review_count</code>, <code>average_rating</code>, <code>wishlist_count</code>와 formatted 값</li>
 <li>이미지: <code>main_image_url</code>, <code>main_thumbnail_url</code></li>

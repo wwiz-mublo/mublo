@@ -13,6 +13,7 @@
 .shop-wishlist__info { padding: 12px; }
 .shop-wishlist__name { font-size: 0.9rem; font-weight: 500; color: var(--foreground); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shop-wishlist__price { font-size: 1rem; font-weight: 700; color: var(--foreground); }
+.shop-wishlist__price--hidden { font-size: 0.8125rem; font-weight: 600; color: var(--muted-foreground); }
 .shop-wishlist__soldout { font-size: 0.75rem; color: var(--destructive); margin-top: 4px; }
 .shop-wishlist__cart { display: block; margin: 8px 12px 12px; padding: 8px; background: var(--primary); color: var(--primary-foreground); border: none; border-radius: 8px; text-align: center; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
 .shop-wishlist__empty { text-align: center; padding: 60px 16px; }

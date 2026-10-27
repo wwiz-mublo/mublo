@@ -4,8 +4,10 @@
  * @var array $groups 배송 그룹별 상품 데이터 [groupKey => { template_id, template_name, shipping_fee, goods }]
  * @var array $totals 합계 정보 { itemTotal, shippingTotal, pointTotal, grandTotal }
  * @var array $productData 옵션 모달용 상품 데이터
+ * @var string $priceHiddenText 가격 비공개 문구 — 있으면 담긴 상품 대신 이 안내만 보인다
  */
 $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/cart-list.css');
+$priceHiddenText = (string) ($priceHiddenText ?? '');
 ?>
 
 <div class="shop-cart">
@@ -20,7 +22,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/ca
                     <line x1="10" y1="11" x2="16" y2="11"/>
                 </svg>
             </div>
-            <p class="shop-cart__empty-text">장바구니가 비어있습니다.</p>
+            <p class="shop-cart__empty-text"><?= $priceHiddenText !== '' ? htmlspecialchars($priceHiddenText) : '장바구니가 비어있습니다.' ?></p>
             <a href="/shop/products" class="shop-cart__empty-btn">쇼핑 계속하기</a>
         </div>
     <?php else: ?>

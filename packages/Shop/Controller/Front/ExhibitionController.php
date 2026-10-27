@@ -12,6 +12,7 @@ use Mublo\Packages\Shop\Service\WishlistService;
 use Mublo\Packages\Shop\Service\ProductService;
 use Mublo\Packages\Shop\Service\ReviewService;
 use Mublo\Packages\Shop\Helper\ProductPresenter;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Contract\Auth\AuthContextInterface;
 
 class ExhibitionController
@@ -149,7 +150,12 @@ class ExhibitionController
         $reviewStats = $this->reviewService->getStatsByGoodsIds($domainId, $orderedIds);
 
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
-        $presenter  = new ProductPresenter($shopConfig, null, $this->viewerLevelId());
+        $presenter  = new ProductPresenter(
+            $shopConfig,
+            null,
+            $this->viewerLevelId(),
+            PriceVisibility::allows($shopConfig, $this->authService->currentUser()?->levelValue)
+        );
 
         return $presenter->toList($ordered, $mainImages, $reviewStats);
     }
