@@ -13,6 +13,7 @@ use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Packages\Shop\Enum\OrderAction;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 use Mublo\Packages\Shop\Service\OrderService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Service\ReviewService;
@@ -159,12 +160,16 @@ class ReviewController
         $pagination = $result['pagination'];
         $pagination['pageNums'] = 5;
 
+        // 가격 공개 대상이 아니면 후기의 상품 가격을 빼고 보여준다
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+
         return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Review/List'))
             ->withData([
                 'items' => $result['items'],
                 'pagination' => $pagination,
                 'goodsId' => $goodsId,
                 'avgRating' => $avgRating,
+                'showPrice' => PriceVisibility::allows($shopConfig, $this->authService->currentUser()?->levelValue),
             ]);
     }
 

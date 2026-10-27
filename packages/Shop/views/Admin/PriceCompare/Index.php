@@ -7,6 +7,7 @@
  *
  * @var array $channels [{code, label, format, builtin, active, campaignKey, defaultCampaignKey,
  *                        guide[], feedUrl, summaryUrl}, ...]
+ * @var bool $pricesWithheld 쇼핑몰 설정이 비회원에게 가격을 감춰 피드를 내주지 않는 상태
  */
 ?>
 
@@ -19,6 +20,12 @@
     </div>
 
     <div class="page-block">
+        <?php if (!empty($pricesWithheld)): ?>
+            <div class="alert alert-warning mb-3">
+                쇼핑몰 설정의 <strong>가격 노출</strong>이 비회원에게 가격을 감추도록 되어 있어, 켜진 채널도 피드를 내주지 않습니다.
+                피드를 쓰려면 쇼핑몰 설정 &gt; 가격 / 할인 / 적립에서 가격 공개 대상을 "모든 방문자"로 바꿔 주세요.
+            </div>
+        <?php endif; ?>
         <div class="card mb-3">
             <div class="card-hero">
                 <i class="bi bi-info-circle text-pastel-blue"></i>

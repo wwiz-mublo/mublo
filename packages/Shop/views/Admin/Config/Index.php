@@ -199,6 +199,17 @@ document.querySelectorAll('.checkout-policy-check').forEach(function(cb) {
     cb.addEventListener('change', syncCheckoutPolicies);
 });
 
+// ── 가격 공개 대상이 "지정 등급"일 때만 최소 등급 선택 노출 ──
+(function() {
+    var priceDisplay = document.getElementById('price_display');
+    var levelWrap = document.getElementById('priceDisplayLevelWrap');
+    if (priceDisplay && levelWrap) {
+        priceDisplay.addEventListener('change', function() {
+            levelWrap.style.display = this.value === 'LEVEL' ? '' : 'none';
+        });
+    }
+})();
+
 // ── 할인/적립 유형 변경 시 등급별 테이블 토글 ──
 (function() {
     var discountType = document.getElementById('discount_type');

@@ -141,6 +141,13 @@
     color: var(--foreground);
 }
 
+/* 가격 비공개 문구 (쇼핑몰 설정 — 가격 공개 대상) */
+.block-product--shop-basic .block-product__price--hidden {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--muted-foreground);
+}
+
 .block-product--shop-basic .block-product__origin-price {
     font-size: 0.75rem;
     color: var(--muted-foreground);

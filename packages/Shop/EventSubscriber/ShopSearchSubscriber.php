@@ -7,6 +7,9 @@ use Mublo\Core\Event\EventSubscriberInterface;
 use Mublo\Core\Event\Search\SearchEvent;
 use Mublo\Core\Event\Search\SearchSourceCollectEvent;
 use Mublo\Packages\Shop\Repository\ProductRepository;
+use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
+use Mublo\Packages\Shop\Service\ShopConfigService;
 
 /**
  * 상품 검색 구독자
@@ -18,8 +21,11 @@ class ShopSearchSubscriber implements EventSubscriberInterface
 {
     private ProductRepository $productRepository;
 
-    public function __construct(ProductRepository $productRepository)
-    {
+    public function __construct(
+        ProductRepository $productRepository,
+        private readonly ShopConfigService $shopConfigService,
+        private readonly AuthContextInterface $authContext,
+    ) {
         $this->productRepository = $productRepository;
     }
 
@@ -55,6 +61,14 @@ class ShopSearchSubscriber implements EventSubscriberInterface
             $keyword,
             $event->getPerSource()
         );
+
+        $config = $this->shopConfigService->getConfig($domainId)->get('config', []);
+        if (!PriceVisibility::allows($config, $this->authContext->currentUser()?->levelValue)) {
+            foreach ($items as &$item) {
+                $item['summary'] = PriceVisibility::hiddenText($config);
+            }
+            unset($item);
+        }
 
         $event->addResults('shop', '쇼핑몰 상품', $items, $total, [
             'more_url' => '/shop/products?keyword=' . rawurlencode($keyword),

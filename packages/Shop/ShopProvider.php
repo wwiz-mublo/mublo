@@ -837,7 +837,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductFeedQuery::class),
                 $c->get(TsvWriter::class),
                 $c->get(RssWriter::class),
-                $c->get(PriceCompareChannelRepository::class)
+                $c->get(PriceCompareChannelRepository::class),
+                $c->get(ShopConfigService::class)
             )
         );
         $container->singleton(PriceCompareController::class, fn(DependencyContainer $c) =>
@@ -1119,7 +1120,9 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
 
         // 통합 검색에 상품 결과 포함
         $eventDispatcher->addSubscriber(new ShopSearchSubscriber(
-            $container->get(ProductRepository::class)
+            $container->get(ProductRepository::class),
+            $container->get(ShopConfigService::class),
+            $container->get(AuthContextInterface::class),
         ));
 
         // 마이페이지 허브 등록 (/mypage/shop "마이쇼핑")

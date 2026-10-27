@@ -19,11 +19,16 @@ use Mublo\Packages\Shop\PriceCompare\ProductFeedQuery;
 use Mublo\Packages\Shop\PriceCompare\Writer\RssWriter;
 use Mublo\Packages\Shop\PriceCompare\Writer\TsvWriter;
 use Mublo\Packages\Shop\Repository\PriceCompareChannelRepository;
+use Mublo\Packages\Shop\Service\ShopConfigService;
+use Mublo\Core\Result\Result;
 
 class PriceCompareServiceTest extends TestCase
 {
-    /** @param array<string, array{is_active: bool}> $stored */
-    private function makeService(array $stored): PriceCompareService
+    /**
+     * @param array<string, array{is_active: bool}> $stored
+     * @param array|null $shopConfig 쇼핑몰 설정 (null 이면 설정 서비스 없이 만든다)
+     */
+    private function makeService(array $stored, ?array $shopConfig = null): PriceCompareService
     {
         $registry = new ContractRegistry();
         $registry->register(
@@ -42,13 +47,37 @@ class PriceCompareServiceTest extends TestCase
         $repository = $this->createMock(PriceCompareChannelRepository::class);
         $repository->method('findByDomain')->willReturn($stored);
 
+        $configService = null;
+        if ($shopConfig !== null) {
+            $configService = $this->createMock(ShopConfigService::class);
+            $configService->method('getConfig')->willReturn(Result::success('', ['config' => $shopConfig]));
+        }
+
         return new PriceCompareService(
             $registry,
             $query,
             new TsvWriter(),
             new RssWriter(),
-            $repository
+            $repository,
+            $configService
         );
+    }
+
+    /** 비회원에게 가격을 감추는 쇼핑몰이면 켜진 채널도 피드를 내주지 않는다 */
+    public function testActiveChannelIsWithheldWhenGuestsCannotSeePrices(): void
+    {
+        $service = $this->makeService(['naver' => ['is_active' => true]], ['price_display' => 'MEMBER']);
+
+        $this->assertTrue($service->pricesWithheld(1));
+        $this->assertNull($service->render('naver', 1, 'https://example.com'));
+    }
+
+    public function testActiveChannelServesWhenPricesArePublic(): void
+    {
+        $service = $this->makeService(['naver' => ['is_active' => true]], ['price_display' => 'ALL']);
+
+        $this->assertFalse($service->pricesWithheld(1));
+        $this->assertNotNull($service->render('naver', 1, 'https://example.com'));
     }
 
     /** 설정 행이 아예 없으면 꺼진 것으로 본다 — 설치만으로 열리지 않는다 */

@@ -6,6 +6,7 @@ namespace Mublo\Packages\Shop\Service;
 use Mublo\Core\Result\Result;
 use Mublo\Packages\Shop\Repository\ShopConfigRepository;
 use Mublo\Packages\Shop\Enum\OrderAction;
+use Mublo\Packages\Shop\Helper\PriceVisibility;
 
 /**
  * ShopConfig Service
@@ -74,6 +75,11 @@ class ShopConfigService
         'goods_view_tab' => '', // CSV (review,inquiry)
         'detail_tab_order' => 'detail,template,review,inquiry', // CSV (상세 탭 순서)
 
+        // 가격 공개 대상 (PriceVisibility)
+        'price_display' => PriceVisibility::ALL,
+        'price_display_level' => 0, // LEVEL 일 때 이 등급값 이상만 가격을 본다
+        'price_hidden_text' => '', // 빈값이면 PriceVisibility::DEFAULT_HIDDEN_TEXT
+
         // 프론트 스킨
         'skin_config' => '', // JSON 맵 {"product":"basic",...} — 기능별 프론트 스킨
     ];
@@ -93,6 +99,7 @@ class ShopConfigService
         'use_coupon', 'order_states', 'order_state_actions', 'claim_state_actions',
         'checkout_policies',
         'goods_view_tab', 'detail_tab_order',
+        'price_display', 'price_display_level', 'price_hidden_text',
         'skin_config',
     ];
 
@@ -686,7 +693,7 @@ class ShopConfigService
             $sanitized[$key] = match ($key) {
                 // 정수
                 'cart_keep_days', 'commission_type', 'commission_rate',
-                'point_unit', 'point_min', 'point_max', 'reward_review'
+                'point_unit', 'point_min', 'point_max', 'reward_review', 'price_display_level'
                     => (int)$value,
 
                 // 불리언 (TINYINT)
@@ -702,6 +709,12 @@ class ShopConfigService
                     => in_array($value, ['self', 'other']) ? $value : 'self',
                 'discount_type', 'reward_type'
                     => in_array($value, ['NONE', 'BASIC', 'LEVEL', 'PERCENTAGE', 'FIXED']) ? $value : 'NONE',
+                'price_display'
+                    => array_key_exists((string) $value, PriceVisibility::options()) ? $value : PriceVisibility::ALL,
+
+                // 가격 비공개 문구 (컬럼 100자)
+                'price_hidden_text'
+                    => mb_substr(trim((string) $value), 0, 100),
 
                 // 문자열 (trim)
                 default => is_string($value) ? trim($value) : $value,

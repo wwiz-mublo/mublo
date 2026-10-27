@@ -58,7 +58,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Inquiry/basic/_assets/css
             <?php endif; ?>
             <span class="shop-inquiry-item__product-info">
                 <span class="shop-inquiry-item__product-name"><?= e($goodsName) ?></span>
-                <?php if ($displayPrice > 0): ?>
+                <?php if ($displayPrice > 0 && ($showPrice ?? true)): ?>
                 <span class="shop-inquiry-item__product-price"><?= number_format($displayPrice) ?>원</span>
                 <?php endif; ?>
             </span>

@@ -4,9 +4,11 @@
  *
  * @var array $items
  * @var array $pagination
+ * @var string $priceHiddenText 가격 비공개 문구 (빈값이면 가격 공개)
  */
 $items = $items ?? [];
 $pagination = $pagination ?? [];
+$priceHiddenText = (string) ($priceHiddenText ?? '');
 $totalItems = $pagination['totalItems'] ?? 0;
 $perPage = $pagination['perPage'] ?? 20;
 
@@ -46,7 +48,11 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Wishlist/basic/_assets/cs
             </a>
             <div class="shop-wishlist__info">
                 <div class="shop-wishlist__name"><?= e($goodsName) ?></div>
+                <?php if ($priceHiddenText !== ''): ?>
+                <div class="shop-wishlist__price shop-wishlist__price--hidden"><?= e($priceHiddenText) ?></div>
+                <?php else: ?>
                 <div class="shop-wishlist__price"><?= number_format($displayPrice) ?>원</div>
+                <?php endif; ?>
                 <?php if ($isSoldout): ?>
                 <div class="shop-wishlist__soldout">품절</div>
                 <?php endif; ?>

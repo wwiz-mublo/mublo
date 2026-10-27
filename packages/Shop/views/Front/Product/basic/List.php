@@ -6,11 +6,14 @@
  * @var array $pagination 페이지네이션
  * @var array $categoryTree 카테고리 트리 (표준 규격: code, label, link, children)
  * @var array $filters 현재 필터 (category_code, keyword, sort)
+ * @var bool $priceHidden 가격 비공개 방문자 여부 (쇼핑몰 설정 — 가격순 정렬을 빼고, 카드는 price_hidden_text)
  */
 
 $keyword = htmlspecialchars($filters['keyword'] ?? '');
 $currentCode = $filters['category_code'] ?? '';
-$sorts = ['newest' => '최신순', 'price_asc' => '낮은가격순', 'price_desc' => '높은가격순', 'popular' => '인기순'];
+$sorts = !empty($priceHidden)
+    ? ['newest' => '최신순', 'popular' => '인기순']
+    : ['newest' => '최신순', 'price_asc' => '낮은가격순', 'price_desc' => '높은가격순', 'popular' => '인기순'];
 $wishlistedIds = array_map('intval', $wishlistedIds ?? []);
 $wishlistedSet = array_flip($wishlistedIds);
 
@@ -267,10 +270,14 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                         </a>
 
                         <div class="spl-card__price">
-                            <?php if ($product['has_discount'] ?? false): ?>
-                                <del class="spl-card__price-origin"><?= $product['display_price_formatted'] ?>원</del>
+                            <?php if (!empty($product['price_hidden'])): ?>
+                                <span class="spl-card__price-hidden"><?= htmlspecialchars($product['price_hidden_text']) ?></span>
+                            <?php else: ?>
+                                <?php if ($product['has_discount'] ?? false): ?>
+                                    <del class="spl-card__price-origin"><?= $product['display_price_formatted'] ?>원</del>
+                                <?php endif; ?>
+                                <span class="spl-card__price-current"><?= $product['sales_price_formatted'] ?>원</span>
                             <?php endif; ?>
-                            <span class="spl-card__price-current"><?= $product['sales_price_formatted'] ?>원</span>
                         </div>
 
                         <?php if ($product['has_reward'] ?? false): ?>

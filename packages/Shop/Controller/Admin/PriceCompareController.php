@@ -58,8 +58,9 @@ class PriceCompareController
 
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/PriceCompare/Index')
             ->withData([
-                'pageTitle' => '가격비교 사이트',
-                'channels'  => $channels,
+                'pageTitle'      => '가격비교 사이트',
+                'channels'       => $channels,
+                'pricesWithheld' => $this->priceCompareService->pricesWithheld($domainId),
             ]);
     }
 

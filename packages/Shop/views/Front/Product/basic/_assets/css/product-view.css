@@ -351,6 +351,17 @@
     margin: 16px 0;
 }
 
+/* 가격 비공개 문구 (쇼핑몰 설정 — 가격 공개 대상) */
+.shop-product-view__price-hidden {
+    margin: 0;
+    padding: 14px 16px;
+    border-radius: var(--shop-radius-sm);
+    background: var(--shop-bg-alt);
+    color: var(--shop-text-secondary);
+    font-size: 0.9375rem;
+    font-weight: 600;
+}
+
 /* 판매가(좌) + 원가·할인율(우)을 한 줄에, baseline 정렬 */
 .shop-product-view__price-row {
     display: flex;
