@@ -13,6 +13,7 @@ namespace Mublo\Controller\Admin;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
+use Mublo\Core\Result\Result;
 use Mublo\Service\Member\PolicyService;
 use Mublo\Service\Auth\AuthService;
 use Mublo\Helper\Form\FormHelper;
@@ -130,7 +131,7 @@ class PolicyController
             );
         }
 
-        return JsonResponse::error($result->getMessage());
+        return $this->failureResponse($result);
     }
 
     // =========================================================================
@@ -205,6 +206,21 @@ class PolicyController
         if ($result->isSuccess()) {
             // redirect는 클라이언트가 목록 복귀 URL(listUrl, 필터·activeCode 유지)로 처리
             return JsonResponse::success([], $result->getMessage());
+        }
+
+        return $this->failureResponse($result);
+    }
+
+    /**
+     * 저장 실패 응답
+     *
+     * 입력값 문제(버전 등 field 가 지정된 실패)는 422 로 보내 오류가 아닌 알림으로 띄우게 한다.
+     */
+    private function failureResponse(Result $result): JsonResponse
+    {
+        $field = $result->getData()['field'] ?? null;
+        if (is_string($field) && $field !== '') {
+            return JsonResponse::error($result->getMessage(), ['field' => $field], 422);
         }
 
         return JsonResponse::error($result->getMessage());

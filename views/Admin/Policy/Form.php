@@ -73,10 +73,10 @@ $actionUrl = $isEdit ? "/admin/policy/update/{$policyId}" : '/admin/policy/store
                         <!-- 버전 -->
                         <div class="col-md-4 mb-3">
                             <label class="form-label">버전</label>
-                            <input type="text" name="formData[version]" class="form-control"
+                            <input type="text" name="formData[version]" id="policy-version" class="form-control"
                                    value="<?= htmlspecialchars($policyVersion) ?>"
                                    placeholder="1.0" maxlength="20">
-                            <div class="form-text">정책 버전 (예: 1.0, 2.1)</div>
+                            <div class="form-text"><?= $isEdit ? '제목·내용을 바꾸면 버전을 올려야 합니다 (예: 1.0 → 1.1)' : '정책 버전 (예: 1.0, 2.1)' ?></div>
                         </div>
 
                         <!-- 정렬 순서 -->
@@ -364,10 +364,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 MubloRequest.showAlert(response.message || '저장에 실패했습니다.', 'error');
             }
         }).catch(err => {
-            MubloRequest.showAlert('저장 중 오류가 발생했습니다.', 'error');
+            // 실패 알림은 MubloRequest 가 이미 띄웠다(422 는 '알림', 그 외는 '오류').
+            // 입력칸 문제면 그 칸으로 포커스를 옮긴 뒤 다시 띄워, 확인을 누르면 바로 고칠 수 있게 한다.
+            const field = err?.response?.data?.field;
+            const fieldInput = field ? form.querySelector('[name="formData[' + field + ']"]') : null;
+            if (fieldInput) {
+                fieldInput.classList.add('is-invalid');
+                fieldInput.focus();
+                MubloRequest.showAlert(err.message, 'warning');
+            }
             console.error(err);
         });
     });
+
+    const versionInput = document.getElementById('policy-version');
+    versionInput?.addEventListener('input', () => versionInput.classList.remove('is-invalid'));
 
     // =========================================================================
     // 슬러그 중복 확인

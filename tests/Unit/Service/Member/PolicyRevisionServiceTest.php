@@ -81,6 +81,8 @@ class PolicyRevisionServiceTest extends TestCase
 
         self::assertTrue($result->isFailure());
         self::assertStringContainsString('버전', $result->getMessage());
+        // 컨트롤러가 오류가 아닌 입력 알림(422)으로 돌려주도록 문제 칸을 알린다
+        self::assertSame('version', $result->get('field'));
     }
 
     public function testFindDocumentReturnsCurrentRevisionWithinDomain(): void
