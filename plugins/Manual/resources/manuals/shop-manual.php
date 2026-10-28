@@ -8,7 +8,7 @@ declare(strict_types=1);
  * ProductPresenter와 기본 스킨의 실제 계약을 기준으로 작성했다.
  */
 return [
-    'version' => 4,
+    'version' => 5,
     'book' => [
         'title' => 'Mublo Shop 매뉴얼',
         'slug' => 'shop-manual',
@@ -23,7 +23,7 @@ return [
             'slug' => 'start',
             'sort_order' => 10,
             'content' => <<<'HTML'
-<!-- mublo-bundle:shop:v4 -->
+<!-- mublo-bundle:shop:v5 -->
 <p>Mublo Shop은 일반 상품을 판매하는 쇼핑몰 패키지입니다.</p>
 <p>상품·카테고리·옵션부터 장바구니와 바로구매, 결제, 배송, 쿠폰, 등급 혜택을 제공합니다.<br>구매후기·상품문의, 기획전과 주문 상태 자동화도 한 도메인 안에서 운영할 수 있습니다.</p>
 <h3>최초 개설 권장 순서</h3>
