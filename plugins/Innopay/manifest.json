@@ -1,0 +1,15 @@
+{
+    "name": "Innopay",
+    "label": "이노페이",
+    "description": "이노페이(INNOPAY) 결제 연동 플러그인. 신용카드/간편결제/계좌이체를 지원하며 결제 시도부터 결과까지 단계별 로그를 남깁니다.",
+    "version": "1.0.0",
+    "author": "Mublo",
+    "author_url": "https://github.com/wwiz-mublo/mublo",
+    "vendor": "mublo",
+    "type": "plugin",
+    "category": "payment",
+    "icon": "bi-credit-card-2-front",
+    "requires": {
+        "core": ">=1.0.0"
+    }
+}
