@@ -197,8 +197,10 @@ class InnopayGateway implements PaymentGatewayInterface
                 'verified_at' => date('Y-m-d H:i:s'),
                 'paid_at' => (string) ($data['approvedAt'] ?? ''),
                 'receipt_url' => (string) ($data['receiptUrl'] ?? ''),
-                'card_company' => (string) ($data['card']['fnName'] ?? ''),
+                // 간편결제는 card 대신 epay 객체(epayCl·매입 카드사)로 온다
+                'card_company' => (string) ($data['card']['fnName'] ?? $data['epay']['acquCardName'] ?? ''),
                 'card_number' => (string) ($data['card']['cardNum'] ?? ''),
+                'epay_type' => self::epayLabel((string) ($data['epay']['epayCl'] ?? '')),
                 'installment' => (int) ($data['card']['cardQuota'] ?? 0),
                 'pg_response' => $data,
             ],
@@ -437,6 +439,23 @@ JS;
             'CARD', 'OPCARD', 'EPAY' => '01',
             'BANK', 'EBANK' => '02',
             default => null,
+        };
+    }
+
+    /**
+     * 간편결제 종류 (epay.epayCl). SSG 는 결제창 요청 때 0408(신용)·0409(머니)로 나뉜다.
+     */
+    public static function epayLabel(string $epayCl): string
+    {
+        return match ($epayCl) {
+            '' => '',
+            '01' => '카카오페이',
+            '02' => 'L.PAY',
+            '03' => 'PAYCO',
+            '04', '0408', '0409' => 'SSG페이',
+            '05' => '토스페이',
+            '06' => '네이버페이',
+            default => $epayCl,
         };
     }
 

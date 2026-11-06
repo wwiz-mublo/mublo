@@ -143,6 +143,22 @@ class InnopayGatewayTest extends TestCase
         self::assertSame(['QUERY_TID_REQ', 'QUERY_TID_RES'], $this->kit->steps());
     }
 
+    public function testVerifyEasyPayReadsEpayObject(): void
+    {
+        // 간편결제 승인 응답 — card 대신 epay 객체가 온다 (이노페이 통합간편결제 문서 예시)
+        $tx = InnopayTestKit::transaction('TID1', 'S20261106ABCDEF', 15000, 0, 'EPAY');
+        unset($tx['card']);
+        $tx['epay'] = ['epayCl' => '01', 'acquCardCode' => '01', 'acquCardName' => '비씨'];
+        $this->kit->routes['/v1/transactions/TID1'] = [200, ['success' => true, 'data' => $tx]];
+
+        $res = $this->kit->gateway()->verify('TID1');
+
+        self::assertTrue($res->success);
+        self::assertSame('CARD', $res->paymentMethod);
+        self::assertSame('비씨', $res->data['card_company']);
+        self::assertSame('카카오페이', $res->data['epay_type']);
+    }
+
     public function testVerifyCancelledTransactionIsNotSuccessAndHasNoAmount(): void
     {
         // 전체취소된 거래 — 실제 응답처럼 amt 가 빠지고 cancel.amt 만 온다
