@@ -6,6 +6,7 @@ namespace Mublo\Plugin\Innopay;
 use Mublo\Contract\Payment\PaymentGatewayInterface;
 use Mublo\Contract\Payment\PaymentGatewayResponse;
 use Mublo\Plugin\Innopay\Repository\InnopayAttemptRepository;
+use Mublo\Plugin\Innopay\Repository\InnopayCancelRepository;
 use Mublo\Plugin\Innopay\Service\InnopayConfigService;
 use Mublo\Plugin\Innopay\Service\InnopayLogger;
 
@@ -18,6 +19,7 @@ use Mublo\Plugin\Innopay\Service\InnopayLogger;
  * 3. returnUrl (GET)     → CallbackController → InnopayReturnService 가 서버에서 승인 API 호출
  * 4. 소비 패키지 검증    → verify() 가 거래조회 API 로 금액·주문번호·상태를 다시 확인
  * 5. cancel()            → 통합취소 API (취소 비밀번호 필요)
+ * 6. 결제결과 통보(Noti)  → InnopayNotiService — 복귀가 끊긴 승인 반영, 외부 취소 기록
  */
 class InnopayGateway implements PaymentGatewayInterface
 {
@@ -28,6 +30,8 @@ class InnopayGateway implements PaymentGatewayInterface
     public const RETURN_PATH = '/innopay/callback/return';
 
     public const LOG_PATH = '/innopay/callback/log';
+
+    public const NOTI_PATH = '/innopay/callback/noti';
 
     /** 이노페이 거래 상태 */
     public const STATUS_APPROVED = 0;          // 승인완료
@@ -47,6 +51,7 @@ class InnopayGateway implements PaymentGatewayInterface
         private InnopayConfigService $configService,
         private InnopayAttemptRepository $attempts,
         private InnopayLogger $logger,
+        private InnopayCancelRepository $cancels,
         private int $domainId,
         ?callable $transport = null,
     ) {
@@ -184,15 +189,25 @@ class InnopayGateway implements PaymentGatewayInterface
         $moid = (string) ($data['moid'] ?? '');
         $approvalNo = (string) ($data['authNum'] ?? '');
 
+        // 가상계좌는 승인(status 0)이 "계좌 발급"일 뿐 입금이 아니다. 입금 확인 연동 전까지는
+        // 결제 완료로 보지 않는다 — 결제수단 선택창에서 구매자가 고를 수 있으므로 반드시 막는다.
+        $isVbank = self::isVirtualAccount((string) ($data['payMethod'] ?? ''));
+        $paid = $status === self::STATUS_APPROVED && !$isVbank;
+        $error = match (true) {
+            $paid => null,
+            $isVbank => '가상계좌 결제는 지원하지 않습니다.',
+            default => '승인 상태가 아닌 거래입니다. (' . self::mapStatus($status) . ')',
+        };
+
         return new PaymentGatewayResponse(
-            success: $status === self::STATUS_APPROVED,
+            success: $paid,
             transactionId: (string) ($data['tid'] ?? $transactionId),
             orderNo: $moid !== '' ? $moid : null,
             amount: $amount,
-            status: self::mapStatus($status),
+            status: $isVbank ? 'UNSUPPORTED' : self::mapStatus($status),
             paymentMethod: self::mapPayMethod((string) ($data['payMethod'] ?? '')),
             approvalNo: $approvalNo !== '' ? $approvalNo : null,
-            errorMessage: $status === self::STATUS_APPROVED ? null : '승인 상태가 아닌 거래입니다. (' . self::mapStatus($status) . ')',
+            errorMessage: $error,
             data: [
                 'verified_at' => date('Y-m-d H:i:s'),
                 'paid_at' => (string) ($data['approvedAt'] ?? ''),
@@ -275,11 +290,21 @@ class InnopayGateway implements PaymentGatewayInterface
                 errorMessage: $message . ($code !== '' ? " ({$code})" : ''), data: ['pg_response' => self::stripMeta($result)]);
         }
 
+        $cancelled = is_numeric($result['pgApprovalAmt'] ?? null) ? (int) $result['pgApprovalAmt'] : $cancelAmount;
+
+        // 이 취소는 곧 결제결과 통보(Noti)로 되돌아온다 — 우리가 한 취소임을 적어 두어
+        // 소비 패키지에 외부 환불로 한 번 더 기록되지 않게 한다.
+        try {
+            $this->cancels->recordApi($this->domainId, $moid, $transactionId, $cancelled, (string) ($result['pgCancelTid'] ?? ''));
+        } catch (\Throwable $e) {
+            error_log('[Innopay] 취소 기록 실패 tid=' . $transactionId . ': ' . $e->getMessage());
+        }
+
         return new PaymentGatewayResponse(
             success: true,
             transactionId: $transactionId,
             orderNo: $moid !== '' ? $moid : null,
-            cancelAmount: is_numeric($result['pgApprovalAmt'] ?? null) ? (int) $result['pgApprovalAmt'] : $cancelAmount,
+            cancelAmount: $cancelled,
             status: $partial ? 'PARTIAL_CANCELLED' : 'CANCELLED',
             data: [
                 'reason' => $reason,
@@ -404,6 +429,11 @@ JS;
             $this->domainId,
             $this->transport,
         );
+    }
+
+    public static function isVirtualAccount(string $payMethod): bool
+    {
+        return strtoupper($payMethod) === 'VBANK';
     }
 
     public static function mapStatus(int $status): string

@@ -33,15 +33,18 @@ final class InnopayTestKit
         'default_buyer_email' => '',
         'logo_url' => '',
         'auto_cancel' => 1,
+        'noti_ip_allowlist' => '',
     ];
 
     public MemoryAttemptRepository $attempts;
+    public MemoryCancelRepository $cancels;
     public InnopayLogger $logger;
     public InnopayConfigService $configService;
 
     public function __construct(private TestCase $test)
     {
         $this->attempts = new MemoryAttemptRepository($this->mock(Database::class));
+        $this->cancels = new MemoryCancelRepository($this->mock(Database::class));
 
         $logRepo = $this->mock(InnopayLogRepository::class);
         $logRepo->method('insert')->willReturnCallback(function (array $row): void {
@@ -56,7 +59,7 @@ final class InnopayTestKit
 
     public function gateway(int $domainId = 1): InnopayGateway
     {
-        return new InnopayGateway($this->configService, $this->attempts, $this->logger, $domainId, $this->transport(...));
+        return new InnopayGateway($this->configService, $this->attempts, $this->logger, $this->cancels, $domainId, $this->transport(...));
     }
 
     /** @return list<string> */

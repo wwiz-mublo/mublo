@@ -11,6 +11,7 @@ use Mublo\Core\Response\RedirectResponse;
 use Mublo\Plugin\Innopay\Repository\InnopayAttemptRepository;
 use Mublo\Plugin\Innopay\Repository\InnopayLogRepository;
 use Mublo\Plugin\Innopay\Service\InnopayLogger;
+use Mublo\Plugin\Innopay\Service\InnopayNotiService;
 use Mublo\Plugin\Innopay\Service\InnopayReturnService;
 
 class CallbackController
@@ -26,7 +27,42 @@ class CallbackController
         private InnopayAttemptRepository $attempts,
         private InnopayLogRepository $logRepository,
         private InnopayLogger $logger,
+        private InnopayNotiService $notiService,
     ) {
+    }
+
+    /**
+     * 결제결과 통보(Noti) 수신 — 이노페이 서버 → 가맹점 서버
+     * POST|GET /innopay/callback/noti
+     *
+     * 본문에 "0000" 을 돌려줘야 수신 완료로 본다. 그 밖의 값이면 1분 간격으로 10번까지 재전송한다.
+     */
+    public function noti(Request $request, Context $context): HtmlResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $params = array_merge($request->getQuery(), $request->getBody());
+        if ($params === []) {
+            $raw = (string) file_get_contents('php://input');
+            if ($raw !== '') {
+                parse_str($raw, $params);
+            }
+        }
+
+        try {
+            $reply = $this->notiService->handle($domainId, $params, $request->getClientIp());
+        } catch (\Throwable $e) {
+            error_log('[Innopay] 결제결과 통보 처리 예외: ' . $e->getMessage());
+            $this->logger->log($domainId, 'NOTI_RESULT', [
+                'moid' => (string) ($params['moid'] ?? ''),
+                'tid' => (string) ($params['transSeq'] ?? ''),
+                'level' => 'error',
+                'result_code' => 'EXCEPTION',
+                'result_msg' => $e->getMessage() . ' [응답 ' . InnopayNotiService::RETRY . ']',
+            ]);
+            $reply = InnopayNotiService::RETRY;
+        }
+
+        return new HtmlResponse($reply);
     }
 
     /**

@@ -50,4 +50,13 @@ return function (PrefixedRouteCollector $r): void {
         'controller' => CallbackController::class,
         'method'     => 'clientLog',
     ]);
+
+    // Front: /innopay/callback/noti — 결제결과 통보(이노페이 서버 → 가맹점 서버).
+    // 이노페이 상점관리 → 가맹점정보관리 → 결제 데이터 통보에 결제수단별로 등록한다.
+    foreach (['GET', 'POST'] as $method) {
+        $r->addRoute($method, '/callback/noti', [
+            'controller' => CallbackController::class,
+            'method'     => 'noti',
+        ]);
+    }
 };

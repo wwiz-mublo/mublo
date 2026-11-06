@@ -8,6 +8,7 @@
  * @var bool   $hasCancelPwd
  * @var bool   $isConfigured
  * @var array  $payMethods
+ * @var string $notiUrl
  */
 $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
 ?>
@@ -123,11 +124,52 @@ $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                     </div>
                 </div>
             </div>
+
+            <!-- 결제결과 통보 -->
+            <div class="card mb-4">
+                <div class="card-hero">
+                    <i class="bi bi-broadcast text-pastel-purple"></i>
+                    <span>결제결과 통보 (Noti)</span>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info mb-3">
+                        <i class="bi bi-info-circle"></i>
+                        아래 주소를 이노페이 상점관리 → <strong>가맹점정보 → 가맹점정보관리 → 기본정보 → 결제 데이터 통보</strong>에
+                        결제수단별(신용카드·간편결제·계좌이체)로 등록하세요. 구매자가 결제 직후 창을 닫아도 결제가 주문에 반영되고,
+                        이노페이 상점관리에서 직접 취소한 건도 주문에 환불로 기록됩니다.
+                    </div>
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label" for="notiUrl">통보 URL</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="notiUrl" value="<?= $e($notiUrl) ?>" readonly>
+                                <button type="button" class="btn btn-outline-secondary" onclick="innopayCopyNotiUrl()">
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <div class="form-text">개인정보가 오가므로 https 주소로 등록해야 합니다.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="notiIpAllowlist">발신 IP 허용목록</label>
+                            <input type="text" class="form-control" id="notiIpAllowlist" name="formData[noti_ip_allowlist]"
+                                   value="<?= $e($config['noti_ip_allowlist'] ?? '') ?>" placeholder="비우면 모두 허용">
+                            <div class="form-text">쉼표로 구분, CIDR 가능. 통보 내용은 항상 거래조회로 확인한 뒤 반영합니다.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </form>
 
 <script>
+function innopayCopyNotiUrl() {
+    var input = document.getElementById('notiUrl');
+    navigator.clipboard.writeText(input.value).then(function () {
+        MubloRequest.showToast('복사되었습니다.', 'success');
+    });
+}
+
 function innopaySettingsSaved(res) {
     if (res.result === 'success') {
         MubloRequest.showToast(res.message, 'success');

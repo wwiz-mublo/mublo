@@ -33,6 +33,10 @@ class LogController
         'CANCEL_RES' => '취소 응답',
         'AUTO_CANCEL' => '자동 취소',
         'NEEDS_ACTION' => '확인 필요',
+        'NOTI' => '결제결과 통보 수신',
+        'NOTI_RESULT' => '결제결과 통보 처리',
+        'QUERY_MOID_REQ' => '주문번호 조회 요청',
+        'QUERY_MOID_RES' => '주문번호 조회 응답',
     ];
 
     private MigrationRunner $migrationRunner;

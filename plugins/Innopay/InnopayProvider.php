@@ -15,10 +15,12 @@ use Mublo\Core\Middleware\CsrfMiddleware;
 use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Plugin\Innopay\Repository\InnopayAttemptRepository;
+use Mublo\Plugin\Innopay\Repository\InnopayCancelRepository;
 use Mublo\Plugin\Innopay\Repository\InnopayConfigRepository;
 use Mublo\Plugin\Innopay\Repository\InnopayLogRepository;
 use Mublo\Plugin\Innopay\Service\InnopayConfigService;
 use Mublo\Plugin\Innopay\Service\InnopayLogger;
+use Mublo\Plugin\Innopay\Service\InnopayNotiService;
 use Mublo\Plugin\Innopay\Service\InnopayReturnService;
 
 class InnopayProvider implements ExtensionProviderInterface, InstallableExtensionInterface
@@ -47,23 +49,40 @@ class InnopayProvider implements ExtensionProviderInterface, InstallableExtensio
 
         $container->singleton(InnopayLogger::class, fn($c) => new InnopayLogger($c->get(InnopayLogRepository::class)));
 
+        $container->singleton(InnopayCancelRepository::class, fn($c) => new InnopayCancelRepository($c->get(Database::class)));
+
         $container->singleton(InnopayReturnService::class, fn($c) => new InnopayReturnService(
             $c->get(InnopayConfigService::class),
             $c->get(InnopayAttemptRepository::class),
             $c->get(InnopayLogger::class),
             $c->get(ContractRegistry::class),
-            fn(int $domainId) => new InnopayGateway(
-                $c->get(InnopayConfigService::class),
-                $c->get(InnopayAttemptRepository::class),
-                $c->get(InnopayLogger::class),
-                $domainId
-            )
+            fn(int $domainId) => self::makeGateway($c, $domainId)
         ));
+
+        $container->singleton(InnopayNotiService::class, fn($c) => new InnopayNotiService(
+            $c->get(InnopayConfigService::class),
+            $c->get(InnopayAttemptRepository::class),
+            $c->get(InnopayCancelRepository::class),
+            $c->get(InnopayLogger::class),
+            $c->get(InnopayReturnService::class),
+            fn(int $domainId) => self::makeGateway($c, $domainId)
+        ));
+    }
+
+    private static function makeGateway(DependencyContainer $c, int $domainId): InnopayGateway
+    {
+        return new InnopayGateway(
+            $c->get(InnopayConfigService::class),
+            $c->get(InnopayAttemptRepository::class),
+            $c->get(InnopayLogger::class),
+            $c->get(InnopayCancelRepository::class),
+            $domainId
+        );
     }
 
     public function boot(DependencyContainer $container, Context $context): void
     {
-        // 결제창 복귀(GET)·브라우저 로그(POST)는 CSRF 토큰 없이 들어온다
+        // 결제창 복귀(GET)·브라우저 로그(POST)·결제결과 통보(서버→서버)는 CSRF 토큰 없이 들어온다
         if ($container->has(CsrfMiddleware::class)) {
             $container->get(CsrfMiddleware::class)->addExcludePath('/innopay/callback/');
         }
@@ -77,12 +96,7 @@ class InnopayProvider implements ExtensionProviderInterface, InstallableExtensio
             $registry->register(
                 PaymentGatewayInterface::class,
                 InnopayGateway::PG_KEY,
-                fn() => new InnopayGateway(
-                    $container->get(InnopayConfigService::class),
-                    $container->get(InnopayAttemptRepository::class),
-                    $container->get(InnopayLogger::class),
-                    $domainId
-                ),
+                fn() => self::makeGateway($container, $domainId),
                 [
                     'label'       => '이노페이',
                     'icon'        => 'bi-credit-card-2-front',

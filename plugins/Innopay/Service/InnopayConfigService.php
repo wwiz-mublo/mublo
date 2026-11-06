@@ -15,10 +15,11 @@ class InnopayConfigService
 
     /**
      * 결제창 결제수단. 목록에 없는 값(빈 값)을 보내면 이노페이가 결제수단 선택창을 띄운다.
-     * 가상계좌는 입금통보(Noti) 연동 전이라 제외한다.
+     * 가상계좌는 입금 확인 연동 전이라 제외한다. 선택창에서 구매자가 가상계좌를 고르면
+     * 계좌 발급만 되고 주문에는 반영하지 않는다(InnopayReturnService·InnopayGateway::verify).
      */
     public const PAY_METHODS = [
-        ''     => '결제수단 선택창 (구매자가 선택)',
+        ''     => '결제수단 선택창 (가상계좌는 결제 불가)',
         'CARD' => '신용카드',
         'EPAY' => '간편결제',
         'BANK' => '계좌이체',
@@ -94,6 +95,8 @@ class InnopayConfigService
             'logo_url' => '',
             // 승인은 됐는데 주문 반영이 실패하면 결제를 자동으로 취소한다
             'auto_cancel' => 1,
+            // 결제결과 통보 발신 IP 허용목록 (비우면 모두 허용 — 내용은 거래조회로 검증한다)
+            'noti_ip_allowlist' => '',
         ];
     }
 

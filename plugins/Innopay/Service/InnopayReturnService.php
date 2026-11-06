@@ -136,12 +136,14 @@ class InnopayReturnService
         $client = ($this->gatewayFactory)($domainId)->createClient();
         $result = $client->approve($token, $tid, $moid, $amt, $taxFree);
         $approved = $this->isApproved($result, $tid, $moid);
+        $approvedData = $approved ? $result['data'] : [];
 
         $errorCode = (string) ($result['error']['code'] ?? '');
         if (!$approved && (!empty($result['_ambiguous']) || in_array($errorCode, self::RECOVERABLE_CODES, true))) {
             // 응답을 못 받았거나 "이미 승인/승인 중" — 실제로 승인됐는지 조회해서 판단한다
             $query = $client->findByTid($tid, $moid);
             $approved = $this->isApproved($query, $tid, $moid);
+            $approvedData = $approved ? $query['data'] : [];
             $this->logger->log($domainId, 'APPROVE_RECOVER', [
                 'moid' => $moid, 'tid' => $tid, 'amount' => $total,
                 'level' => $approved ? 'warning' : 'error',
@@ -157,9 +159,41 @@ class InnopayReturnService
             return $this->fail($domainId, $moid, $tid, $failUrl, $code, $message);
         }
 
+        // 가상계좌는 승인이 "계좌 발급"일 뿐이다 — 입금 확인 연동 전이라 주문에 반영하지 않는다.
+        // (결제수단 선택창에서 구매자가 고를 수 있다. 발급된 계좌는 입금 없이 만료된다)
+        if (InnopayGateway::isVirtualAccount((string) ($approvedData['payMethod'] ?? ''))) {
+            $message = '가상계좌 결제는 지원하지 않습니다. 다른 결제수단으로 다시 결제해주세요.';
+            $this->attempts->transition($domainId, $moid, [Attempts::APPROVING], Attempts::FAILED, ['result_code' => 'VBANK_UNSUPPORTED', 'result_msg' => $message]);
+            return $this->fail($domainId, $moid, $tid, $failUrl, 'VBANK_UNSUPPORTED', $message, 'warning');
+        }
+
         $this->attempts->transition($domainId, $moid, [Attempts::APPROVING], Attempts::APPROVED, ['result_code' => 'APPROVED', 'result_msg' => '승인 완료']);
 
         return $this->finalize($domainId, $moid, $tid, $consumer, $config, $okUrl, $failUrl);
+    }
+
+    /**
+     * 이미 승인된 결제를 주문에 반영한다 — 결제결과 통보(Noti)가 복귀 과정이 끊긴 결제를 이어갈 때 쓴다.
+     * 호출자는 거래조회로 승인을 확인하고 시도를 APPROVED 로 옮긴 상태여야 한다.
+     */
+    public function completeApproved(int $domainId, string $moid, string $tid): InnopayReturnOutcome
+    {
+        $attempt = $this->attempts->find($domainId, $moid);
+        $consumer = $attempt !== null ? $this->resolveConsumer((string) $attempt['consumer']) : null;
+        if ($attempt === null || $consumer === null) {
+            return InnopayReturnOutcome::message(false, '결제 시도 또는 결제 소비자를 찾을 수 없습니다.');
+        }
+
+        return $this->finalize(
+            $domainId, $moid, $tid, $consumer,
+            $this->configService->getConfig($domainId),
+            (string) $attempt['success_url'], (string) $attempt['fail_url']
+        );
+    }
+
+    public function resolveConsumerFor(array $attempt): ?PaymentConsumerInterface
+    {
+        return $this->resolveConsumer((string) ($attempt['consumer'] ?? ''));
     }
 
     /**

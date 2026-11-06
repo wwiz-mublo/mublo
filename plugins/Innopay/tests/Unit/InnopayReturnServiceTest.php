@@ -9,6 +9,7 @@ use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Core\Result\Result;
 use Mublo\Plugin\Innopay\Service\InnopayReturnService;
 use PHPUnit\Framework\TestCase;
+use Tests\Innopay\Support\FakeConsumer;
 use Tests\Innopay\Support\InnopayTestKit;
 
 class InnopayReturnServiceTest extends TestCase
@@ -261,31 +262,19 @@ class InnopayReturnServiceTest extends TestCase
         self::assertFalse($out->success);
         self::assertSame([], $this->kit->requests);
     }
-}
 
-final class FakeConsumer implements PaymentConsumerInterface
-{
-    public array $verifyCalls = [];
-    public ?Result $verifyResult = null;
-    public ?PreparedPayment $prepared = null;
-    public bool $paidAfterVerify = false;
-
-    public function findPreparedPayment(int $domainId, string $orderNo): ?PreparedPayment
+    public function testVirtualAccountChosenInSelectionWindowIsNeverMarkedPaid(): void
     {
-        if ($this->paidAfterVerify && $this->verifyCalls !== []) {
-            return new PreparedPayment('PAID', 'innopay', 15000, true);
-        }
-        return $this->prepared;
-    }
+        // 결제수단 선택창에서 구매자가 가상계좌를 고르면 승인은 "계좌 발급"이다
+        $tx = ['success' => true, 'data' => InnopayTestKit::transaction('TID1', self::MOID, 15000, 0, 'VBANK')];
+        $this->kit->routes['/v1/transactions/pay'] = [200, $tx];
 
-    public function verifyPayment(int $domainId, string $orderNo, string $pgKey, string $transactionId): Result
-    {
-        $this->verifyCalls[] = [$domainId, $orderNo, $pgKey, $transactionId];
-        return $this->verifyResult ?? Result::success('결제가 검증되었습니다.');
-    }
+        $out = $this->service()->handle(1, $this->params());
 
-    public function recordExternalRefund(int $domainId, string $orderNo, string $pgKey, string $transactionId, int $amount, string $reason, bool $fullCancel): Result
-    {
-        return Result::success();
+        self::assertFalse($out->success);
+        self::assertSame('FAILED', $this->attemptStatus());
+        self::assertSame([], $this->consumer->verifyCalls, '주문에 결제 완료로 반영하지 않는다');
+        self::assertNull($this->kit->stepRow('AUTO_CANCEL'));
+        self::assertStringContainsString(rawurlencode('가상계좌'), $out->redirect);
     }
 }

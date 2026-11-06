@@ -17,10 +17,14 @@ class InnopayLogger
 {
     /** 값 전체를 가리는 키 (대소문자 무시) */
     private const SECRET_KEYS = ['merchant-key', 'merchantkey', 'merchant_key', 'payment-token',
-        'paymenttoken', 'cancelpwd', 'cancel_pwd'];
+        'paymenttoken', 'cancelpwd', 'cancel_pwd',
+        // 결제결과 통보의 배송지 (개인정보)
+        'address', 'addressdetail'];
 
     /** 뒤 4자리만 남기는 키 */
-    private const PARTIAL_KEYS = ['refundacctno', 'tel', 'buyertel', 'customer_phone'];
+    private const PARTIAL_KEYS = ['refundacctno', 'tel', 'buyertel', 'customer_phone',
+        // 결제결과 통보 필드
+        'userphoneno', 'buyerphoneno', 'recipientphoneno', 'vbankrefundacctno', 'accntno', 'cardno', 'cashreceiptno'];
 
     private const MAX_BODY = 60000;
 

@@ -9,6 +9,7 @@ use Mublo\Core\Http\Request;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Infrastructure\Database\Database;
+use Mublo\Plugin\Innopay\InnopayGateway;
 use Mublo\Plugin\Innopay\Service\InnopayConfigService;
 
 class SettingsController
@@ -42,6 +43,7 @@ class SettingsController
                 'hasCancelPwd' => $config['cancel_pwd'] !== '',
                 'isConfigured' => $this->configService->isConfigured($domainId),
                 'payMethods' => InnopayConfigService::PAY_METHODS,
+                'notiUrl' => 'https://' . ($request->getHost() ?? '') . InnopayGateway::NOTI_PATH,
             ]);
     }
 
@@ -67,6 +69,7 @@ class SettingsController
             'default_buyer_email' => $email,
             'logo_url' => $logoUrl,
             'auto_cancel' => !empty($formData['auto_cancel']),
+            'noti_ip_allowlist' => trim((string) ($formData['noti_ip_allowlist'] ?? '')),
         ]);
 
         return JsonResponse::success(null, '설정이 저장되었습니다.');
