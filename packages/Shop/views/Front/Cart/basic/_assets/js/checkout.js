@@ -618,7 +618,12 @@ var __d = (function () {
 
         if (!ordererName) { MubloRequest.showAlert('주문인을 입력해주세요.', 'warning'); return; }
         if (!ordererPhone) { MubloRequest.showAlert('주문인 연락처를 입력해주세요.', 'warning'); return; }
-        if (ordererEmail && !ordererEmailInput.checkValidity()) { MubloRequest.showAlert('이메일 형식이 올바르지 않습니다.', 'warning'); return; }
+        if (!ordererEmail && __d.ordererEmailRequired) {
+            MubloRequest.showAlert('주문인 이메일을 입력해주세요.', 'warning');
+            if (ordererEmailInput) ordererEmailInput.focus();
+            return;
+        }
+        if (ordererEmail &&!ordererEmailInput.checkValidity()) { MubloRequest.showAlert('이메일 형식이 올바르지 않습니다.', 'warning'); return; }
 
         var recipientName = $('recipientName').value.trim();
         var recipientPhone = $('recipientPhone').value.trim();

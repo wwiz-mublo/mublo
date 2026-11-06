@@ -101,3 +101,22 @@ foreach ($activeTemplates as $tpl) {
                value="<?= htmlspecialchars($config['goods_view_tab'] ?? '') ?>">
     </div>
 </div>
+
+<div class="card mb-4">
+    <div class="card-hero">
+        <i class="bi bi-chat-square-text text-pastel-orange"></i>
+        <span>구매후기</span>
+    </div>
+    <div class="card-body">
+        <div class="form-check form-switch">
+            <input type="hidden" name="formData[review_require_approval]" value="0">
+            <input type="checkbox" name="formData[review_require_approval]" id="review_require_approval" class="form-check-input"
+                   value="1" <?= !empty($config['review_require_approval']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="review_require_approval">후기 관리자 승인 후 공개</label>
+        </div>
+        <div class="form-text">
+            켜면 고객이 쓴 후기는 "승인 대기"(비공개)로 저장되고, 구매후기 관리에서 승인하면 상품 페이지에 공개되며 후기 수·평점에 반영됩니다.
+            끄면(기본) 작성 즉시 공개합니다. 이미 등록된 후기와 관리자가 등록한 후기에는 적용되지 않습니다.
+        </div>
+    </div>
+</div>

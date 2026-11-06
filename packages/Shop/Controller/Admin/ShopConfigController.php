@@ -90,7 +90,7 @@ class ShopConfigController
             'anc_cs'         => 'SEO / 고객센터',
             'anc_payment'    => '결제 설정',
             'anc_price'      => '가격 / 할인 / 적립',
-            'anc_orderfield' => '주문 추가 필드',
+            'anc_orderfield' => '주문서 / 추가 필드',
             'anc_policy'     => '약관 설정',
         ];
 

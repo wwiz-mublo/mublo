@@ -77,7 +77,10 @@ class ReviewService
         return $this->reviewRepository->getReviewedDetailIds($domainId, $orderDetailIds);
     }
 
-    public function createReview(int $domainId, array $data): Result
+    /**
+     * @param bool $pendingApproval 쇼핑몰 설정 "후기 관리자 승인 후 공개" — 비공개 + 승인 대기로 저장한다
+     */
+    public function createReview(int $domainId, array $data, bool $pendingApproval = false): Result
     {
         $filtered = array_intersect_key($data, array_flip(self::ALLOWED_FIELDS));
         $filtered['domain_id'] = $domainId;
@@ -88,11 +91,52 @@ class ReviewService
 
         $filtered['rating'] = max(1, min(5, (int) ($filtered['rating'] ?? 5)));
 
+        if ($pendingApproval) {
+            $filtered['is_visible'] = 0;
+            $filtered['is_pending'] = 1;
+        }
+
         $id = $this->reviewRepository->create($filtered);
 
-        return $id
-            ? Result::success('후기가 등록되었습니다.', ['review_id' => $id])
-            : Result::failure('후기 등록에 실패했습니다.');
+        if (!$id) {
+            return Result::failure('후기 등록에 실패했습니다.');
+        }
+
+        return $pendingApproval
+            ? Result::success('후기가 등록되었습니다. 관리자 승인 후 공개됩니다.', ['review_id' => $id, 'is_pending' => true])
+            : Result::success('후기가 등록되었습니다.', ['review_id' => $id]);
+    }
+
+    /**
+     * 승인 대기 후기 수 (관리자 목록 안내용)
+     */
+    public function countPending(int $domainId): int
+    {
+        return $this->reviewRepository->countPending($domainId);
+    }
+
+    /**
+     * 후기 승인 — 공개로 바꾸고 승인 대기를 푼다 (현재 도메인 후기만)
+     *
+     * @param array $reviewIds
+     */
+    public function approve(int $domainId, array $reviewIds): Result
+    {
+        $ids = [];
+        foreach ($reviewIds as $id) {
+            if ((!is_int($id) && !is_string($id))
+                || filter_var($id, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false) {
+                return Result::failure('후기 ID가 올바르지 않습니다.');
+            }
+            $ids[] = (int) $id;
+        }
+        if ($ids === []) {
+            return Result::failure('승인할 후기를 선택해 주세요.');
+        }
+
+        $approved = $this->reviewRepository->approveByIds($domainId, $ids);
+
+        return Result::success("{$approved}건을 승인해 공개했습니다.", ['approved_count' => $approved]);
     }
 
     public function updateReview(int $domainId, int $reviewId, array $data): Result

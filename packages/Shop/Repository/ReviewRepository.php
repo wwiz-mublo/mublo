@@ -9,10 +9,62 @@ class ReviewRepository
 {
     private Database $db;
     private string $table = 'shop_reviews';
+    private ?bool $approvalColumn = null;
 
     public function __construct(Database $db)
     {
         $this->db = $db;
+    }
+
+    /**
+     * 승인 대기 컬럼(is_pending, 마이그레이션 040)이 있는지.
+     * 마이그레이션 전에도 후기 화면이 깨지지 않도록 컬럼을 쓰는 쿼리는 이 값을 확인한다.
+     */
+    public function supportsApproval(): bool
+    {
+        if ($this->approvalColumn === null) {
+            try {
+                $this->approvalColumn = $this->db->select("SHOW COLUMNS FROM {$this->table} LIKE 'is_pending'") !== [];
+            } catch (\Throwable) {
+                $this->approvalColumn = false;
+            }
+        }
+        return $this->approvalColumn;
+    }
+
+    /**
+     * 승인 대기 후기 수
+     */
+    public function countPending(int $domainId): int
+    {
+        if (!$this->supportsApproval()) {
+            return 0;
+        }
+        $row = $this->db->selectOne(
+            "SELECT COUNT(*) AS cnt FROM {$this->table} WHERE domain_id = ? AND is_pending = 1",
+            [$domainId]
+        );
+        return (int) ($row['cnt'] ?? 0);
+    }
+
+    /**
+     * 승인: 공개로 바꾸고 승인 대기를 푼다. 바뀐 행 수를 돌려준다.
+     *
+     * @param int[] $reviewIds
+     */
+    public function approveByIds(int $domainId, array $reviewIds): int
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $reviewIds), fn($id) => $id > 0)));
+        if ($ids === []) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $sets = $this->supportsApproval() ? 'is_visible = 1, is_pending = 0' : 'is_visible = 1';
+
+        return $this->db->execute(
+            "UPDATE {$this->table} SET {$sets} WHERE domain_id = ? AND review_id IN ({$placeholders})",
+            [$domainId, ...$ids]
+        );
     }
 
     public function findInDomain(int $domainId, int $id): ?array
@@ -37,7 +89,10 @@ class ReviewRepository
         $where = ['r.domain_id = ?'];
         $params = [$domainId];
 
-        if (isset($filters['is_visible']) && $filters['is_visible'] !== '') {
+        if (isset($filters['is_visible']) && $filters['is_visible'] === 'pending') {
+            // 승인 대기만 (컬럼이 없으면 대기 후기도 없다)
+            $where[] = $this->supportsApproval() ? 'r.is_pending = 1' : '1 = 0';
+        } elseif (isset($filters['is_visible']) && $filters['is_visible'] !== '') {
             $where[] = 'r.is_visible = ?';
             $params[] = (int) $filters['is_visible'];
         }
@@ -239,6 +294,12 @@ class ReviewRepository
 
     public function updateInDomain(int $domainId, int $id, array $data): int
     {
+        // 공개로 바꾸면 승인 대기도 끝난다 (관리자 공개 = 승인)
+        if (isset($data['is_visible']) && (int) $data['is_visible'] === 1
+            && !array_key_exists('is_pending', $data) && $this->supportsApproval()) {
+            $data['is_pending'] = 0;
+        }
+
         $sets = [];
         $values = [];
         foreach ($data as $col => $val) {

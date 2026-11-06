@@ -6,7 +6,9 @@
  * @var array $items
  * @var array $pagination
  * @var array $filters
+ * @var int $pendingCount 승인 대기 후기 수 (쇼핑몰 설정 "후기 관리자 승인 후 공개")
  */
+$pendingCount = (int) ($pendingCount ?? 0);
 $currentVisible = $filters['is_visible'] ?? '';
 $currentKeyword = $filters['keyword'] ?? '';
 
@@ -58,11 +60,19 @@ $columns = $this->columns()
     ->callback('is_visible', '공개', function ($row) {
         $rid = (int) $row['review_id'];
         $v = $row['is_visible'];
-        return '<select name="is_visible[' . $rid . ']" class="form-select form-select-sm">'
+        $html = '<select name="is_visible[' . $rid . ']" class="form-select form-select-sm">'
             . '<option value="1"' . ($v ? ' selected' : '') . '>공개</option>'
             . '<option value="0"' . (!$v ? ' selected' : '') . '>비공개</option>'
             . '</select>';
-    }, ['_th_attr' => ['class' => 'text-center', 'style' => 'width:90px'], '_td_attr' => ['class' => 'text-center']])
+        // 승인 대기: 배지 + 바로 승인 (공개로 바꿔 저장해도 승인된다)
+        if (!empty($row['is_pending'])) {
+            $html .= '<div class="mt-1 d-flex align-items-center justify-content-center gap-1">'
+                . '<span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">승인 대기</span>'
+                . '<button type="button" class="btn btn-sm btn-link p-0 btn-approve-review" data-review-id="' . $rid . '">승인</button>'
+                . '</div>';
+        }
+        return $html;
+    }, ['_th_attr' => ['class' => 'text-center', 'style' => 'width:110px'], '_td_attr' => ['class' => 'text-center']])
     ->callback('is_best', '베스트', function ($row) {
         $rid = (int) $row['review_id'];
         $v = $row['is_best'];
@@ -111,6 +121,12 @@ $columns = $this->columns()
                     <span class="ov-txt"><a href="/admin/shop/reviews">전체</a></span>
                     <span class="ov-num"><b><?= number_format($totalItems) ?></b> 건</span>
                 </span>
+                <?php if ($pendingCount > 0): ?>
+                <span class="ov">
+                    <span class="ov-txt"><a href="/admin/shop/reviews?is_visible=pending">승인 대기</a></span>
+                    <span class="ov-num"><b class="text-warning-emphasis"><?= number_format($pendingCount) ?></b> 건</span>
+                </span>
+                <?php endif; ?>
             </div>
             <div class="col col-xl-auto ms-xl-auto">
                 <div class="row gx-2">
@@ -119,6 +135,7 @@ $columns = $this->columns()
                             <option value="">전체 상태</option>
                             <option value="1" <?= $currentVisible === '1' ? 'selected' : '' ?>>공개</option>
                             <option value="0" <?= $currentVisible === '0' ? 'selected' : '' ?>>비공개</option>
+                            <option value="pending" <?= $currentVisible === 'pending' ? 'selected' : '' ?>>승인 대기</option>
                         </select>
                     </div>
                     <div class="col col-xl-auto">
@@ -161,6 +178,10 @@ $columns = $this->columns()
                     <button type="button" class="btn btn-sm btn-default" onclick="batchModify()">
                         <i class="d-inline d-md-none bi bi-pencil-square"></i>
                         <span class="d-none d-md-inline">선택 수정</span>
+                    </button>
+                    <button type="button" class="btn btn-sm btn-default" onclick="batchApprove()">
+                        <i class="d-inline d-md-none bi bi-check2-circle"></i>
+                        <span class="d-none d-md-inline">선택 승인</span>
                     </button>
                     <button type="button" class="btn btn-sm btn-default mublo-submit"
                             data-target="/admin/shop/reviews/list-delete"
@@ -227,7 +248,26 @@ $columns = $this->columns()
         MubloRequest.requestJson('/admin/shop/reviews/delete', { review_id: parseInt(btn.dataset.reviewId) })
             .then(function () { location.reload(); });
     });
+    // 단건 승인 (이벤트 위임)
+    document.getElementById('reviewTable')?.addEventListener('click', function (e) {
+        var btn = e.target.closest('.btn-approve-review');
+        if (!btn) return;
+        requestApprove([parseInt(btn.dataset.reviewId, 10)]);
+    });
 })();
+
+function requestApprove(reviewIds) {
+    MubloRequest.requestJson('/admin/shop/reviews/list-approve', { review_ids: reviewIds })
+        .then(function () { location.reload(); });
+}
+
+// 선택 승인 (승인 대기 → 공개)
+function batchApprove() {
+    var checked = document.querySelectorAll('input[name="chk[]"]:checked');
+    if (checked.length === 0) { alert('승인할 항목을 선택하세요.'); return; }
+    if (!confirm(checked.length + '건을 승인해 공개하시겠습니까?')) return;
+    requestApprove(Array.prototype.map.call(checked, function (cb) { return parseInt(cb.value, 10); }));
+}
 
 // 선택 상태 일괄 수정
 function batchModify() {
