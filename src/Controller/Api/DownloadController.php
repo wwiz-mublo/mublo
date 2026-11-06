@@ -109,6 +109,8 @@ class DownloadController
 
         // 6. 파일 응답
         $mimeType = mime_content_type($filePath) ?: 'application/octet-stream';
+        // inline 은 실제 내용이 래스터 이미지일 때만 — 그 밖(SVG·HTML 등)은 첨부로 내린다
+        $disposition = SecureFileService::resolveServeDisposition($disposition, $mimeType);
         $downloadFilename = $filename ?: basename($filePath);
 
         // UTF-8 파일명 처리

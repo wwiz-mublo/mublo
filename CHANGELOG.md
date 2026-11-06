@@ -6,6 +6,13 @@
 
 ## [Unreleased]
 
+### Added
+- 회원(관리자): 회원 수정 화면에서 파일형 추가필드에 올라온 이미지(jpeg·png·gif·webp)를 썸네일로 바로 보여 주고, 누르면 새 탭에서 원본을 엽니다. 다운로드 링크는 그대로이며 이미지가 아닌 파일은 종전처럼 파일명·크기·다운로드만 표시합니다. 접근 권한(관리자 또는 본인)은 바뀌지 않습니다
+- Core(보안 파일): `SecureFileService::parseMetaWithUrl()` 이 래스터 이미지 메타에 inline 토큰 주소 `preview_url` 을 함께 돌려줍니다
+
+### Security
+- 보안 파일 다운로드(`/download/{token}`)는 inline 토큰이라도 실제 파일 내용이 jpeg·png·gif·webp 가 아니면 첨부(attachment)로 내려보냅니다. SVG·HTML 등이 사이트 도메인에서 렌더링되지 않게 합니다
+
 ## [1.9.0] - 2026-10-28
 
 ### Added
