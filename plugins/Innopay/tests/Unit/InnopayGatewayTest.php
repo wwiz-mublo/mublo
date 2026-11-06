@@ -59,6 +59,17 @@ class InnopayGatewayTest extends TestCase
         self::assertContains('PREPARE', $this->kit->steps());
     }
 
+    public function testBuyerEmailPrefersOrderThenConfigDefault(): void
+    {
+        $this->kit->config['default_buyer_email'] = 'order@shop.example.com';
+
+        $fromOrder = $this->kit->gateway()->prepare($this->orderData(['customer_email' => 'buyer@example.com']));
+        self::assertSame('buyer@example.com', $fromOrder->data['pg_response']['pay_params']['buyerEmail']);
+
+        $fromConfig = $this->kit->gateway()->prepare($this->orderData(['customer_email' => '']));
+        self::assertSame('order@shop.example.com', $fromConfig->data['pg_response']['pay_params']['buyerEmail']);
+    }
+
     public function testPrepareRejectsWhenNotConfigured(): void
     {
         $this->kit->config['merchant_key'] = '';
