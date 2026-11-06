@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- 관리자 접근 권한 관리: 1차 메뉴를 고르면 서브메뉴 목록 조회(`GET /admin/admin-permissions/submenus/{code}`)가 404로 막혀 권한을 저장할 수 없던 문제를 고쳤습니다. 관리자 자동 라우팅의 조회 허용 목록에 `submenus`를 추가했습니다
+
 ## [1.9.0] - 2026-10-28
 
 ### Added
