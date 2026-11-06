@@ -19,6 +19,7 @@ use Mublo\Packages\Shop\Service\ProductInfoTemplateService;
 use Mublo\Packages\Shop\Helper\ProductPresenter;
 use Mublo\Packages\Shop\Helper\ProductSeoPresenter;
 use Mublo\Packages\Shop\Helper\PriceVisibility;
+use Mublo\Packages\Shop\Helper\AllProductsTab;
 use Mublo\Contract\Auth\AuthContextInterface;
 
 /**
@@ -131,6 +132,16 @@ class ProductController
         $perPage = 12;
 
         $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+
+        // 카테고리 트리 (표준 규격: code, label, link, children)
+        $categoryTree = $this->categoryRegistry->getTree('shop', $domainId);
+
+        // "전체" 탭을 끈 쇼핑몰: 카테고리·검색어 없는 목록은 첫 카테고리로 (설정이 바뀔 수 있어 302)
+        $allTabRedirect = AllProductsTab::redirectUrl($shopConfig, $categoryTree, $categoryCode, $keyword, $request->getQuery());
+        if ($allTabRedirect !== null) {
+            return RedirectResponse::to($allTabRedirect);
+        }
+
         $priceHidden = !PriceVisibility::allows($shopConfig, $this->viewerLevelValue());
         $sort = $this->sortForViewer($sort, $priceHidden);
 
@@ -174,9 +185,6 @@ class ProductController
             ? array_map('intval', $this->wishlistService->getMemberGoodsIds($domainId, $memberId))
             : [];
 
-        // 카테고리 트리 (표준 규격: code, label, link, children)
-        $categoryTree = $this->categoryRegistry->getTree('shop', $domainId);
-
         // 카테고리·검색어를 title 에 반영해야 목록 페이지들이 서로 구분된다
         $categoryPath = $categoryCode !== ''
             ? $this->resolveCategoryPath($categoryTree, $categoryCode)
@@ -195,6 +203,7 @@ class ProductController
                 'wishlistedIds' => $wishlistedIds,
                 'categoryName'  => $categoryName,
                 'priceHidden'   => $priceHidden,
+                'showAllTab'    => AllProductsTab::isShown($shopConfig),
                 'filters'       => [
                     'category_code' => $categoryCode,
                     'keyword'       => $keyword,
