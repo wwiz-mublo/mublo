@@ -743,7 +743,12 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(\Mublo\Core\Session\SessionInterface::class),
                 $c->get(OrderPointService::class),
                 $c->get(CouponService::class),
-                $c->get(PolicyQueryInterface::class)
+                $c->get(PolicyQueryInterface::class),
+                new \Mublo\Packages\Shop\Service\OrdererPrefillService(
+                    $c->has(\Mublo\Contract\Member\MemberCustomFieldQueryInterface::class)
+                        ? $c->get(\Mublo\Contract\Member\MemberCustomFieldQueryInterface::class)
+                        : null
+                )
             )
         );
         $container->singleton(FrontOrderController::class, fn(DependencyContainer $c) =>

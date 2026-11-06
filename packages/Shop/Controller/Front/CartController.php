@@ -18,6 +18,7 @@ use Mublo\Packages\Shop\Service\PaymentService;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Packages\Shop\Service\MemberAddressService;
 use Mublo\Packages\Shop\Service\OrderFieldService;
+use Mublo\Packages\Shop\Service\OrdererPrefillService;
 use Mublo\Contract\Member\PolicyQueryInterface;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Packages\Shop\Enum\PaymentMethod;
@@ -46,6 +47,7 @@ class CartController
     private OrderPointService $orderPointService;
     private CouponService $couponService;
     private PolicyQueryInterface $policyService;
+    private OrdererPrefillService $ordererPrefill;
 
     public function __construct(
         CartService $cartService,
@@ -60,7 +62,8 @@ class CartController
         SessionInterface $session,
         OrderPointService $orderPointService,
         CouponService $couponService,
-        PolicyQueryInterface $policyService
+        PolicyQueryInterface $policyService,
+        ?OrdererPrefillService $ordererPrefill = null
     ) {
         $this->cartService = $cartService;
         $this->cartCheckoutService = $cartCheckoutService;
@@ -75,6 +78,7 @@ class CartController
         $this->orderPointService = $orderPointService;
         $this->couponService = $couponService;
         $this->policyService = $policyService;
+        $this->ordererPrefill = $ordererPrefill ?? new OrdererPrefillService();
     }
 
     /**
@@ -607,6 +611,11 @@ class CartController
         $domainConfig = $context->getDomainInfo()?->getSiteConfig() ?? [];
         $checkoutPolicies = $this->loadCheckoutPolicies($domainId, $shopConfig, $domainConfig);
 
+        // 주문인 기본값 — 로그인 회원의 이름(없으면 닉네임)·연락처·이메일
+        $ordererPrefill = $user !== null && $memberId > 0
+            ? $this->ordererPrefill->forMember($memberId, $domainId, $user->nickname)
+            : ['name' => '', 'phone' => '', 'email' => ''];
+
         return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Cart/Checkout'))
             ->withData([
                 'cartItems'        => $cartItems,
@@ -631,6 +640,7 @@ class CartController
                 'pointUsage'       => $pointUsage,
                 'checkoutPolicies' => $checkoutPolicies,
                 'ordererEmailRequired' => !empty($shopConfig['orderer_email_required']),
+                'ordererPrefill'   => $ordererPrefill,
             ]);
     }
 

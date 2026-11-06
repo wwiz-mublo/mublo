@@ -12,6 +12,7 @@
  * @var array|null $defaultAddress 기본 배송지
  * @var array $orderFields 주문 추가 필드 목록
  * @var bool $ordererEmailRequired 주문인 이메일 필수 여부 (쇼핑몰 설정)
+ * @var array $ordererPrefill 주문인 기본값 [name, phone, email] (로그인 회원 정보, 비회원은 빈 값)
  */
 
 $cartItems = $cartItems ?? [];
@@ -25,6 +26,9 @@ $defaultAddress = $defaultAddress ?? null;
 $prefill = is_array($defaultAddress) ? $defaultAddress : [];
 $orderFields = $orderFields ?? [];
 $ordererEmailRequired = !empty($ordererEmailRequired);
+// 이전 컨트롤러(ordererPrefill 없음)와도 맞도록 이름은 닉네임으로 폴백
+$ordererPrefill = is_array($ordererPrefill ?? null) ? $ordererPrefill : [];
+$ordererPrefillName = (string) (($ordererPrefill['name'] ?? '') !== '' ? $ordererPrefill['name'] : ($member['nickname'] ?? ''));
 
 $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/cart-checkout.css');
 ?>
@@ -42,19 +46,19 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/ca
                     <div class="shop-checkout__form-row">
                         <span class="shop-checkout__label">주문인<span class="required">*</span></span>
                         <div class="shop-checkout__input-wrap">
-                            <input type="text" id="ordererName" class="shop-checkout__input shop-checkout__input--short" value="<?= htmlspecialchars((string) ($member['nickname'] ?? '')) ?>">
+                            <input type="text" id="ordererName" class="shop-checkout__input shop-checkout__input--short" value="<?= htmlspecialchars($ordererPrefillName) ?>" autocomplete="name">
                         </div>
                     </div>
                     <div class="shop-checkout__form-row">
                         <span class="shop-checkout__label">연락처<span class="required">*</span></span>
                         <div class="shop-checkout__input-wrap">
-                            <input type="tel" id="ordererPhone" class="shop-checkout__input shop-checkout__input--short mask-hp">
+                            <input type="tel" id="ordererPhone" class="shop-checkout__input shop-checkout__input--short mask-hp" value="<?= htmlspecialchars((string) ($ordererPrefill['phone'] ?? '')) ?>" autocomplete="tel">
                         </div>
                     </div>
                     <div class="shop-checkout__form-row">
                         <span class="shop-checkout__label">이메일<?php if ($ordererEmailRequired): ?><span class="required">*</span><?php endif; ?></span>
                         <div class="shop-checkout__input-wrap">
-                            <input type="email" id="ordererEmail" class="shop-checkout__input" placeholder="주문 안내 메일을 받을 주소" autocomplete="email"<?= $ordererEmailRequired ? ' required' : '' ?>>
+                            <input type="email" id="ordererEmail" class="shop-checkout__input" placeholder="주문 안내 메일을 받을 주소" autocomplete="email" value="<?= htmlspecialchars((string) ($ordererPrefill['email'] ?? '')) ?>"<?= $ordererEmailRequired ? ' required' : '' ?>>
                         </div>
                     </div>
                     <?php if ($isGuest): ?>
