@@ -18,6 +18,10 @@ class InnopayAttemptRepository
     public const CANCELLED = 'CANCELLED';
     /** 승인은 됐는데 주문 반영도 자동 취소도 못 한 상태 — 관리자 확인 필요 */
     public const NEEDS_ACTION = 'NEEDS_ACTION';
+    /** 가상계좌 발급됨 — 입금 통보를 기다린다 */
+    public const DEPOSIT_WAITING = 'DEPOSIT_WAITING';
+    /** 가상계좌 입금이 통보되고 거래조회로 확인됨 — 주문 반영 중 */
+    public const DEPOSITED = 'DEPOSITED';
 
     private string $table = 'plugin_innopay_attempts';
 
@@ -51,6 +55,9 @@ class InnopayAttemptRepository
             'amount' => (int) ($data['amount'] ?? 0),
             'status' => self::READY,
             'tid' => null,
+            'vbank_bank' => null,
+            'vbank_account' => null,
+            'vbank_due_date' => null,
             'result_code' => null,
             'result_msg' => null,
         ];

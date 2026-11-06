@@ -139,6 +139,10 @@ class InnopayGateway implements PaymentGatewayInterface
         if ((string) $config['logo_url'] !== '') {
             $payParams['logoUrl'] = (string) $config['logo_url'];
         }
+        // 가상계좌를 고를 수 있는 결제창이면 입금 기한을 정한다 (안 보내면 이노페이가 당일·익일로 잡는다)
+        if (in_array($payMethod, ['', 'VBANK'], true)) {
+            $payParams['vBankExpDate'] = date('Ymd', strtotime('+' . max(1, (int) ($config['vbank_days'] ?? 3)) . ' days'));
+        }
 
         $this->logger->log($this->domainId, 'PREPARE', [
             'moid' => $moid,
@@ -189,13 +193,15 @@ class InnopayGateway implements PaymentGatewayInterface
         $moid = (string) ($data['moid'] ?? '');
         $approvalNo = (string) ($data['authNum'] ?? '');
 
-        // 가상계좌는 승인(status 0)이 "계좌 발급"일 뿐 입금이 아니다. 입금 확인 연동 전까지는
-        // 결제 완료로 보지 않는다 — 결제수단 선택창에서 구매자가 고를 수 있으므로 반드시 막는다.
+        // 가상계좌는 승인(status 0)이 "계좌 발급"일 뿐 입금이 아니다. 입금은 결제결과 통보로만 알 수
+        // 있으므로, 통보를 거래조회로 확인해 결제 시도를 DEPOSITED 로 옮긴 경우에만 결제 완료로 본다.
+        // (소비 패키지의 클라이언트 검증 경로로 발급만 된 계좌를 결제 완료로 뒤집지 못하게 한다)
         $isVbank = self::isVirtualAccount((string) ($data['payMethod'] ?? ''));
-        $paid = $status === self::STATUS_APPROVED && !$isVbank;
+        $deposited = $isVbank && $this->isDepositConfirmed($moid, (string) ($data['tid'] ?? $transactionId));
+        $paid = $status === self::STATUS_APPROVED && (!$isVbank || $deposited);
         $error = match (true) {
             $paid => null,
-            $isVbank => '가상계좌 결제는 지원하지 않습니다.',
+            $isVbank && $status === self::STATUS_APPROVED => '가상계좌 입금이 확인되지 않았습니다.',
             default => '승인 상태가 아닌 거래입니다. (' . self::mapStatus($status) . ')',
         };
 
@@ -204,7 +210,7 @@ class InnopayGateway implements PaymentGatewayInterface
             transactionId: (string) ($data['tid'] ?? $transactionId),
             orderNo: $moid !== '' ? $moid : null,
             amount: $amount,
-            status: $isVbank ? 'UNSUPPORTED' : self::mapStatus($status),
+            status: $isVbank && !$paid && $status === self::STATUS_APPROVED ? 'WAITING_FOR_DEPOSIT' : self::mapStatus($status),
             paymentMethod: self::mapPayMethod((string) ($data['payMethod'] ?? '')),
             approvalNo: $approvalNo !== '' ? $approvalNo : null,
             errorMessage: $error,
@@ -434,6 +440,16 @@ JS;
     public static function isVirtualAccount(string $payMethod): bool
     {
         return strtoupper($payMethod) === 'VBANK';
+    }
+
+    /** 결제결과 통보로 입금이 확인된 가상계좌 결제인가 (플러그인이 기록한 사실 기준) */
+    private function isDepositConfirmed(string $moid, string $tid): bool
+    {
+        $attempt = $moid !== '' ? $this->attempts->find($this->domainId, $moid) : null;
+
+        return $attempt !== null
+            && in_array((string) $attempt['status'], [InnopayAttemptRepository::DEPOSITED, InnopayAttemptRepository::COMPLETED], true)
+            && (string) ($attempt['tid'] ?? '') === $tid;
     }
 
     public static function mapStatus(int $status): string

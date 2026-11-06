@@ -94,6 +94,15 @@ class InnopayClient
         ], $moid, $tid, $cancelAmt);
     }
 
+    /**
+     * 주문취소 — 입금 전 가상계좌(SMS·ARS 주문 포함)를 주문번호로 닫는다. 결제 취소(환불)가 아니다.
+     * 같은 주문번호가 여러 건이면 최신 1건이 취소된다.
+     */
+    public function cancelOrder(string $moid): array
+    {
+        return $this->send('ORDER_CANCEL', 'POST', '/v1/order/cancel', $this->queryHeaders(), ['moid' => $moid], $moid, '');
+    }
+
     /** @return array<string,string> */
     private function queryHeaders(): array
     {

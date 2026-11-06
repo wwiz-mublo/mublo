@@ -15,15 +15,20 @@ class InnopayConfigService
 
     /**
      * 결제창 결제수단. 목록에 없는 값(빈 값)을 보내면 이노페이가 결제수단 선택창을 띄운다.
-     * 가상계좌는 입금 확인 연동 전이라 제외한다. 선택창에서 구매자가 가상계좌를 고르면
-     * 계좌 발급만 되고 주문에는 반영하지 않는다(InnopayReturnService·InnopayGateway::verify).
+     * 가상계좌는 입금을 결제결과 통보(Noti)로 받으므로 통보 URL 등록이 필요하고, 소비 패키지가
+     * VirtualAccountConsumerInterface 를 구현해야 한다(아니면 발급된 계좌를 닫고 거절한다).
      */
     public const PAY_METHODS = [
-        ''     => '결제수단 선택창 (가상계좌는 결제 불가)',
-        'CARD' => '신용카드',
-        'EPAY' => '간편결제',
-        'BANK' => '계좌이체',
+        ''      => '결제수단 선택창 (구매자가 선택)',
+        'CARD'  => '신용카드',
+        'EPAY'  => '간편결제',
+        'BANK'  => '계좌이체',
+        'VBANK' => '가상계좌',
     ];
+
+    /** 가상계좌 입금 기한(일) 허용 범위 */
+    public const VBANK_DAYS_MIN = 1;
+    public const VBANK_DAYS_MAX = 14;
 
     public function __construct(
         private InnopayConfigRepository $repository,
@@ -74,6 +79,7 @@ class InnopayConfigService
             $filtered['pay_method'] = 'CARD';
         }
         $filtered['auto_cancel'] = !empty($filtered['auto_cancel']) ? 1 : 0;
+        $filtered['vbank_days'] = max(self::VBANK_DAYS_MIN, min(self::VBANK_DAYS_MAX, (int) ($filtered['vbank_days'] ?? 3)));
 
         $this->repository->save($domainId, $filtered);
     }
@@ -97,6 +103,8 @@ class InnopayConfigService
             'auto_cancel' => 1,
             // 결제결과 통보 발신 IP 허용목록 (비우면 모두 허용 — 내용은 거래조회로 검증한다)
             'noti_ip_allowlist' => '',
+            // 가상계좌 입금 기한 — 발급일로부터 며칠 (이노페이 vBankExpDate)
+            'vbank_days' => 3,
         ];
     }
 

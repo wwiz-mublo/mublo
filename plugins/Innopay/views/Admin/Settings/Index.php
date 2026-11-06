@@ -90,7 +90,17 @@ $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                                 </option>
                                 <?php endforeach; ?>
                             </select>
-                            <div class="form-text">가상계좌는 입금통보 연동 후 지원 예정입니다.</div>
+                            <div class="form-text">가상계좌(선택창 포함)는 아래 결제결과 통보 URL 을 가상계좌에도 등록해야 입금이 반영됩니다.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">가상계좌 입금 기한</label>
+                            <div class="input-group">
+                                <span class="input-group-text">발급일로부터</span>
+                                <input type="number" name="formData[vbank_days]" class="form-control" min="1" max="14"
+                                       value="<?= (int) ($config['vbank_days'] ?? 3) ?>">
+                                <span class="input-group-text">일</span>
+                            </div>
+                            <div class="form-text">기한이 지나면 계좌가 닫힙니다. 입금되지 않은 주문은 입금 대기로 남으니 관리자가 취소하세요.</div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">기본 구매자 이메일</label>
@@ -135,8 +145,8 @@ $e = static fn($v) => htmlspecialchars((string) $v, ENT_QUOTES, 'UTF-8');
                     <div class="alert alert-info mb-3">
                         <i class="bi bi-info-circle"></i>
                         아래 주소를 이노페이 상점관리 → <strong>가맹점정보 → 가맹점정보관리 → 기본정보 → 결제 데이터 통보</strong>에
-                        결제수단별(신용카드·간편결제·계좌이체)로 등록하세요. 구매자가 결제 직후 창을 닫아도 결제가 주문에 반영되고,
-                        이노페이 상점관리에서 직접 취소한 건도 주문에 환불로 기록됩니다.
+                        결제수단별(신용카드·간편결제·계좌이체·가상계좌)로 등록하세요. 가상계좌 입금은 이 통보로만 반영되고,
+                        구매자가 결제 직후 창을 닫아도 결제가 주문에 반영되며, 이노페이 상점관리에서 직접 취소한 건도 주문에 환불로 기록됩니다.
                     </div>
                     <div class="row g-3">
                         <div class="col-md-8">

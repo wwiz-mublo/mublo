@@ -70,6 +70,7 @@ class SettingsController
             'logo_url' => $logoUrl,
             'auto_cancel' => !empty($formData['auto_cancel']),
             'noti_ip_allowlist' => trim((string) ($formData['noti_ip_allowlist'] ?? '')),
+            'vbank_days' => (int) ($formData['vbank_days'] ?? 3),
         ]);
 
         return JsonResponse::success(null, '설정이 저장되었습니다.');

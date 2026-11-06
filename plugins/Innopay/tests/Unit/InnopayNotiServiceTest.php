@@ -284,6 +284,61 @@ class InnopayNotiServiceTest extends TestCase
         self::assertFalse(InnopayNotiService::ipAllowed('', '10.0.0.0/16'));
     }
 
+    // ── 가상계좌 입금 통보 ───────────────────────────────────────────────
+
+    private function vbankTx(int $amt = 15000): void
+    {
+        $tx = InnopayTestKit::transaction('TID1', self::MOID, $amt, 0, 'VBANK');
+        unset($tx['card']);
+        $tx['virtualAccount'] = ['accountNumber' => '28284335018607', 'bankName' => '우리은행', 'expDate' => '20261109'];
+        $this->kit->routes['/v1/transactions/TID1'] = [200, ['success' => true, 'data' => $tx]];
+    }
+
+    public function testDepositNotiCompletesWaitingVirtualAccount(): void
+    {
+        $this->kit->attempts->update(1, self::MOID, ['status' => 'DEPOSIT_WAITING', 'tid' => 'TID1']);
+        $this->vbankTx();
+
+        $reply = $this->service()->handle(1, $this->approveNoti(['payMethod' => '08', 'vacctNo' => '28284335018607']));
+
+        self::assertSame('0000', $reply);
+        self::assertSame('COMPLETED', $this->attemptStatus());
+        self::assertSame([[1, self::MOID, 'innopay', 'TID1']], $this->consumer->verifyCalls);
+        self::assertSame('DEPOSIT_COMPLETED', $this->lastNotiResult()['result_code']);
+    }
+
+    public function testDepositNotiNotVisibleInQueryAsksForRetry(): void
+    {
+        // 입금 전 가상계좌는 조회에 {} 로 나온다 — 위조 통보이거나 반영 지연이다
+        $this->kit->attempts->update(1, self::MOID, ['status' => 'DEPOSIT_WAITING', 'tid' => 'TID1']);
+        $this->kit->routes['/v1/transactions/'] = [200, ['success' => true, 'data' => []]];
+
+        self::assertSame('FAIL', $this->service()->handle(1, $this->approveNoti(['payMethod' => '08'])));
+        self::assertSame('DEPOSIT_WAITING', $this->attemptStatus());
+        self::assertSame([], $this->consumer->verifyCalls);
+    }
+
+    public function testDepositWithDifferentAmountNeedsAction(): void
+    {
+        $this->kit->attempts->update(1, self::MOID, ['status' => 'DEPOSIT_WAITING', 'tid' => 'TID1']);
+        $this->vbankTx(9000);
+
+        self::assertSame('0000', $this->service()->handle(1, $this->approveNoti(['payMethod' => '08'])));
+        self::assertSame('NEEDS_ACTION', $this->attemptStatus());
+        self::assertSame([], $this->consumer->verifyCalls);
+    }
+
+    public function testVirtualAccountDepositForAttemptNotWaitingIsIgnored(): void
+    {
+        // 가상계좌를 지원하지 않아 닫았던 주문(FAILED)에 입금 통보가 오면 반영하지 않는다
+        $this->kit->attempts->update(1, self::MOID, ['status' => 'FAILED', 'tid' => 'TID1']);
+        $this->vbankTx();
+
+        self::assertSame('0000', $this->service()->handle(1, $this->approveNoti(['payMethod' => '08'])));
+        self::assertSame([], $this->consumer->verifyCalls);
+        self::assertSame('VBANK_NOT_WAITING', $this->lastNotiResult()['result_code']);
+    }
+
     private function lastNotiResult(): array
     {
         $rows = array_values(array_filter($this->kit->logs, fn($r) => $r['step'] === 'NOTI_RESULT'));

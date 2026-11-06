@@ -5,6 +5,8 @@ namespace Mublo\Packages\Shop\Service;
 
 use Mublo\Contract\Payment\PaymentConsumerInterface;
 use Mublo\Contract\Payment\PreparedPayment;
+use Mublo\Contract\Payment\VirtualAccountConsumerInterface;
+use Mublo\Contract\Payment\VirtualAccountIssue;
 use Mublo\Core\Result\Result;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Packages\Shop\Repository\OrderRepository;
@@ -16,7 +18,7 @@ use Mublo\Packages\Shop\Repository\OrderRepository;
  * 기존 서비스에 위임하는 얇은 어댑터다. 검증·상태 전이 로직은 전부 PaymentService·
  * RefundService 에 그대로 있고 여기서는 인자 모양만 계약에 맞춘다.
  */
-class ShopPaymentConsumer implements PaymentConsumerInterface
+class ShopPaymentConsumer implements PaymentConsumerInterface, VirtualAccountConsumerInterface
 {
     public function __construct(
         private PaymentService $paymentService,
@@ -24,6 +26,11 @@ class ShopPaymentConsumer implements PaymentConsumerInterface
         private OrderRepository $orderRepository,
         private PriceCalculator $priceCalculator,
     ) {
+    }
+
+    public function recordVirtualAccountIssued(int $domainId, string $orderNo, string $pgKey, string $transactionId, VirtualAccountIssue $account): Result
+    {
+        return $this->paymentService->recordVirtualAccountIssued($pgKey, $transactionId, $orderNo, $domainId, $account->toArray());
     }
 
     public function findPreparedPayment(int $domainId, string $orderNo): ?PreparedPayment

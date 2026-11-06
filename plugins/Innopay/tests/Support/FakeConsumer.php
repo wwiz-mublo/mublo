@@ -10,7 +10,7 @@ use Mublo\Core\Result\Result;
 /**
  * 결제 소비 패키지 대역 — 호출을 기록하고 결과를 지정할 수 있다.
  */
-final class FakeConsumer implements PaymentConsumerInterface
+class FakeConsumer implements PaymentConsumerInterface
 {
     public array $verifyCalls = [];
     public array $refundCalls = [];

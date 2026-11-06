@@ -100,7 +100,7 @@ class InnopayProvider implements ExtensionProviderInterface, InstallableExtensio
                 [
                     'label'       => '이노페이',
                     'icon'        => 'bi-credit-card-2-front',
-                    'description' => '신용카드/간편결제/계좌이체',
+                    'description' => '신용카드/간편결제/계좌이체/가상계좌',
                 ]
             );
         } catch (\Throwable $e) {

@@ -515,9 +515,9 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                     </div>
 
                     <?php
-                        // 무통장입금: 선택한 입금계좌 안내
+                        // 무통장입금: 선택한 입금계좌 안내 / 가상계좌: PG 가 발급한 계좌 안내
                         $bankInfo = null;
-                        if ($paymentMethodRaw === 'BANK' && !empty($order['bank_account_info'])) {
+                        if (in_array($paymentMethodRaw, ['BANK', 'VBANK'], true) && !empty($order['bank_account_info'])) {
                             $decoded = json_decode((string) $order['bank_account_info'], true);
                             if (is_array($decoded)) {
                                 $bankInfo = $decoded;
@@ -536,10 +536,18 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                             <span class="shop-order-view__bank-label">계좌번호</span>
                             <span class="shop-order-view__bank-account"><?= e((string) ($bankInfo['account'] ?? '')) ?></span>
                         </div>
+                        <?php if (($bankInfo['holder'] ?? '') !== ''): ?>
                         <div class="shop-order-view__bank-row">
                             <span class="shop-order-view__bank-label">예금주</span>
                             <span><?= e((string) ($bankInfo['holder'] ?? '')) ?></span>
                         </div>
+                        <?php endif; ?>
+                        <?php if (!empty($bankInfo['due_date'])): ?>
+                        <div class="shop-order-view__bank-row">
+                            <span class="shop-order-view__bank-label">입금 기한</span>
+                            <span><?= e((string) $bankInfo['due_date']) ?> 까지</span>
+                        </div>
+                        <?php endif; ?>
                     </div>
                     <?php endif; ?>
                 </div>

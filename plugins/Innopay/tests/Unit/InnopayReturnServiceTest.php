@@ -10,6 +10,7 @@ use Mublo\Core\Result\Result;
 use Mublo\Plugin\Innopay\Service\InnopayReturnService;
 use PHPUnit\Framework\TestCase;
 use Tests\Innopay\Support\FakeConsumer;
+use Tests\Innopay\Support\FakeVbankConsumer;
 use Tests\Innopay\Support\InnopayTestKit;
 
 class InnopayReturnServiceTest extends TestCase
@@ -263,18 +264,92 @@ class InnopayReturnServiceTest extends TestCase
         self::assertSame([], $this->kit->requests);
     }
 
-    public function testVirtualAccountChosenInSelectionWindowIsNeverMarkedPaid(): void
+    private function vbankApproved(): void
     {
-        // 결제수단 선택창에서 구매자가 가상계좌를 고르면 승인은 "계좌 발급"이다
-        $tx = ['success' => true, 'data' => InnopayTestKit::transaction('TID1', self::MOID, 15000, 0, 'VBANK')];
-        $this->kit->routes['/v1/transactions/pay'] = [200, $tx];
+        // 실제 테스트 MID 응답 모양 — 승인 = 계좌 발급, 승인번호 없음
+        $data = InnopayTestKit::transaction('TID1', self::MOID, 15000, 0, 'VBANK');
+        unset($data['card']);
+        $data['authNum'] = '';
+        $data['virtualAccount'] = ['accountNumber' => '28284335018607', 'bankName' => '우리은행  ', 'expDate' => '20261109'];
+        $this->kit->routes['/v1/transactions/pay'] = [200, ['success' => true, 'data' => $data]];
+        $this->kit->routes['/v1/order/cancel'] = [200, ['success' => true, 'data' => ['moid' => self::MOID]]];
+    }
+
+    public function testVirtualAccountForConsumerWithoutSupportIsClosed(): void
+    {
+        // 결제수단 선택창에서 가상계좌를 골랐지만 소비 패키지가 가상계좌를 받지 않는다
+        $this->vbankApproved();
 
         $out = $this->service()->handle(1, $this->params());
 
         self::assertFalse($out->success);
         self::assertSame('FAILED', $this->attemptStatus());
         self::assertSame([], $this->consumer->verifyCalls, '주문에 결제 완료로 반영하지 않는다');
-        self::assertNull($this->kit->stepRow('AUTO_CANCEL'));
+        self::assertContains('ORDER_CANCEL_REQ', $this->kit->steps(), '발급된 계좌를 닫는다');
+        self::assertSame(['moid' => self::MOID], end($this->kit->requests)['body']);
         self::assertStringContainsString(rawurlencode('가상계좌'), $out->redirect);
+    }
+
+    public function testVirtualAccountIssuedWaitsForDepositAndShowsAccount(): void
+    {
+        $vbank = new FakeVbankConsumer();
+        $this->registry = new ContractRegistry();
+        $this->registry->register(PaymentConsumerInterface::class, 'shop', $vbank);
+        $this->vbankApproved();
+
+        $out = $this->service()->handle(1, $this->params());
+
+        self::assertTrue($out->success);
+        self::assertNull($out->redirect);
+        self::assertSame(['bank' => '우리은행', 'account' => '28284335018607', 'amount' => 15000, 'due_date' => '2026-11-09'], $out->virtualAccount);
+        self::assertSame(self::OK, $out->continueUrl);
+
+        $attempt = $this->kit->attempts->find(1, self::MOID);
+        self::assertSame('DEPOSIT_WAITING', $attempt['status']);
+        self::assertSame('28284335018607', $attempt['vbank_account']);
+
+        self::assertCount(1, $vbank->issueCalls);
+        self::assertSame('TID1', $vbank->issueCalls[0]['tid']);
+        self::assertSame(15000, $vbank->issueCalls[0]['account']->amount);
+        self::assertSame([], $vbank->verifyCalls, '입금 전에는 결제 완료로 검증하지 않는다');
+        self::assertNotContains('ORDER_CANCEL_REQ', $this->kit->steps());
+
+        // 새로고침 — 다시 승인하지 않고 같은 안내
+        $requests = count($this->kit->requests);
+        $again = $this->service()->handle(1, $this->params());
+        self::assertSame('28284335018607', $again->virtualAccount['account']);
+        self::assertCount($requests, $this->kit->requests);
+    }
+
+    public function testVirtualAccountRecordFailureClosesAccount(): void
+    {
+        $vbank = new FakeVbankConsumer();
+        $vbank->issueResult = Result::failure('주문 상태 아님');
+        $this->registry = new ContractRegistry();
+        $this->registry->register(PaymentConsumerInterface::class, 'shop', $vbank);
+        $this->vbankApproved();
+
+        $out = $this->service()->handle(1, $this->params());
+
+        self::assertFalse($out->success);
+        self::assertSame('FAILED', $this->attemptStatus());
+        self::assertContains('ORDER_CANCEL_REQ', $this->kit->steps());
+    }
+
+    public function testGatewayVerifyTreatsVirtualAccountAsPaidOnlyAfterDepositConfirmed(): void
+    {
+        $data = InnopayTestKit::transaction('TID1', self::MOID, 15000, 0, 'VBANK');
+        $this->kit->routes['/v1/transactions/TID1'] = [200, ['success' => true, 'data' => $data]];
+        $this->kit->attempts->update(1, self::MOID, ['status' => 'DEPOSIT_WAITING', 'tid' => 'TID1']);
+
+        $waiting = $this->kit->gateway()->verify('TID1');
+        self::assertFalse($waiting->success, '발급만 된 계좌를 클라이언트 검증 경로로 결제 완료로 뒤집지 못한다');
+        self::assertSame('WAITING_FOR_DEPOSIT', $waiting->status);
+
+        $this->kit->attempts->update(1, self::MOID, ['status' => 'DEPOSITED']);
+        $deposited = $this->kit->gateway()->verify('TID1');
+        self::assertTrue($deposited->success);
+        self::assertSame('VBANK', $deposited->paymentMethod);
+        self::assertSame(15000, $deposited->amount);
     }
 }

@@ -548,9 +548,10 @@ class OrderService
         $currentId = $order->getOrderStatusRaw() ?? '';
 
         // 내부 과도상태(ATTEMPTING)는 관리자 FSM 그래프 밖이라 canTransition을 타지 않는다.
-        // 시스템 활성화 전이만 허용: 결제 성공 → PAID, 확정적 이상(금액·주문번호 불일치 등) → CANCELLED.
+        // 시스템 활성화 전이만 허용: 결제 성공 → PAID, 확정적 이상(금액·주문번호 불일치 등) → CANCELLED,
+        // 가상계좌 발급(돈은 아직) → RECEIVED(입금 대기 — 무통장과 같은 홈 상태, 스윕 대상 아님).
         $isActivation = $currentId === OrderAction::ATTEMPTING->value
-            && in_array($newStateId, [OrderAction::PAID->value, OrderAction::CANCELLED->value], true);
+            && in_array($newStateId, [OrderAction::PAID->value, OrderAction::CANCELLED->value, OrderAction::RECEIVED->value], true);
 
         // FSM 전이 검증 (활성화 전이는 그래프 검증 우회)
         if (!$isActivation && !$this->stateResolver->canTransition($domainId, $currentId, $newStateId)) {

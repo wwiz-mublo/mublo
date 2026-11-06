@@ -37,6 +37,9 @@ class LogController
         'NOTI_RESULT' => '결제결과 통보 처리',
         'QUERY_MOID_REQ' => '주문번호 조회 요청',
         'QUERY_MOID_RES' => '주문번호 조회 응답',
+        'VBANK_ISSUED' => '가상계좌 발급',
+        'ORDER_CANCEL_REQ' => '가상계좌 닫기 요청',
+        'ORDER_CANCEL_RES' => '가상계좌 닫기 응답',
     ];
 
     private MigrationRunner $migrationRunner;

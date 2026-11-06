@@ -108,15 +108,22 @@ class InnopayNotiService
             return $this->done($domainId, $moid, $notiTid, 'SKIPPED', "처리하지 않는 상태: {$status}", 'warning');
         }
 
+        $isDepositWait = in_array($status, [Attempts::DEPOSIT_WAITING, Attempts::DEPOSITED], true);
+
         [$tx, $retry] = $this->findTransaction($domainId, $notiTid, $moid);
         if ($retry) {
             return $this->done($domainId, $moid, $notiTid, 'QUERY_FAILED', '거래조회 실패 — 재통보 대기', 'error', self::RETRY);
         }
         if ($tx === null || (int) ($tx['status'] ?? -1) !== InnopayGateway::STATUS_APPROVED || (string) ($tx['moid'] ?? '') !== $moid) {
+            if ($isDepositWait) {
+                // 입금 전 가상계좌는 조회에 나오지 않는다. 입금 통보 직후 반영이 늦을 수 있어 재통보로 다시 확인한다
+                return $this->done($domainId, $moid, $notiTid, 'DEPOSIT_NOT_CONFIRMED', '입금 통보를 받았으나 거래조회로 입금이 확인되지 않음 — 재통보 대기', 'error', self::RETRY);
+            }
             return $this->done($domainId, $moid, $notiTid, 'NOT_APPROVED', '거래조회 결과 승인 상태가 아님', 'warning');
         }
+
         if (InnopayGateway::isVirtualAccount((string) ($tx['payMethod'] ?? ''))) {
-            return $this->done($domainId, $moid, $notiTid, 'VBANK_UNSUPPORTED', '가상계좌는 지원하지 않음', 'warning');
+            return $this->handleDeposit($domainId, $attempt, $tx);
         }
 
         $tid = (string) $tx['tid'];
@@ -144,6 +151,42 @@ class InnopayNotiService
             $outcome->success ? 'COMPLETED' : 'CONSUMER_FAILED',
             $outcome->success ? '결제결과 통보로 주문 반영' : '주문 반영 실패: ' . $outcome->message,
             $outcome->success ? 'warning' : 'error');
+    }
+
+    /**
+     * 가상계좌 입금 — 통보 + 거래조회(승인 상태·금액·거래번호) 가 모두 맞을 때만 결제 완료로 옮긴다.
+     */
+    private function handleDeposit(int $domainId, array $attempt, array $tx): string
+    {
+        $moid = (string) $attempt['moid'];
+        $tid = (string) ($tx['tid'] ?? '');
+
+        if (!in_array((string) $attempt['status'], [Attempts::DEPOSIT_WAITING, Attempts::DEPOSITED], true)) {
+            return $this->done($domainId, $moid, $tid, 'VBANK_NOT_WAITING', '입금 대기 중이 아닌 결제의 가상계좌 입금 통보: ' . $attempt['status'], 'error');
+        }
+        if ((string) ($attempt['tid'] ?? '') !== $tid) {
+            return $this->done($domainId, $moid, $tid, 'TID_MISMATCH', "발급한 계좌의 거래번호({$attempt['tid']})와 다른 입금", 'error');
+        }
+
+        $paid = (int) ($tx['amt'] ?? 0) + (int) ($tx['taxFreeAmt'] ?? 0);
+        if ($paid !== (int) $attempt['amount']) {
+            $this->attempts->update($domainId, $moid, ['status' => Attempts::NEEDS_ACTION,
+                'result_code' => 'AMOUNT_MISMATCH', 'result_msg' => "입금 금액 {$paid} / 요청 금액 {$attempt['amount']}"]);
+            return $this->done($domainId, $moid, $tid, 'AMOUNT_MISMATCH', "입금 금액({$paid})이 요청 금액({$attempt['amount']})과 다름 — 관리자 확인 필요", 'error');
+        }
+
+        // 입금 확인을 먼저 기록한다 — 게이트웨이 verify 는 이 기록이 있어야 가상계좌를 결제 완료로 본다
+        if (!$this->attempts->transition($domainId, $moid, [Attempts::DEPOSIT_WAITING, Attempts::DEPOSITED], Attempts::DEPOSITED,
+            ['result_code' => 'DEPOSITED', 'result_msg' => '입금 확인'])) {
+            return $this->done($domainId, $moid, $tid, 'STATE_CONFLICT', '시도 상태 변경 경합 — 재통보 대기', 'warning', self::RETRY);
+        }
+
+        $outcome = $this->returnService->completeApproved($domainId, $moid, $tid);
+
+        return $this->done($domainId, $moid, $tid,
+            $outcome->success ? 'DEPOSIT_COMPLETED' : 'CONSUMER_FAILED',
+            $outcome->success ? "가상계좌 입금 {$paid}원 확인 — 주문 결제 완료" : '입금 확인 후 주문 반영 실패: ' . $outcome->message,
+            $outcome->success ? 'info' : 'error');
     }
 
     private function handleCancel(int $domainId, array $attempt, string $notiTid, int $cancelAmt, array $params): string

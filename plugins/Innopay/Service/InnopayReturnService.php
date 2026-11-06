@@ -5,6 +5,8 @@ namespace Mublo\Plugin\Innopay\Service;
 
 use Mublo\Contract\Payment\PaymentConsumerInterface;
 use Mublo\Contract\Payment\PreparedPayment;
+use Mublo\Contract\Payment\VirtualAccountConsumerInterface;
+use Mublo\Contract\Payment\VirtualAccountIssue;
 use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Plugin\Innopay\InnopayGateway;
 use Mublo\Plugin\Innopay\Repository\InnopayAttemptRepository as Attempts;
@@ -83,6 +85,10 @@ class InnopayReturnService
         if ($status === Attempts::NEEDS_ACTION) {
             return InnopayReturnOutcome::message(false, '결제 확인이 필요한 주문입니다. 고객센터로 문의해주세요.');
         }
+        if ($status === Attempts::DEPOSIT_WAITING || $status === Attempts::DEPOSITED) {
+            // 가상계좌 발급 후 새로고침 — 같은 계좌 안내를 다시 보여준다
+            return InnopayReturnOutcome::virtualAccount(self::accountView($attempt), $okUrl);
+        }
 
         $config = $this->configService->getConfig($domainId);
         $consumer = $this->resolveConsumer((string) $attempt['consumer']);
@@ -159,17 +165,95 @@ class InnopayReturnService
             return $this->fail($domainId, $moid, $tid, $failUrl, $code, $message);
         }
 
-        // 가상계좌는 승인이 "계좌 발급"일 뿐이다 — 입금 확인 연동 전이라 주문에 반영하지 않는다.
-        // (결제수단 선택창에서 구매자가 고를 수 있다. 발급된 계좌는 입금 없이 만료된다)
+        // 가상계좌는 승인이 "계좌 발급"일 뿐이다 — 주문은 입금 대기로 두고 입금 통보를 기다린다
         if (InnopayGateway::isVirtualAccount((string) ($approvedData['payMethod'] ?? ''))) {
-            $message = '가상계좌 결제는 지원하지 않습니다. 다른 결제수단으로 다시 결제해주세요.';
-            $this->attempts->transition($domainId, $moid, [Attempts::APPROVING], Attempts::FAILED, ['result_code' => 'VBANK_UNSUPPORTED', 'result_msg' => $message]);
-            return $this->fail($domainId, $moid, $tid, $failUrl, 'VBANK_UNSUPPORTED', $message, 'warning');
+            return $this->issueVirtualAccount($domainId, $moid, $tid, $total, $approvedData, $consumer, $okUrl, $failUrl);
         }
 
         $this->attempts->transition($domainId, $moid, [Attempts::APPROVING], Attempts::APPROVED, ['result_code' => 'APPROVED', 'result_msg' => '승인 완료']);
 
         return $this->finalize($domainId, $moid, $tid, $consumer, $config, $okUrl, $failUrl);
+    }
+
+    /**
+     * 가상계좌 발급 처리 — 소비 패키지에 입금 대기를 기록하고 계좌 안내를 보여준다.
+     * 소비 패키지가 가상계좌를 받지 않거나 기록에 실패하면 발급된 계좌를 닫는다(주문취소 API).
+     */
+    private function issueVirtualAccount(int $domainId, string $moid, string $tid, int $amount, array $data, PaymentConsumerInterface $consumer, string $okUrl, string $failUrl): InnopayReturnOutcome
+    {
+        $va = is_array($data['virtualAccount'] ?? null) ? $data['virtualAccount'] : [];
+        $bank = trim((string) ($va['bankName'] ?? ''));
+        $account = trim((string) ($va['accountNumber'] ?? ''));
+        $due = self::formatDate((string) ($va['expDate'] ?? ''));
+
+        $refuse = function (string $code, string $message) use ($domainId, $moid, $tid, $failUrl): InnopayReturnOutcome {
+            ($this->gatewayFactory)($domainId)->createClient()->cancelOrder($moid);
+            $this->attempts->transition($domainId, $moid, [Attempts::APPROVING], Attempts::FAILED, ['result_code' => $code, 'result_msg' => $message]);
+            return $this->fail($domainId, $moid, $tid, $failUrl, $code, $message, 'warning');
+        };
+
+        if (!$consumer instanceof VirtualAccountConsumerInterface) {
+            return $refuse('VBANK_UNSUPPORTED', '이 주문은 가상계좌 결제를 지원하지 않습니다. 다른 결제수단으로 다시 결제해주세요.');
+        }
+        if ($account === '') {
+            return $refuse('VBANK_NO_ACCOUNT', '가상계좌 정보를 받지 못했습니다. 다시 결제해주세요.');
+        }
+
+        if (!$this->attempts->transition($domainId, $moid, [Attempts::APPROVING], Attempts::DEPOSIT_WAITING, [
+            'vbank_bank' => mb_substr($bank, 0, 30),
+            'vbank_account' => mb_substr($account, 0, 30),
+            'vbank_due_date' => $due,
+            'result_code' => 'VBANK_ISSUED',
+            'result_msg' => '가상계좌 발급 — 입금 대기',
+        ])) {
+            return $this->fail($domainId, $moid, $tid, $failUrl, 'STATE_CONFLICT', '결제 상태를 확인할 수 없습니다. 주문 내역을 확인해주세요.');
+        }
+
+        $message = '';
+        try {
+            $result = $consumer->recordVirtualAccountIssued($domainId, $moid, InnopayGateway::PG_KEY, $tid,
+                new VirtualAccountIssue($bank, $account, $amount, $due));
+            $ok = $result->isSuccess();
+            $message = $result->getMessage();
+        } catch (\Throwable $e) {
+            $ok = false;
+            $message = '예외: ' . $e->getMessage();
+        }
+
+        $this->logger->log($domainId, 'VBANK_ISSUED', [
+            'moid' => $moid, 'tid' => $tid, 'amount' => $amount,
+            'level' => $ok ? 'info' : 'error',
+            'result_code' => $ok ? 'WAITING_DEPOSIT' : 'CONSUMER_FAILED',
+            'result_msg' => ($ok ? "{$bank} {$account} 기한 {$due}" : '입금 대기 기록 실패: ') . ($ok ? '' : $message),
+        ]);
+
+        if (!$ok) {
+            ($this->gatewayFactory)($domainId)->createClient()->cancelOrder($moid);
+            $this->attempts->update($domainId, $moid, ['status' => Attempts::FAILED, 'result_code' => 'VBANK_RECORD_FAILED', 'result_msg' => $message]);
+            return $this->redirectFail($failUrl, '가상계좌 주문을 기록하지 못해 발급을 취소했습니다. 다시 결제해주세요.');
+        }
+
+        return InnopayReturnOutcome::virtualAccount(
+            ['bank' => $bank, 'account' => $account, 'amount' => $amount, 'due_date' => $due],
+            $okUrl
+        );
+    }
+
+    /** @return array{bank: string, account: string, amount: int, due_date: string} */
+    private static function accountView(array $attempt): array
+    {
+        return [
+            'bank' => (string) ($attempt['vbank_bank'] ?? ''),
+            'account' => (string) ($attempt['vbank_account'] ?? ''),
+            'amount' => (int) ($attempt['amount'] ?? 0),
+            'due_date' => (string) ($attempt['vbank_due_date'] ?? ''),
+        ];
+    }
+
+    /** 20261106 → 2026-11-06 */
+    private static function formatDate(string $ymd): string
+    {
+        return preg_match('/^(\d{4})(\d{2})(\d{2})$/', $ymd, $m) ? "{$m[1]}-{$m[2]}-{$m[3]}" : $ymd;
     }
 
     /**
