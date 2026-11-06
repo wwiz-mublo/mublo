@@ -546,6 +546,12 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    $r->addRoute('POST', '/admin/products/listPrice', [
+        'controller' => AdminProductController::class,
+        'method'     => 'listPrice',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     // --- 주문 관리 ---
     $r->addRoute('GET', '/admin/claims', [
         'controller' => ClaimController::class,

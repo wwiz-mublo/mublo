@@ -599,6 +599,77 @@ class ProductService
         return Result::success($message, ['changed' => $changed, 'is_active' => $isActive]);
     }
 
+    /** 가격 컬럼(INT) 상한 */
+    private const MAX_PRICE = 2147483647;
+
+    /**
+     * 판매가·원가 변경 (목록의 가격 바로 수정)
+     *
+     * 상품 수정 화면과 같은 기본 가격만 바꾼다. 옵션·조합의 추가 금액은 건드리지 않는다.
+     *
+     * @param mixed $displayPrice 판매가 (0 이상 정수)
+     * @param mixed $originPrice  원가 (0 이상 정수, null 이면 바꾸지 않는다)
+     */
+    public function changePrice(int $goodsId, mixed $displayPrice, mixed $originPrice, int $domainId): Result
+    {
+        if ($goodsId <= 0) {
+            return Result::failure('상품 ID가 올바르지 않습니다.');
+        }
+        $display = self::parsePrice($displayPrice);
+        if ($display === null) {
+            return Result::failure('판매가를 0 이상의 정수로 입력해 주세요.');
+        }
+        $data = ['display_price' => $display];
+        if ($originPrice !== null) {
+            $origin = self::parsePrice($originPrice);
+            if ($origin === null) {
+                return Result::failure('원가를 0 이상의 정수로 입력해 주세요.');
+            }
+            $data['origin_price'] = $origin;
+        }
+
+        try {
+            $product = $this->productRepository->findInDomain($domainId, $goodsId);
+            if (!$product) {
+                return Result::failure('상품을 찾을 수 없습니다.');
+            }
+            $this->productRepository->updateInDomain($domainId, $goodsId, $data);
+        } catch (\Throwable $e) {
+            return Result::failure('가격 변경 중 오류가 발생했습니다.');
+        }
+
+        // 가격순 자동 진열도 달라질 수 있어 자동 블록까지 무효화한다
+        $this->dispatchAfterCommit(
+            new ProductChangedEvent($domainId, [$goodsId], ProductChangedEvent::UPDATED, autoBlocksAffected: true),
+            'changePrice'
+        );
+
+        return Result::success('가격을 바꿨습니다.', [
+            'goods_id' => $goodsId,
+            'display_price' => $display,
+            'origin_price' => $data['origin_price'] ?? $product->getOriginPrice(),
+        ]);
+    }
+
+    /**
+     * 0 이상 정수 가격만 받는다 ("1,000" 처럼 쉼표가 섞인 입력은 허용).
+     */
+    private static function parsePrice(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return ($value >= 0 && $value <= self::MAX_PRICE) ? $value : null;
+        }
+        if (!is_string($value)) {
+            return null;
+        }
+        $value = str_replace(',', '', trim($value));
+        if ($value === '' || !ctype_digit($value) || strlen($value) > 10) {
+            return null;
+        }
+        $int = (int) $value;
+        return $int <= self::MAX_PRICE ? $int : null;
+    }
+
     /**
      * 상품 가격 계산 (할인/적립 포함)
      *

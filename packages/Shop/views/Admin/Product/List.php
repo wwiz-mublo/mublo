@@ -78,13 +78,18 @@ $columns = $this->columns()
             . '</div>';
     }, ['_th_attr' => ['class' => 'w-100'], '_td_attr' => ['class' => 'text-wrap w-100']])
     ->callback('display_price', '판매가', function ($row) {
-        $price = number_format($row['display_price'] ?? 0);
-        $html = "<div>{$price}</div>";
+        // 연필 버튼으로 판매가·원가를 바로 고친다(listPrice). 옵션 추가 금액은 상품 수정 화면에서.
+        $id = (int) $row['goods_id'];
+        $display = (int) ($row['display_price'] ?? 0);
         $origin = (int) ($row['origin_price'] ?? 0);
-        if ($origin > 0) {
-            $html .= '<div class="small text-muted text-decoration-line-through">' . number_format($origin) . '</div>';
-        }
-        return $html;
+        $html = '<div class="js-price-view">'
+            . '<div><span class="js-price-display">' . number_format($display) . '</span>'
+            . ' <button type="button" class="btn btn-link btn-sm p-0 text-muted align-baseline js-price-edit" title="가격 바로 수정"'
+            . ' aria-label="' . htmlspecialchars($row['goods_name'] ?? '', ENT_QUOTES) . ' 가격 수정"><i class="bi bi-pencil"></i></button></div>'
+            . '<div class="small text-muted text-decoration-line-through js-price-origin"' . ($origin > 0 ? '' : ' style="display:none"') . '>' . number_format($origin) . '</div>'
+            . '</div>';
+        return '<div class="js-price-cell" data-goods-id="' . $id . '" data-display-price="' . $display . '" data-origin-price="' . $origin . '"'
+            . ' data-has-options="' . ((($row['option_mode'] ?? 'NONE') !== 'NONE') ? '1' : '0') . '">' . $html . '</div>';
     }, ['_th_attr' => ['class' => 'text-end text-nowrap', 'style' => 'width:100px'], '_td_attr' => ['class' => 'text-end text-nowrap']])
     ->callback('shipping', '배송', function ($row) use ($shippingMethods, $defaultShippingTemplateId) {
         // 묶음/개별 (상품 직접 값)
@@ -346,6 +351,98 @@ document.addEventListener('change', function(e) {
         .finally(function() {
             input.disabled = false;
         });
+});
+
+// 가격 바로 수정: 연필 → 판매가·원가 입력칸, Enter/저장으로 반영, Esc/취소로 닫기
+function openPriceEditor(cell) {
+    if (cell.querySelector('.js-price-editor')) return;
+    const view = cell.querySelector('.js-price-view');
+    const editor = document.createElement('div');
+    editor.className = 'js-price-editor d-flex flex-column gap-1 align-items-end';
+    editor.innerHTML =
+        '<input type="number" min="0" step="1" class="form-control form-control-sm text-end js-price-input-display" style="width:110px" title="판매가" placeholder="판매가" onwheel="this.blur()">'
+        + '<input type="number" min="0" step="1" class="form-control form-control-sm text-end js-price-input-origin" style="width:110px" title="원가" placeholder="원가" onwheel="this.blur()">'
+        + (cell.dataset.hasOptions === '1' ? '<div class="small text-muted text-wrap" style="width:110px">옵션 추가 금액은 상품 수정에서</div>' : '')
+        + '<div class="d-flex gap-1">'
+        + '<button type="button" class="btn btn-sm btn-primary js-price-save">저장</button>'
+        + '<button type="button" class="btn btn-sm btn-default js-price-cancel">취소</button>'
+        + '</div>';
+    editor.querySelector('.js-price-input-display').value = cell.dataset.displayPrice;
+    editor.querySelector('.js-price-input-origin').value = cell.dataset.originPrice;
+    view.style.display = 'none';
+    cell.appendChild(editor);
+    editor.querySelector('.js-price-input-display').select();
+}
+
+function closePriceEditor(cell) {
+    const editor = cell.querySelector('.js-price-editor');
+    if (editor) editor.remove();
+    cell.querySelector('.js-price-view').style.display = '';
+}
+
+function isPriceValue(value) {
+    return /^\d+$/.test(value);
+}
+
+function savePriceEditor(cell) {
+    const editor = cell.querySelector('.js-price-editor');
+    if (!editor) return;
+    const display = editor.querySelector('.js-price-input-display').value.trim();
+    const origin = editor.querySelector('.js-price-input-origin').value.trim() || '0';
+    if (!isPriceValue(display)) {
+        alert('판매가를 0 이상의 정수로 입력해 주세요.');
+        return;
+    }
+    if (!isPriceValue(origin)) {
+        alert('원가를 0 이상의 정수로 입력해 주세요.');
+        return;
+    }
+    const buttons = editor.querySelectorAll('button');
+    buttons.forEach(function(b) { b.disabled = true; });
+    MubloRequest.requestJson('/admin/shop/products/listPrice', {
+        goods_id: parseInt(cell.dataset.goodsId, 10),
+        display_price: display,
+        origin_price: origin
+    }, { method: 'POST', loading: false })
+        .then(function(res) {
+            const data = (res && res.data) || {};
+            const newDisplay = parseInt(data.display_price ?? display, 10);
+            const newOrigin = parseInt(data.origin_price ?? origin, 10);
+            cell.dataset.displayPrice = String(newDisplay);
+            cell.dataset.originPrice = String(newOrigin);
+            cell.querySelector('.js-price-display').textContent = newDisplay.toLocaleString();
+            const originEl = cell.querySelector('.js-price-origin');
+            originEl.textContent = newOrigin.toLocaleString();
+            originEl.style.display = newOrigin > 0 ? '' : 'none';
+            closePriceEditor(cell);
+        })
+        .catch(function() {
+            // 실패 알림은 MubloRequest 가 띄운다 — 입력칸은 그대로 두고 다시 시도할 수 있게 한다
+            buttons.forEach(function(b) { b.disabled = false; });
+        });
+}
+
+document.addEventListener('click', function(e) {
+    const cell = e.target.closest('.js-price-cell');
+    if (!cell) return;
+    if (e.target.closest('.js-price-edit')) {
+        openPriceEditor(cell);
+    } else if (e.target.closest('.js-price-save')) {
+        savePriceEditor(cell);
+    } else if (e.target.closest('.js-price-cancel')) {
+        closePriceEditor(cell);
+    }
+});
+
+document.addEventListener('keydown', function(e) {
+    if (!e.target.closest('.js-price-editor')) return;
+    const cell = e.target.closest('.js-price-cell');
+    if (e.key === 'Enter') {
+        e.preventDefault(); // 목록 폼(flist) 제출 방지
+        savePriceEditor(cell);
+    } else if (e.key === 'Escape') {
+        closePriceEditor(cell);
+    }
 });
 
 // 일괄 삭제 후 콜백
