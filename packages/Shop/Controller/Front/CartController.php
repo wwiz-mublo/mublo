@@ -630,6 +630,7 @@ class CartController
                 'bankAccounts'     => $bankAccounts,
                 'pointUsage'       => $pointUsage,
                 'checkoutPolicies' => $checkoutPolicies,
+                'ordererEmailRequired' => !empty($shopConfig['orderer_email_required']),
             ]);
     }
 
@@ -673,10 +674,14 @@ class CartController
         // 주문인 정보 — 회원·비회원 공통으로 수집한다.
         // 회원도 가입 시 연락처를 받지 않으므로 결제 단계에서 직접 입력받는다.
         // 비회원 주문조회는 "주문인명 + 연락처"로 수행하므로 둘 다 필수.
-        // 이메일은 선택 — 넣으면 주문 알림 메일(orderer 수신자)을 받는다.
+        // 이메일은 기본 선택 — 넣으면 주문 알림 메일(orderer 수신자)을 받는다.
+        // 쇼핑몰 설정 "주문인 이메일 필수"를 켜면 비워 둘 수 없다.
         $ordererName = trim($request->json('orderer_name') ?? '');
         $ordererPhone = trim($request->json('orderer_phone') ?? '');
         $ordererEmail = trim((string) ($request->json('orderer_email') ?? ''));
+
+        $configResult = $this->shopConfigService->getConfig($domainId);
+        $shopConfig = $configResult->get('config', []);
 
         if ($ordererName === '') {
             return JsonResponse::error('주문인을 입력해주세요.');
@@ -684,8 +689,9 @@ class CartController
         if ($ordererPhone === '') {
             return JsonResponse::error('주문인 연락처를 입력해주세요.');
         }
-        if ($ordererEmail !== '' && (mb_strlen($ordererEmail) > 255 || filter_var($ordererEmail, FILTER_VALIDATE_EMAIL) === false)) {
-            return JsonResponse::error('이메일 형식이 올바르지 않습니다.');
+        $emailError = self::ordererEmailError($ordererEmail, !empty($shopConfig['orderer_email_required']));
+        if ($emailError !== null) {
+            return JsonResponse::error($emailError);
         }
 
         // 배송 정보
@@ -701,9 +707,6 @@ class CartController
         if ($paymentMethod === '') {
             return JsonResponse::error('결제 수단을 선택해주세요.');
         }
-
-        $configResult = $this->shopConfigService->getConfig($domainId);
-        $shopConfig = $configResult->get('config', []);
 
         // 무통장입금: PG 게이트웨이가 필요 없는 수동 결제 수단
         $isBankTransfer = ($paymentMethod === 'BANK');
@@ -1139,6 +1142,22 @@ class CartController
         }
 
         return $context->getRequest()->getScheme() . '://' . $canonicalHost;
+    }
+
+    /**
+     * 주문인 이메일 검증. 문제가 없으면 null.
+     *
+     * @param bool $required 쇼핑몰 설정 "주문인 이메일 필수"(orderer_email_required)
+     */
+    private static function ordererEmailError(string $email, bool $required): ?string
+    {
+        if ($email === '') {
+            return $required ? '주문인 이메일을 입력해주세요.' : null;
+        }
+        if (mb_strlen($email) > 255 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            return '이메일 형식이 올바르지 않습니다.';
+        }
+        return null;
     }
 
     /**

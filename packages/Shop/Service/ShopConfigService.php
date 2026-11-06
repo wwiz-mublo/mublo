@@ -83,6 +83,9 @@ class ShopConfigService
         // 상품 목록
         'show_all_products_tab' => 1, // 0 이면 "전체" 카테고리 링크를 숨기고, 카테고리 없는 목록은 첫 카테고리로 보낸다
 
+        // 주문서
+        'orderer_email_required' => 0, // 1 이면 주문인 이메일을 반드시 받는다
+
         // 프론트 스킨
         'skin_config' => '', // JSON 맵 {"product":"basic",...} — 기능별 프론트 스킨
     ];
@@ -104,6 +107,7 @@ class ShopConfigService
         'goods_view_tab', 'detail_tab_order',
         'price_display', 'price_display_level', 'price_hidden_text',
         'show_all_products_tab',
+        'orderer_email_required',
         'skin_config',
     ];
 
@@ -702,7 +706,7 @@ class ShopConfigService
 
                 // 불리언 (TINYINT)
                 'use_guest_cart', 'use_point_payment', 'use_coupon',
-                'show_all_products_tab'
+                'show_all_products_tab', 'orderer_email_required'
                     => !empty($value) ? 1 : 0,
 
                 // 소수

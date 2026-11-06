@@ -11,6 +11,7 @@
  * @var array $addresses  저장된 배송지 목록
  * @var array|null $defaultAddress 기본 배송지
  * @var array $orderFields 주문 추가 필드 목록
+ * @var bool $ordererEmailRequired 주문인 이메일 필수 여부 (쇼핑몰 설정)
  */
 
 $cartItems = $cartItems ?? [];
@@ -23,6 +24,7 @@ $addresses = $addresses ?? [];
 $defaultAddress = $defaultAddress ?? null;
 $prefill = is_array($defaultAddress) ? $defaultAddress : [];
 $orderFields = $orderFields ?? [];
+$ordererEmailRequired = !empty($ordererEmailRequired);
 
 $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/cart-checkout.css');
 ?>
@@ -50,9 +52,9 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Cart/basic/_assets/css/ca
                         </div>
                     </div>
                     <div class="shop-checkout__form-row">
-                        <span class="shop-checkout__label">이메일</span>
+                        <span class="shop-checkout__label">이메일<?php if ($ordererEmailRequired): ?><span class="required">*</span><?php endif; ?></span>
                         <div class="shop-checkout__input-wrap">
-                            <input type="email" id="ordererEmail" class="shop-checkout__input" placeholder="주문 안내 메일을 받을 주소" autocomplete="email">
+                            <input type="email" id="ordererEmail" class="shop-checkout__input" placeholder="주문 안내 메일을 받을 주소" autocomplete="email"<?= $ordererEmailRequired ? ' required' : '' ?>>
                         </div>
                     </div>
                     <?php if ($isGuest): ?>
@@ -378,6 +380,7 @@ foreach ($checkoutScripts as $pgScript): ?>
 <script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script type="application/json" id="checkout-data"><?= json_encode([
     'isGuest'      => (bool) $isGuest,
+    'ordererEmailRequired' => $ordererEmailRequired,
     'checkoutMode' => (string) $checkoutMode,
     'cartItemIds'  => array_column($cartItems, 'cart_item_id'),
     'totals'       => [

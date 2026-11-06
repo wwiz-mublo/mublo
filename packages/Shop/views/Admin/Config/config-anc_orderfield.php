@@ -21,6 +21,22 @@ $fieldTypeOptions = [
 ];
 ?>
 <div class="card mb-4">
+    <div class="card-hero">
+        <i class="bi bi-person-lines-fill text-pastel-blue"></i>
+        <span>주문인 정보</span>
+    </div>
+    <div class="card-body">
+        <div class="form-check form-switch">
+            <input type="hidden" name="formData[orderer_email_required]" value="0">
+            <input type="checkbox" name="formData[orderer_email_required]" id="orderer_email_required" class="form-check-input"
+                   value="1" <?= !empty($config['orderer_email_required']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="orderer_email_required">주문인 이메일 필수</label>
+        </div>
+        <div class="form-text">켜면 주문서의 주문인 이메일을 비워 둔 채 결제할 수 없습니다. 끄면(기본) 선택 입력입니다.</div>
+    </div>
+</div>
+
+<div class="card mb-4">
     <div class="card-body">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <p class="text-muted mb-0">체크아웃 시 고객에게 추가 정보를 받을 수 있습니다.</p>
