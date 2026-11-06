@@ -11,6 +11,7 @@
 .my-review-item__img { width: 60px; height: 60px; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
 .my-review-item__footer { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; border-top: 1px solid var(--border-subtle); padding-top: 8px; }
 .my-review-item__date { font-size: 0.8rem; color: var(--muted-foreground); }
+.my-review-item__status { margin: 0 auto 0 8px; padding: 1px 8px; border-radius: 999px; font-size: 0.75rem; color: #8a5a00; background: #fff4d6; border: 1px solid #f3d58a; }
 .my-review-item__delete { font-size: 0.8rem; color: var(--destructive); cursor: pointer; background: none; border: none; }
 .my-review-list__empty { text-align: center; padding: 60px 16px; }
 .my-review-list__empty p { color: var(--muted-foreground); margin-bottom: 16px; }

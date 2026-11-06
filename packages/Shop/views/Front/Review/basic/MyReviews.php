@@ -48,6 +48,9 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Review/basic/_assets/css/
         <?php endif; ?>
         <div class="my-review-item__footer">
             <span class="my-review-item__date"><?= e(substr($item['created_at'] ?? '', 0, 10)) ?></span>
+            <?php if (!empty($item['is_pending'])): ?>
+            <span class="my-review-item__status" title="관리자가 확인한 뒤 상품 페이지에 공개됩니다">승인 대기</span>
+            <?php endif; ?>
             <button class="my-review-item__delete" onclick="MyReviews.delete(<?= $reviewId ?>)">삭제</button>
         </div>
     </div>

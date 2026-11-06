@@ -86,6 +86,9 @@ class ShopConfigService
         // 주문서
         'orderer_email_required' => 0, // 1 이면 주문인 이메일을 반드시 받는다
 
+        // 구매후기
+        'review_require_approval' => 0, // 1 이면 프론트 후기를 승인 대기(비공개)로 저장한다
+
         // 프론트 스킨
         'skin_config' => '', // JSON 맵 {"product":"basic",...} — 기능별 프론트 스킨
     ];
@@ -108,6 +111,7 @@ class ShopConfigService
         'price_display', 'price_display_level', 'price_hidden_text',
         'show_all_products_tab',
         'orderer_email_required',
+        'review_require_approval',
         'skin_config',
     ];
 
@@ -706,7 +710,7 @@ class ShopConfigService
 
                 // 불리언 (TINYINT)
                 'use_guest_cart', 'use_point_payment', 'use_coupon',
-                'show_all_products_tab', 'orderer_email_required'
+                'show_all_products_tab', 'orderer_email_required', 'review_require_approval'
                     => !empty($value) ? 1 : 0,
 
                 // 소수

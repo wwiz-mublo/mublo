@@ -913,6 +913,12 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    $r->addRoute('POST', '/admin/reviews/list-approve', [
+        'controller' => AdminReviewController::class,
+        'method'     => 'listApprove',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     // --- 상품문의 (QNA) ---
     $r->addRoute('GET', '/admin/inquiries', [
         'controller' => InquiryController::class,

@@ -184,6 +184,12 @@ $contentText = trim(html_entity_decode(strip_tags(
                                         <option value="1" <?= ((int)($r['is_visible'] ?? 1)) === 1 ? 'selected' : '' ?>>공개</option>
                                         <option value="0" <?= ((int)($r['is_visible'] ?? 1)) === 0 ? 'selected' : '' ?>>비공개</option>
                                     </select>
+                                    <?php if (!empty($r['is_pending'])): ?>
+                                    <div class="form-text">
+                                        <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">승인 대기</span>
+                                        공개로 저장하면 승인됩니다.
+                                    </div>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="col">
                                     <label class="form-label fw-semibold">베스트</label>
