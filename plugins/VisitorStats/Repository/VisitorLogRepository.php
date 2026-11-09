@@ -153,21 +153,27 @@ class VisitorLogRepository
     }
 
     /**
-     * 환경 분석용 집계 (브라우저/OS/디바이스)
+     * 환경 분석용 집계 (브라우저/OS/디바이스/국가/도시)
+     *
+     * 국가·도시는 미확인(빈 값 — GeoIP 도입 전 로그, 사설 IP 등)을 제외하고 상위 30개만 반환한다.
      */
     public function getEnvironmentStats(int $domainId, string $field, string $startDate, string $endDate): array
     {
         $table = $this->table;
-        $allowedFields = ['browser', 'os', 'device'];
+        $allowedFields = ['browser', 'os', 'device', 'country_code', 'city'];
         if (!in_array($field, $allowedFields, true)) {
             return [];
         }
 
+        $isGeo = in_array($field, ['country_code', 'city'], true);
+        $geoWhere = $isGeo ? " AND `{$field}` <> ''" : '';
+        $limit = $isGeo ? ' LIMIT 30' : '';
+
         $sql = "SELECT `{$field}` AS `name`, COUNT(*) AS `count`
                 FROM `{$table}`
-                WHERE `domain_id` = ? AND `visit_date` BETWEEN ? AND ?
+                WHERE `domain_id` = ? AND `visit_date` BETWEEN ? AND ?{$geoWhere}
                 GROUP BY `{$field}`
-                ORDER BY `count` DESC";
+                ORDER BY `count` DESC{$limit}";
 
         return $this->db->select($sql, [$domainId, $startDate, $endDate]);
     }

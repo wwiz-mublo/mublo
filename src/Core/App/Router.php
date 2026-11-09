@@ -90,7 +90,7 @@ class Router
      * 명시적으로 검토해 추가하기 전까지 GET 엔드포인트로 자동 노출되지 않는다.
      */
     private const ADMIN_AUTO_RESOLVE_READ_ACTIONS = [
-        'AdminPermissionsController' => ['index'],
+        'AdminPermissionsController' => ['index', 'submenus'],
         'AiSettingsController' => ['index', 'assetDetail'],
         'BlockKitController' => ['index', 'show', 'download'],
         'BlockEditorController' => [

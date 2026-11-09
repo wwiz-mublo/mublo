@@ -33,6 +33,14 @@ use Mublo\Core\Http\Request;
  */
 class SecureFileService
 {
+    /**
+     * 브라우저 안에서 바로 보여 줘도 되는 MIME (래스터 이미지만).
+     *
+     * SVG·HTML·PDF 처럼 스크립트를 품을 수 있는 형식은 inline 으로 내보내면
+     * 우리 도메인에서 실행되므로 넣지 않는다 — 항상 첨부(attachment)로 내려간다.
+     */
+    public const INLINE_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
     private string $basePath;
     private string $secretKey;
 
@@ -397,7 +405,51 @@ class SecureFileService
             ]),
         );
 
+        // 래스터 이미지면 화면에 바로 띄울 inline 주소도 준다 (관리자 미리보기 등).
+        // 메타의 mime 은 업로드 때 기록된 값일 뿐이라, 실제 inline 여부는
+        // 내려보낼 때 파일 내용으로 다시 판정한다 (resolveServeDisposition).
+        if (self::isInlineImageMime($result['mime_type'])) {
+            $result['preview_url'] = $this->generateDownloadUrl(
+                $meta['relative_path'],
+                $ttl,
+                array_merge($options, [
+                    'filename'    => $meta['original_name'] ?? $meta['stored_name'] ?? null,
+                    'disposition' => 'inline',
+                ]),
+            );
+        }
+
         return $result;
+    }
+
+    /**
+     * 브라우저 안에서 바로 보여 줘도 되는 MIME 인가 (jpeg·png·gif·webp)
+     */
+    public static function isInlineImageMime(?string $mimeType): bool
+    {
+        if ($mimeType === null || $mimeType === '') {
+            return false;
+        }
+
+        $base = strtolower(trim(explode(';', $mimeType)[0]));
+
+        return in_array($base, self::INLINE_IMAGE_MIME_TYPES, true);
+    }
+
+    /**
+     * 실제로 내보낼 Content-Disposition 결정
+     *
+     * 토큰이 inline 을 요청해도 실제 파일 MIME 이 래스터 이미지가 아니면 첨부로
+     * 내린다. 서명된 토큰이라도 이미지 확장자로 올라온 HTML·SVG 가 우리 도메인에서
+     * 렌더링되는 길을 막기 위해서다.
+     */
+    public static function resolveServeDisposition(string $requested, ?string $actualMimeType): string
+    {
+        if ($requested === 'inline' && self::isInlineImageMime($actualMimeType)) {
+            return 'inline';
+        }
+
+        return 'attachment';
     }
 
     // =========================================================================

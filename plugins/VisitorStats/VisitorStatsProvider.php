@@ -29,6 +29,7 @@ use Mublo\Plugin\VisitorStats\Repository\VisitorCampaignRepository;
 use Mublo\Plugin\VisitorStats\Repository\VisitorReferrerRepository;
 use Mublo\Plugin\VisitorStats\Repository\ConversionEventRepository;
 use Mublo\Plugin\VisitorStats\Service\ConversionStatsService;
+use Mublo\Plugin\VisitorStats\Service\GeoIpService;
 use Mublo\Plugin\VisitorStats\Service\VisitorCollector;
 use Mublo\Plugin\VisitorStats\Service\VisitorStatsService;
 use Mublo\Plugin\VisitorStats\Service\VisitorStatsDataResetter;
@@ -72,6 +73,12 @@ class VisitorStatsProvider implements ExtensionProviderInterface, DataResettable
             return new ConversionEventRepository($c->get(Database::class));
         });
 
+        // GeoIP (선택 기능 — 라이브러리·DB 파일이 없으면 빈 값 반환)
+        $container->singleton(GeoIpService::class, function ($c) {
+            $storage = defined('MUBLO_STORAGE_PATH') ? MUBLO_STORAGE_PATH : dirname(__DIR__, 2) . '/storage';
+            return new GeoIpService($storage . '/geoip/GeoLite2-City.mmdb');
+        });
+
         // Services
         $container->singleton(VisitorCollector::class, function ($c) {
             return new VisitorCollector(
@@ -82,6 +89,7 @@ class VisitorStatsProvider implements ExtensionProviderInterface, DataResettable
                 $c->get(VisitorReferrerRepository::class),
                 $c->get(VisitorCampaignRepository::class),
                 $c->get(SessionInterface::class),
+                $c->get(GeoIpService::class),
             );
         });
 
@@ -94,6 +102,7 @@ class VisitorStatsProvider implements ExtensionProviderInterface, DataResettable
                 $c->get(VisitorReferrerRepository::class),
                 $c->get(VisitorCampaignRepository::class),
                 $c->get(VisitorCampaignKeyRepository::class),
+                $c->get(GeoIpService::class),
             );
         });
 

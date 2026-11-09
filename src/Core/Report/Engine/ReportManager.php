@@ -20,6 +20,7 @@ class ReportManager
 {
     private const MAX_CHUNK_REFS = 1000;
     private const MAX_CURSOR_LENGTH = 10000;
+    private const DOWNLOAD_TIME_LIMIT = 600;
 
     private ReportDefinitionRegistry $definitions;
     private ReportRendererResolver $resolver;
@@ -53,6 +54,12 @@ class ReportManager
             $this->permissionGate->assertDownloadAllowed($domainId, $menuCode);
         } catch (ReportPermissionDeniedException $e) {
             return Result::failure($e->getMessage());
+        }
+
+        // 한 번에 내려받는 리포트는 행 수만큼 조회·복호화가 이어진다. 수만 건이면
+        // 기본 실행 시간(대개 30초)을 넘겨 응답 없이 끊기므로 이 요청만 늘린다.
+        if (function_exists('set_time_limit')) {
+            @set_time_limit(self::DOWNLOAD_TIME_LIMIT);
         }
 
         try {
