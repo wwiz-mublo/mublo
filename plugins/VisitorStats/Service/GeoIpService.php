@@ -88,6 +88,7 @@ class GeoIpService
 
         try {
             $class = self::READER_CLASS;
+            // @phpstan-ignore class.notFound (geoip2/geoip2 는 suggest 의존성이라 설치본에 없을 수 있다. 존재 여부는 isAvailable() 이 먼저 확인한다)
             $this->reader = new $class($this->dbPath);
         } catch (\Throwable) {
             $this->reader = null;
