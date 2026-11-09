@@ -7,6 +7,9 @@
 ## [Unreleased]
 
 ### Added
+- Shop: 결제 준비 데이터에 주문인 이메일(`customer_email`)을 실어 PG 에 넘깁니다. 비어 있으면 PG 가 자체 기본값을 씁니다
+- Core: PG 가상계좌용 선택 계약 `VirtualAccountConsumerInterface`(+ `VirtualAccountIssue`)를 추가했습니다. 결제 소비 패키지가 구현하면 가상계좌 발급 시 주문을 입금 대기로 기록받고, 입금 통보 후 기존 `verifyPayment` 로 결제 완료가 됩니다. 구현하지 않은 패키지는 기존과 같이 가상계좌를 받지 않습니다
+- Shop: PG 가상계좌를 지원합니다. 발급되면 결제시도 주문을 주문접수(입금 대기)로 옮겨 30분 미결제 정리 대상에서 빼고, 주문 완료·상세 화면의 입금 계좌 안내에 은행·계좌·입금 기한을 표시합니다. 입금 통보는 발급 때 기록한 거래번호와 같은 거래만 결제 완료로 바꿉니다
 - VisitorStats: 방문자 IP 기반 국가·도시 통계를 선택 기능으로 추가했습니다. `composer require geoip2/geoip2:^3.3`으로 라이브러리를 설치하고 MaxMind GeoLite2-City DB 파일을 `storage/geoip/GeoLite2-City.mmdb`에 두면, 이후 방문부터 환경 분석의 국가별·도시별 차트와 실시간 방문 목록의 "지역" 열에 표시됩니다. GeoLite2 DB 파일은 EULA상 재배포할 수 없어 배포본에 포함하지 않으므로 MaxMind 무료 계정으로 직접 받아야 합니다. 둘 중 하나라도 없으면 지역 값만 비고 나머지 통계는 기존과 같이 수집됩니다. 기존 로그는 소급되지 않습니다
 
 ### Changed
