@@ -53,6 +53,9 @@
         "dompdf/dompdf": "^3.1",
         "psr/log": "^3.0"
     },
+    "suggest": {
+        "geoip2/geoip2": "^3.3 — VisitorStats 국가/도시 통계 (MaxMind GeoLite2-City DB 파일 별도 필요)"
+    },
     "require-dev": {
         "phpunit/phpunit": "^11.5.50",
         "phpstan/phpstan": "^2.2"
