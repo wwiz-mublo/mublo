@@ -30,6 +30,7 @@
             "Tests\\SendonTalk\\": "plugins/SendonTalk/tests/",
             "Tests\\SnsLogin\\": "plugins/SnsLogin/tests/",
             "Tests\\Survey\\": "plugins/Survey/tests/",
+            "Tests\\TestPay\\": "plugins/TestPay/tests/",
             "Tests\\VisitorStats\\": "plugins/VisitorStats/tests/",
             "Tests\\Widget\\": "plugins/Widget/tests/"
         }
