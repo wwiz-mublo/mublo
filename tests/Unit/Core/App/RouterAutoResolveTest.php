@@ -131,6 +131,17 @@ class RouterAutoResolveTest extends TestCase
         $this->assertSame(['notice', '5'], $result['params']);
     }
 
+    public function testAdminPermissionsSubmenusResolvesAsGet(): void
+    {
+        // 권한 관리 화면이 1차 메뉴를 고를 때 GET 으로 서브메뉴 목록을 불러온다.
+        // 허용 목록에서 빠져 404 가 나면 화면이 저장 버튼을 끈 채로 멈춘다.
+        $result = $this->resolve('/admin/admin-permissions/submenus/003', isAdmin: true);
+
+        $this->assertStringContainsString('AdminPermissionsController', $result['controller']);
+        $this->assertSame('submenus', $result['method']);
+        $this->assertSame(['003'], $result['params']);
+    }
+
     #[DataProvider('adminStateChangingGetProvider')]
     public function testAdminStateChangingActionCannotAutoResolveAsSafeMethod(
         string $path,

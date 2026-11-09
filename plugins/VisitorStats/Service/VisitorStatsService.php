@@ -26,6 +26,7 @@ class VisitorStatsService
         private VisitorReferrerRepository $referrerRepo,
         private VisitorCampaignRepository $campaignRepo,
         private VisitorCampaignKeyRepository $campaignKeyRepo,
+        private ?GeoIpService $geoIp = null,
     ) {}
 
     /**
@@ -243,16 +244,19 @@ class VisitorStatsService
     }
 
     /**
-     * 환경 분석 (브라우저/OS/디바이스)
+     * 환경 분석 (브라우저/OS/디바이스/국가/도시)
      */
     public function getEnvironment(int $domainId, string $period): array
     {
         [$startDate, $endDate] = $this->periodToDates($period);
 
         return [
-            'browser'      => $this->logRepo->getEnvironmentStats($domainId, 'browser', $startDate, $endDate),
-            'os'           => $this->logRepo->getEnvironmentStats($domainId, 'os', $startDate, $endDate),
-            'device'       => $this->logRepo->getEnvironmentStats($domainId, 'device', $startDate, $endDate),
+            'browser'       => $this->logRepo->getEnvironmentStats($domainId, 'browser', $startDate, $endDate),
+            'os'            => $this->logRepo->getEnvironmentStats($domainId, 'os', $startDate, $endDate),
+            'device'        => $this->logRepo->getEnvironmentStats($domainId, 'device', $startDate, $endDate),
+            'country_code'  => $this->logRepo->getEnvironmentStats($domainId, 'country_code', $startDate, $endDate),
+            'city'          => $this->logRepo->getEnvironmentStats($domainId, 'city', $startDate, $endDate),
+            'geo_available' => $this->geoIp?->isAvailable() ?? false,
         ];
     }
 
