@@ -47,7 +47,29 @@ class ReviewController
                 'items' => $result['items'],
                 'pagination' => $result['pagination'],
                 'filters' => $filters,
+                'pendingCount' => $this->reviewService->countPending($domainId),
             ]);
+    }
+
+    /**
+     * 선택 승인 (승인 대기 → 공개)
+     *
+     * POST /admin/shop/reviews/list-approve
+     * body(JSON): { review_ids: [1, 2] }
+     */
+    public function listApprove(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $reviewIds = $context->getRequest()->json('review_ids');
+        if (!is_array($reviewIds) || $reviewIds === []) {
+            return JsonResponse::error('승인할 후기를 선택해 주세요.');
+        }
+
+        $result = $this->reviewService->approve($domainId, $reviewIds);
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
     }
 
     public function create(array $params, Context $context): ViewResponse

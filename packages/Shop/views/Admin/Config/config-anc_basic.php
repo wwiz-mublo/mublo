@@ -61,6 +61,25 @@
     </div>
 </div>
 
+<div class="card mb-4">
+    <div class="card-hero">
+        <i class="bi bi-grid text-pastel-green"></i>
+        <span>상품 목록</span>
+    </div>
+    <div class="card-body">
+        <div class="form-check form-switch">
+            <input type="hidden" name="formData[show_all_products_tab]" value="0">
+            <input type="checkbox" name="formData[show_all_products_tab]" id="show_all_products_tab" class="form-check-input"
+                   value="1" <?= !array_key_exists('show_all_products_tab', $config) || !empty($config['show_all_products_tab']) ? 'checked' : '' ?>>
+            <label class="form-check-label" for="show_all_products_tab">전체 상품 탭 보이기</label>
+        </div>
+        <div class="form-text">
+            끄면 상품 목록의 카테고리 메뉴에서 "전체"를 숨기고, 카테고리 없이 들어온 쇼핑몰 첫 화면(/shop, /shop/products)은 첫 번째 카테고리로 이동합니다.
+            검색어가 있는 목록(검색 결과)은 그대로 전체 상품에서 찾습니다. 활성 카테고리가 없으면 지금처럼 전체 상품을 보여 줍니다.
+        </div>
+    </div>
+</div>
+
 <?php if (!empty($contentSkins)): ?>
 <?php
 // 기능(폴더명) → 표시 라벨

@@ -31,6 +31,7 @@ use Mublo\Helper\Form\FormHelper;
  * - POST /admin/shop/products/{id}/delete  → delete (삭제)
  * - POST /admin/shop/products/listDelete   → listDelete (일괄 삭제)
  * - POST /admin/shop/products/listActive   → listActive (목록의 판매 상태 스위치)
+ * - POST /admin/shop/products/listPrice    → listPrice (목록의 가격 바로 수정)
  */
 class ProductController
 {
@@ -370,6 +371,37 @@ class ProductController
         }
 
         $result = $this->productService->changeActiveMultiple($goodsIds, (bool) (int) $isActive, $domainId);
+
+        if ($result->isSuccess()) {
+            return JsonResponse::success($result->getData(), $result->getMessage());
+        }
+
+        return JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 판매가·원가 변경 (목록의 가격 바로 수정)
+     *
+     * POST /admin/shop/products/listPrice
+     * body(JSON): { goods_id: 1, display_price: 10000, origin_price: 12000 } — origin_price 는 생략 가능
+     */
+    public function listPrice(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $request = $context->getRequest();
+
+        $goodsId = $request->json('goods_id');
+        if ((!is_int($goodsId) && !is_string($goodsId))
+            || filter_var($goodsId, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) === false) {
+            return JsonResponse::error('가격을 바꿀 상품을 선택해 주세요.');
+        }
+
+        $result = $this->productService->changePrice(
+            (int) $goodsId,
+            $request->json('display_price'),
+            $request->json('origin_price'),
+            $domainId
+        );
 
         if ($result->isSuccess()) {
             return JsonResponse::success($result->getData(), $result->getMessage());

@@ -319,7 +319,13 @@ class ReviewController
             }
         }
 
-        $result = $this->reviewService->createReview($domainId, $data);
+        // 쇼핑몰 설정 "후기 관리자 승인 후 공개" — 켜져 있으면 승인 대기로 저장한다
+        $shopConfig = $this->shopConfigService->getConfig($domainId)->get('config', []);
+        $result = $this->reviewService->createReview(
+            $domainId,
+            $data,
+            !empty($shopConfig['review_require_approval'])
+        );
 
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())

@@ -546,6 +546,12 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    $r->addRoute('POST', '/admin/products/listPrice', [
+        'controller' => AdminProductController::class,
+        'method'     => 'listPrice',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     // --- 주문 관리 ---
     $r->addRoute('GET', '/admin/claims', [
         'controller' => ClaimController::class,
@@ -904,6 +910,12 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRoute('POST', '/admin/reviews/list-delete', [
         'controller' => AdminReviewController::class,
         'method'     => 'listDelete',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
+    $r->addRoute('POST', '/admin/reviews/list-approve', [
+        'controller' => AdminReviewController::class,
+        'method'     => 'listApprove',
         'middleware' => [AdminMiddleware::class],
     ]);
 

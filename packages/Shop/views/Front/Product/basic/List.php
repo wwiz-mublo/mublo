@@ -7,9 +7,12 @@
  * @var array $categoryTree 카테고리 트리 (표준 규격: code, label, link, children)
  * @var array $filters 현재 필터 (category_code, keyword, sort)
  * @var bool $priceHidden 가격 비공개 방문자 여부 (쇼핑몰 설정 — 가격순 정렬을 빼고, 카드는 price_hidden_text)
+ * @var bool $showAllTab "전체" 카테고리 링크를 보일지 (쇼핑몰 설정 — 전체 상품 탭 보이기)
  */
 
 $keyword = htmlspecialchars($filters['keyword'] ?? '');
+$showAllTab = $showAllTab ?? true;
+$hasCategoryNavigation = $showAllTab || !empty($categoryTree);
 $currentCode = $filters['category_code'] ?? '';
 $sorts = !empty($priceHidden)
     ? ['newest' => '최신순', 'popular' => '인기순']
@@ -73,6 +76,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
          카테고리 내비게이션 (데스크탑: 상단 바 / 모바일: 드로어)
          ================================================ -->
 
+    <?php if ($hasCategoryNavigation): ?>
     <!-- 모바일 필터 버튼 -->
     <button class="spl-filter-toggle" type="button" onclick="document.getElementById('splDrawer').classList.add('spl-drawer--open')">
         <i class="bi bi-funnel"></i>
@@ -81,8 +85,10 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
 
     <!-- 데스크탑 카테고리 바 -->
     <nav class="spl-catnav">
+        <?php if ($showAllTab): ?>
         <a href="/shop/products"
            class="spl-catnav__item <?= $currentCode === '' ? 'spl-catnav__item--active' : '' ?>">전체</a>
+        <?php endif; ?>
         <?php foreach ($categoryTree ?? [] as $root): ?>
             <?php $rootCode = $root['code'] ?? ''; ?>
             <?php $hasChildren = !empty($root['children']); ?>
@@ -118,9 +124,11 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                 </button>
             </div>
             <div class="spl-drawer__body">
+                <?php if ($showAllTab): ?>
                 <a href="/shop/products"
                    class="spl-drawer__item <?= $currentCode === '' ? 'spl-drawer__item--active' : '' ?>"
                    onclick="document.getElementById('splDrawer').classList.remove('spl-drawer--open')">전체</a>
+                <?php endif; ?>
                 <?php foreach ($categoryTree ?? [] as $root): ?>
                     <?php $rootCode = $root['code'] ?? ''; ?>
                     <?php $hasChildren = !empty($root['children']); ?>
@@ -155,6 +163,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <?php
     /* 페이지 제목 — 검색엔진과 보조기기가 이 화면이 무엇의 목록인지 알 수 있어야 한다.
