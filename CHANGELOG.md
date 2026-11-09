@@ -6,6 +6,12 @@
 
 ## [Unreleased]
 
+### Added
+- VisitorStats: 방문자 IP 기반 국가·도시 통계를 선택 기능으로 추가했습니다. `composer require geoip2/geoip2:^3.3`으로 라이브러리를 설치하고 MaxMind GeoLite2-City DB 파일을 `storage/geoip/GeoLite2-City.mmdb`에 두면, 이후 방문부터 환경 분석의 국가별·도시별 차트와 실시간 방문 목록의 "지역" 열에 표시됩니다. GeoLite2 DB 파일은 EULA상 재배포할 수 없어 배포본에 포함하지 않으므로 MaxMind 무료 계정으로 직접 받아야 합니다. 둘 중 하나라도 없으면 지역 값만 비고 나머지 통계는 기존과 같이 수집됩니다. 기존 로그는 소급되지 않습니다
+
+### Changed
+- 업그레이드: 이 릴리즈는 VisitorStats 마이그레이션 `003_add_geo_columns.sql`을 포함합니다. **기존 설치본은 파일을 교체해도 마이그레이션이 자동으로 적용되지 않습니다.** 실행 전에는 새 컬럼이 없어 VisitorStats 환경 분석 화면 전체(브라우저·OS·디바이스 포함)가 조회에 실패하고, GeoIP를 설정한 상태라면 방문 기록 저장도 실패합니다. 업데이트 후 관리자 → 시스템 관리에서 대기 중인 마이그레이션을 실행하세요
+
 ## [1.9.0] - 2026-10-28
 
 ### Added
