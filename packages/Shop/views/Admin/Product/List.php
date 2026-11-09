@@ -360,15 +360,15 @@ function openPriceEditor(cell) {
     const editor = document.createElement('div');
     editor.className = 'js-price-editor d-flex flex-column gap-1 align-items-end';
     editor.innerHTML =
-        '<div class="input-group input-group-sm" style="width:180px">'
+        '<div class="input-group input-group-sm" style="width:220px">'
         + '<span class="input-group-text justify-content-center" style="width:58px">판매가</span>'
         + '<input type="number" min="0" step="1" class="form-control text-end js-price-input-display" aria-label="판매가" onwheel="this.blur()">'
         + '</div>'
-        + '<div class="input-group input-group-sm" style="width:180px">'
+        + '<div class="input-group input-group-sm" style="width:220px">'
         + '<span class="input-group-text justify-content-center" style="width:58px">원가</span>'
         + '<input type="number" min="0" step="1" class="form-control text-end js-price-input-origin" aria-label="원가" onwheel="this.blur()">'
         + '</div>'
-        + (cell.dataset.hasOptions === '1' ? '<div class="small text-muted text-wrap" style="width:180px">옵션 추가 금액은 상품 수정에서</div>' : '')
+        + (cell.dataset.hasOptions === '1' ? '<div class="small text-muted text-wrap" style="width:220px">옵션 추가 금액은 상품 수정에서</div>' : '')
         + '<div class="d-flex gap-1">'
         + '<button type="button" class="btn btn-sm btn-primary js-price-save">저장</button>'
         + '<button type="button" class="btn btn-sm btn-default js-price-cancel">취소</button>'
