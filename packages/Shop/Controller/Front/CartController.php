@@ -1078,6 +1078,8 @@ class CartController
             'order_name'      => $orderName,
             'customer_name'   => $ordererName,
             'customer_phone'  => $ordererPhone,
+            // 선택 입력(위에서 형식 검증됨). 비어 있으면 PG 가 자체 기본값을 쓴다.
+            'customer_email'  => $ordererEmail,
             'domain_id'       => $domainId,
             // 결제 결과를 되돌려받을 소비자 키 — PG 콜백이 이 값으로 PaymentConsumerInterface 를
             // 조회한다. 플러그인은 값을 옮기기만 하고 어느 패키지인지 알지 못한다.

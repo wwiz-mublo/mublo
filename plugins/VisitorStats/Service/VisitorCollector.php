@@ -58,6 +58,7 @@ class VisitorCollector
         private VisitorReferrerRepository $referrerRepo,
         private VisitorCampaignRepository $campaignRepo,
         private SessionInterface $session,
+        private ?GeoIpService $geoIp = null,
     ) {}
 
     /**
@@ -107,8 +108,7 @@ class VisitorCollector
 
         $isNew = $this->logRepo->isNewVisitor($domainId, $ipAddress, $today);
 
-        // 로그 INSERT IGNORE
-        $inserted = $this->logRepo->insertIgnore([
+        $logData = [
             'domain_id'      => $domainId,
             'session_id'     => $sessionId,
             'member_id'      => $memberId,
@@ -126,7 +126,18 @@ class VisitorCollector
             'visit_date'     => $today,
             'visit_hour'     => $hour,
             'created_at'     => date('Y-m-d H:i:s'),
-        ]);
+        ];
+
+        // GeoIP: 조회된 값이 있을 때만 컬럼 포함
+        // (GeoIP 미설정 설치본은 002 마이그레이션 전이라도 INSERT가 기존과 동일하게 유지된다)
+        $geo = $this->geoIp?->lookup($ipAddress) ?? ['country_code' => '', 'city' => ''];
+        if ($geo['country_code'] !== '' || $geo['city'] !== '') {
+            $logData['country_code'] = $geo['country_code'];
+            $logData['city'] = $geo['city'];
+        }
+
+        // 로그 INSERT IGNORE
+        $inserted = $this->logRepo->insertIgnore($logData);
 
         if (!$inserted) {
             // UK 중복: 이미 이 세션의 로그가 있음 → PV만 증분
