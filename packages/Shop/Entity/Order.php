@@ -47,6 +47,7 @@ final class Order
 
     // 결제
     protected ?string $paymentGateway;
+    protected ?string $paymentTid = null; // 결제 준비/발급 시점의 PG 거래번호 (가상계좌 입금 대조 키)
     protected PaymentMethod $paymentMethod;
     protected ?string $bankAccountInfo; // 무통장입금 선택 계좌 (JSON)
     protected ?OrderAction $orderStatus;
@@ -104,6 +105,7 @@ final class Order
 
         // 결제
         $entity->paymentGateway = $data['payment_gateway'] ?? null;
+        $entity->paymentTid = isset($data['payment_tid']) ? (string) $data['payment_tid'] : null;
         $entity->paymentMethod = PaymentMethod::tryFrom($data['payment_method'] ?? 'BANK') ?? PaymentMethod::BANK;
         $entity->bankAccountInfo = $data['bank_account_info'] ?? null;
         $entity->orderStatusRaw = $data['order_status'] ?? null;
@@ -155,6 +157,7 @@ final class Order
             'recipient_name' => $this->recipientName,
             'recipient_phone' => $this->recipientPhone,
             'payment_gateway' => $this->paymentGateway,
+            'payment_tid' => $this->paymentTid,
             'payment_method' => $this->paymentMethod->value,
             'bank_account_info' => $this->bankAccountInfo,
             'order_status' => $this->orderStatusRaw ?? $this->orderStatus?->value,

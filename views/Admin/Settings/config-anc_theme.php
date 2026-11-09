@@ -111,6 +111,27 @@ $renderSkinTile = function(string $component, string $label, string $icon, strin
     </div>
 </div>
 
+<!-- 프론트 기본 화면 모드 (site_config.front_theme_default) -->
+<div class="card mb-4">
+    <div class="card-hero">
+        <i class="bi bi-circle-half text-pastel-blue"></i>
+        <span>프론트 화면 모드</span>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-4">
+                <label for="front_theme_default" class="form-label">기본 화면 모드</label>
+                <select name="formData[site][front_theme_default]" id="front_theme_default" class="form-select">
+                    <option value="auto">기기 설정 따름</option>
+                    <option value="light">라이트</option>
+                    <option value="dark">다크</option>
+                </select>
+            </div>
+        </div>
+        <div class="form-text">방문자가 화면 모드 스위치로 직접 고르기 전까지 적용됩니다. 방문자가 고른 모드는 그 브라우저에 저장되어 이 설정보다 우선합니다.</div>
+    </div>
+</div>
+
 <!-- Front 콘텐츠 스킨 설정 -->
 <div class="card mb-4 theme-skin-card">
     <div class="card-hero">

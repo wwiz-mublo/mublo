@@ -244,11 +244,68 @@ class PaymentService
             ]);
         }
 
-        if ($currentStatus !== OrderAction::ATTEMPTING->value) {
+        // 가상계좌 입금 대기(RECEIVED) — 발급 때 기록한 PG·거래번호와 같은 거래의 입금만 받는다.
+        // 무통장입금(RECEIVED)은 payment_method 가 BANK 라 여기에 걸리지 않는다(관리자가 확인).
+        $isVbankWaiting = $currentStatus === OrderAction::RECEIVED->value
+            && ($orderArray['payment_method'] ?? '') === 'VBANK'
+            && ($orderArray['payment_gateway'] ?? '') === $pgKey
+            && $transactionId !== ''
+            && ($orderArray['payment_tid'] ?? '') === $transactionId;
+
+        if ($currentStatus !== OrderAction::ATTEMPTING->value && !$isVbankWaiting) {
             return Result::failure('결제 검증 가능한 상태가 아닙니다: ' . $currentStatus);
         }
 
         return $this->finalizeVerifiedPayment($orderArray, $orderNo, $pgKey, $transactionId, $domainId);
+    }
+
+    /**
+     * 가상계좌 발급 기록 — 결제시도(ATTEMPTING) 주문을 입금 대기(RECEIVED)로 옮긴다.
+     *
+     * 결제시도 주문은 30분 뒤 스윕에 지워지므로, 입금을 기다리는 동안 무통장입금과 같은
+     * 홈 상태(RECEIVED)에 둔다. 입금 통보가 오면 PG 플러그인이 verifyPaymentByCallback 을 부른다.
+     */
+    public function recordVirtualAccountIssued(string $pgKey, string $transactionId, string $orderNo, int $domainId, array $accountInfo): Result
+    {
+        $order = $this->orderRepository->find($orderNo);
+        if (!$order) {
+            return Result::failure('주문을 찾을 수 없습니다.');
+        }
+
+        $orderArray = $order->toArray();
+        if ((int) ($orderArray['domain_id'] ?? 0) !== $domainId) {
+            return Result::failure('주문을 찾을 수 없습니다.');
+        }
+
+        $status = (string) ($orderArray['order_status'] ?? '');
+        if ($status === OrderAction::RECEIVED->value && ($orderArray['payment_tid'] ?? '') === $transactionId) {
+            return Result::success('이미 기록된 가상계좌입니다.', ['already_recorded' => true]);
+        }
+        if ($status !== OrderAction::ATTEMPTING->value) {
+            return Result::failure('가상계좌를 기록할 수 있는 주문 상태가 아닙니다: ' . $status);
+        }
+        if (($orderArray['payment_gateway'] ?? '') !== '' && $orderArray['payment_gateway'] !== $pgKey) {
+            return Result::failure('결제 수단이 주문 정보와 일치하지 않습니다.');
+        }
+        if ($transactionId === '' || trim((string) ($accountInfo['account'] ?? '')) === '') {
+            return Result::failure('가상계좌 정보가 올바르지 않습니다.');
+        }
+
+        $expected = $this->priceCalculator->calculatePaymentAmount($orderArray);
+        if ((int) ($accountInfo['amount'] ?? 0) !== $expected) {
+            return Result::failure('가상계좌 입금 금액이 주문 금액과 일치하지 않습니다.');
+        }
+
+        $this->orderRepository->recordVirtualAccount($orderNo, $transactionId, $accountInfo);
+
+        $reason = sprintf(
+            '가상계좌 발급 — 입금 대기 (%s %s%s)',
+            trim((string) ($accountInfo['bank'] ?? '')),
+            (string) $accountInfo['account'],
+            !empty($accountInfo['due_date']) ? ', 기한 ' . $accountInfo['due_date'] : ''
+        );
+
+        return $this->orderService->updateStatus($orderNo, OrderAction::RECEIVED->value, $domainId, $reason, 'SYSTEM');
     }
 
     /**

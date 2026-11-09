@@ -57,16 +57,21 @@ $kakaoPixel = trim($seoConfig['kakao_pixel_id'] ?? '');
 $naverAna = trim($seoConfig['naver_analytics_id'] ?? '');
 $customHead = trim($seoConfig['custom_head_script'] ?? '');
 $canonicalUrl = $currentUrl ?? '';
+// 사이트 기본 화면 모드 (관리자 > 환경 설정 > 테마 설정). 방문자가 고른 값이 없을 때만 쓴다.
+$defaultTheme = $siteConfig['front_theme_default'] ?? 'auto';
+if (!in_array($defaultTheme, ['auto', 'light', 'dark'], true)) {
+    $defaultTheme = 'auto';
+}
 ?>
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="ko" data-default-theme="<?= htmlspecialchars($defaultTheme, ENT_QUOTES) ?>">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="csrf-token" content="<?= htmlspecialchars($csrfToken ?? '') ?>">
-<?php /* 다크모드 무플래시: paint 전에 <html>에 테마 클래스 결정 (localStorage > 시스템설정) */ ?>
+<?php /* 다크모드 무플래시: paint 전에 <html>에 테마 클래스 결정 (localStorage > 사이트 기본값 > 시스템설정) */ ?>
 <script>
-(function(){try{var t=localStorage.getItem('mublo-theme');if(!t||t==='auto'||t==='system'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark'){var e=document.documentElement;e.classList.add('dark');e.setAttribute('data-theme','dark');}}catch(_){}})();
+(function(){try{var d=<?= json_encode($defaultTheme) ?>,t=d;try{var s=localStorage.getItem('mublo-theme');if(s==='light'||s==='dark'||s==='auto'||s==='system'){t=s;}}catch(_){}if(t==='auto'||t==='system'){t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';}if(t==='dark'){var e=document.documentElement;e.classList.add('dark');e.setAttribute('data-theme','dark');}}catch(_){}})();
 </script>
 <?php if ($googleVerify): ?>
 <meta name="google-site-verification" content="<?= htmlspecialchars($googleVerify) ?>">

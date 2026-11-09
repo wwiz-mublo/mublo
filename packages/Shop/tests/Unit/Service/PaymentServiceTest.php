@@ -616,4 +616,99 @@ class PaymentServiceTest extends TestCase
         $this->assertTrue($result->isFailure());
         $this->assertStringContainsString('NOT_CONFIGURED', $result->getMessage());
     }
+
+    // =========================================================
+    // 가상계좌 — 발급(입금 대기) → 입금 통보로 결제 완료
+    // =========================================================
+
+    private function vbankAccount(int $amount = 33000): array
+    {
+        return ['bank' => '우리은행', 'account' => '28284335018607', 'holder' => '', 'amount' => $amount, 'due_date' => '2026-11-09'];
+    }
+
+    public function testRecordVirtualAccountMovesAttemptingOrderToReceived(): void
+    {
+        $order = Order::fromArray($this->makeOrderData([
+            'order_no' => 'ORD001', 'domain_id' => 1, 'order_status' => 'attempting',
+            'payment_gateway' => 'innopay', 'total_price' => 30000, 'shipping_fee' => 3000,
+        ]));
+        $this->orderRepo->method('find')->willReturn($order);
+
+        $this->orderRepo->expects($this->once())->method('recordVirtualAccount')
+            ->with('ORD001', 'TID1', $this->vbankAccount());
+        $this->orderService->expects($this->once())->method('updateStatus')
+            ->with('ORD001', 'received', 1, $this->stringContains('28284335018607'), 'SYSTEM')
+            ->willReturn(Result::success('상태 변경됨'));
+
+        $result = $this->service->recordVirtualAccountIssued('innopay', 'TID1', 'ORD001', 1, $this->vbankAccount());
+
+        $this->assertTrue($result->isSuccess());
+    }
+
+    public function testRecordVirtualAccountRejectsAmountMismatch(): void
+    {
+        $order = Order::fromArray($this->makeOrderData([
+            'order_no' => 'ORD001', 'domain_id' => 1, 'order_status' => 'attempting',
+            'payment_gateway' => 'innopay', 'total_price' => 30000, 'shipping_fee' => 3000,
+        ]));
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->orderRepo->expects($this->never())->method('recordVirtualAccount');
+
+        $result = $this->service->recordVirtualAccountIssued('innopay', 'TID1', 'ORD001', 1, $this->vbankAccount(1000));
+
+        $this->assertTrue($result->isFailure());
+    }
+
+    public function testRecordVirtualAccountIsIdempotent(): void
+    {
+        $order = Order::fromArray($this->makeOrderData([
+            'order_no' => 'ORD001', 'domain_id' => 1, 'order_status' => 'received',
+            'payment_gateway' => 'innopay', 'payment_method' => 'VBANK', 'payment_tid' => 'TID1',
+        ]));
+        $this->orderRepo->method('find')->willReturn($order);
+        $this->orderService->expects($this->never())->method('updateStatus');
+
+        $this->assertTrue($this->service->recordVirtualAccountIssued('innopay', 'TID1', 'ORD001', 1, $this->vbankAccount())->isSuccess());
+    }
+
+    public function testDepositCallbackPaysReceivedVirtualAccountOrder(): void
+    {
+        $order = Order::fromArray($this->makeOrderData([
+            'order_no' => 'ORD001', 'domain_id' => 1, 'order_status' => 'received',
+            'payment_gateway' => 'innopay', 'payment_method' => 'VBANK', 'payment_tid' => 'TID1',
+            'total_price' => 30000, 'shipping_fee' => 3000,
+        ]));
+        $this->orderRepo->method('find')->willReturn($order);
+
+        $gateway = $this->createMock(PaymentGatewayInterface::class);
+        $gateway->method('verify')->willReturn(new PaymentGatewayResponse(true, 'TID1', 'ORD001', 33000, paymentMethod: 'VBANK'));
+        $this->registerGateway('innopay', $gateway);
+
+        $this->orderService->expects($this->once())->method('updateStatus')
+            ->with('ORD001', 'paid')
+            ->willReturn(Result::success('상태 변경됨'));
+
+        $result = $this->service->verifyPaymentByCallback('innopay', 'TID1', 'ORD001', 1);
+
+        $this->assertTrue($result->isSuccess());
+    }
+
+    public function testDepositCallbackRejectsOtherTransactionAndBankTransferOrders(): void
+    {
+        // 다른 거래번호의 입금 통보
+        $vbank = Order::fromArray($this->makeOrderData([
+            'order_no' => 'ORD001', 'domain_id' => 1, 'order_status' => 'received',
+            'payment_gateway' => 'innopay', 'payment_method' => 'VBANK', 'payment_tid' => 'TID1',
+        ]));
+        // 무통장입금 주문은 PG 콜백으로 결제 완료가 될 수 없다(관리자가 입금 확인)
+        $bank = Order::fromArray($this->makeOrderData([
+            'order_no' => 'ORD002', 'domain_id' => 1, 'order_status' => 'received',
+            'payment_gateway' => 'innopay', 'payment_method' => 'BANK', 'payment_tid' => 'TID2',
+        ]));
+        $this->orderRepo->method('find')->willReturnMap([['ORD001', $vbank], ['ORD002', $bank]]);
+        $this->orderService->expects($this->never())->method('updateStatus');
+
+        $this->assertTrue($this->service->verifyPaymentByCallback('innopay', 'OTHER', 'ORD001', 1)->isFailure());
+        $this->assertTrue($this->service->verifyPaymentByCallback('innopay', 'TID2', 'ORD002', 1)->isFailure());
+    }
 }

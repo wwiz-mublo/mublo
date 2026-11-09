@@ -41,7 +41,11 @@ class DomainSettingsService implements CompanyInfoInterface
         'primary_color',
         'search_source_order', 'search_enabled_sources', 'search_per_source',
         'join_type', 'default_level_value', 'nickname_mode',
+        'front_theme_default',
     ];
+
+    /** 프론트 기본 화면 모드 — 방문자가 직접 고르지 않았을 때 (auto: 기기 설정 따름) */
+    public const FRONT_THEME_MODES = ['auto', 'light', 'dark'];
 
     /** Company config keys */
     public const COMPANY_KEYS = [
@@ -173,6 +177,8 @@ class DomainSettingsService implements CompanyInfoInterface
             'join_type'           => 'immediate',
             'default_level_value' => 1,
             'nickname_mode'       => 'required',
+            // 프론트 기본 화면 모드 (기존 동작: 기기 설정 따름)
+            'front_theme_default' => 'auto',
         ];
     }
 
@@ -470,6 +476,8 @@ class DomainSettingsService implements CompanyInfoInterface
             'join_type'           => in_array($data['join_type'] ?? '', ['immediate', 'approval']) ? $data['join_type'] : 'immediate',
             'default_level_value' => max(1, (int)($data['default_level_value'] ?? 1)),
             'nickname_mode'       => in_array($data['nickname_mode'] ?? '', ['required', 'optional', 'hidden'], true) ? $data['nickname_mode'] : 'required',
+            // 프론트 기본 화면 모드
+            'front_theme_default' => in_array($data['front_theme_default'] ?? '', self::FRONT_THEME_MODES, true) ? $data['front_theme_default'] : 'auto',
             // 비밀번호 정책 (기본 최소 6자, 복잡도 규칙 기본 off)
             'password_min_length'      => max(4, min(32, (int)($data['password_min_length'] ?? 6))),
             'password_require_number'  => !empty($data['password_require_number']),

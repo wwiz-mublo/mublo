@@ -115,9 +115,10 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
     </div>
 
     <?php
-        // 무통장입금: 선택한 입금계좌 안내
+        // 무통장입금: 선택한 입금계좌 안내 / 가상계좌: PG 가 발급한 계좌 안내
         $bankInfo = null;
-        if ($pm === 'BANK' && !empty($order['bank_account_info'])) {
+        $isVbank = $pm === 'VBANK';
+        if (in_array($pm, ['BANK', 'VBANK'], true) && !empty($order['bank_account_info'])) {
             $decoded = json_decode((string) $order['bank_account_info'], true);
             if (is_array($decoded)) {
                 $bankInfo = $decoded;
@@ -135,15 +136,27 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
             <span class="shop-complete__label">계좌번호</span>
             <span class="shop-complete__bank-account"><?= htmlspecialchars((string) ($bankInfo['account'] ?? '')) ?></span>
         </div>
+        <?php if (($bankInfo['holder'] ?? '') !== ''): ?>
         <div class="shop-complete__row">
             <span class="shop-complete__label">예금주</span>
             <span><?= htmlspecialchars((string) ($bankInfo['holder'] ?? '')) ?></span>
         </div>
+        <?php endif; ?>
+        <?php if (!empty($bankInfo['due_date'])): ?>
+        <div class="shop-complete__row">
+            <span class="shop-complete__label">입금 기한</span>
+            <span><?= htmlspecialchars((string) $bankInfo['due_date']) ?> 까지</span>
+        </div>
+        <?php endif; ?>
         <div class="shop-complete__row shop-complete__row--total">
             <span>입금 금액</span>
             <span><?= number_format((int) ($order['grand_total'] ?? 0)) ?>원</span>
         </div>
+        <?php if ($isVbank): ?>
+        <p class="shop-complete__bank-notice">위 가상계좌로 입금 기한까지 정확한 금액을 입금하시면 자동으로 결제가 완료됩니다.</p>
+        <?php else: ?>
         <p class="shop-complete__bank-notice">위 계좌로 입금하시면 확인 후 배송 준비를 시작합니다. 주문자명으로 입금해주세요.</p>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 

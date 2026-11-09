@@ -41,6 +41,7 @@
                     <tr>
                         <th>시간</th>
                         <th>IP</th>
+                        <th>지역</th>
                         <th>페이지</th>
                         <th>브라우저</th>
                         <th>디바이스</th>
@@ -49,7 +50,7 @@
                     </tr>
                 </thead>
                 <tbody id="rt-log-body">
-                    <tr><td colspan="7" class="text-center text-muted py-3">로딩 중...</td></tr>
+                    <tr><td colspan="8" class="text-center text-muted py-3">로딩 중...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -157,7 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderLogs(logs) {
         var tbody = document.getElementById('rt-log-body');
         if (logs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-3">오늘 방문 기록이 없습니다.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-3">오늘 방문 기록이 없습니다.</td></tr>';
             return;
         }
 
@@ -174,10 +175,14 @@ document.addEventListener('DOMContentLoaded', function () {
             var campaignRaw = log.campaign_key || '';
             var campaign = escapeHtml(campaignRaw);
             var campaignAttr = escapeAttr(campaignRaw);
+            var country = escapeHtml(log.country_code || '');
+            var city = escapeHtml(log.city || '');
+            var geo = country ? (country + (city ? ' / ' + city : '')) : (city || '-');
 
             html += '<tr>';
             html += '<td class="text-nowrap">' + time + '</td>';
             html += '<td class="text-nowrap"><button type="button" class="btn btn-link btn-sm p-0 vs-ip-link" data-ip-log="1" data-ip="' + ipAttr + '" title="이 IP의 최근 1개월 접속 기록 보기"><code>' + ip + '</code></button></td>';
+            html += '<td class="text-nowrap small">' + geo + '</td>';
             html += '<td title="' + escapeAttr(log.landing_url || '') + '">' + page + '</td>';
             html += '<td>' + browser + '</td>';
             html += '<td>' + deviceBadge(device) + '</td>';

@@ -445,6 +445,24 @@ class OrderRepository extends BaseRepository
     }
 
     /**
+     * PG 가 발급한 가상계좌를 주문에 기록한다 — 결제수단·거래번호·입금 계좌를 한 번에 바꾼다.
+     * 입금 계좌는 무통장입금과 같은 bank_account_info(JSON)에 담아 같은 안내 화면을 쓴다.
+     *
+     * @param array{bank: string, account: string, holder: string, amount: int, due_date: string} $accountInfo
+     */
+    public function recordVirtualAccount(string $orderNo, string $transactionId, array $accountInfo): void
+    {
+        $this->getDb()->table($this->table)
+            ->where('order_no', '=', $orderNo)
+            ->update([
+                'payment_method'    => 'VBANK',
+                'payment_tid'       => $transactionId,
+                'bank_account_info' => json_encode($accountInfo, JSON_UNESCAPED_UNICODE),
+                'updated_at'        => date('Y-m-d H:i:s'),
+            ]);
+    }
+
+    /**
      * 회원별 주문 목록 조회 (페이지네이션)
      *
      * @param int $memberId 회원 ID
