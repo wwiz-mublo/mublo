@@ -16,11 +16,25 @@ use Mublo\Plugin\PayApp\Service\PayAppConfigService;
  * 1. prepare()         → payrequest API → mul_no + payurl 반환
  * 2. 프론트 JS          → PayApp Lite JS로 결제창 호출
  * 3. feedbackurl        → payrequest 파라미터로 전달, 서버가 POST로 결제 결과 수신 (pay_state=4)
- * 4. verify()           → statecheck API로 상태 재확인
+ * 4. verify()           → payinfo API로 상태 재확인
  * 5. cancel()           → paycancel API
+ *
+ * 가상계좌는 받지 않는다. 결제창에서 빼고(openpaytype), 그래도 발급 통보(pay_state=10)가
+ * 오면 콜백이 발급을 취소한다 — 입금 대기 주문을 붙잡아 둘 경로가 없어, 남겨 두면
+ * 주문이 스윕된 뒤 입금만 들어오는 "주문 없는 돈"이 된다.
  */
 class PayAppGateway implements PaymentGatewayInterface
 {
+    public const PG_KEY = 'payapp';
+
+    /**
+     * 결제창에 여는 결제수단 (페이앱 payrequest openpaytype, 콤마 구분).
+     *
+     * 문서의 전체 목록에서 가상계좌(vbank)와 분할결제(나나결제 dvpay)를 뺐다.
+     * 문서상 "판매자 결제 설정의 값이 우선"하므로 판매자 사이트에서 끈 수단은 여기 있어도 열리지 않는다.
+     */
+    public const OPEN_PAY_TYPES = 'card,phone,kakaopay,naverpay,smilepay,rbank,applepay,payco,wechat,myaccount,tosspay';
+
     /**
      * 페이앱 결제요청 최소금액(원).
      *
@@ -32,10 +46,17 @@ class PayAppGateway implements PaymentGatewayInterface
     private PayAppConfigService $configService;
     private int $domainId;
 
-    public function __construct(PayAppConfigService $configService, int $domainId)
+    /** @var (callable(array<string, mixed>): PayAppClient)|null 테스트용 클라이언트 생성기 */
+    private $clientFactory;
+
+    /**
+     * @param (callable(array<string, mixed>): PayAppClient)|null $clientFactory 설정 배열을 받아 클라이언트를 만든다. 생략하면 실제 클라이언트.
+     */
+    public function __construct(PayAppConfigService $configService, int $domainId, ?callable $clientFactory = null)
     {
         $this->configService = $configService;
         $this->domainId = $domainId;
+        $this->clientFactory = $clientFactory;
     }
 
     /**
@@ -45,9 +66,9 @@ class PayAppGateway implements PaymentGatewayInterface
     {
         $config = $this->configService->getConfig($this->domainId);
 
-        // 설정 검증
-        if (empty($config['userid']) || empty($config['linkkey'])) {
-            return new PaymentGatewayResponse(false, '', errorCode: 'NOT_CONFIGURED', errorMessage: 'PayApp API 설정이 필요합니다. (userid/linkkey 미등록)');
+        // 설정 검증 — 연동 VALUE 가 없으면 결제 완료 통보를 검증할 수 없어 결제를 열지 않는다
+        if (!PayAppConfigService::hasCredentials($config)) {
+            return new PaymentGatewayResponse(false, '', errorCode: 'NOT_CONFIGURED', errorMessage: 'PayApp API 설정이 필요합니다. (판매자 아이디/연동 KEY/연동 VALUE 미등록)');
         }
 
         // 페이앱 최소금액 미만은 API 왕복 없이 선제 차단 (페이앱 정책 = self::MIN_AMOUNT)
@@ -94,7 +115,18 @@ class PayAppGateway implements PaymentGatewayInterface
             'var1'        => $orderId,
             'var2'        => (string) ($orderData['domain_id'] ?? $this->domainId),
             'memo'        => $orderData['memo'] ?? '',
+            // 가상계좌 제외 — 클래스 주석 참조
+            'openpaytype' => self::OPEN_PAY_TYPES,
+            // 통보에 SUCCESS 가 아닌 응답을 하면 페이앱이 재전송한다(문서: 최대 10회).
+            // 이 값이 없으면 FAIL 을 돌려줘도 다시 오지 않아, 일시 오류가 그대로 유실된다.
+            'checkretry'  => 'y',
         ];
+
+        // 문서상 구매자 이름 필드는 없다(buyerid 는 아이디). 이메일만 넘긴다.
+        $email = trim((string) ($orderData['customer_email'] ?? ''));
+        if ($email !== '') {
+            $params['recvemail'] = $email;
+        }
 
         if ($feedbackUrl !== '') {
             $params['feedbackurl'] = $feedbackUrl;
@@ -163,6 +195,10 @@ class PayAppGateway implements PaymentGatewayInterface
 
     /**
      * 결제 취소
+     *
+     * 전체취소: 금액이 0 이하이거나, 소비처가 알려준 잔액을 전부 취소할 때.
+     * 부분취소: 그 밖에 금액이 주어졌을 때(잔액을 모르면 금액이 있는 한 부분취소로 보낸다 —
+     *          전체 금액인지 확인할 수 없는데 전체취소로 보내면 요청보다 많이 돌려줄 수 있다).
      */
     public function cancel(
         string $transactionId,
@@ -172,8 +208,11 @@ class PayAppGateway implements PaymentGatewayInterface
     ): PaymentGatewayResponse
     {
         $client = $this->createClient();
-        $cancelAmount = $amount > 0 ? $amount : null;
-        $result = $client->payCancel($transactionId, $reason ?: '관리자 취소', $cancelAmount);
+        $result = $client->payCancel(
+            $transactionId,
+            $reason ?: '관리자 취소',
+            self::isFullCancel($amount, $remainingAmount) ? null : $amount
+        );
 
         $state = $result['state'] ?? '';
         if ($state !== '1') {
@@ -311,15 +350,43 @@ JS;
     }
 
     /**
-     * Feedback 검증용 클라이언트 생성
+     * 이번 취소를 전체취소로 보낼 것인가.
+     */
+    public static function isFullCancel(int $amount, ?int $remainingAmount): bool
+    {
+        if ($amount <= 0) {
+            return true;
+        }
+        return $remainingAmount !== null && $amount >= $remainingAmount;
+    }
+
+    /**
+     * 통보가 가상계좌 결제인가 — 문서: pay_type 7=가상계좌, 가상계좌면 vbankno(입금계좌)가 온다.
+     *
+     * @param array<string, mixed> $feedback
+     */
+    public static function isVirtualAccountFeedback(array $feedback): bool
+    {
+        return (string) ($feedback['pay_type'] ?? '') === '7'
+            || trim((string) ($feedback['vbankno'] ?? '')) !== '';
+    }
+
+    /**
+     * API·Feedback 검증용 클라이언트 생성
      */
     public function createClient(): PayAppClient
     {
         $config = $this->configService->getConfig($this->domainId);
+
+        if ($this->clientFactory !== null) {
+            return ($this->clientFactory)($config);
+        }
+
         return new PayAppClient(
-            $config['userid'] ?? '',
-            $config['linkkey'] ?? '',
-            $config['linkval'] ?? ''
+            (string) ($config['userid'] ?? ''),
+            (string) ($config['linkkey'] ?? ''),
+            (string) ($config['linkval'] ?? ''),
+            (string) ($config['requestkey'] ?? '')
         );
     }
 
@@ -362,19 +429,19 @@ JS;
     /**
      * 페이앱 pay_type 코드를 Shop PaymentMethod enum 값으로 매핑한다.
      *
-     * 페이앱 코드(공식 문서 기준):
-     *   11 신용카드 / 12 휴대폰 / 13 가상계좌 / 14 카카오페이 / 15 네이버페이
-     *   16 토스페이 / 17 페이코 / 18 실시간계좌이체 / 21 무통장입금 / 25 애플페이
+     * 페이앱 통보(feedbackurl) 코드 — 개발자센터 결제통보 표 기준(2026-11 확인):
+     *   1 신용카드 / 2 휴대전화 / 4 대면결제 / 6 계좌이체 / 7 가상계좌 / 15 카카오페이
+     *   16 네이버페이 / 17 등록결제 / 21 스마일페이 / 22 위챗페이 / 23 애플페이
+     *   24 내통장결제 / 25 토스페이 / 26 나나결제 (페이코는 1 로 온다)
      * Shop enum: CARD / PHONE / VBANK / BANK
-     * 카카오·네이버·토스·페이코·애플 같은 간편결제는 신용카드 결제에 해당하므로 CARD로 정규화한다.
+     * 간편결제는 신용카드 결제에 해당하므로 CARD로 정규화한다.
      */
     private function mapPayType(string $payType): string
     {
         return match ($payType) {
-            '12' => 'PHONE',
-            '13' => 'VBANK',
-            '18', '21' => 'BANK',
-            '11', '14', '15', '16', '17', '25' => 'CARD',
+            '2' => 'PHONE',
+            '7' => 'VBANK',
+            '6', '24' => 'BANK',
             default => 'CARD',
         };
     }
@@ -382,9 +449,8 @@ JS;
     /**
      * 응답에서 결제수단을 뽑는다.
      *
-     * 페이앱은 통보(webhook)와 조회(payinfo)의 코드 체계가 다르다 — 통보는 pay_type
-     * 11/12/13…, 조회는 paytype 1,2… 로 온다. 같은 숫자가 다른 뜻이 될 수 있어
-     * 숫자만 믿지 않고, 조회 응답이 함께 주는 한글 라벨(paytypestr)을 먼저 본다.
+     * 조회(payinfo) 응답의 paytype 코드표는 문서로 확인하지 못했다. 같은 숫자가 통보와
+     * 다른 뜻일 수 있어 숫자만 믿지 않고, 조회 응답이 함께 주는 한글 라벨(paytypestr)을 먼저 본다.
      */
     private function resolvePaymentMethod(array $result): string
     {

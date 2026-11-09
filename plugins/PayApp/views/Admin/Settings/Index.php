@@ -3,7 +3,8 @@
  * 페이앱 관리자 설정
  *
  * @var string $title
- * @var array  $config       ['userid', 'linkkey', 'linkval', 'mode']
+ * @var array  $config       ['userid', 'mode', 'feedback_ip_allowlist'] — 비밀값은 내려오지 않는다
+ * @var array  $secretSaved  ['linkkey' => bool, 'linkval' => bool, 'requestkey' => bool] 저장 여부
  * @var bool   $isConfigured
  */
 $mode = $config['mode'] ?? 'live';
@@ -71,15 +72,24 @@ $feedbackUrl = "{$scheme}://{$host}/pay-app/callback/feedback";
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">연동 KEY <span class="text-danger">*</span></label>
-                            <input type="text" name="formData[linkkey]" class="form-control"
-                                   value="<?= htmlspecialchars($config['linkkey'] ?? '') ?>" placeholder="예) abcd1234efgh5678ijkl9012mnop3456">
+                            <input type="password" name="formData[linkkey]" class="form-control" value=""
+                                   autocomplete="new-password"
+                                   placeholder="<?= !empty($secretSaved['linkkey']) ? '저장된 값 유지 (변경 시에만 입력)' : '예) abcd1234efgh5678ijkl9012mnop3456' ?>">
                             <div class="form-text">API 호출 인증 키. AES-256-GCM으로 암호화 저장됩니다.</div>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">연동 VALUE <span class="text-danger">*</span></label>
-                            <input type="text" name="formData[linkval]" class="form-control"
-                                   value="<?= htmlspecialchars($config['linkval'] ?? '') ?>" placeholder="예) abcd1234">
-                            <div class="form-text">Feedback 응답 검증값. 암호화 저장됩니다.</div>
+                            <input type="password" name="formData[linkval]" class="form-control" value=""
+                                   autocomplete="new-password"
+                                   placeholder="<?= !empty($secretSaved['linkval']) ? '저장된 값 유지 (변경 시에만 입력)' : '예) abcd1234' ?>">
+                            <div class="form-text">결제 통보(Feedback) 검증값. 암호화 저장됩니다.</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">결제 KEY <span class="text-muted small">(권장)</span></label>
+                            <input type="password" name="formData[requestkey]" class="form-control" value=""
+                                   autocomplete="new-password"
+                                   placeholder="<?= !empty($secretSaved['requestkey']) ? '저장된 값 유지 (변경 시에만 입력)' : '판매자 사이트 → 설정에서 확인' ?>">
+                            <div class="form-text">입력하면 결제 통보의 위변조 방지 해시(hash)를 검증하고, 취소 요청에 해시를 싣습니다. 암호화 저장됩니다.</div>
                         </div>
                     </div>
                 </div>
@@ -117,7 +127,7 @@ $feedbackUrl = "{$scheme}://{$host}/pay-app/callback/feedback";
                                    name="formData[feedback_ip_allowlist]"
                                    value="<?= htmlspecialchars((string) ($config['feedback_ip_allowlist'] ?? '')) ?>"
                                    placeholder="예) 1.2.3.4, 5.6.7.0/24 (쉼표·공백으로 구분, 비우면 검증 안 함)">
-                            <div class="form-text">페이앱 발신 IP만 허용하려면 입력하세요. 비우면 모든 IP에서 수신합니다.</div>
+                            <div class="form-text">페이앱 발신 IP만 허용하려면 입력하세요(권장). 비우면 모든 IP에서 수신합니다.</div>
                         </div>
                     </div>
                 </div>
@@ -137,9 +147,9 @@ $feedbackUrl = "{$scheme}://{$host}/pay-app/callback/feedback";
                         <span class="badge border text-secondary py-2 px-3">네이버페이</span>
                         <span class="badge border text-secondary py-2 px-3">토스페이</span>
                         <span class="badge border text-secondary py-2 px-3">실시간 계좌이체</span>
-                        <span class="badge border text-secondary py-2 px-3">가상계좌</span>
                         <span class="badge border text-secondary py-2 px-3">애플페이</span>
                     </div>
+                    <div class="form-text mt-2">가상계좌는 지원하지 않습니다. 결제창에서 제외되며, 발급되더라도 자동으로 취소됩니다.</div>
                 </div>
             </div>
         </div>

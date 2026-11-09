@@ -42,10 +42,18 @@ class SettingsController
 
         $config = $this->configService->getConfig($domainId);
 
+        // 비밀값은 화면에 내려보내지 않고 저장 여부만 알린다
+        $secretSaved = [];
+        foreach (PayAppConfigService::SENSITIVE_FIELDS as $field) {
+            $secretSaved[$field] = (string) ($config[$field] ?? '') !== '';
+            unset($config[$field]);
+        }
+
         return ViewResponse::absoluteView(MUBLO_PLUGIN_PATH . '/PayApp/views/Admin/Settings/Index')
             ->withData([
                 'title' => '페이앱 설정',
                 'config' => $config,
+                'secretSaved' => $secretSaved,
                 'isConfigured' => $this->configService->isConfigured($domainId),
             ]);
     }
@@ -54,14 +62,21 @@ class SettingsController
     {
         $domainId = $context->getDomainId() ?? 1;
         $formData = $request->input('formData') ?? $request->json() ?? [];
+        $current = $this->configService->getConfig($domainId);
 
-        $this->configService->saveConfig($domainId, [
-            'userid' => trim($formData['userid'] ?? ''),
-            'linkkey' => trim($formData['linkkey'] ?? ''),
-            'linkval' => trim($formData['linkval'] ?? ''),
+        $config = [
+            'userid' => trim((string) ($formData['userid'] ?? '')),
             'mode' => 'live', // 페이앱은 sandbox API가 없어 항상 운영 모드
-            'feedback_ip_allowlist' => trim($formData['feedback_ip_allowlist'] ?? ''),
-        ]);
+            'feedback_ip_allowlist' => trim((string) ($formData['feedback_ip_allowlist'] ?? '')),
+        ];
+
+        // 비밀값은 화면에 다시 내려보내지 않는다 — 빈 칸으로 저장하면 기존 값을 유지한다
+        foreach (PayAppConfigService::SENSITIVE_FIELDS as $field) {
+            $submitted = trim((string) ($formData[$field] ?? ''));
+            $config[$field] = $submitted !== '' ? $submitted : (string) ($current[$field] ?? '');
+        }
+
+        $this->configService->saveConfig($domainId, $config);
 
         return JsonResponse::success(null, '설정이 저장되었습니다.');
     }
