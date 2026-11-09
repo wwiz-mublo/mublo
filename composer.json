@@ -21,7 +21,6 @@
             "Tests\\Banner\\": "plugins/Banner/tests/",
             "Tests\\EmailNotify\\": "plugins/EmailNotify/tests/",
             "Tests\\Faq\\": "plugins/Faq/tests/",
-            "Tests\\Innopay\\": "plugins/Innopay/tests/",
             "Tests\\Manual\\": "plugins/Manual/tests/",
             "Tests\\MemberPoint\\": "plugins/MemberPoint/tests/",
             "Tests\\Popup\\": "plugins/Popup/tests/",
