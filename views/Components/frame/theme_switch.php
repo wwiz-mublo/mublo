@@ -32,7 +32,15 @@
     if (!comps.length) return;
     var root = document.documentElement;
     var mq = window.matchMedia('(prefers-color-scheme: dark)');
-    function stored() { try { return localStorage.getItem('mublo-theme') || 'auto'; } catch (_) { return 'auto'; } }
+    // 방문자가 고른 값이 없으면 사이트 기본값(Head.php 가 <html data-default-theme> 로 내려줌)
+    var siteDefault = root.getAttribute('data-default-theme');
+    if (siteDefault !== 'light' && siteDefault !== 'dark') siteDefault = 'auto';
+    function stored() {
+        var v = null;
+        try { v = localStorage.getItem('mublo-theme'); } catch (_) {}
+        if (v === 'system') v = 'auto';
+        return (v === 'light' || v === 'dark' || v === 'auto') ? v : siteDefault;
+    }
     function resolve(v) { return (v === 'dark' || (v !== 'light' && mq.matches)) ? 'dark' : 'light'; }
     function applyResolved(v) {
         if (resolve(v) === 'dark') { root.classList.add('dark'); root.setAttribute('data-theme', 'dark'); }
