@@ -400,6 +400,14 @@ $submitUrl = $isEdit ? "/admin/member/update/{$memberId}" : '/admin/member/store
                                         <img id="mfield_<?= $fieldId ?>_preview_img" src="<?= htmlspecialchars($existingUrl, ENT_QUOTES) ?>" alt="아바타"
                                              class="w-100 h-100 rounded border" style="object-fit:cover;">
                                     </div>
+                                    <?php elseif ($hasExisting && !empty($fileMeta['preview_url'])): ?>
+                                    <?php // 이미지 파일(jpeg·png·gif·webp)은 내려받지 않고 바로 확인 — 누르면 새 탭에서 원본 ?>
+                                    <a id="mfield_<?= $fieldId ?>_thumb" href="<?= htmlspecialchars($fileMeta['preview_url'], ENT_QUOTES) ?>"
+                                       target="_blank" rel="noopener" title="원본 이미지 보기"
+                                       class="flex-shrink-0 d-block" style="width:96px;height:96px;">
+                                        <img src="<?= htmlspecialchars($fileMeta['preview_url'], ENT_QUOTES) ?>" alt="<?= htmlspecialchars($fileMeta['filename'], ENT_QUOTES) ?>"
+                                             loading="lazy" class="w-100 h-100 rounded border" style="object-fit:cover;">
+                                    </a>
                                     <?php endif; ?>
                                 </div>
 
@@ -717,10 +725,18 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        // 아바타 미리보기 흐리게(삭제 예정 표시)
+        // 아바타 미리보기·기존 이미지 썸네일 흐리게(삭제 예정 표시)
         function setPreviewDim(fid, dim) {
             const box = el('mfield_' + fid + '_preview');
             if (box) box.style.opacity = dim ? '0.4' : '';
+            const thumb = el('mfield_' + fid + '_thumb');
+            if (thumb) thumb.style.opacity = dim ? '0.4' : '';
+        }
+
+        // 기존 이미지 썸네일 표시/숨김 (새 파일로 교체 중이면 숨김)
+        function setThumbVisible(fid, visible) {
+            const thumb = el('mfield_' + fid + '_thumb');
+            if (thumb) thumb.style.display = visible ? '' : 'none';
         }
 
         // 기존 파일 칩의 "삭제 예정" 시각 상태 토글
@@ -776,6 +792,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     const cur = el('mfield_' + fid + '_current');
                     if (cur) cur.style.display = 'none';
+                    setThumbVisible(fid, false);
                 })
                 .catch(function() { MubloRequest.showToast('파일 업로드에 실패했습니다.', 'error'); });
         }
@@ -787,6 +804,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const result = el('mfield_' + fid + '_result'); if (result) result.style.display = 'none';
             const cur = el('mfield_' + fid + '_current'); if (cur) cur.style.display = 'flex';
             setDeleteMark(fid, false);
+            setThumbVisible(fid, true);
             const box = el('mfield_' + fid + '_preview');
             if (box) setPreview(fid, box.dataset.existingUrl || '');
         }
