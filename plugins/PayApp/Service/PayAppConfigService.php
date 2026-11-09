@@ -9,7 +9,7 @@ use Mublo\Core\Crypto\EncryptionService;
 class PayAppConfigService
 {
     /** API 인증에 사용되는 민감 필드 — 저장 시 AES-256-GCM 암호화 */
-    private const SENSITIVE_FIELDS = ['linkkey', 'linkval'];
+    public const SENSITIVE_FIELDS = ['linkkey', 'linkval', 'requestkey'];
 
     /** 암호문임을 표시하는 prefix. 없으면 legacy 평문으로 간주한다. */
     private const ENC_PREFIX = 'enc:';
@@ -47,7 +47,7 @@ class PayAppConfigService
 
     public function saveConfig(int $domainId, array $config): void
     {
-        $allowed = ['userid', 'linkkey', 'linkval', 'mode', 'feedbackurl_path', 'feedback_ip_allowlist'];
+        $allowed = ['userid', 'linkkey', 'linkval', 'requestkey', 'mode', 'feedbackurl_path', 'feedback_ip_allowlist'];
         $filtered = array_intersect_key($config, array_flip($allowed));
 
         foreach (self::SENSITIVE_FIELDS as $field) {
@@ -61,8 +61,23 @@ class PayAppConfigService
 
     public function isConfigured(int $domainId): bool
     {
-        $config = $this->getConfig($domainId);
-        return !empty($config['userid']) && !empty($config['linkkey']) && !empty($config['linkval']);
+        return self::hasCredentials($this->getConfig($domainId));
+    }
+
+    /**
+     * 결제·통보 검증에 필요한 세 값(판매자 아이디·연동 KEY·연동 VALUE)이 모두 있는가.
+     *
+     * 하나라도 비면 결제를 열지 않고 통보도 받지 않는다. 복호화 실패도 빈 값이 되므로
+     * 같은 판정으로 막힌다.
+     */
+    public static function hasCredentials(array $config): bool
+    {
+        foreach (['userid', 'linkkey', 'linkval'] as $field) {
+            if (trim((string) ($config[$field] ?? '')) === '') {
+                return false;
+            }
+        }
+        return true;
     }
 
     private function defaults(): array
@@ -71,6 +86,7 @@ class PayAppConfigService
             'userid' => '',
             'linkkey' => '',
             'linkval' => '',
+            'requestkey' => '',
             'mode' => 'live',
             'feedbackurl_path' => '/pay-app/callback/feedback',
             'feedback_ip_allowlist' => '',

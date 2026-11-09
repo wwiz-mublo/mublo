@@ -23,6 +23,7 @@
             "Tests\\Faq\\": "plugins/Faq/tests/",
             "Tests\\Manual\\": "plugins/Manual/tests/",
             "Tests\\MemberPoint\\": "plugins/MemberPoint/tests/",
+            "Tests\\PayApp\\": "plugins/PayApp/tests/",
             "Tests\\Popup\\": "plugins/Popup/tests/",
             "Tests\\Qna\\": "plugins/Qna/tests/",
             "Tests\\SendonSms\\": "plugins/SendonSms/tests/",

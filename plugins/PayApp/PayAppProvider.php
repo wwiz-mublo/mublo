@@ -14,6 +14,7 @@ use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Plugin\PayApp\Repository\PayAppConfigRepository;
 use Mublo\Plugin\PayApp\Service\PayAppConfigService;
+use Mublo\Plugin\PayApp\Service\PayAppFeedbackService;
 
 class PayAppProvider implements ExtensionProviderInterface, InstallableExtensionInterface
 {
@@ -40,6 +41,14 @@ class PayAppProvider implements ExtensionProviderInterface, InstallableExtension
                 $c->get(\Mublo\Core\Crypto\EncryptionService::class)
             )
         );
+
+        $container->singleton(PayAppFeedbackService::class, fn($c) =>
+            new PayAppFeedbackService(
+                $c->get(PayAppConfigService::class),
+                $c->get(ContractRegistry::class),
+                fn(int $domainId) => new PayAppGateway($c->get(PayAppConfigService::class), $domainId)
+            )
+        );
     }
 
     public function boot(DependencyContainer $container, Context $context): void
@@ -60,12 +69,12 @@ class PayAppProvider implements ExtensionProviderInterface, InstallableExtension
 
             $registry->register(
                 PaymentGatewayInterface::class,
-                'payapp',
+                PayAppGateway::PG_KEY,
                 fn() => new PayAppGateway($configService, $domainId),
                 [
                     'label'       => '페이앱',
                     'icon'        => 'bi-credit-card',
-                    'description' => '카드/휴대폰/카카오페이/네이버페이/가상계좌',
+                    'description' => '카드/휴대폰/간편결제/계좌이체',
                 ]
             );
         } catch (\Throwable $e) {
