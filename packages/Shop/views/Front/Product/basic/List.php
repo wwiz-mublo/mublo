@@ -12,6 +12,7 @@
 
 $keyword = htmlspecialchars($filters['keyword'] ?? '');
 $showAllTab = $showAllTab ?? true;
+$hasCategoryNavigation = $showAllTab || !empty($categoryTree);
 $currentCode = $filters['category_code'] ?? '';
 $sorts = !empty($priceHidden)
     ? ['newest' => '최신순', 'popular' => '인기순']
@@ -75,6 +76,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
          카테고리 내비게이션 (데스크탑: 상단 바 / 모바일: 드로어)
          ================================================ -->
 
+    <?php if ($hasCategoryNavigation): ?>
     <!-- 모바일 필터 버튼 -->
     <button class="spl-filter-toggle" type="button" onclick="document.getElementById('splDrawer').classList.add('spl-drawer--open')">
         <i class="bi bi-funnel"></i>
@@ -161,6 +163,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
             </div>
         </div>
     </div>
+    <?php endif; ?>
 
     <?php
     /* 페이지 제목 — 검색엔진과 보조기기가 이 화면이 무엇의 목록인지 알 수 있어야 한다.
