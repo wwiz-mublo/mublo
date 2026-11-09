@@ -16,6 +16,55 @@
     </div>
 </div>
 
+<!-- 국가/도시 (GeoIP 선택 기능) -->
+<div class="alert alert-light border small d-none" id="vs-geo-notice">
+    <i class="bi bi-info-circle me-1"></i>
+    국가·도시 통계는 선택 기능입니다. <code>composer require geoip2/geoip2</code> 설치 후
+    MaxMind GeoLite2-City DB 파일을 <code>storage/geoip/GeoLite2-City.mmdb</code> 에 두면 이후 방문부터 수집됩니다.
+</div>
+<div class="row g-3 mb-3">
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-hero">
+                <i class="bi bi-globe text-chart-indigo"></i>
+                <span>국가별</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-5 d-flex align-items-center justify-content-center">
+                        <canvas id="vs-country-chart" style="width:100%; max-width:140px; display:block;"></canvas>
+                    </div>
+                    <div class="col-7">
+                        <div class="table-responsive" style="max-height:220px; overflow-y:auto;">
+                            <table class="table table-sm mb-0"><tbody id="vs-country-body"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-hero">
+                <i class="bi bi-geo-alt text-chart-emerald"></i>
+                <span>도시별</span>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-5 d-flex align-items-center justify-content-center">
+                        <canvas id="vs-city-chart" style="width:100%; max-width:140px; display:block;"></canvas>
+                    </div>
+                    <div class="col-7">
+                        <div class="table-responsive" style="max-height:220px; overflow-y:auto;">
+                            <table class="table table-sm mb-0"><tbody id="vs-city-body"></tbody></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 브라우저/OS/디바이스 -->
 <div class="row g-3 mb-3">
     <div class="col-12 col-lg-4">
@@ -89,12 +138,27 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function fmt(n) { return VC ? VC.formatNum(n) : (n || 0).toLocaleString(); }
 
+    // ISO 국가 코드 → "대한민국 (KR)"
+    var regionNames = null;
+    try { regionNames = new Intl.DisplayNames(['ko'], { type: 'region' }); } catch (e) {}
+    function countryLabel(code) {
+        if (!code) return '-';
+        var name = '';
+        try { name = regionNames ? regionNames.of(code) : ''; } catch (e) {}
+        return name && name !== code ? name + ' (' + code + ')' : code;
+    }
+
     function loadData() {
         var period = periodEl.value;
 
         MubloRequest.requestJson('/admin/visitor-stats/api/environment', { period: period }, { method: 'POST' })
             .then(function (res) {
                 var d = res.data || {};
+                document.getElementById('vs-geo-notice').classList.toggle('d-none', !!d.geo_available);
+                renderDonutTable('vs-country-chart', 'vs-country-body', (d.country_code || []).map(function (item) {
+                    return { name: countryLabel(item.name), count: item.count };
+                }));
+                renderDonutTable('vs-city-chart', 'vs-city-body', d.city || []);
                 renderDonutTable('vs-browser-chart', 'vs-browser-body', d.browser || []);
                 renderDonutTable('vs-os-chart', 'vs-os-body', d.os || []);
                 renderDonutTable('vs-device-chart', 'vs-device-body', d.device || []);
@@ -114,6 +178,12 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         });
         if (VC) VC.donutChart(chartId, donutData, { size: 140, valueKey: 'count', nameKey: 'name', palette: donutPalette });
+
+        if (!items.length) {
+            document.getElementById(tbodyId).innerHTML =
+                '<tr><td class="text-center text-muted py-3">데이터가 없습니다.</td></tr>';
+            return;
+        }
 
         document.getElementById(tbodyId).innerHTML = items.map(function (item, i) {
             return '<tr>'
