@@ -6,13 +6,14 @@
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-11-11
+
 ### Added
 - Shop(관리자): 상품 목록의 판매가 칸에서 연필 버튼으로 판매가·원가를 구분해 바로 고칠 수 있습니다. 상품 수정 화면과 같은 기본 가격만 바꾸며, 옵션·조합의 추가 금액은 상품 수정 화면에서 고칩니다. 0 이상의 정수만 받고 현재 사이트의 상품만 바꿉니다. 새 주소(`/admin/shop/products/listPrice`)가 추가되어 업데이트 후 `storage/cache/routes` 를 비워야 합니다
 - Shop: 쇼핑몰 설정 **기본 설정** 탭의 "상품 목록 → 전체 상품 탭 보이기"(기본값 켬)를 끄면 상품 목록 카테고리 메뉴(데스크탑·모바일)에서 "전체"를 숨기고, 카테고리·검색어 없이 들어온 `/shop`·`/shop/products`는 첫 번째 활성 대분류로 이동(302)합니다. 검색어가 있는 목록은 그대로 전체 상품에서 찾고, 활성 카테고리가 없으면 지금처럼 전체 상품을 보여 주되 빈 카테고리 메뉴 영역은 표시하지 않습니다. **설정을 저장하기 전에 Shop 마이그레이션 `038_shop_show_all_products_tab.sql`을 실행해야 합니다.** 커스텀 스킨은 `$showAllTab`을 확인해 "전체" 링크를 숨겨야 합니다
 - Shop: 쇼핑몰 설정 **주문서 / 추가 필드**(이전 이름 "주문 추가 필드") 탭의 "주문인 정보 → 주문인 이메일 필수"(기본값 끔)를 켜면 주문서의 주문인 이메일을 필수로 표시하고 화면과 서버에서 빈 값을 막습니다. **설정을 저장하기 전에 Shop 마이그레이션 `039_shop_orderer_email_required.sql`을 실행해야 합니다.** 커스텀 주문서 스킨은 `$ordererEmailRequired`로 필수 표시를 하고, 서버 검증은 스킨과 무관하게 적용됩니다
 - Shop: 로그인 회원이 주문서를 열면 회원 추가필드의 이름(`name`, 비어 있으면 닉네임)·연락처(`phone`)·이메일(`email`)로 주문인 칸을 미리 채웁니다. 초기값일 뿐이라 주문인이 고칠 수 있으며, 필드가 없거나 읽지 못하면 지금처럼 비워 둡니다. 커스텀 주문서 스킨은 `$ordererPrefill`(`name`·`phone`·`email`)을 쓸 수 있습니다
 - Shop: 쇼핑몰 설정 **상세 탭 설정** 탭의 "구매후기 → 후기 관리자 승인 후 공개"(기본값 끔)를 켜면 고객이 쓴 후기를 승인 대기(비공개)로 저장합니다. 구매후기 관리 목록에 승인 대기 건수·필터·배지와 행별 승인, 선택 승인을 추가했고, 공개로 바꿔 저장해도 승인됩니다. 승인 전 후기는 상품 페이지·후기 수·평점에서 빠지며, 작성자의 "내 후기"에는 "승인 대기"로 표시됩니다. 이미 등록된 후기와 관리자가 등록한 후기에는 적용되지 않습니다. **설정을 저장하기 전에 Shop 마이그레이션 `040_shop_review_approval.sql`을 실행해야 합니다**(shop_reviews 에 `is_pending` 컬럼 추가). 새 주소(`/admin/shop/reviews/list-approve`)가 추가되어 업데이트 후 `storage/cache/routes` 를 비워야 합니다
-
 - Shop: 결제 준비 데이터에 주문인 이메일(`customer_email`)을 실어 PG 에 넘깁니다. 비어 있으면 PG 가 자체 기본값을 씁니다
 - Core: PG 가상계좌용 선택 계약 `VirtualAccountConsumerInterface`(+ `VirtualAccountIssue`)를 추가했습니다. 결제 소비 패키지가 구현하면 가상계좌 발급 시 주문을 입금 대기로 기록받고, 입금 통보 후 기존 `verifyPayment` 로 결제 완료가 됩니다. 구현하지 않은 패키지는 기존과 같이 가상계좌를 받지 않습니다
 - Shop: PG 가상계좌를 지원합니다. 발급되면 결제시도 주문을 주문접수(입금 대기)로 옮겨 30분 미결제 정리 대상에서 빼고, 주문 완료·상세 화면의 입금 계좌 안내에 은행·계좌·입금 기한을 표시합니다. 입금 통보는 발급 때 기록한 거래번호와 같은 거래만 결제 완료로 바꿉니다
@@ -24,6 +25,7 @@
 ### Changed
 - 업그레이드: 이 릴리즈는 VisitorStats 마이그레이션 `003_add_geo_columns.sql`을 포함합니다. **기존 설치본은 파일을 교체해도 마이그레이션이 자동으로 적용되지 않습니다.** 실행 전에는 새 컬럼이 없어 VisitorStats 환경 분석 화면 전체(브라우저·OS·디바이스 포함)가 조회에 실패하고, GeoIP를 설정한 상태라면 방문 기록 저장도 실패합니다. 업데이트 후 관리자 → 시스템 관리에서 대기 중인 마이그레이션을 실행하세요
 - 업그레이드: 이 릴리즈는 Shop 마이그레이션 `038`(전체 상품 탭)·`039`(주문인 이메일 필수)·`040`(후기 승인)을 포함합니다. 기존 설치본은 파일 교체만으로 적용되지 않으므로 관리자 → 시스템 관리에서 대기 중인 마이그레이션을 실행한 뒤 쇼핑몰 설정을 저장하세요. 실행 전에는 새 컬럼이 없어 쇼핑몰 설정 저장에 실패합니다
+- 업그레이드: Shop 1.7.0 은 코어 1.10.0 이상이 필요합니다(새 코어 계약 `VirtualAccountConsumerInterface` 사용). Shop 을 코어와 함께 올리세요
 
 ### Fixed
 - 관리자 접근 권한 관리: 1차 메뉴를 고르면 서브메뉴 목록 조회(`GET /admin/admin-permissions/submenus/{code}`)가 404로 막혀 권한을 저장할 수 없던 문제를 고쳤습니다. 관리자 자동 라우팅의 조회 허용 목록에 `submenus`를 추가했습니다
@@ -371,7 +373,8 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/wwiz-mublo/mublo/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/wwiz-mublo/mublo/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/wwiz-mublo/mublo/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/wwiz-mublo/mublo/compare/v1.6.0...v1.7.0
