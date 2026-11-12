@@ -792,9 +792,18 @@ class DomainService
      * @param bool $allowClaimedHost false면 지금 다른 사이트로 해석되는 호스트(서브도메인 폴백 등)를 거부한다.
      *        하위 사이트 소유자가 상위 사이트의 와일드카드 DNS 아래 주소(pay.상위.kr 등)를 별칭으로
      *        가로채지 못하게 하기 위함이다. 최고관리자는 의도적으로 넘겨줄 수 있어 true로 부른다.
+     * @param bool $skipVerification true면 DNS 확인 없이 추가한다 — 최고관리자 전용(호출자가 판정).
+     *        DNS를 바꾸기 전에 주소를 미리 등록해 두는 용도다. 하위 사이트 소유자에게 열면
+     *        남의 도메인을 미리 차지해 진짜 주인이 쓰지 못하게 막을 수 있어 열지 않는다.
+     *        대표로 지정할 때는 promoteAlias()가 DNS 확인을 다시 하므로 끊긴 주소가 대표가 되지는 않는다.
      */
-    public function addAlias(int $domainId, string $host, ?int $actorMemberId = null, bool $allowClaimedHost = true): Result
-    {
+    public function addAlias(
+        int $domainId,
+        string $host,
+        ?int $actorMemberId = null,
+        bool $allowClaimedHost = true,
+        bool $skipVerification = false
+    ): Result {
         if ($this->aliasRepository === null) {
             return $this->fail('별칭 기능을 사용할 수 없습니다.');
         }
@@ -824,13 +833,16 @@ class DomainService
             return $this->fail('다른 사이트로 연결되는 주소라 별칭으로 추가할 수 없습니다.');
         }
 
-        if (!$this->verificationService) {
-            return $this->fail('도메인 검증 서비스를 사용할 수 없어 추가할 수 없습니다.');
-        }
+        $gate = null;
+        if (!$skipVerification) {
+            if (!$this->verificationService) {
+                return $this->fail('도메인 검증 서비스를 사용할 수 없어 추가할 수 없습니다.');
+            }
 
-        $gate = $this->verificationService->consumeForChange($host, $domainId, null, $actorMemberId, 'alias');
-        if ($gate->isFailure()) {
-            return $gate;
+            $gate = $this->verificationService->consumeForChange($host, $domainId, null, $actorMemberId, 'alias');
+            if ($gate->isFailure()) {
+                return $gate;
+            }
         }
 
         try {
@@ -854,13 +866,16 @@ class DomainService
             'domain' => $domain->getDomain(),
             'alias' => $host,
             'actor_member_id' => $actorMemberId,
-            'verification_id' => $gate->get('verification_id'),
-            'verdict' => $gate->get('verdict'),
+            'verification_id' => $gate?->get('verification_id'),
+            'verdict' => $gate?->get('verdict'),
+            'dns_skipped' => $gate === null,
         ]);
 
         return $this->success(
-            ['domain_id' => $domainId, 'alias' => $host],
-            "별칭 '{$host}'을(를) 추가했습니다. 이 주소로도 사이트에 접속됩니다."
+            ['domain_id' => $domainId, 'alias' => $host, 'dns_skipped' => $gate === null],
+            $gate === null
+                ? "별칭 '{$host}'을(를) DNS 확인 없이 추가했습니다. DNS가 이 서버를 가리키면 접속됩니다."
+                : "별칭 '{$host}'을(를) 추가했습니다. 이 주소로도 사이트에 접속됩니다."
         );
     }
 
