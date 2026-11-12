@@ -685,6 +685,20 @@ class Request
     }
 
     /**
+     * Cloudflare 공개 대역의 IP인지 (도메인 DNS 안내에서 "프록시 IP라 비교 불가"를 가리는 데 쓴다)
+     */
+    public static function isCloudflareIp(string $ip): bool
+    {
+        foreach (self::CLOUDFLARE_RANGES as $range) {
+            if (self::ipMatches($ip, $range)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * 요청이 신뢰 프록시에서 왔는지 확인
      */
     private static function isFromTrustedProxy(string $remoteAddr): bool

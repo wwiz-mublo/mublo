@@ -40,6 +40,11 @@ class DomainVerificationServiceTest extends TestCase
 
     private function setAppEnv(string $value): void
     {
+        // Env::set()은 putenv까지 하므로 캐시만 비우면 다음 테스트로 새어 나간다.
+        foreach (['DOMAIN_DNS_A', 'DOMAIN_DNS_CNAME'] as $key) {
+            putenv($key);
+            unset($_ENV[$key]);
+        }
         Env::clear();
         Env::set('APP_ENV', $value);
     }
@@ -318,5 +323,167 @@ class DomainVerificationServiceTest extends TestCase
         $this->assertTrue(
             $this->makeService($this->dns(), $this->probe(false))->acceptProbe('NEW.example.com', $nonce)
         );
+    }
+
+    // =========================================================================
+    // DNS 설정 안내
+    // =========================================================================
+
+    /**
+     * @param array<string,array> $dnsByHost 호스트별 lookupDns 결과
+     * @param array<string,string[]> $nsByDomain 도메인별 NS
+     * @param array<string,string[]> $ipsByHost resolveIpv4 결과 (서버 IP 자동값)
+     */
+    private function makeGuideService(array $dnsByHost = [], array $nsByDomain = [], array $ipsByHost = []): DomainVerificationService
+    {
+        return new class ($this->repository, $dnsByHost, $nsByDomain, $ipsByHost) extends DomainVerificationService {
+            public function __construct(
+                DomainVerificationRepository $repository,
+                private array $dnsByHost,
+                private array $nsByDomain,
+                private array $ipsByHost
+            ) {
+                parent::__construct($repository);
+            }
+
+            protected function lookupDns(string $host): array
+            {
+                return $this->dnsByHost[$host] ?? ['a' => [], 'aaaa' => [], 'cname' => [], 'error' => ''];
+            }
+
+            protected function lookupNs(string $domain): array
+            {
+                return $this->nsByDomain[$domain] ?? [];
+            }
+
+            protected function resolveIpv4(string $host): array
+            {
+                return $this->ipsByHost[$host] ?? [];
+            }
+        };
+    }
+
+    public function testServerTargetsPreferEnvOverAutoDetection(): void
+    {
+        Env::set('DOMAIN_DNS_A', '203.0.113.10, not-an-ip');
+        Env::set('DOMAIN_DNS_CNAME', 'Sites.Example.NET.');
+
+        $targets = $this->makeGuideService([], [], ['admin.example.com' => ['198.51.100.1']])
+            ->serverTargets('admin.example.com');
+
+        $this->assertSame(['203.0.113.10'], $targets['a']);
+        $this->assertSame('sites.example.net', $targets['cname']);
+        $this->assertSame('env', $targets['source']);
+    }
+
+    public function testServerTargetsFallBackToCurrentHostIp(): void
+    {
+        $targets = $this->makeGuideService([], [], ['admin.example.com' => ['139.162.95.136', '10.0.0.5']])
+            ->serverTargets('admin.example.com:443');
+
+        $this->assertSame(['139.162.95.136'], $targets['a'], '사설 IP는 안내하지 않는다');
+        $this->assertSame('auto', $targets['source']);
+        $this->assertSame('', $targets['warning']);
+    }
+
+    public function testAutoDetectedTargetWarnsWhenAdminHostIsBehindCloudflare(): void
+    {
+        $targets = $this->makeGuideService(
+            [],
+            ['example.com' => ['ada.ns.cloudflare.com']],
+            ['admin.example.com' => ['104.16.1.1']]
+        )->serverTargets('admin.example.com');
+
+        $this->assertSame('auto', $targets['source']);
+        $this->assertStringContainsString('DOMAIN_DNS_A', $targets['warning']);
+    }
+
+    public function testGuideForApexListsRootAndWwwWithStatus(): void
+    {
+        Env::set('DOMAIN_DNS_A', '203.0.113.10');
+
+        $guide = $this->makeGuideService([
+            'www.shop.co.kr' => $this->dns([], [], ['shop.co.kr.']),
+        ])->buildGuide('Shop.co.kr', $this->dns(['198.51.100.9']));
+
+        $this->assertSame('shop.co.kr', $guide['apex']);
+        $this->assertTrue($guide['is_apex']);
+        $this->assertCount(2, $guide['records']);
+
+        [$root, $www] = $guide['records'];
+        $this->assertSame(['@', 'A', '203.0.113.10', 'wrong'], [$root['name'], $root['type'], $root['value'], $root['status']]);
+        $this->assertSame(['198.51.100.9'], $root['current']);
+        $this->assertSame(['www', 'CNAME', 'shop.co.kr', 'ok'], [$www['name'], $www['type'], $www['value'], $www['status']]);
+        $this->assertSame('A 203.0.113.10', $www['alt']);
+    }
+
+    public function testGuideForSubdomainUsesCnameWhenConfigured(): void
+    {
+        Env::set('DOMAIN_DNS_A', '203.0.113.10');
+        Env::set('DOMAIN_DNS_CNAME', 'sites.example.net');
+
+        $guide = $this->makeGuideService()->buildGuide('shop.example.com', $this->dns());
+
+        $this->assertFalse($guide['is_apex']);
+        $this->assertCount(1, $guide['records'], '하위 도메인은 www를 안내하지 않는다');
+        $record = $guide['records'][0];
+        $this->assertSame(['shop', 'CNAME', 'sites.example.net', 'missing'], [$record['name'], $record['type'], $record['value'], $record['status']]);
+    }
+
+    public function testCnameRecordAcceptsDirectARecordToServer(): void
+    {
+        Env::set('DOMAIN_DNS_A', '203.0.113.10');
+
+        $guide = $this->makeGuideService([
+            'www.example.com' => $this->dns(['203.0.113.10']),
+        ])->buildGuide('example.com', $this->dns(['203.0.113.10']));
+
+        $this->assertSame(['ok', 'ok'], array_column($guide['records'], 'status'));
+    }
+
+    public function testCloudflareProxiedRecordsAreNotReportedAsWrong(): void
+    {
+        Env::set('DOMAIN_DNS_A', '203.0.113.10');
+
+        $guide = $this->makeGuideService(
+            ['www.example.com' => $this->dns(['104.16.1.1'])],
+            ['example.com' => ['ada.ns.cloudflare.com.', 'bob.ns.cloudflare.com.']]
+        )->buildGuide('example.com', $this->dns(['104.16.1.1', '104.16.1.2']));
+
+        $this->assertSame('cloudflare', $guide['provider']);
+        $this->assertSame(['proxied', 'proxied'], array_column($guide['records'], 'status'));
+    }
+
+    public function testCloudflareDnsOnlyRecordsAreStillCompared(): void
+    {
+        Env::set('DOMAIN_DNS_A', '139.162.95.136');
+
+        // 네임서버는 Cloudflare지만 프록시를 끈(회색 구름) 레코드 — 실제 IP가 보인다.
+        $guide = $this->makeGuideService(
+            ['www.example.com' => $this->dns(['139.162.95.136'])],
+            ['example.com' => ['ada.ns.cloudflare.com']]
+        )->buildGuide('example.com', $this->dns(['45.33.1.1']));
+
+        $this->assertSame(['wrong', 'ok'], array_column($guide['records'], 'status'));
+    }
+
+    public function testAutoDetectedTargetDoesNotWarnForDnsOnlyRecordOnCloudflare(): void
+    {
+        $targets = $this->makeGuideService(
+            [],
+            ['example.com' => ['ada.ns.cloudflare.com']],
+            ['admin.example.com' => ['139.162.95.136']]
+        )->serverTargets('admin.example.com');
+
+        $this->assertSame('', $targets['warning']);
+    }
+
+    public function testGuideWithoutKnownServerAddressCannotCompare(): void
+    {
+        $guide = $this->makeGuideService()->buildGuide('example.com', $this->dns(['198.51.100.9']));
+
+        $this->assertSame('none', $guide['target']['source']);
+        $this->assertSame('unknown', $guide['records'][0]['status']);
+        $this->assertSame('', $guide['records'][0]['value']);
     }
 }
