@@ -311,6 +311,45 @@ class OrderController
             : JsonResponse::error($result->getMessage());
     }
 
+    /**
+     * 주문인·배송지 정보 수정
+     *
+     * POST /admin/shop/orders/{orderNo}/info
+     * body: { section: 'orderer'|'shipping', formData: { 칼럼명: 값 } }
+     */
+    public function updateInfo(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $request = $context->getRequest();
+
+        $orderNo = (string) ($params['orderNo'] ?? '');
+        $section = (string) $request->json('section', '');
+        $formData = $request->json('formData', []);
+
+        if ($orderNo === '') {
+            return JsonResponse::error('주문번호가 필요합니다.');
+        }
+        if (!is_array($formData)) {
+            return JsonResponse::error('입력값이 올바르지 않습니다.');
+        }
+
+        if ($domainGuard = $this->assertOrderInDomain($orderNo, $domainId)) {
+            return $domainGuard;
+        }
+
+        $result = $this->orderService->updateOrderInfo(
+            $domainId,
+            $orderNo,
+            $section,
+            $formData,
+            (int) ($this->authService->id() ?? 0)
+        );
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
+    }
+
     // ===== 아이템 관리 =====
 
     /**

@@ -608,6 +608,13 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    // --- 주문인·배송지 정보 수정 ---
+    $r->addRoute('POST', '/admin/orders/{orderNo}/info', [
+        'controller' => AdminOrderController::class,
+        'method'     => 'updateInfo',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     // --- 주문 아이템 관리 ---
     $r->addRoute('POST', '/admin/orders/{orderNo}/items/bulk-status', [
         'controller' => AdminOrderController::class,

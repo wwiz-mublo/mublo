@@ -412,6 +412,37 @@ class OrderRepository extends BaseRepository
     }
 
     /**
+     * 주문인·수령인·배송지 정보 갱신 (관리자 수정)
+     *
+     * 값은 서비스에서 이미 암호화·blind index 처리된 상태로 넘어온다.
+     * 이 메서드는 허용된 칼럼만 그대로 저장한다.
+     *
+     * @param array<string,mixed> $data
+     */
+    public function updateOrderInfo(string $orderNo, array $data): bool
+    {
+        $allowed = [
+            'orderer_name', 'orderer_phone', 'orderer_email',
+            'orderer_name_index', 'orderer_phone_index',
+            'recipient_name', 'recipient_phone',
+            'recipient_name_index', 'recipient_phone_index',
+            'shipping_zip', 'shipping_address1', 'shipping_address2',
+            'order_memo',
+        ];
+        $data = array_intersect_key($data, array_flip($allowed));
+        if ($data === []) {
+            return false;
+        }
+        $data['updated_at'] = date('Y-m-d H:i:s');
+
+        $affected = $this->getDb()->table($this->table)
+            ->where('order_no', '=', $orderNo)
+            ->update($data);
+
+        return $affected > 0;
+    }
+
+    /**
      * 결제 수단 업데이트 (결제 완료 후 PG 실제 수단으로 갱신)
      */
     public function updatePaymentMethod(string $orderNo, string $paymentMethod): void

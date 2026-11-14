@@ -943,6 +943,232 @@ class OrderService
         return $this->orderRepository->getOrderLogs($orderNo);
     }
 
+    // ===== 주문인·배송지 정보 수정 (관리자) =====
+
+    /**
+     * 관리자가 고칠 수 있는 주문 정보 항목 (구역 → 칼럼 → 항목명)
+     *
+     * order_memo 는 주문서의 '배송 시 요청사항' 입력값이라 배송지 구역에 둔다.
+     */
+    public const EDITABLE_INFO_FIELDS = [
+        'orderer' => [
+            'orderer_name'  => '주문인 이름',
+            'orderer_phone' => '주문인 휴대폰',
+            'orderer_email' => '주문인 이메일',
+        ],
+        'shipping' => [
+            'recipient_name'    => '수령인',
+            'recipient_phone'   => '수령인 연락처',
+            'shipping_zip'      => '우편번호',
+            'shipping_address1' => '주소',
+            'shipping_address2' => '상세주소',
+            'order_memo'        => '주문 메모(배송 요청사항)',
+        ],
+    ];
+
+    /** 정보 수정 이력의 로그 분류 (shop_order_logs.change_type) */
+    public const INFO_CHANGE_TYPE = 'INFO';
+
+    /**
+     * 주문인 또는 배송지 정보 수정 (관리자)
+     *
+     * 주문 생성과 같은 암호화·blind index 경로를 거쳐 저장하므로 주문 검색이 그대로 동작한다.
+     * 바뀐 항목만 저장하고, 항목명과 전후 값(마스킹)을 shop_order_logs 에 남긴다.
+     * 배송비(도서산간) 재계산과 회원 기본 배송지 동기화는 하지 않는다.
+     *
+     * @param string $section 'orderer' | 'shipping'
+     * @param array<string,mixed> $input 칼럼명 → 새 값
+     */
+    public function updateOrderInfo(
+        int $domainId,
+        string $orderNo,
+        string $section,
+        array $input,
+        int $staffId = 0
+    ): Result {
+        $fields = self::EDITABLE_INFO_FIELDS[$section] ?? null;
+        if ($fields === null) {
+            return Result::failure('수정할 수 없는 항목입니다.');
+        }
+
+        $order = $this->orderRepository->find($orderNo);
+        if (!$order) {
+            return Result::failure('주문을 찾을 수 없습니다.');
+        }
+        $current = $order->toArray();
+        if ((int) ($current['domain_id'] ?? 0) !== $domainId) {
+            return Result::failure('주문을 찾을 수 없습니다.');
+        }
+        $this->decryptOrderFields($current);
+
+        // 입력 정리 + 검증
+        $values = [];
+        foreach ($fields as $column => $label) {
+            $values[$column] = trim((string) ($input[$column] ?? ''));
+        }
+        $error = $this->validateOrderInfo($section, $values);
+        if ($error !== null) {
+            return Result::failure($error);
+        }
+
+        // 바뀐 항목만 추린다
+        $changed = [];
+        foreach ($values as $column => $value) {
+            $before = trim((string) ($current[$column] ?? ''));
+            if ($before !== $value) {
+                $changed[$column] = ['before' => $before, 'after' => $value];
+            }
+        }
+        if ($changed === []) {
+            return Result::failure('변경된 내용이 없습니다.');
+        }
+
+        // 저장 데이터: 값이 있으면 주문 생성과 같은 암호화·인덱스, 비우면 값·인덱스 모두 NULL
+        $data = [];
+        foreach ($changed as $column => $diff) {
+            if ($diff['after'] === '') {
+                $data[$column] = null;
+                if (isset(self::INDEXED_FIELDS[$column])) {
+                    $data[self::INDEXED_FIELDS[$column]] = null;
+                }
+            } else {
+                $data[$column] = $diff['after'];
+            }
+        }
+        $this->encryptOrderFields($data);
+
+        $detail = [];
+        $labels = [];
+        foreach ($changed as $column => $diff) {
+            $labels[] = $fields[$column];
+            $detail[] = [
+                'field'  => $column,
+                'label'  => $fields[$column],
+                'before' => $this->maskOrderInfoValue($column, $diff['before']),
+                'after'  => $this->maskOrderInfoValue($column, $diff['after']),
+            ];
+        }
+        $sectionLabel = $section === 'orderer' ? '주문인 정보 수정' : '배송지 정보 수정';
+        $reason = mb_substr($sectionLabel . ': ' . implode(', ', $labels), 0, 255);
+
+        $statusId = (string) ($current['order_status'] ?? '');
+        $statusLabel = $this->stateResolver->getLabel($domainId, $statusId);
+
+        // 정보 갱신과 이력 기록은 함께 성공하거나 함께 실패한다
+        $db = $this->orderRepository->getDb();
+        $db->beginTransaction();
+        try {
+            $this->orderRepository->updateOrderInfo($orderNo, $data);
+            $this->orderRepository->insertOrderLog([
+                'order_no'          => $orderNo,
+                'prev_status'       => $statusId,
+                'prev_status_label' => $statusLabel,
+                'new_status'        => $statusId,
+                'new_status_label'  => $statusLabel,
+                'change_type'       => self::INFO_CHANGE_TYPE,
+                'changed_by'        => 'STAFF',
+                'staff_id'          => $staffId > 0 ? $staffId : null,
+                'reason'            => $reason,
+                'change_detail'     => json_encode($detail, JSON_UNESCAPED_UNICODE),
+            ]);
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            return Result::failure('주문 정보 수정에 실패했습니다.');
+        }
+
+        return Result::success($sectionLabel . '을 저장했습니다.', [
+            'changed' => array_keys($changed),
+        ]);
+    }
+
+    /**
+     * 주문 정보 입력 검증. 문제가 없으면 null.
+     *
+     * @param array<string,string> $values
+     */
+    private function validateOrderInfo(string $section, array $values): ?string
+    {
+        $phonePattern = '/^[0-9][0-9\-]{7,18}[0-9]$/';
+
+        if ($section === 'orderer') {
+            if ($values['orderer_name'] === '') {
+                return '주문인 이름을 입력해주세요.';
+            }
+            if ($values['orderer_phone'] === '') {
+                return '주문인 휴대폰 번호를 입력해주세요.';
+            }
+            if (!preg_match($phonePattern, $values['orderer_phone'])) {
+                return '주문인 휴대폰 번호 형식이 올바르지 않습니다.';
+            }
+            if ($values['orderer_email'] !== '' && !filter_var($values['orderer_email'], FILTER_VALIDATE_EMAIL)) {
+                return '주문인 이메일 형식이 올바르지 않습니다.';
+            }
+            if (mb_strlen($values['orderer_name']) > 50 || mb_strlen($values['orderer_email']) > 100) {
+                return '입력값이 너무 깁니다.';
+            }
+            return null;
+        }
+
+        if ($values['recipient_name'] === '') {
+            return '수령인을 입력해주세요.';
+        }
+        if ($values['recipient_phone'] === '') {
+            return '수령인 연락처를 입력해주세요.';
+        }
+        if (!preg_match($phonePattern, $values['recipient_phone'])) {
+            return '수령인 연락처 형식이 올바르지 않습니다.';
+        }
+        if ($values['shipping_zip'] === '' || $values['shipping_address1'] === '') {
+            return '우편번호와 주소를 입력해주세요.';
+        }
+        if (mb_strlen($values['recipient_name']) > 50
+            || mb_strlen($values['shipping_zip']) > 10
+            || mb_strlen($values['shipping_address1']) > 255
+            || mb_strlen($values['shipping_address2']) > 255
+            || mb_strlen($values['order_memo']) > 500
+        ) {
+            return '입력값이 너무 깁니다.';
+        }
+        return null;
+    }
+
+    /**
+     * 이력에 남길 값 마스킹
+     *
+     * 이력은 지우지 않는 평문 기록이라 개인 식별 정보는 가려서 남긴다.
+     * 우편번호·기본주소는 공개 주소라 그대로, 상세주소는 앞 2자만,
+     * 배송 요청사항(공동현관 비밀번호 등이 들어갈 수 있음)은 값 없이 변경 사실만 남긴다.
+     */
+    private function maskOrderInfoValue(string $column, string $value): string
+    {
+        if ($value === '') {
+            return '';
+        }
+
+        switch ($column) {
+            case 'orderer_name':
+            case 'recipient_name':
+                return mb_strlen($value) <= 2
+                    ? mb_substr($value, 0, 1) . '*'
+                    : \Mublo\Helper\String\StringHelper::mask($value, 1, 1);
+            case 'orderer_phone':
+            case 'recipient_phone':
+                $masked = \Mublo\Helper\String\StringHelper::maskPhone($value);
+                return $masked !== $value ? $masked : \Mublo\Helper\String\StringHelper::mask($value, 3, 2);
+            case 'orderer_email':
+                return \Mublo\Helper\String\StringHelper::maskEmail($value);
+            case 'shipping_address2':
+                return \Mublo\Helper\String\StringHelper::mask($value, 2, 0);
+            case 'order_memo':
+                return '(입력됨)';
+            default:
+                return $value;
+        }
+    }
+
     /**
      * 주문 반품 목록 조회
      */
