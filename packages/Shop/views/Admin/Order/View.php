@@ -108,6 +108,15 @@ $returnsByDetail = [];
 foreach ($orderReturns as $ret) {
     $returnsByDetail[(int) ($ret['order_detail_id'] ?? 0)][] = $ret;
 }
+
+// 주문인·배송지 수정 모달: 송장(교환 송장 제외)이 하나라도 등록됐으면 이미 발송된 주문으로 안내한다
+$infoEditShipped = false;
+foreach ($shipments as $sh) {
+    if (empty($sh['claim_id']) && trim((string) ($sh['invoice_no'] ?? '')) !== '') {
+        $infoEditShipped = true;
+        break;
+    }
+}
 ?>
 
 <div class="page-container">
@@ -135,6 +144,9 @@ foreach ($orderReturns as $ret) {
                     <div class="card-hero">
                         <i class="bi bi-receipt text-pastel-blue"></i>
                         <span>주문 정보</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-bs-toggle="modal" data-bs-target="#editOrdererModal">
+                            <i class="bi bi-pencil"></i> 수정
+                        </button>
                     </div>
                     <div class="card-body">
 
@@ -206,6 +218,9 @@ foreach ($orderReturns as $ret) {
                     <div class="card-hero">
                         <i class="bi bi-truck text-pastel-green"></i>
                         <span>배송 정보</span>
+                        <button type="button" class="btn btn-sm btn-outline-primary ms-auto" data-bs-toggle="modal" data-bs-target="#editShippingModal">
+                            <i class="bi bi-pencil"></i> 수정
+                        </button>
                     </div>
                     <div class="card-body">
 
@@ -843,14 +858,33 @@ foreach ($orderReturns as $ret) {
                                 <?php if ($paymentKind !== null): // 유형별 부가정보는 전이 뒤에 덧붙임 ?>
                                 <span class="badge bg-<?= $paymentKind['color'] ?>-subtle text-<?= $paymentKind['color'] ?>-emphasis border border-<?= $paymentKind['color'] ?>-subtle ms-1"><?= $paymentKind['label'] ?></span>
                                 <?php endif; ?>
+                                <?php if ($logType === 'INFO'): ?>
+                                <span class="badge bg-primary-subtle text-primary-emphasis border border-primary-subtle ms-1">정보 수정</span>
+                                <?php endif; ?>
                                 <?php if (!empty($log['reason'])): ?>
                                     <br><small class="text-muted mt-1"><?= htmlspecialchars($log['reason']) ?></small>
+                                <?php endif; ?>
+                                <?php
+                                    // 정보 수정 이력: 바뀐 항목별 전후 값(저장 시 마스킹됨)
+                                    $logDetail = !empty($log['change_detail']) ? json_decode((string) $log['change_detail'], true) : null;
+                                ?>
+                                <?php if (is_array($logDetail) && $logDetail !== []): ?>
+                                <ul class="small text-muted mb-0 mt-1 ps-3">
+                                    <?php foreach ($logDetail as $d): ?>
+                                    <li>
+                                        <?= htmlspecialchars((string) ($d['label'] ?? $d['field'] ?? '')) ?>:
+                                        <?= ($d['before'] ?? '') !== '' ? htmlspecialchars((string) $d['before']) : '<span class="opacity-75">(없음)</span>' ?>
+                                        <i class="bi bi-arrow-right mx-1"></i>
+                                        <?= ($d['after'] ?? '') !== '' ? htmlspecialchars((string) $d['after']) : '<span class="opacity-75">(없음)</span>' ?>
+                                    </li>
+                                    <?php endforeach; ?>
+                                </ul>
                                 <?php endif; ?>
                             </div>
                             <div class="text-end">
                                 <small class="text-muted"><?= $log['created_at'] ?? '' ?></small>
                                 <?php if (!empty($log['changed_by'])): ?>
-                                    <br><small class="text-muted"><?= htmlspecialchars($log['changed_by']) ?></small>
+                                    <br><small class="text-muted"><?= htmlspecialchars($log['changed_by']) ?><?= !empty($log['staff_id']) ? ' #' . (int) $log['staff_id'] : '' ?></small>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -1105,6 +1139,111 @@ foreach ($orderReturns as $ret) {
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
                 <button type="button" class="btn btn-danger" onclick="submitRefund()">환불 처리</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- 모달 6: 주문인 정보 수정 -->
+<div class="modal fade" id="editOrdererModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form name="editOrdererForm" id="editOrdererForm" onsubmit="return false;">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-person me-1"></i>주문인 정보 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <?php if ($infoEditShipped): ?>
+                    <div class="alert alert-warning py-2 small">이미 발송된 주문입니다. 수정한 내용은 이 주문의 기록에만 반영됩니다.</div>
+                    <?php endif; ?>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">이름 <span class="text-danger">*</span></label>
+                            <input type="text" name="orderer_name" class="form-control" maxlength="50"
+                                   value="<?= htmlspecialchars((string) ($order['orderer_name'] ?? '')) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">휴대폰 <span class="text-danger">*</span></label>
+                            <input type="tel" name="orderer_phone" class="form-control" maxlength="20"
+                                   value="<?= htmlspecialchars((string) ($order['orderer_phone'] ?? '')) ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">이메일</label>
+                            <input type="email" name="orderer_email" class="form-control" maxlength="100"
+                                   value="<?= htmlspecialchars((string) ($order['orderer_email'] ?? '')) ?>">
+                        </div>
+                    </div>
+                    <p class="small text-muted mt-3 mb-0">바뀐 항목과 전후 값(일부 가림)이 상태 변경 이력에 남습니다. 회원 정보는 바뀌지 않습니다.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                    <button type="button" class="btn btn-primary" onclick="submitOrderInfo('orderer')">저장</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- 모달 7: 배송지 정보 수정 -->
+<div class="modal fade" id="editShippingModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <form name="editShippingForm" id="editShippingForm" onsubmit="return false;">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-geo-alt me-1"></i>배송지 정보 수정</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="닫기"></button>
+                </div>
+                <div class="modal-body">
+                    <?php if ($infoEditShipped): ?>
+                    <div class="alert alert-warning py-2 small">이미 발송된 주문입니다. 택배사에 등록된 배송지는 바뀌지 않으니 필요하면 택배사에 따로 변경을 요청하세요.</div>
+                    <?php endif; ?>
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label">수령인 <span class="text-danger">*</span></label>
+                            <input type="text" name="recipient_name" class="form-control" maxlength="50"
+                                   value="<?= htmlspecialchars((string) ($order['recipient_name'] ?? '')) ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">연락처 <span class="text-danger">*</span></label>
+                            <input type="tel" name="recipient_phone" class="form-control" maxlength="20"
+                                   value="<?= htmlspecialchars((string) ($order['recipient_phone'] ?? '')) ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">우편번호 <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="text" name="shipping_zip" class="form-control" maxlength="10" readonly
+                                       value="<?= htmlspecialchars((string) ($order['shipping_zip'] ?? '')) ?>">
+                                <button type="button" class="btn btn-outline-secondary"
+                                        onclick="MubloAddress.open('editShippingForm', 'shipping_zip', 'shipping_address1', 'shipping_address2')">
+                                    <i class="bi bi-search"></i> 검색
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-8">
+                            <label class="form-label">주소 <span class="text-danger">*</span></label>
+                            <input type="text" name="shipping_address1" class="form-control" maxlength="255" readonly
+                                   value="<?= htmlspecialchars((string) ($order['shipping_address1'] ?? '')) ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">상세주소</label>
+                            <input type="text" name="shipping_address2" class="form-control" maxlength="255"
+                                   value="<?= htmlspecialchars((string) ($order['shipping_address2'] ?? '')) ?>">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">주문 메모 (배송 요청사항)</label>
+                            <textarea name="order_memo" class="form-control" rows="2" maxlength="500"><?= htmlspecialchars((string) ($order['order_memo'] ?? '')) ?></textarea>
+                        </div>
+                    </div>
+                    <p class="small text-muted mt-3 mb-0">
+                        배송비(도서산간 추가 배송비)는 다시 계산하지 않습니다. 회원의 기본 배송지는 바뀌지 않습니다.<br>
+                        바뀐 항목과 전후 값(일부 가림)이 상태 변경 이력에 남습니다.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+                    <button type="button" class="btn btn-primary" onclick="submitOrderInfo('shipping')">저장</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -1495,6 +1634,34 @@ function deleteShipment(id) {
         location.reload();
     });
 }
+
+// ===== 주문인·배송지 정보 수정 =====
+function submitOrderInfo(section) {
+    var form = document.getElementById(section === 'orderer' ? 'editOrdererForm' : 'editShippingForm');
+    if (!form) return;
+
+    var formData = {};
+    Array.prototype.forEach.call(form.elements, function(el) {
+        if (el.name) formData[el.name] = el.value;
+    });
+
+    MubloRequest.requestJson('/admin/shop/orders/' + ORDER_NO + '/info', {
+        section: section,
+        formData: formData
+    }).then(function() {
+        location.reload();
+    });
+}
+
+// 닫으면 저장하지 않은 입력을 원래 값으로 되돌린다
+['editOrdererModal', 'editShippingModal'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('hidden.bs.modal', function() {
+        var f = el.querySelector('form');
+        if (f) f.reset();
+    });
+});
 
 // ===== 관리자 메모 =====
 function submitMemo() {

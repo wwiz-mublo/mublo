@@ -9,6 +9,8 @@ use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Core\Report\Document\Section\TableSection;
 use Mublo\Core\Report\Renderer\XlsxReportRenderer;
 use Mublo\Core\Result\Result;
+use Mublo\Contract\Member\MemberProfile;
+use Mublo\Contract\Member\MemberQueryInterface;
 
 class ShopOrderReportDefinitionTest extends TestCase
 {
@@ -101,6 +103,42 @@ class ShopOrderReportDefinitionTest extends TestCase
         $this->assertSame('서울시 강남구 101동 202호', $row['shipping_address']);
         $this->assertSame('', $row['courier']);                      // 운송장 빈칸
         $this->assertSame('', $row['invoice_no']);
+    }
+
+    /** 회원 아이디는 청크마다 한 번만 조회하고, 비회원·조회 안 된 회원은 빈칸 */
+    public function testMemberUserIdColumnLooksUpOncePerChunk(): void
+    {
+        $orders = [
+            array_merge($this->sampleOrder(), ['order_no' => 'A', 'member_id' => 11]),
+            array_merge($this->sampleOrder(), ['order_no' => 'B', 'member_id' => 0]),
+            array_merge($this->sampleOrder(), ['order_no' => 'C', 'member_id' => 11]),
+            array_merge($this->sampleOrder(), ['order_no' => 'D', 'member_id' => 99]), // 탈퇴 등 조회 안 됨
+        ];
+
+        $orderService = $this->createMock(OrderService::class);
+        $orderService->method('getOrderList')->willReturnCallback(
+            fn(int $d, array $f, int $page) => Result::success('', [
+                'items' => $page === 1 ? $orders : [],
+                'pagination' => ['total' => count($orders)],
+            ])
+        );
+        $resolver = $this->createMock(OrderStateResolver::class);
+        $resolver->method('getLabel')->willReturn('');
+
+        $memberQuery = $this->createMock(MemberQueryInterface::class);
+        $memberQuery->expects($this->once())
+            ->method('findProfiles')
+            ->with([11, 99])
+            ->willReturn([new MemberProfile(11, 1, 'hong123', null, 1, true)]);
+
+        $def = new ShopOrderReportDefinition($orderService, $resolver, $memberQuery);
+        $doc = $def->build(['domain_id' => 1, 'columns' => ['order_no', 'member_user_id']]);
+
+        $section = $doc->sections()[0];
+        $this->assertSame('회원 아이디', $section->columns()[1]->label);
+
+        $rows = iterator_to_array($section->rows(), false);
+        $this->assertSame(['hong123', '', 'hong123', ''], array_column($rows, 'member_user_id'));
     }
 
     public function testRendersToXlsxEndToEnd(): void

@@ -166,9 +166,10 @@ $columns = $this->columns()
         $id = $row['goods_id'];
         return '
             <a href="/admin/shop/products/' . $id . '/edit' . $returnSuffix . '" class="btn btn-sm btn-default">수정</a>
+            <button type="button" class="btn btn-sm btn-default" onclick="copyProduct(' . $id . ')">복사</button>
             <button type="button" class="btn btn-sm btn-default" onclick="deleteProduct(' . $id . ')">삭제</button>
         ';
-    }, ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:110px'], '_td_attr' => ['class' => 'text-nowrap']])
+    }, ['_th_attr' => ['class' => 'text-nowrap', 'style' => 'width:160px'], '_td_attr' => ['class' => 'text-nowrap']])
     ->build();
 ?>
 <div class="page-container">
@@ -299,6 +300,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// 상품 복사 → 복사본 수정 화면으로 이동
+function copyProduct(goodsId) {
+    if (!confirm('이 상품을 복사하시겠습니까?\n\n복사본은 판매 중지 상태로 만들어지고, 복사본 수정 화면으로 이동합니다.')) {
+        return;
+    }
+
+    MubloRequest.requestJson('/admin/shop/products/' + goodsId + '/copy', {}, { method: 'POST', loading: true })
+        .then(function(res) {
+            if (res.result === 'success' && res.data && res.data.redirect) {
+                location.href = res.data.redirect;
+            } else {
+                alert(res.message || '복사에 실패했습니다.');
+            }
+        })
+        .catch(function(error) {
+            console.error('Error:', error);
+        });
+}
 
 // 상품 삭제 (단건)
 function deleteProduct(goodsId) {

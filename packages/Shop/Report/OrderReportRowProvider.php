@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace Mublo\Packages\Shop\Report;
 
+use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Core\Report\Contract\RowProviderInterface;
+use Mublo\Packages\Shop\Helper\OrdererUserIds;
 use Mublo\Packages\Shop\Service\OrderService;
 use Mublo\Packages\Shop\Service\OrderStateResolver;
 use Mublo\Packages\Shop\Enum\PaymentMethod;
@@ -25,7 +27,8 @@ class OrderReportRowProvider implements RowProviderInterface
         private OrderService $orderService,
         private OrderStateResolver $stateResolver,
         private int $domainId,
-        private array $filters
+        private array $filters,
+        private ?MemberQueryInterface $memberQuery = null
     ) {
     }
 
@@ -42,7 +45,11 @@ class OrderReportRowProvider implements RowProviderInterface
         $data = $result->getData();
         $this->total = (int) ($data['pagination']['total'] ?? $this->total ?? 0);
 
-        return array_map(fn(array $order) => $this->mapRow($order), $data['items'] ?? []);
+        $orders = $data['items'] ?? [];
+        // 회원 아이디는 청크 단위로 한 번에 조회한다 (N+1 방지)
+        $userIds = OrdererUserIds::lookup($this->memberQuery, $orders);
+
+        return array_map(fn(array $order) => $this->mapRow($order, $userIds), $orders);
     }
 
     public function rows(): iterable
@@ -75,8 +82,10 @@ class OrderReportRowProvider implements RowProviderInterface
 
     /**
      * 주문 배열(복호화됨) → 내보내기 행
+     *
+     * @param array<int, string> $userIds memberId => 회원 아이디
      */
-    private function mapRow(array $order): array
+    private function mapRow(array $order, array $userIds = []): array
     {
         $memberId = (int) ($order['member_id'] ?? 0);
         $itemCount = (int) ($order['item_count'] ?? 0);
@@ -99,6 +108,7 @@ class OrderReportRowProvider implements RowProviderInterface
             'order_no'         => (string) ($order['order_no'] ?? ''),
             'created_at'       => (string) ($order['created_at'] ?? ''),
             'member_type'      => $memberId > 0 ? '회원' : '비회원',
+            'member_user_id'   => $memberId > 0 ? ($userIds[$memberId] ?? '') : '',
             'orderer_name'     => (string) ($order['orderer_name'] ?? ''),
             'orderer_phone'    => (string) ($order['orderer_phone'] ?? ''),
             'orderer_email'    => (string) ($order['orderer_email'] ?? ''),

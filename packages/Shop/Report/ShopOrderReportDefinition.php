@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Packages\Shop\Report;
 
+use Mublo\Contract\Member\MemberQueryInterface;
 use Mublo\Core\Report\Contract\MenuScopedReportInterface;
 use Mublo\Core\Report\Document\ReportDocument;
 use Mublo\Core\Report\Document\ColumnDefinition;
@@ -24,6 +25,7 @@ class ShopOrderReportDefinition implements MenuScopedReportInterface
         'order_no'         => ['주문번호', 'string', 'left'],
         'created_at'       => ['주문일시', 'string', 'left'],
         'member_type'      => ['회원구분', 'string', 'center'],
+        'member_user_id'   => ['회원 아이디', 'string', 'left'],
         'orderer_name'     => ['주문인', 'string', 'left'],
         'orderer_phone'    => ['주문인 연락처', 'string', 'left'],
         'orderer_email'    => ['주문인 이메일', 'string', 'left'],
@@ -54,7 +56,8 @@ class ShopOrderReportDefinition implements MenuScopedReportInterface
 
     public function __construct(
         private OrderService $orderService,
-        private OrderStateResolver $stateResolver
+        private OrderStateResolver $stateResolver,
+        private ?MemberQueryInterface $memberQuery = null
     ) {
     }
 
@@ -91,7 +94,8 @@ class ShopOrderReportDefinition implements MenuScopedReportInterface
             $this->orderService,
             $this->stateResolver,
             $domainId,
-            $filters
+            $filters,
+            $this->memberQuery
         );
 
         return ReportDocument::create('주문 목록')

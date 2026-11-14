@@ -136,6 +136,25 @@
 }
 
 /* ========================================
+   List Banner — 분류별 목록 안내 이미지 (분류 탭 아래)
+   ======================================== */
+.spl-list-banner {
+    margin-bottom: 20px;
+    border-radius: var(--spl-radius);
+    overflow: hidden;
+}
+
+.spl-list-banner__link {
+    display: block;
+}
+
+.spl-list-banner__img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+/* ========================================
    Filter Toggle — Mobile Only
    ======================================== */
 .spl-filter-toggle {

@@ -22,6 +22,7 @@ $shippedSet             = $shippedSet ?? [];             // [order_no => true] �
 $claimTypeByOrderNo     = $claimTypeByOrderNo ?? [];      // [order_no => EXCHANGE|RETURN|MIXED] 진행 중 클레임
 $deliveryEditableStates = $deliveryEditableStates ?? []; // [state_id => true] 운송장 입력 가능 상태
 $deliveryCompanies      = $deliveryCompanies ?? [];      // 택배사 목록 (등록 모달 드롭다운)
+$ordererUserIds         = $ordererUserIds ?? [];         // [member_id => 회원 아이디]
 
 // 상세 진입 시 현재 검색/페이지 상태를 실어보내, 목록 복귀 시 복원되게 함
 $listQuery = http_build_query(array_filter([
@@ -160,6 +161,9 @@ $detailSuffix = $listQuery !== '' ? '?' . htmlspecialchars($listQuery) : '';
                                                 <a href="/admin/member/edit/<?= $ordererMemberId ?>" target="_blank" rel="noopener" class="text-decoration-none small link-opacity-50 link-opacity-100-hover link-default" title="회원 상세 (새 창)"><i class="bi bi-person-circle"></i></a>
                                             <?php endif; ?>
                                         </div>
+                                        <?php if ($ordererMemberId > 0 && ($ordererUserIds[$ordererMemberId] ?? '') !== ''): ?>
+                                            <div class="text-muted small" title="회원 아이디"><?= htmlspecialchars($ordererUserIds[$ordererMemberId]) ?></div>
+                                        <?php endif; ?>
                                         <?php if (!empty($order['orderer_phone'])): ?>
                                             <div class="text-muted small"><?= htmlspecialchars($order['orderer_phone']) ?></div>
                                         <?php endif; ?>
@@ -278,7 +282,7 @@ $detailSuffix = $listQuery !== '' ? '?' . htmlspecialchars($listQuery) : '';
 
 <!-- 출력 필드 선택 모달 (엑셀 다운로드 전 필드 지정) -->
 <?php
-    $exportDefaultCols = ['order_no', 'created_at', 'recipient_name', 'recipient_phone', 'shipping_zip', 'shipping_address', 'product_summary', 'courier', 'invoice_no'];
+    $exportDefaultCols = ['order_no', 'created_at', 'member_user_id', 'recipient_name', 'recipient_phone', 'shipping_zip', 'shipping_address', 'product_summary', 'courier', 'invoice_no'];
 ?>
 <div class="modal fade" id="exportFieldsModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-scrollable">
