@@ -102,9 +102,9 @@ class ShopConfigService
         'seo_keyword', 'seo_description', 'kakao_chat_url', 'naver_chat_url', 'customer_tel', 'customer_time',
         'commission_type', 'commission_rate',
         'payment_pg_key', 'payment_pg_keys', 'payment_merchant_code', 'payment_methods', 'payment_bank_info',
-        'use_point_payment', 'point_unit', 'point_min', 'point_max',
-        'reward_type', 'reward_value', 'reward_review',
-        'discount_type', 'discount_value',
+        'use_point_payment', 'point_unit', 'point_min', 'point_max', 'point_level_settings',
+        'reward_type', 'reward_value', 'reward_review', 'reward_level_settings',
+        'discount_type', 'discount_value', 'discount_level_settings',
         'use_coupon', 'order_states', 'order_state_actions', 'claim_state_actions',
         'checkout_policies',
         'goods_view_tab', 'detail_tab_order',
@@ -729,11 +729,71 @@ class ShopConfigService
                 'price_hidden_text'
                     => mb_substr(trim((string) $value), 0, 100),
 
+                // 등급별 설정 (JSON — 등급 ID 키)
+                'point_level_settings'
+                    => $this->sanitizePointLevelSettings($value),
+                'discount_level_settings', 'reward_level_settings'
+                    => $this->sanitizeRateLevelSettings($value),
+
                 // 문자열 (trim)
                 default => is_string($value) ? trim($value) : $value,
             };
         }
 
         return $sanitized;
+    }
+
+    /**
+     * 등급별 설정 원본(배열 또는 JSON 문자열)을 배열로 푼다
+     */
+    private function decodeLevelSettings(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = trim($value) === '' ? [] : json_decode($value, true);
+        }
+
+        return is_array($value) ? $value : [];
+    }
+
+    /**
+     * 등급별 포인트 사용 한도 정리 — {등급ID: {min, max}} (0 이상 정수)
+     *
+     * 등급 ID가 양의 정수가 아니거나 값이 배열이 아닌 항목은 버린다.
+     */
+    private function sanitizePointLevelSettings(mixed $value): string
+    {
+        $result = [];
+        foreach ($this->decodeLevelSettings($value) as $levelId => $setting) {
+            $levelId = (int) $levelId;
+            if ($levelId <= 0 || !is_array($setting)) {
+                continue;
+            }
+            $result[$levelId] = [
+                'min' => max(0, (int) ($setting['min'] ?? 0)),
+                'max' => max(0, (int) ($setting['max'] ?? 0)),
+            ];
+        }
+
+        return json_encode((object) $result, JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
+     * 등급별 할인·적립 정리 — {등급ID: {type: PERCENTAGE|FIXED, value}} (0 이상 소수 2자리)
+     */
+    private function sanitizeRateLevelSettings(mixed $value): string
+    {
+        $result = [];
+        foreach ($this->decodeLevelSettings($value) as $levelId => $setting) {
+            $levelId = (int) $levelId;
+            if ($levelId <= 0 || !is_array($setting)) {
+                continue;
+            }
+            $result[$levelId] = [
+                'type' => ($setting['type'] ?? '') === 'FIXED' ? 'FIXED' : 'PERCENTAGE',
+                'value' => max(0.0, round((float) ($setting['value'] ?? 0), 2)),
+            ];
+        }
+
+        return json_encode((object) $result, JSON_UNESCAPED_UNICODE);
     }
 }
