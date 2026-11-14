@@ -602,7 +602,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(CategoryService::class),
                 $c->get(MemberLevelCatalogInterface::class),
                 $c->get(SiteProvisioningInterface::class),
-                $c->get(MenuManagementInterface::class)
+                $c->get(MenuManagementInterface::class),
+                $c->get(FileUploader::class)
             )
         );
         $container->singleton(AdminProductController::class, fn(DependencyContainer $c) =>
@@ -727,7 +728,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductInfoTemplateService::class),
                 $c->get(WishlistService::class),
                 $c->get(AuthContextInterface::class),
-                $c->get(MemberLevelResolver::class)
+                $c->get(MemberLevelResolver::class),
+                $c->get(CategoryService::class)
             )
         );
         $container->singleton(CartController::class, fn(DependencyContainer $c) =>

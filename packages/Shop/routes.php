@@ -420,6 +420,13 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    // 목록 안내 이미지 업로드
+    $r->addRoute('POST', '/admin/categories/upload-banner', [
+        'controller' => CategoryController::class,
+        'method'     => 'uploadListBanner',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     $r->addRoute('GET', '/admin/categories/item-view', [
         'controller' => CategoryController::class,
         'method'     => 'itemView',
