@@ -534,6 +534,13 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    // 상품 복사 — URL 의 'copy' 가 쓰기(write) 권한으로 판별된다
+    $r->addRoute('POST', '/admin/products/{id:\d+}/copy', [
+        'controller' => AdminProductController::class,
+        'method'     => 'duplicate',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     $r->addRoute('POST', '/admin/products/listDelete', [
         'controller' => AdminProductController::class,
         'method'     => 'listDelete',

@@ -480,6 +480,150 @@ class ProductService
         return Result::success('상품이 삭제되었습니다.');
     }
 
+    /** 복사본 상품명 뒤에 붙는 표시 */
+    private const COPY_NAME_SUFFIX = ' (복사)';
+
+    /** 상품명 칼럼 길이 (shop_products.goods_name VARCHAR(255)) */
+    private const GOODS_NAME_MAX_LENGTH = 255;
+
+    /**
+     * 상품 복사
+     *
+     * 상품 본체와 이미지·옵션(값)·옵션 조합·상세정보·상품정보제공고시를 새 상품으로 옮긴다.
+     * 리뷰·문의·찜·장바구니·주문·기획전·쿠폰 같은 상품을 가리키는 다른 데이터는 복사하지 않는다.
+     *
+     * - 새 상품코드(generateItemCode), 상품명 뒤에 ' (복사)', 슬러그는 새 상품명으로 다시 만든다
+     * - 조회수 0, 판매 중지 상태로 만든다 — 운영자가 확인한 뒤 판매로 바꾼다
+     * - 이미지·에디터 이미지는 파일을 복사하지 않고 같은 경로를 가리킨다.
+     *   Shop 은 이미지 행이나 상품을 지워도 실제 파일을 지우지 않으므로 한쪽 삭제가 다른 쪽을 깨지 않는다.
+     *
+     * @return Result 성공 시 data['goods_id'] = 새 상품 ID
+     */
+    public function duplicate(int $goodsId, int $domainId): Result
+    {
+        $source = $this->productRepository->findRawInDomain($domainId, $goodsId);
+        if (!$source) {
+            return Result::failure('상품을 찾을 수 없습니다.');
+        }
+
+        $db = $this->productRepository->getDb();
+
+        try {
+            $db->beginTransaction();
+            $newGoodsId = $this->copyProductGraph($source, $domainId);
+            $db->commit();
+        } catch (\Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('[Shop ProductService::duplicate] ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            return Result::failure('상품 복사 중 오류가 발생했습니다: ' . $e->getMessage());
+        }
+
+        $this->dispatchAfterCommit(
+            new ProductChangedEvent($domainId, [$newGoodsId], ProductChangedEvent::CREATED),
+            'duplicate'
+        );
+
+        return Result::success(
+            '상품을 복사했습니다. 복사본은 판매 중지 상태이니 확인 후 판매로 바꿔 주세요.',
+            ['goods_id' => $newGoodsId]
+        );
+    }
+
+    /**
+     * 상품 본체 + 하위 데이터 복사. 트랜잭션 안에서 호출한다.
+     *
+     * @return int 새 goods_id
+     */
+    private function copyProductGraph(array $source, int $domainId): int
+    {
+        $sourceId = (int) $source['goods_id'];
+
+        // ── 본체 ──
+        $copy = self::withoutCopyKeys($source, ['goods_id']);
+        $copy['domain_id'] = $domainId;
+        $copy['item_code'] = $this->generateItemCode();
+        $copy['goods_name'] = mb_substr(
+            (string) ($source['goods_name'] ?? ''),
+            0,
+            self::GOODS_NAME_MAX_LENGTH - mb_strlen(self::COPY_NAME_SUFFIX)
+        ) . self::COPY_NAME_SUFFIX;
+        // 슬러그는 유일 제약이 없지만(상세 URL 은 /products/{id}/{slug}) 이름과 맞도록 새로 만든다
+        $copy['goods_slug'] = $this->generateSlug($copy['goods_name']);
+        $copy['hit'] = 0;
+        $copy['is_active'] = 0;
+
+        $newGoodsId = (int) $this->productRepository->create($copy);
+        if ($newGoodsId <= 0) {
+            throw new \RuntimeException('상품 생성에 실패했습니다.');
+        }
+
+        // ── 이미지 (파일 경로 공유) ──
+        foreach ($this->productRepository->getImages($sourceId) as $image) {
+            $image = self::withoutCopyKeys($image, ['image_id']);
+            $image['goods_id'] = $newGoodsId;
+            $this->productRepository->createImage($image);
+        }
+
+        // ── 옵션 → 옵션 값 (option_id 를 새 옵션으로 다시 잇는다) ──
+        foreach ($this->productOptionRepository->getRawOptions($sourceId) as $option) {
+            $newOptionId = $this->productOptionRepository->createOption(
+                $newGoodsId,
+                self::withoutCopyKeys($option, ['option_id', 'goods_id'])
+            );
+            foreach ($this->productOptionRepository->getValues((int) $option['option_id']) as $value) {
+                $this->productOptionRepository->createValue(
+                    $newOptionId,
+                    self::withoutCopyKeys($value, ['value_id', 'option_id'])
+                );
+            }
+        }
+
+        // ── 옵션 조합 (값 이름으로 된 combination_key 라 그대로 옮긴다) ──
+        foreach ($this->productOptionRepository->getCombos($sourceId) as $combo) {
+            $this->productOptionRepository->createCombo(
+                $newGoodsId,
+                self::withoutCopyKeys($combo, ['combo_id', 'goods_id'])
+            );
+        }
+
+        // ── 상세정보 (HTML 그대로 — 에디터 이미지도 원본 경로를 가리킨다) ──
+        foreach ($this->productRepository->getDetails($sourceId) as $detail) {
+            $this->productRepository->saveDetail(
+                $newGoodsId,
+                self::withoutCopyKeys($detail, ['detail_id', 'goods_id'])
+            );
+        }
+
+        // ── 상품정보제공고시 (원본이 쓰는 양식 버전 그대로) ──
+        $notice = $this->productRepository->getProductNotice($domainId, $sourceId);
+        if ($notice !== null) {
+            $this->productRepository->saveProductNotice(
+                $domainId,
+                $newGoodsId,
+                (int) ($notice['notice']['template_id'] ?? 0),
+                $notice['values'] ?? []
+            );
+        }
+
+        return $newGoodsId;
+    }
+
+    /**
+     * 복사할 행에서 키·생성/수정 시각을 뺀다 (새 행이 새로 받는다)
+     *
+     * @param list<string> $keys 뺄 키 (PK, 부모 FK)
+     */
+    private static function withoutCopyKeys(array $row, array $keys): array
+    {
+        foreach ([...$keys, 'created_at', 'updated_at'] as $key) {
+            unset($row[$key]);
+        }
+
+        return $row;
+    }
+
     /** 상품 등록 화면용 현재 상품정보제공고시 양식. */
     public function getCurrentNoticeTemplates(): array
     {
