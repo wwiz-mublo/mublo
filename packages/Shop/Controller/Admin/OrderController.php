@@ -14,6 +14,8 @@ use Mublo\Packages\Shop\Service\ShipmentService;
 use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Packages\Shop\Helper\OrdererUserIds;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -32,6 +34,7 @@ class OrderController
     private AuthContextInterface $authService;
     private ?ShipmentService $shipmentService;
     private ?ClaimService $claimService;
+    private ?MemberQueryInterface $memberQuery;
 
     public function __construct(
         OrderService $orderService,
@@ -41,7 +44,8 @@ class OrderController
         OrderMemoService $memoService,
         AuthContextInterface $authService,
         ?ShipmentService $shipmentService = null,
-        ?ClaimService $claimService = null
+        ?ClaimService $claimService = null,
+        ?MemberQueryInterface $memberQuery = null
     ) {
         $this->orderService = $orderService;
         $this->orderFieldService = $orderFieldService;
@@ -51,6 +55,7 @@ class OrderController
         $this->authService = $authService;
         $this->shipmentService = $shipmentService;
         $this->claimService = $claimService;
+        $this->memberQuery = $memberQuery;
     }
 
     /**
@@ -124,6 +129,9 @@ class OrderController
             ? $this->claimService->getActiveClaimTypesByOrderNo($domainId, array_column($orders, 'order_no'))
             : [];
 
+        // 회원 주문자의 아이디 (이 페이지 주문들을 한 번에 조회 — N+1 회피)
+        $ordererUserIds = OrdererUserIds::lookup($this->memberQuery, $orders);
+
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Order/List')
             ->withData([
                 'pageTitle' => '주문 관리',
@@ -138,6 +146,7 @@ class OrderController
                 'deliveryEditableStates' => $deliveryEditableStates,
                 'deliveryCompanies' => $deliveryCompanies,
                 'claimTypeByOrderNo' => $claimTypeByOrderNo,
+                'ordererUserIds' => $ordererUserIds,
             ]);
     }
 
