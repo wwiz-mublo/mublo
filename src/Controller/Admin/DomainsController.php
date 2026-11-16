@@ -352,6 +352,10 @@ class DomainsController
                 'changeHistory' => $isSuper ? $this->getDomainChangeHistory($domainId) : [],
                 'canManageAliases' => $canManageAliases,
                 'aliases' => $canManageAliases ? $this->domainService->getAliases($domainId) : [],
+                // DNS에 넣을 이 서버 주소 (주소 변경·별칭 카드 안내용)
+                'dnsTargets' => ($isSuper || $canManageAliases) && $this->verificationService
+                    ? $this->verificationService->serverTargets($context->getRequest()->getHost())
+                    : null,
                 'activeCode' => '002_003',
             ]);
     }
@@ -779,10 +783,31 @@ class DomainsController
         }
 
         $result = $this->verificationService->verify($domain, $domainId, $this->authService->id());
+        $data = $this->withDnsGuide($result->getData(), $context);
 
         return $result->isSuccess()
-            ? JsonResponse::success($result->getData(), $result->getMessage())
-            : JsonResponse::error($result->getMessage(), $result->getData());
+            ? JsonResponse::success($data, $result->getMessage())
+            : JsonResponse::error($result->getMessage(), $data);
+    }
+
+    /**
+     * DNS 확인 리포트에 "무엇으로 설정해야 하는지" 안내를 붙인다
+     *
+     * 리포트(dns)가 없는 실패(형식 오류 등)는 그대로 둔다.
+     */
+    private function withDnsGuide(mixed $data, Context $context): mixed
+    {
+        if (!$this->verificationService || !is_array($data) || !isset($data['dns'], $data['host'])) {
+            return $data;
+        }
+
+        $data['guide'] = $this->verificationService->buildGuide(
+            (string) $data['host'],
+            (array) $data['dns'],
+            $context->getRequest()->getHost()
+        );
+
+        return $data;
     }
 
     /**
@@ -837,6 +862,9 @@ class DomainsController
     /**
      * 도메인 별칭 추가 — DNS 확인(purpose=alias) 통과 후에만
      *
+     * 최고관리자는 skip_dns=1로 DNS 확인 없이 추가할 수 있다 (DNS를 바꾸기 전에 미리 등록).
+     * 하위 사이트 소유자가 보낸 skip_dns는 무시하지 않고 거부한다 — 화면 조작을 조용히 넘기지 않기 위해.
+     *
      * POST /admin/domains/alias-add
      */
     public function aliasAdd(array $params, Context $context): JsonResponse
@@ -849,12 +877,19 @@ class DomainsController
             return $error;
         }
 
+        $isSuper = $this->authService->isSuper();
+        $skipDns = $this->isTruthy($request->input('skip_dns') ?? $request->json('skip_dns'));
+        if ($skipDns && !$isSuper) {
+            return JsonResponse::error('DNS 확인 없이 추가하는 것은 최고관리자만 할 수 있습니다.');
+        }
+
         $alias = (string) ($request->input('alias') ?? $request->json('alias') ?? '');
         $result = $this->domainService->addAlias(
             $domainId,
             $alias,
             $this->authService->id(),
-            $this->authService->isSuper()
+            $isSuper,
+            $skipDns
         );
 
         return $result->isSuccess()
@@ -908,7 +943,7 @@ class DomainsController
         $result = $this->domainService->promoteAlias($domainId, $alias, $actorMemberId);
 
         if ($result->isFailure()) {
-            return JsonResponse::error($result->getMessage(), $result->getData());
+            return JsonResponse::error($result->getMessage(), $this->withDnsGuide($result->getData(), $context));
         }
 
         $data = $result->getData();
