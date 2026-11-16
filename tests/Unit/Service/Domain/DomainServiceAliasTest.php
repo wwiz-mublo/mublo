@@ -182,6 +182,21 @@ class DomainServiceAliasTest extends TestCase
         $this->assertSame('new.kr', $result->get('alias'));
     }
 
+    public function testAddAliasWithoutVerificationSkipsGateButKeepsOtherChecks(): void
+    {
+        $this->verificationService->expects($this->never())->method('consumeForChange');
+        $this->aliasRepository->expects($this->once())->method('add')->with(1, 'later.kr', 7);
+
+        $result = $this->service()->addAlias(1, 'later.kr', 7, true, true);
+
+        $this->assertTrue($result->isSuccess());
+        $this->assertTrue($result->get('dns_skipped'));
+
+        // 확인을 건너뛰어도 중복·형식 검사는 그대로다.
+        $this->assertTrue($this->service()->addAlias(1, 'raaaa.kr', 7, true, true)->isFailure());
+        $this->assertTrue($this->service()->addAlias(1, 'www.later.kr', 7, true, true)->isFailure());
+    }
+
     public function testAddAliasFailsWithoutAliasRepository(): void
     {
         $service = new DomainService(

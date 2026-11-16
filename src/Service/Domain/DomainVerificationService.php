@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Service\Domain;
 
 use Mublo\Core\Env\Env;
+use Mublo\Core\Http\Request;
 use Mublo\Core\Result\Result;
 use Mublo\Infrastructure\Log\Logger;
 use Mublo\Repository\Domain\DomainVerificationRepository;
@@ -42,6 +43,21 @@ class DomainVerificationService
     public const PROBE_PATH = '/.well-known/mublo-domain-verify';
 
     private const AUDIT_CHANNEL = 'domain';
+
+    /** DNS 안내에 쓸 서버 IP (콤마로 여러 개). 비면 관리자 주소의 IP를 자동으로 쓴다 */
+    public const ENV_DNS_A = 'DOMAIN_DNS_A';
+
+    /** 하위 도메인에 CNAME으로 안내할 주소 (예: sites.example.com). 비면 A로 안내한다 */
+    public const ENV_DNS_CNAME = 'DOMAIN_DNS_CNAME';
+
+    private const CLOUDFLARE_NS_SUFFIX = '.ns.cloudflare.com';
+
+    /** 루트 도메인 판정용 2단계 접미사 (example.co.kr 의 co.kr) */
+    private const MULTI_LABEL_SUFFIXES = [
+        'co.kr', 'or.kr', 'ne.kr', 'go.kr', 're.kr', 'pe.kr', 'ac.kr', 'hs.kr', 'ms.kr', 'es.kr', 'sc.kr', 'kg.kr', 'mil.kr',
+        'co.jp', 'ne.jp', 'or.jp', 'ac.jp', 'co.uk', 'org.uk', 'ac.uk', 'com.cn', 'net.cn', 'com.au', 'net.au',
+        'com.tw', 'com.hk', 'com.sg', 'com.vn', 'co.nz', 'com.br',
+    ];
 
     /** 프로브 타임아웃 (연결 / 전체) */
     private const PROBE_CONNECT_TIMEOUT = 3;
@@ -234,6 +250,251 @@ class DomainVerificationService
             $code >= 300 && $code < 400 => '리다이렉트가 반복되고 있습니다. 프록시의 HTTPS 강제 설정을 확인하세요.',
             default => '',
         };
+    }
+
+    // =========================================================================
+    // DNS 설정 안내
+    // =========================================================================
+
+    /**
+     * 이 서버로 연결할 때 DNS에 넣을 값
+     *
+     * 우선순위: .env DOMAIN_DNS_A / DOMAIN_DNS_CNAME → (없으면) 지금 접속한 관리자 주소가 가리키는 IP.
+     * 자동값은 관리자 주소가 Cloudflare 등 프록시 뒤에 있으면 프록시 IP가 되므로 그때는
+     * warning을 채워 .env 설정을 권한다(그 IP로 안내하면 다른 사이트의 DNS가 엉뚱한 곳을 가리킨다).
+     *
+     * @param string|null $currentHost 지금 요청의 호스트 (자동값 계산용)
+     * @return array{a:string[],cname:string,source:string,warning:string}
+     */
+    public function serverTargets(?string $currentHost = null): array
+    {
+        $a = [];
+        foreach (explode(',', (string) Env::get(self::ENV_DNS_A, '')) as $ip) {
+            $ip = trim($ip);
+            if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+                $a[] = $ip;
+            }
+        }
+        $cname = rtrim(self::normalizeHost((string) Env::get(self::ENV_DNS_CNAME, '')), '.');
+
+        if ($a !== [] || $cname !== '') {
+            return ['a' => $a, 'cname' => $cname, 'source' => 'env', 'warning' => ''];
+        }
+
+        $host = $currentHost !== null ? $this->stripPort(self::normalizeHost($currentHost)) : '';
+        if ($host === '') {
+            return ['a' => [], 'cname' => '', 'source' => 'none', 'warning' => self::ENV_DNS_A . '를 .env에 설정하세요.'];
+        }
+
+        $ips = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : $this->resolveIpv4($host);
+        $ips = array_values(array_filter($ips, static fn (string $ip): bool => (bool) filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_IPV4 | FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+        )));
+
+        if ($ips === []) {
+            return ['a' => [], 'cname' => '', 'source' => 'none', 'warning' => '서버 공개 IP를 알 수 없습니다. ' . self::ENV_DNS_A . '를 .env에 설정하세요.'];
+        }
+
+        // 네임서버가 Cloudflare여도 프록시를 끈(회색 구름) 레코드는 실제 서버 IP다 — IP 대역으로 판정한다.
+        $warning = array_filter($ips, [Request::class, 'isCloudflareIp']) !== []
+            ? '관리자 주소가 Cloudflare 프록시를 거치고 있어 자동으로 찾은 IP가 Cloudflare 주소입니다. '
+                . '서버의 실제 IP를 ' . self::ENV_DNS_A . '에 설정하세요.'
+            : '';
+
+        return ['a' => $ips, 'cname' => '', 'source' => 'auto', 'warning' => $warning];
+    }
+
+    /**
+     * 도메인에 넣어야 할 DNS 레코드 안내 + 지금 값과 비교
+     *
+     * 루트 도메인(example.com, example.co.kr)이면 @ 와 www 두 개, 하위 도메인(shop.example.com)이면
+     * 그 이름 하나를 안내한다. 하위 도메인은 DOMAIN_DNS_CNAME이 있으면 CNAME으로 안내한다
+     * (루트에는 CNAME을 둘 수 없는 DNS 업체가 많아 루트는 항상 A).
+     *
+     * 레코드 상태: ok(맞음) | wrong(다른 곳을 가리킴) | missing(없음) | proxied(Cloudflare 프록시라
+     * 조회값으로는 알 수 없음 — 연결 판정은 프로브가 한다) | unknown(서버 값을 몰라 비교 불가)
+     *
+     * @param array $dns 대상 호스트의 lookupDns() 결과 (verify 리포트의 dns)
+     * @param string|null $currentHost 지금 요청의 호스트 (서버 IP 자동값 계산용)
+     */
+    public function buildGuide(string $host, array $dns, ?string $currentHost = null): array
+    {
+        $host = rtrim($this->stripPort(self::normalizeHost($host)), '.');
+        $targets = $this->serverTargets($currentHost);
+        $apex = $this->registrableDomain($host);
+        $isApex = $host === $apex;
+        $nameservers = $this->lookupNs($apex);
+        $cloudflare = $this->isCloudflare($nameservers);
+
+        $records = [];
+        $useCname = !$isApex && $targets['cname'] !== '';
+        $records[] = $this->guideRecord(
+            $isApex ? '@' : substr($host, 0, -strlen($apex) - 1),
+            $host,
+            $useCname ? 'CNAME' : 'A',
+            $useCname ? [$targets['cname']] : $targets['a'],
+            $dns,
+            $targets
+        );
+
+        if ($isApex && !filter_var($host, FILTER_VALIDATE_IP)) {
+            $records[] = $this->guideRecord(
+                'www',
+                'www.' . $host,
+                'CNAME',
+                [$host],
+                $this->lookupDns('www.' . $host),
+                $targets
+            );
+        }
+
+        return [
+            'host' => $host,
+            'apex' => $apex,
+            'is_apex' => $isApex,
+            'provider' => $cloudflare ? 'cloudflare' : '',
+            'nameservers' => $nameservers,
+            'target' => $targets,
+            'records' => $records,
+            'probe_path' => self::PROBE_PATH,
+        ];
+    }
+
+    /**
+     * 안내 레코드 1건 + 지금 값과 비교한 상태
+     *
+     * CNAME 안내 레코드는 A로 이 서버 IP를 직접 넣어도 맞는 것으로 본다.
+     * 조회된 IP가 모두 Cloudflare 대역이면 프록시(주황 구름)라 원래 값을 알 수 없으므로 proxied로 둔다
+     * — 네임서버가 Cloudflare여도 프록시를 끈 레코드는 실제 IP가 보이므로 그대로 비교한다.
+     */
+    private function guideRecord(
+        string $name,
+        string $fqdn,
+        string $type,
+        array $expected,
+        array $current,
+        array $targets
+    ): array {
+        $currentA = array_values(array_unique($current['a'] ?? []));
+        $currentCname = array_map(static fn ($c): string => rtrim(strtolower((string) $c), '.'), $current['cname'] ?? []);
+        $hasAny = $currentA !== [] || $currentCname !== [] || !empty($current['aaaa']);
+
+        if ($expected === []) {
+            $status = $hasAny ? 'unknown' : 'missing';
+        } elseif (!$hasAny) {
+            $status = 'missing';
+        } elseif ($type === 'CNAME' && array_intersect($expected, $currentCname) !== []) {
+            $status = 'ok';
+        } else {
+            $ourIps = $targets['a'];
+            if ($type === 'A') {
+                $ourIps = $expected;
+            }
+            $matched = $ourIps !== [] && $currentA !== [] && array_diff($currentA, $ourIps) === [];
+            $proxied = $currentA !== []
+                && count(array_filter($currentA, [Request::class, 'isCloudflareIp'])) === count($currentA);
+
+            if ($matched) {
+                $status = 'ok';
+            } elseif ($proxied) {
+                $status = 'proxied';
+            } elseif ($type === 'CNAME' && $ourIps === []) {
+                $status = 'unknown';
+            } else {
+                $status = 'wrong';
+            }
+        }
+
+        return [
+            'name' => $name,
+            'fqdn' => $fqdn,
+            'type' => $type,
+            'value' => implode(', ', $expected),
+            // CNAME 대신 A로 넣어도 된다 (www 등)
+            'alt' => $type === 'CNAME' && $targets['a'] !== [] ? 'A ' . implode(', ', $targets['a']) : '',
+            'current' => array_merge(
+                array_map(static fn (string $c): string => 'CNAME ' . $c, $currentCname),
+                $currentA,
+                array_values($current['aaaa'] ?? [])
+            ),
+            'status' => $status,
+        ];
+    }
+
+    /**
+     * 등록 도메인(루트) 추정 — shop.example.co.kr → example.co.kr
+     *
+     * 공개 접미사 목록 전체를 들이지 않고, 흔한 2단계 접미사만 안다.
+     * 모르는 2단계 접미사면 하위 도메인을 루트로 오판할 수 있지만, 그 결과는 안내 문구뿐이다.
+     */
+    private function registrableDomain(string $host): string
+    {
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return $host;
+        }
+
+        $labels = explode('.', $host);
+        $count = count($labels);
+        if ($count <= 2) {
+            return $host;
+        }
+
+        $lastTwo = $labels[$count - 2] . '.' . $labels[$count - 1];
+        $take = in_array($lastTwo, self::MULTI_LABEL_SUFFIXES, true) ? 3 : 2;
+
+        return implode('.', array_slice($labels, -$take));
+    }
+
+    /**
+     * @param string[] $nameservers
+     */
+    private function isCloudflare(array $nameservers): bool
+    {
+        foreach ($nameservers as $ns) {
+            if (str_ends_with(rtrim(strtolower($ns), '.'), self::CLOUDFLARE_NS_SUFFIX)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * NS 레코드 조회 (테스트에서 대체 가능하도록 protected)
+     *
+     * @return string[]
+     */
+    protected function lookupNs(string $domain): array
+    {
+        if ($domain === '' || filter_var($domain, FILTER_VALIDATE_IP)) {
+            return [];
+        }
+
+        $records = @dns_get_record($domain, DNS_NS);
+        if (!is_array($records)) {
+            return [];
+        }
+
+        $result = [];
+        foreach ($records as $record) {
+            if (($record['type'] ?? '') === 'NS' && !empty($record['target'])) {
+                $result[] = strtolower((string) $record['target']);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * 호스트의 IPv4 주소 (테스트에서 대체 가능하도록 protected)
+     *
+     * @return string[]
+     */
+    protected function resolveIpv4(string $host): array
+    {
+        return gethostbynamel($host) ?: [];
     }
 
     // =========================================================================

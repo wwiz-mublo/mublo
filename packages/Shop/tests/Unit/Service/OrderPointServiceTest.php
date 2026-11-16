@@ -24,6 +24,7 @@ use Mublo\Packages\Shop\Service\OrderPointService;
 use Mublo\Packages\Shop\Service\ShopConfigService;
 use Mublo\Contract\Balance\BalanceGatewayInterface;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
+use Mublo\Contract\Member\MemberLevelDescriptor;
 use Mublo\Core\Result\Result;
 
 class OrderPointServiceTest extends TestCase
@@ -119,6 +120,37 @@ class OrderPointServiceTest extends TestCase
         // min/max 0 (제한 없음) → 단위·잔액·결제금액만 검증
         $result = $this->service->validate(300, $this->ctx(['min' => 0, 'max' => 0]), 20000);
         $this->assertTrue($result->isSuccess());
+    }
+
+    /** 저장된 JSON 문자열의 등급별 한도를 회원 등급 ID로 찾아 적용한다 */
+    public function testUsageContextReadsStoredLevelLimitsJson(): void
+    {
+        $configService = $this->createMock(ShopConfigService::class);
+        $configService->method('getConfig')->willReturn(Result::success('', ['config' => [
+            'use_point_payment' => 1,
+            'point_unit' => 100,
+            'point_min' => 100,
+            'point_max' => 30000,
+            'point_level_settings' => '{"7":{"min":500,"max":2000}}',
+        ]]));
+
+        $levels = $this->createMock(MemberLevelCatalogInterface::class);
+        $levels->method('findByValue')->willReturnCallback(
+            fn(int $value) => $value === 3
+                ? new MemberLevelDescriptor(7, 3, '골드', 'BASIC', false, false, false)
+                : null
+        );
+
+        $service = new OrderPointService($this->balanceGateway, $configService, $levels);
+
+        $ctx = $service->getUsageContext(1, 10, 3);
+        $this->assertSame(500, $ctx['min']);
+        $this->assertSame(2000, $ctx['max']);
+
+        // 설정이 없는 등급은 전역 한도
+        $ctx = $service->getUsageContext(1, 10, 9);
+        $this->assertSame(100, $ctx['min']);
+        $this->assertSame(30000, $ctx['max']);
     }
 
     public function testHoldUsesOrderScopedIdempotencyKey(): void
