@@ -73,6 +73,19 @@ class ProductRepository extends BaseRepository
     }
 
     /**
+     * 현재 도메인 소유 상품의 원본 행 조회 (상품 복사용 — 모든 칼럼을 그대로 옮긴다)
+     */
+    public function findRawInDomain(int $domainId, int $goodsId): ?array
+    {
+        $row = $this->getDb()->table($this->table)
+            ->where($this->primaryKey, '=', $goodsId)
+            ->where('domain_id', '=', $domainId)
+            ->first();
+
+        return $row ?: null;
+    }
+
+    /**
      * 현재 도메인 소유 상품만 수정한다.
      */
     public function updateInDomain(int $domainId, int $goodsId, array $data): int

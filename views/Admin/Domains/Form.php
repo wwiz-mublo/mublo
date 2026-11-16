@@ -16,6 +16,7 @@
  * @var array $changeHistory 실제 변경 이력 [{changed_at, from, to, actor, verdict}] (최신순)
  * @var bool $canManageAliases 별칭 관리 권한(최고관리자 또는 자기 사이트 소유자) 여부
  * @var array $aliases 별칭 목록 [{alias_id, alias_host, created_by, created_at}] (별칭 관리 권한자에게만 전달)
+ * @var array|null $dnsTargets DNS에 넣을 이 서버 주소 {a[], cname, source(env|auto|none), warning}
  */
 
 // 도메인 데이터 추출
@@ -30,6 +31,35 @@ $canChangeDomain = $isEdit && (bool) ($canChangeDomain ?? false);
 $canManageAliases = $isEdit && (bool) ($canManageAliases ?? false);
 $changeHistory = $changeHistory ?? [];
 $aliases = $aliases ?? [];
+$dnsTargets = $dnsTargets ?? null;
+
+/**
+ * "DNS를 이 값으로 설정하세요" 안내 (주소 변경·별칭 카드 공통)
+ */
+$renderDnsTargetHint = static function (?array $targets): string {
+    if ($targets === null) {
+        return '';
+    }
+
+    $items = [];
+    if (!empty($targets['a'])) {
+        $items[] = 'A 레코드 <code>' . implode('</code>, <code>', array_map('htmlspecialchars', $targets['a'])) . '</code>';
+    }
+    if (!empty($targets['cname'])) {
+        $items[] = '하위 도메인은 CNAME <code>' . htmlspecialchars($targets['cname']) . '</code>';
+    }
+
+    $html = '<div class="small border rounded px-2 py-1 mt-2 bg-light-subtle">'
+        . '<i class="bi bi-signpost-split"></i> 이 서버로 연결하려면 도메인의 DNS를 '
+        . ($items ? implode(' 또는 ', $items) . '(으)로 설정하세요.' : '설정할 값을 알 수 없습니다.')
+        . ' <span class="text-muted">DNS 확인을 누르면 레코드별로 무엇을 바꿔야 하는지 보여 줍니다.</span>';
+    if (!empty($targets['warning'])) {
+        $html .= '<div class="text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> '
+            . htmlspecialchars((string) $targets['warning']) . '</div>';
+    }
+
+    return $html . '</div>';
+};
 
 $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/store';
 ?>
@@ -228,6 +258,7 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                             이 사이트의 별칭을 입력하면 그 별칭이 대표 주소가 됩니다.
                             www. 없이 입력하세요(www. 주소는 자동 연결).
                         </div>
+                        <?= $renderDnsTargetHint($dnsTargets) ?>
                         <div id="dns-check-result" class="mt-2"></div>
                     </div>
 
@@ -359,9 +390,18 @@ $actionUrl = $isEdit ? "/admin/domains/update/{$domainId}" : '/admin/domains/sto
                     </div>
                     <div class="form-text">
                         대표 주소 변경과 같이, DNS를 이 서버로 설정하고 <strong>DNS 확인</strong>을 통과해야 추가할 수 있습니다.
+                        <?php if ($canChangeDomain): ?>
+                        최고관리자는 확인에 실패해도 <strong>확인 없이 추가</strong>로 미리 등록해 둘 수 있습니다(DNS가 연결되면 그때부터 접속됩니다).
+                        <?php endif; ?>
                         www. 없이 입력하세요(www. 주소는 자동 연결).
                     </div>
+                    <?= $renderDnsTargetHint($dnsTargets) ?>
                     <div id="alias-check-result" class="mt-2"></div>
+                    <?php if ($canChangeDomain): ?>
+                    <button type="button" class="btn btn-sm btn-outline-warning mt-2" id="btn-add-alias-unverified" hidden>
+                        <i class="bi bi-exclamation-triangle"></i> 확인 없이 추가
+                    </button>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php endif; ?>
@@ -593,7 +633,72 @@ document.addEventListener('DOMContentLoaded', function() {
             '<div class="alert alert-' + (ok ? 'success' : 'danger') + ' py-2 mb-0">' +
             '<i class="bi bi-' + (ok ? 'check-circle-fill' : 'x-circle-fill') + '"></i> ' + escapeHtml(message) +
             detail +
-            '</div>';
+            '</div>' +
+            renderDnsGuide(report && report.guide);
+    }
+
+    /**
+     * "DNS를 무엇으로 바꿔야 하는지" 표 — 서버가 계산한 안내(guide)를 그린다
+     */
+    function renderDnsGuide(guide) {
+        if (!guide || !Array.isArray(guide.records) || !guide.records.length) {
+            return '';
+        }
+
+        const badge = {
+            ok: '<span class="badge bg-success">맞음</span>',
+            wrong: '<span class="badge bg-danger">변경 필요</span>',
+            missing: '<span class="badge bg-danger">추가 필요</span>',
+            proxied: '<span class="badge bg-info text-dark">Cloudflare 프록시</span>',
+            unknown: '<span class="badge bg-secondary">비교 불가</span>'
+        };
+
+        const rows = guide.records.map(function(r) {
+            const current = (r.current && r.current.length)
+                ? '<code>' + r.current.map(escapeHtml).join('</code><br><code>') + '</code>'
+                : '<span class="text-muted">없음</span>';
+            const value = r.value
+                ? '<code>' + escapeHtml(r.value) + '</code>'
+                    + (r.alt ? '<div class="text-muted">또는 ' + escapeHtml(r.alt) + '</div>' : '')
+                : '<span class="text-muted">알 수 없음</span>';
+
+            return '<tr>'
+                + '<td><code>' + escapeHtml(r.name) + '</code><div class="text-muted">' + escapeHtml(r.fqdn) + '</div></td>'
+                + '<td>' + escapeHtml(r.type) + '</td>'
+                + '<td>' + value + '</td>'
+                + '<td>' + current + '</td>'
+                + '<td>' + (badge[r.status] || '') + '</td>'
+                + '</tr>';
+        }).join('');
+
+        let notes = '';
+        const targetInfo = guide.target || {};
+        if (targetInfo.warning) {
+            notes += '<div class="text-warning mt-1"><i class="bi bi-exclamation-triangle"></i> ' + escapeHtml(targetInfo.warning) + '</div>';
+        }
+
+        if (guide.provider === 'cloudflare') {
+            notes += '<div class="alert alert-info py-2 mt-2 mb-0">'
+                + '<strong><i class="bi bi-cloud"></i> 이 도메인은 Cloudflare 네임서버를 씁니다.</strong>'
+                + '<ul class="mb-0 ps-3">'
+                + '<li>위 레코드는 도메인 업체가 아니라 <strong>Cloudflare 대시보드 → DNS</strong>에서 넣으세요.</li>'
+                + '<li>프록시(주황 구름)를 켜도 됩니다. 켜면 조회되는 IP가 Cloudflare 주소로 보이는 것이 정상이며, 연결 여부는 실제 접속 확인으로 판정합니다.</li>'
+                + '<li>SSL/TLS 암호화 모드는 <strong>전체(Full)</strong>를 권장합니다. 서버가 https로 강제 이동시키는데 "유연(Flexible)"이면 리다이렉트가 반복됩니다.</li>'
+                + '<li>보안 규칙(봇 차단·챌린지)이 <code>' + escapeHtml(guide.probe_path || '') + '</code> 경로를 막지 않게 하세요.</li>'
+                + '</ul></div>';
+        } else if (guide.nameservers && guide.nameservers.length) {
+            notes += '<div class="text-muted mt-1">네임서버: <code>' + guide.nameservers.map(escapeHtml).join('</code> <code>')
+                + '</code> — 이 업체의 DNS 관리 화면에서 위 레코드를 설정하세요.</div>';
+        }
+
+        return '<div class="small mt-2">'
+            + '<div class="fw-semibold mb-1"><i class="bi bi-signpost-split"></i> DNS 설정 안내 (' + escapeHtml(guide.apex || '') + ')</div>'
+            + '<div class="table-responsive"><table class="table table-sm table-bordered align-middle mb-1">'
+            + '<thead><tr><th>호스트</th><th>유형</th><th>넣을 값</th><th>지금 값</th><th>상태</th></tr></thead>'
+            + '<tbody>' + rows + '</tbody></table></div>'
+            + '<div class="text-muted">DNS를 바꾼 뒤 반영까지 몇 분에서 길게는 하루가 걸릴 수 있습니다. 기존에 같은 이름의 다른 A/CNAME 레코드가 있으면 지우세요.</div>'
+            + notes
+            + '</div>';
     }
 
     /**
@@ -735,13 +840,45 @@ document.addEventListener('DOMContentLoaded', function() {
     const aliasResultDiv = document.getElementById('alias-check-result');
     const btnVerifyAlias = document.getElementById('btn-verify-alias');
     const btnAddAlias = document.getElementById('btn-add-alias');
+    // 최고관리자 전용 — DNS 확인에 실패한 주소를 미리 등록 (서버도 최고관리자만 허용한다)
+    const btnAddAliasUnverified = document.getElementById('btn-add-alias-unverified');
 
     let verifiedAlias = '';
+    let failedAlias = '';
+
+    function setUnverifiedButton(alias) {
+        failedAlias = alias;
+        if (btnAddAliasUnverified) btnAddAliasUnverified.hidden = !alias;
+    }
 
     newAliasInput.addEventListener('input', function() {
         verifiedAlias = '';
         btnAddAlias.disabled = true;
         aliasResultDiv.innerHTML = '';
+        setUnverifiedButton('');
+    });
+
+    if (btnAddAliasUnverified) btnAddAliasUnverified.addEventListener('click', function() {
+        const candidate = newAliasInput.value.trim();
+        if (!failedAlias || failedAlias !== candidate.toLowerCase()) {
+            return;
+        }
+
+        MubloRequest.showConfirm(
+            '"' + candidate + '"을(를) DNS 확인 없이 별칭으로 추가합니다.\n\n'
+                + 'DNS가 이 서버를 가리키기 전까지는 이 주소로 접속되지 않습니다. 주소 오타가 없는지 확인하세요.',
+            function() {
+                MubloRequest.requestJson('/admin/domains/alias-add', {
+                    domain_id: domainId,
+                    alias: candidate,
+                    skip_dns: 1
+                }, { loading: true }).then(response => {
+                    MubloRequest.showToast(response.message || '추가되었습니다.', 'success');
+                    location.reload();
+                }).catch(err => console.error(err));
+            },
+            { type: 'warning' }
+        );
     });
 
     btnVerifyAlias.addEventListener('click', function() {
@@ -752,9 +889,11 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
+        setUnverifiedButton('');
         runDnsCheck(candidate, 'alias', btnVerifyAlias, aliasResultDiv).then(passed => {
             verifiedAlias = passed ? candidate.toLowerCase() : '';
             btnAddAlias.disabled = !passed;
+            setUnverifiedButton(passed ? '' : candidate.toLowerCase());
         });
     });
 

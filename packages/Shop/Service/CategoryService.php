@@ -63,6 +63,92 @@ class CategoryService
     }
 
     // =============================================
+    // 목록 안내 이미지
+    // =============================================
+
+    /** 목록 안내 이미지 칼럼 */
+    public const LIST_BANNER_FIELDS = ['list_banner_image', 'list_banner_mobile_image', 'list_banner_link'];
+
+    /**
+     * 상품 목록에 보일 안내 이미지를 분류 경로에서 찾는다.
+     *
+     * 현재 분류부터 조상 쪽으로 올라가며 PC 이미지가 설정된 가장 가까운 분류의 설정을 쓴다.
+     * 모바일 이미지가 없으면 PC 이미지를 쓴다. 어디에도 없으면 null.
+     *
+     * @param string[] $pathCodes 루트 → 현재 분류 순의 코드 경로
+     * @return array{category_code:string,pc:string,mobile:string,link:string}|null
+     */
+    public function resolveListBanner(int $domainId, array $pathCodes): ?array
+    {
+        if ($pathCodes === []) {
+            return null;
+        }
+
+        $rows = $this->categoryRepository->findListBannersByCodes($domainId, $pathCodes);
+
+        foreach (array_reverse($pathCodes) as $code) {
+            $row = $rows[$code] ?? null;
+            $pc = trim((string) ($row['list_banner_image'] ?? ''));
+            if ($pc === '') {
+                continue;
+            }
+            $mobile = trim((string) ($row['list_banner_mobile_image'] ?? ''));
+
+            return [
+                'category_code' => (string) $code,
+                'pc'            => $pc,
+                'mobile'        => $mobile !== '' ? $mobile : $pc,
+                'link'          => trim((string) ($row['list_banner_link'] ?? '')),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * 목록 안내 이미지 입력 정리. 넘어온 칼럼만 돌려주고, 잘못된 주소면 오류 문구(string)를 돌려준다.
+     *
+     * 이미지·링크는 사이트 내부 경로(/...) 또는 http(s) 주소만 받는다.
+     *
+     * @return array<string,?string>|string
+     */
+    private function normalizeListBanner(array $data): array|string
+    {
+        $labels = [
+            'list_banner_image'        => '목록 안내 PC 이미지',
+            'list_banner_mobile_image' => '목록 안내 모바일 이미지',
+            'list_banner_link'         => '목록 안내 이미지 링크',
+        ];
+
+        $out = [];
+        foreach (self::LIST_BANNER_FIELDS as $field) {
+            if (!array_key_exists($field, $data)) {
+                continue;
+            }
+            $value = trim((string) ($data[$field] ?? ''));
+            if ($value === '') {
+                $out[$field] = null;
+                continue;
+            }
+            $max = $field === 'list_banner_link' ? 500 : 255;
+            $isInternal = str_starts_with($value, '/') && !str_starts_with($value, '//');
+            $isHttp = (bool) preg_match('#^https?://[^\s]+$#i', $value);
+            if ((!$isInternal && !$isHttp) || mb_strlen($value) > $max || preg_match('/[\s<>"\']/', $value)) {
+                return $labels[$field] . ' 주소가 올바르지 않습니다.';
+            }
+            $out[$field] = $value;
+        }
+
+        // 모바일 이미지는 PC 이미지의 대체본이다 — PC 없이 모바일만 두면 아무 데도 나오지 않는다
+        if (array_key_exists('list_banner_image', $out) && $out['list_banner_image'] === null
+            && !empty($out['list_banner_mobile_image'])) {
+            return '목록 안내 이미지는 PC 이미지를 먼저 등록해주세요.';
+        }
+
+        return $out;
+    }
+
+    // =============================================
     // 아이템 CRUD
     // =============================================
 
@@ -98,6 +184,13 @@ class CategoryService
             'is_active' => isset($data['is_active']) ? (int) (bool) $data['is_active'] : 1,
         ];
 
+        // 목록 안내 이미지: 넘어온 값만 담는다 (넘기지 않는 호출은 칼럼을 건드리지 않음)
+        $banner = $this->normalizeListBanner($data);
+        if (is_string($banner)) {
+            return Result::failure($banner);
+        }
+        $itemData = array_merge($itemData, $banner);
+
         $categoryId = $this->categoryRepository->createItem($itemData);
 
         if (!$categoryId) {
@@ -130,6 +223,11 @@ class CategoryService
         if (array_key_exists('image', $data)) {
             $updateData['image'] = $data['image'];
         }
+        $banner = $this->normalizeListBanner($data);
+        if (is_string($banner)) {
+            return Result::failure($banner);
+        }
+        $updateData = array_merge($updateData, $banner);
         if (isset($data['allow_member_level'])) {
             $updateData['allow_member_level'] = (int) $data['allow_member_level'];
         }

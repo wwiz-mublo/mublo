@@ -8,6 +8,7 @@
  * @var array $filters 현재 필터 (category_code, keyword, sort)
  * @var bool $priceHidden 가격 비공개 방문자 여부 (쇼핑몰 설정 — 가격순 정렬을 빼고, 카드는 price_hidden_text)
  * @var bool $showAllTab "전체" 카테고리 링크를 보일지 (쇼핑몰 설정 — 전체 상품 탭 보이기)
+ * @var array|null $listBanner 분류별 목록 안내 이미지 [pc, mobile, link] (없으면 null)
  */
 
 $keyword = htmlspecialchars($filters['keyword'] ?? '');
@@ -162,6 +163,26 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Product/basic/_assets/css
                 <?php endforeach; ?>
             </div>
         </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if (!empty($listBanner['pc'])): ?>
+    <?php
+        // 분류별 목록 안내 이미지 — 분류 탭 아래, 상품 목록 위 (모바일 이미지가 없으면 PC 이미지)
+        $lbPc = (string) $listBanner['pc'];
+        $lbMobile = (string) ($listBanner['mobile'] ?? '') ?: $lbPc;
+        $lbLink = (string) ($listBanner['link'] ?? '');
+        $lbAlt = $currentCategoryName !== '' ? $currentCategoryName . ' 안내' : '분류 안내';
+    ?>
+    <div class="spl-list-banner">
+        <?php if ($lbLink !== ''): ?><a class="spl-list-banner__link" href="<?= htmlspecialchars($lbLink) ?>"><?php endif; ?>
+        <picture>
+            <?php if ($lbMobile !== $lbPc): ?>
+            <source media="(max-width: 768px)" srcset="<?= htmlspecialchars($lbMobile) ?>">
+            <?php endif; ?>
+            <img class="spl-list-banner__img" src="<?= htmlspecialchars($lbPc) ?>" alt="<?= htmlspecialchars($lbAlt) ?>">
+        </picture>
+        <?php if ($lbLink !== ''): ?></a><?php endif; ?>
     </div>
     <?php endif; ?>
 

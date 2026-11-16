@@ -285,6 +285,41 @@ function renderCategoryTreeNodes(array $nodes, int $depth = 0): string {
                     <input type="text" id="fld_description" class="form-control">
                 </div>
 
+                <!-- 목록 안내 이미지: 상품 목록의 분류 탭 아래·상품 목록 위에 보인다 -->
+                <div class="border rounded p-3 mb-3">
+                    <div class="fw-semibold mb-1">목록 안내 이미지</div>
+                    <p class="form-text mt-0 mb-2">상품 목록의 분류 탭 아래에 보입니다. 비워 두면 상위 분류의 이미지를 그대로 씁니다. 상품 상세·주문 화면에는 나오지 않습니다.</p>
+                    <?php
+                    $listBannerSlots = [
+                        'pc'     => ['label' => 'PC 이미지',             'field' => 'fld_list_banner_image'],
+                        'mobile' => ['label' => '모바일 이미지 (선택, 없으면 PC 이미지)', 'field' => 'fld_list_banner_mobile_image'],
+                    ];
+                    foreach ($listBannerSlots as $slotKey => $slot):
+                    ?>
+                    <div class="mb-2">
+                        <label class="form-label small mb-1"><?= htmlspecialchars($slot['label']) ?></label>
+                        <input type="hidden" id="<?= $slot['field'] ?>" value="">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="list-banner-preview border rounded bg-body-tertiary d-flex align-items-center justify-content-center flex-shrink-0 position-relative"
+                                 data-target="<?= $slotKey ?>" style="width:120px;height:56px;overflow:hidden;">
+                                <i class="bi bi-image text-muted fs-5"></i>
+                            </div>
+                            <div class="flex-grow-1">
+                                <input type="file" class="form-control form-control-sm list-banner-file" data-target="<?= $slotKey ?>" accept="image/jpeg,image/png,image/gif,image/webp">
+                                <div class="mt-1">
+                                    <button type="button" class="btn btn-outline-secondary btn-sm list-banner-remove" data-target="<?= $slotKey ?>">제거</button>
+                                    <span class="form-text list-banner-status ms-1" data-target="<?= $slotKey ?>"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endforeach; ?>
+                    <div>
+                        <label for="fld_list_banner_link" class="form-label small mb-1">링크 URL (선택)</label>
+                        <input type="text" id="fld_list_banner_link" class="form-control form-control-sm" maxlength="500" placeholder="/shop/exhibitions/1 또는 https://...">
+                    </div>
+                </div>
+
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label for="fld_allow_member_level" class="form-label">접근 허용 레벨</label>
@@ -350,6 +385,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.getElementById('fld_allow_coupon').checked = !!parseInt(item.allow_coupon);
                         document.getElementById('fld_is_adult').checked = !!parseInt(item.is_adult);
                         document.getElementById('fld_is_active').checked = !!parseInt(item.is_active);
+                        setListBanner('pc', item.list_banner_image || '');
+                        setListBanner('mobile', item.list_banner_mobile_image || '');
+                        document.getElementById('fld_list_banner_link').value = item.list_banner_link || '';
                         document.getElementById('itemModalTitle').textContent = '카테고리 수정';
                         itemModal.show();
                     } else {
@@ -391,7 +429,10 @@ document.addEventListener('DOMContentLoaded', function() {
             allow_member_level: parseInt(document.getElementById('fld_allow_member_level').value) || 0,
             allow_coupon: document.getElementById('fld_allow_coupon').checked ? 1 : 0,
             is_adult: document.getElementById('fld_is_adult').checked ? 1 : 0,
-            is_active: document.getElementById('fld_is_active').checked ? 1 : 0
+            is_active: document.getElementById('fld_is_active').checked ? 1 : 0,
+            list_banner_image: document.getElementById('fld_list_banner_image').value,
+            list_banner_mobile_image: document.getElementById('fld_list_banner_mobile_image').value,
+            list_banner_link: document.getElementById('fld_list_banner_link').value.trim()
         };
 
         MubloRequest.requestJson('/admin/shop/categories/item-store', data)
@@ -414,7 +455,67 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('fld_allow_coupon').checked = true;
         document.getElementById('fld_is_adult').checked = false;
         document.getElementById('fld_is_active').checked = true;
+        setListBanner('pc', '');
+        setListBanner('mobile', '');
+        document.getElementById('fld_list_banner_link').value = '';
     }
+
+    // ── 목록 안내 이미지: 즉시 업로드 + 미리보기 (기획전 배너와 같은 방식) ──
+    var listBannerFields = { pc: 'fld_list_banner_image', mobile: 'fld_list_banner_mobile_image' };
+
+    function setListBanner(target, url) {
+        document.getElementById(listBannerFields[target]).value = url;
+        var box = document.querySelector('.list-banner-preview[data-target="' + target + '"]');
+        if (box) {
+            box.innerHTML = '';
+            if (url) {
+                var img = document.createElement('img');
+                img.src = url;
+                img.alt = '';
+                img.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;';
+                box.appendChild(img);
+            } else {
+                box.innerHTML = '<i class="bi bi-image text-muted fs-5"></i>';
+            }
+        }
+        setListBannerStatus(target, '', '');
+    }
+
+    function setListBannerStatus(target, msg, cls) {
+        var s = document.querySelector('.list-banner-status[data-target="' + target + '"]');
+        if (s) { s.textContent = msg; s.className = 'form-text list-banner-status ms-1 ' + (cls || ''); }
+    }
+
+    document.querySelectorAll('.list-banner-file').forEach(function(input) {
+        input.addEventListener('change', function() {
+            var target = input.dataset.target;
+            var file = input.files && input.files[0];
+            if (!file) return;
+            var fd = new FormData();
+            fd.append('fileData[banner]', file);
+            setListBannerStatus(target, '업로드 중...', 'text-muted');
+            MubloRequest.sendRequest({
+                method: 'POST',
+                url: '/admin/shop/categories/upload-banner',
+                payloadType: MubloRequest.PayloadType.FORM,
+                data: fd
+            }).then(function(res) {
+                var url = res && res.data && res.data.url;
+                if (!url) { setListBannerStatus(target, '업로드 실패', 'text-danger'); return; }
+                setListBanner(target, url);
+                setListBannerStatus(target, '업로드 완료 — 저장을 눌러야 반영됩니다', 'text-success');
+            }).catch(function() {
+                setListBannerStatus(target, '업로드 실패', 'text-danger');
+            });
+            input.value = '';
+        });
+    });
+
+    document.querySelectorAll('.list-banner-remove').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            setListBanner(btn.dataset.target, '');
+        });
+    });
 
     // ==========================================
     // 탭2: 트리 빌더 (Sortable.js 드래그앤드롭)

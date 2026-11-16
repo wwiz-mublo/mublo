@@ -81,6 +81,20 @@ class ProductOptionRepository extends BaseRepository
     }
 
     /**
+     * 상품별 옵션 원본 행 조회 (상품 복사용)
+     *
+     * @param int $goodsId 상품 ID
+     * @return array raw array 목록
+     */
+    public function getRawOptions(int $goodsId): array
+    {
+        return $this->getDb()->table($this->table)
+            ->where('goods_id', '=', $goodsId)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+    }
+
+    /**
      * 옵션 값 목록 조회
      *
      * @param int $optionId 옵션 ID
