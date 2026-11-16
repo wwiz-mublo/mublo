@@ -146,13 +146,13 @@ class ProductServiceDuplicateTest extends TestCase
 
     public function testLongNameIsCutToFitSuffix(): void
     {
-        $this->seedSource(str_repeat('가', 255));
+        $this->seedSource(str_repeat('가', 100));
 
         $result = $this->service->duplicate(1, 10);
 
         $this->assertTrue($result->isSuccess(), $result->getMessage());
         $name = $this->row('SELECT goods_name FROM shop_products WHERE goods_id = ?', [(int) $result->get('goods_id')])['goods_name'];
-        $this->assertSame(255, mb_strlen($name));
+        $this->assertSame(100, mb_strlen($name));
         $this->assertStringEndsWith(' (복사)', $name);
     }
 

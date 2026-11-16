@@ -483,8 +483,8 @@ class ProductService
     /** 복사본 상품명 뒤에 붙는 표시 */
     private const COPY_NAME_SUFFIX = ' (복사)';
 
-    /** 상품명 칼럼 길이 (shop_products.goods_name VARCHAR(255)) */
-    private const GOODS_NAME_MAX_LENGTH = 255;
+    /** 상품명 칼럼 길이 (shop_products.goods_name VARCHAR(100)) */
+    private const GOODS_NAME_MAX_LENGTH = 100;
 
     /**
      * 상품 복사
