@@ -420,6 +420,13 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    // 목록 안내 이미지 업로드
+    $r->addRoute('POST', '/admin/categories/upload-banner', [
+        'controller' => CategoryController::class,
+        'method'     => 'uploadListBanner',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     $r->addRoute('GET', '/admin/categories/item-view', [
         'controller' => CategoryController::class,
         'method'     => 'itemView',
@@ -534,6 +541,13 @@ return function (PrefixedRouteCollector $r): void {
         'middleware' => [AdminMiddleware::class],
     ]);
 
+    // 상품 복사 — URL 의 'copy' 가 쓰기(write) 권한으로 판별된다
+    $r->addRoute('POST', '/admin/products/{id:\d+}/copy', [
+        'controller' => AdminProductController::class,
+        'method'     => 'duplicate',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
     $r->addRoute('POST', '/admin/products/listDelete', [
         'controller' => AdminProductController::class,
         'method'     => 'listDelete',
@@ -598,6 +612,13 @@ return function (PrefixedRouteCollector $r): void {
     $r->addRoute('POST', '/admin/orders/{orderNo}/status', [
         'controller' => AdminOrderController::class,
         'method'     => 'updateStatus',
+        'middleware' => [AdminMiddleware::class],
+    ]);
+
+    // --- 주문인·배송지 정보 수정 ---
+    $r->addRoute('POST', '/admin/orders/{orderNo}/info', [
+        'controller' => AdminOrderController::class,
+        'method'     => 'updateInfo',
         'middleware' => [AdminMiddleware::class],
     ]);
 

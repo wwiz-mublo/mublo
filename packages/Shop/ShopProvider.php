@@ -602,7 +602,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(CategoryService::class),
                 $c->get(MemberLevelCatalogInterface::class),
                 $c->get(SiteProvisioningInterface::class),
-                $c->get(MenuManagementInterface::class)
+                $c->get(MenuManagementInterface::class),
+                $c->get(FileUploader::class)
             )
         );
         $container->singleton(AdminProductController::class, fn(DependencyContainer $c) =>
@@ -628,7 +629,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(OrderMemoService::class),
                 $c->get(AuthContextInterface::class),
                 $c->get(ShipmentService::class),
-                $c->get(ClaimService::class)
+                $c->get(ClaimService::class),
+                memberQuery: $c->get(MemberQueryInterface::class)
             )
         );
         $container->singleton(ClaimController::class, fn(DependencyContainer $c) =>
@@ -726,7 +728,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
                 $c->get(ProductInfoTemplateService::class),
                 $c->get(WishlistService::class),
                 $c->get(AuthContextInterface::class),
-                $c->get(MemberLevelResolver::class)
+                $c->get(MemberLevelResolver::class),
+                $c->get(CategoryService::class)
             )
         );
         $container->singleton(CartController::class, fn(DependencyContainer $c) =>
@@ -983,7 +986,8 @@ class ShopProvider implements ExtensionProviderInterface, InstallableExtensionIn
         $reportRegistry->register(
             new \Mublo\Packages\Shop\Report\ShopOrderReportDefinition(
                 $container->get(OrderService::class),
-                $container->get(OrderStateResolver::class)
+                $container->get(OrderStateResolver::class),
+                $container->get(MemberQueryInterface::class)
             )
         );
         $reportRegistry->register(

@@ -71,6 +71,13 @@ $anchor = [
                 <a href="<?= htmlspecialchars($listUrl) ?>" class="btn btn-sm btn-outline-secondary">
                     <i class="bi bi-list"></i> 목록
                 </a>
+                <?php if ($isEdit && !empty($product['goods_id'])): ?>
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="btnCopyProduct"
+                    data-goods-id="<?= (int) $product['goods_id'] ?>"
+                    title="저장된 내용으로 복사합니다 (수정 중인 내용은 복사되지 않습니다)">
+                    <i class="bi bi-copy"></i> 복사
+                </button>
+                <?php endif; ?>
                 <button type="button" class="btn btn-sm btn-primary mublo-submit"
                     data-target="/admin/shop/products/store"
                     data-callback="productSaved">
@@ -1251,6 +1258,30 @@ MubloRequest.registerCallback('productSaved', function(response) {
         alert(response.message || '저장에 실패했습니다.');
     }
 });
+
+// 상품 복사 (수정 화면) — 저장된 상품을 복사하고 복사본 수정 화면으로 이동
+(function() {
+    var btn = document.getElementById('btnCopyProduct');
+    if (!btn) return;
+
+    btn.addEventListener('click', function() {
+        var msg = '이 상품을 복사하시겠습니까?\n\n저장된 내용으로 복사되며, 수정 중이던 내용은 복사되지 않습니다.'
+            + '\n복사본은 판매 중지 상태로 만들어지고, 복사본 수정 화면으로 이동합니다.';
+        if (!confirm(msg)) return;
+
+        MubloRequest.requestJson('/admin/shop/products/' + btn.dataset.goodsId + '/copy', {}, { method: 'POST', loading: true })
+            .then(function(res) {
+                if (res.result === 'success' && res.data && res.data.redirect) {
+                    location.href = res.data.redirect;
+                } else {
+                    alert(res.message || '복사에 실패했습니다.');
+                }
+            })
+            .catch(function(error) {
+                console.error('Error:', error);
+            });
+    });
+})();
 
 // ── 할인/적립 유형 변경 시 등급별 테이블 & 값 입력 토글 ──
 (function() {

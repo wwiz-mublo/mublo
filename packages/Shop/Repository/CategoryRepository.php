@@ -296,6 +296,32 @@ class CategoryRepository extends BaseRepository
     }
 
     /**
+     * 분류 코드 목록의 목록 안내 이미지 설정 조회
+     *
+     * @param string[] $codes
+     * @return array<string,array<string,mixed>> category_code => 행
+     */
+    public function findListBannersByCodes(int $domainId, array $codes): array
+    {
+        $codes = array_values(array_filter($codes, static fn($c) => is_string($c) && $c !== ''));
+        if ($codes === []) {
+            return [];
+        }
+
+        $rows = $this->getDb()->table($this->table)
+            ->select(['category_code', 'list_banner_image', 'list_banner_mobile_image', 'list_banner_link'])
+            ->where('domain_id', '=', $domainId)
+            ->whereIn('category_code', $codes)
+            ->get();
+
+        $map = [];
+        foreach ($rows as $row) {
+            $map[(string) $row['category_code']] = $row;
+        }
+        return $map;
+    }
+
+    /**
      * 도메인별 아이템 목록 (전체)
      */
     public function getItemsByDomain(int $domainId): array

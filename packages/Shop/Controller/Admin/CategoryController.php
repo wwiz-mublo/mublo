@@ -10,6 +10,8 @@ use Mublo\Packages\Shop\Helper\CategoryUrl;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
 use Mublo\Contract\Site\SiteProvisioningInterface;
+use Mublo\Infrastructure\Storage\FileUploader;
+use Mublo\Infrastructure\Storage\UploadedFile;
 
 /**
  * Admin CategoryController
@@ -26,6 +28,7 @@ use Mublo\Contract\Site\SiteProvisioningInterface;
  * - POST /admin/shop/categories/tree-update   → treeUpdate
  * - POST /admin/shop/categories/menu-register   → menuRegister
  * - POST /admin/shop/categories/menu-unregister → menuUnregister
+ * - POST /admin/shop/categories/upload-banner   → uploadListBanner
  */
 class CategoryController
 {
@@ -33,6 +36,7 @@ class CategoryController
     private MemberLevelCatalogInterface $levelService;
     private SiteProvisioningInterface $menuProvisioning;
     private MenuManagementInterface $menuManagement;
+    private ?FileUploader $fileUploader;
 
     private const MENU_URL_PREFIX = CategoryUrl::MENU_PREFIX;
 
@@ -40,12 +44,14 @@ class CategoryController
         CategoryService $categoryService,
         MemberLevelCatalogInterface $levelService,
         SiteProvisioningInterface $menuProvisioning,
-        MenuManagementInterface $menuManagement
+        MenuManagementInterface $menuManagement,
+        ?FileUploader $fileUploader = null
     ) {
         $this->categoryService = $categoryService;
         $this->levelService = $levelService;
         $this->menuProvisioning = $menuProvisioning;
         $this->menuManagement = $menuManagement;
+        $this->fileUploader = $fileUploader;
     }
 
     /**
@@ -115,6 +121,9 @@ class CategoryController
             'allow_coupon' => $request->json('allow_coupon', 1),
             'is_adult' => $request->json('is_adult', 0),
             'is_active' => $request->json('is_active', 1),
+            'list_banner_image' => (string) $request->json('list_banner_image', ''),
+            'list_banner_mobile_image' => (string) $request->json('list_banner_mobile_image', ''),
+            'list_banner_link' => (string) $request->json('list_banner_link', ''),
         ];
 
         if ($categoryId > 0) {
@@ -128,6 +137,41 @@ class CategoryController
         }
 
         return JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 목록 안내 이미지 즉시 업로드 (파일 → shop/category/ 저장 후 URL 반환)
+     *
+     * 기획전 배너 업로드(ExhibitionController::uploadBanner)와 같은 방식이다.
+     */
+    public function uploadListBanner(array $params, Context $context): JsonResponse
+    {
+        if ($this->fileUploader === null) {
+            return JsonResponse::error('업로드를 사용할 수 없습니다.');
+        }
+
+        $domainId = $context->getDomainId() ?? 1;
+        $files = UploadedFile::fromGlobalNested('fileData', 'banner');
+        $file = $files[0] ?? null;
+
+        if (!$file || !$file->isValid()) {
+            return JsonResponse::error('업로드할 이미지를 선택해주세요.');
+        }
+
+        $result = $this->fileUploader->upload($file, $domainId, [
+            'subdirectory'       => 'shop/category',
+            'include_date'       => false,
+            'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
+            'max_size'           => 5 * 1024 * 1024,
+        ]);
+
+        if (!$result->isSuccess()) {
+            return JsonResponse::error($result->getMessage() ?: '업로드에 실패했습니다.');
+        }
+
+        $url = $this->fileUploader->getUrl($result->getRelativePath(), $result->getStoredName());
+
+        return JsonResponse::success(['url' => $url], '업로드되었습니다.');
     }
 
     /**

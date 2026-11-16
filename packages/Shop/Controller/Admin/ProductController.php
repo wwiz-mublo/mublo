@@ -29,6 +29,7 @@ use Mublo\Helper\Form\FormHelper;
  * - GET  /admin/shop/products/{id}/edit    → edit (수정 폼)
  * - POST /admin/shop/products/store        → store (생성/수정)
  * - POST /admin/shop/products/{id}/delete  → delete (삭제)
+ * - POST /admin/shop/products/{id}/copy    → duplicate (복사 → 복사본 수정 화면으로)
  * - POST /admin/shop/products/listDelete   → listDelete (일괄 삭제)
  * - POST /admin/shop/products/listActive   → listActive (목록의 판매 상태 스위치)
  * - POST /admin/shop/products/listPrice    → listPrice (목록의 가격 바로 수정)
@@ -322,6 +323,37 @@ class ProductController
         }
 
         return JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 상품 복사
+     *
+     * POST /admin/shop/products/{id}/copy
+     * 성공하면 복사본 수정 화면 주소를 redirect 로 돌려준다.
+     */
+    public function duplicate(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+
+        $goodsId = (int) ($params['id'] ?? $params[0] ?? 0);
+        if ($goodsId <= 0) {
+            return JsonResponse::error('상품 ID가 필요합니다.');
+        }
+
+        $result = $this->productService->duplicate($goodsId, $domainId);
+        if ($result->isFailure()) {
+            return JsonResponse::error($result->getMessage());
+        }
+
+        $newGoodsId = (int) $result->get('goods_id', 0);
+
+        return JsonResponse::success(
+            [
+                'goods_id' => $newGoodsId,
+                'redirect' => '/admin/shop/products/' . $newGoodsId . '/edit',
+            ],
+            $result->getMessage()
+        );
     }
 
     /**

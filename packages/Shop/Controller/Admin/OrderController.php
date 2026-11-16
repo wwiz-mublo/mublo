@@ -14,6 +14,8 @@ use Mublo\Packages\Shop\Service\ShipmentService;
 use Mublo\Packages\Shop\Service\ClaimService;
 use Mublo\Packages\Shop\Enum\OrderAction;
 use Mublo\Contract\Auth\AuthContextInterface;
+use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Packages\Shop\Helper\OrdererUserIds;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 
@@ -32,6 +34,7 @@ class OrderController
     private AuthContextInterface $authService;
     private ?ShipmentService $shipmentService;
     private ?ClaimService $claimService;
+    private ?MemberQueryInterface $memberQuery;
 
     public function __construct(
         OrderService $orderService,
@@ -41,7 +44,8 @@ class OrderController
         OrderMemoService $memoService,
         AuthContextInterface $authService,
         ?ShipmentService $shipmentService = null,
-        ?ClaimService $claimService = null
+        ?ClaimService $claimService = null,
+        ?MemberQueryInterface $memberQuery = null
     ) {
         $this->orderService = $orderService;
         $this->orderFieldService = $orderFieldService;
@@ -51,6 +55,7 @@ class OrderController
         $this->authService = $authService;
         $this->shipmentService = $shipmentService;
         $this->claimService = $claimService;
+        $this->memberQuery = $memberQuery;
     }
 
     /**
@@ -124,6 +129,9 @@ class OrderController
             ? $this->claimService->getActiveClaimTypesByOrderNo($domainId, array_column($orders, 'order_no'))
             : [];
 
+        // 회원 주문자의 아이디 (이 페이지 주문들을 한 번에 조회 — N+1 회피)
+        $ordererUserIds = OrdererUserIds::lookup($this->memberQuery, $orders);
+
         return ViewResponse::absoluteView(dirname(__DIR__, 2) . '/views/Admin/Order/List')
             ->withData([
                 'pageTitle' => '주문 관리',
@@ -138,6 +146,7 @@ class OrderController
                 'deliveryEditableStates' => $deliveryEditableStates,
                 'deliveryCompanies' => $deliveryCompanies,
                 'claimTypeByOrderNo' => $claimTypeByOrderNo,
+                'ordererUserIds' => $ordererUserIds,
             ]);
     }
 
@@ -296,6 +305,45 @@ class OrderController
         }
 
         $result = $this->orderService->updateStatus($orderNo, $status, $domainId, $reason, 'STAFF');
+
+        return $result->isSuccess()
+            ? JsonResponse::success($result->getData(), $result->getMessage())
+            : JsonResponse::error($result->getMessage());
+    }
+
+    /**
+     * 주문인·배송지 정보 수정
+     *
+     * POST /admin/shop/orders/{orderNo}/info
+     * body: { section: 'orderer'|'shipping', formData: { 칼럼명: 값 } }
+     */
+    public function updateInfo(array $params, Context $context): JsonResponse
+    {
+        $domainId = $context->getDomainId() ?? 1;
+        $request = $context->getRequest();
+
+        $orderNo = (string) ($params['orderNo'] ?? '');
+        $section = (string) $request->json('section', '');
+        $formData = $request->json('formData', []);
+
+        if ($orderNo === '') {
+            return JsonResponse::error('주문번호가 필요합니다.');
+        }
+        if (!is_array($formData)) {
+            return JsonResponse::error('입력값이 올바르지 않습니다.');
+        }
+
+        if ($domainGuard = $this->assertOrderInDomain($orderNo, $domainId)) {
+            return $domainGuard;
+        }
+
+        $result = $this->orderService->updateOrderInfo(
+            $domainId,
+            $orderNo,
+            $section,
+            $formData,
+            (int) ($this->authService->id() ?? 0)
+        );
 
         return $result->isSuccess()
             ? JsonResponse::success($result->getData(), $result->getMessage())

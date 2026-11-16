@@ -16,6 +16,7 @@ use Mublo\Packages\Shop\Service\WishlistService;
 use Mublo\Packages\Shop\Service\ReviewService;
 use Mublo\Packages\Shop\Service\InquiryService;
 use Mublo\Packages\Shop\Service\ProductInfoTemplateService;
+use Mublo\Packages\Shop\Service\CategoryService;
 use Mublo\Packages\Shop\Helper\ProductPresenter;
 use Mublo\Packages\Shop\Helper\ProductSeoPresenter;
 use Mublo\Packages\Shop\Helper\PriceVisibility;
@@ -40,6 +41,7 @@ class ProductController
     private WishlistService $wishlistService;
     private AuthContextInterface $authService;
     private ?MemberLevelResolver $memberLevelResolver;
+    private ?CategoryService $categoryService;
 
     public function __construct(
         ProductService $productService,
@@ -50,7 +52,8 @@ class ProductController
         ProductInfoTemplateService $templateService,
         WishlistService $wishlistService,
         AuthContextInterface $authService,
-        ?MemberLevelResolver $memberLevelResolver = null
+        ?MemberLevelResolver $memberLevelResolver = null,
+        ?CategoryService $categoryService = null
     ) {
         $this->productService = $productService;
         $this->categoryRegistry = $categoryRegistry;
@@ -61,6 +64,7 @@ class ProductController
         $this->wishlistService = $wishlistService;
         $this->authService = $authService;
         $this->memberLevelResolver = $memberLevelResolver;
+        $this->categoryService = $categoryService;
     }
 
     /**
@@ -195,6 +199,9 @@ class ProductController
         $seo = (new ProductSeoPresenter($request->getSchemeAndHost()))
             ->list($categoryName, $keyword, (int) $pagination['totalItems']);
 
+        // 분류별 목록 안내 이미지 — 목록 화면에만 넘긴다(상세·주문 화면에는 없음)
+        $listBanner = $this->resolveListBanner($domainId, $categoryTree, $categoryCode);
+
         return ViewResponse::absoluteView($this->shopConfigService->frontView($domainId, 'Product/List'))
             ->withData(array_merge([
                 'products'      => $products,
@@ -204,6 +211,7 @@ class ProductController
                 'categoryName'  => $categoryName,
                 'priceHidden'   => $priceHidden,
                 'showAllTab'    => AllProductsTab::isShown($shopConfig),
+                'listBanner'    => $listBanner,
                 'filters'       => [
                     'category_code' => $categoryCode,
                     'keyword'       => $keyword,
@@ -468,6 +476,33 @@ class ProductController
             }
         }
         return [];
+    }
+
+    /**
+     * 현재 분류의 목록 안내 이미지 (현재 분류 → 조상 순으로 가장 가까운 설정)
+     *
+     * 분류 없는 전체 목록·검색, 트리에 없는 분류는 이미지 없음.
+     * 안내 이미지 조회가 실패해도 목록은 그대로 보여야 하므로 예외는 삼킨다.
+     *
+     * @return array{category_code:string,pc:string,mobile:string,link:string}|null
+     */
+    private function resolveListBanner(int $domainId, array $categoryTree, string $categoryCode): ?array
+    {
+        if ($this->categoryService === null || $categoryCode === '') {
+            return null;
+        }
+
+        $pathCodes = $this->resolveCategoryCodePath($categoryTree, $categoryCode);
+        if ($pathCodes === []) {
+            return null;
+        }
+
+        try {
+            return $this->categoryService->resolveListBanner($domainId, $pathCodes);
+        } catch (\Throwable $e) {
+            error_log('[Shop ProductController] list_banner_failed ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**
