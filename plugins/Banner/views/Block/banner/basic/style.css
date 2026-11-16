@@ -41,6 +41,103 @@
     width: 100%;
 }
 
+/* ── 슬라이드 컨트롤: 좌우 화살표 + 점 인디케이터 (콘텐츠 설정) ── */
+.block-banner--basic .mublo-item-layout {
+    position: relative;
+}
+
+.block-banner__nav {
+    position: absolute;
+    top: 50%;
+    z-index: 2;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    border: 1px solid color-mix(in srgb, var(--border, #e4e4e7) 70%, transparent);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--background, #fff) 80%, transparent);
+    color: var(--foreground, #09090b);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transform: translateY(-50%);
+    cursor: pointer;
+    transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.block-banner__nav--prev { left: 12px; }
+.block-banner__nav--next { right: 12px; }
+
+.block-banner__nav:hover {
+    background: var(--background, #fff);
+}
+
+.block-banner__nav:focus-visible {
+    outline: 2px solid var(--ring, #2563eb);
+    outline-offset: 2px;
+}
+
+/* 반복(loop) 없이 처음/끝에 닿았을 때 */
+.block-banner__nav.swiper-button-disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.block-banner__pagination {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 12px;
+    z-index: 2;
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    pointer-events: none;
+}
+
+.block-banner__pagination .swiper-pagination-bullet {
+    width: 8px;
+    height: 8px;
+    margin: 0 !important;
+    border-radius: 999px;
+    background: #fff;
+    opacity: 0.55;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.2);
+    pointer-events: auto;
+    cursor: pointer;
+    transition: width 0.2s ease, opacity 0.2s ease;
+}
+
+.block-banner__pagination .swiper-pagination-bullet-active {
+    width: 20px;
+    opacity: 1;
+}
+
+/* 슬라이드가 아닐 때(list 모드 기기)와 넘길 장이 없을 때(watchOverflow 잠금)는 숨긴다 */
+.mublo-item-layout:not(.is-slide) > .block-banner__nav,
+.mublo-item-layout:not(.is-slide) > .block-banner__pagination,
+.block-banner__nav.swiper-button-lock,
+.block-banner__pagination.swiper-pagination-lock {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .block-banner__nav {
+        width: 32px;
+        height: 32px;
+    }
+
+    .block-banner__nav svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .block-banner__nav--prev { left: 8px; }
+    .block-banner__nav--next { right: 8px; }
+    .block-banner__pagination { bottom: 8px; }
+}
+
 @media (max-width: 768px) {
     /* 모바일 배너 비율이 다르면 여기서 분리 */
     .block-banner__inner {

@@ -22,8 +22,9 @@ class BannerConfigForm implements ConfigFormInterface
         $effect = $currentConfig['effect'] ?? 'slide';
         $autoplay = (bool) ($currentConfig['autoplay'] ?? true);
         $autoplaySpeed = (int) ($currentConfig['autoplay_speed'] ?? 3000);
-        $showNavigation = (bool) ($currentConfig['show_navigation'] ?? true);
-        $showPagination = (bool) ($currentConfig['show_pagination'] ?? true);
+        // 값이 없는(저장한 적 없는) 블록은 스킨이 화살표·인디케이터를 그리지 않으므로 체크 해제로 보여 준다
+        $showNavigation = (bool) ($currentConfig['show_navigation'] ?? false);
+        $showPagination = (bool) ($currentConfig['show_pagination'] ?? false);
 
         $html = '<div class="banner-config-form">';
 
