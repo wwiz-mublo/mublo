@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Added
+- Core(블록): 위치별 블록 렌더링 직전에 `Mublo\Core\Event\Block\BlockPositionRenderingEvent` 를 발행합니다. 확장은 이번 요청에서 그 위치를 저장된 블록 대신 다른 HTML 로 그리거나(`replaceWith()` — 전파를 멈추고 우선순위가 높은 대체가 이김, 대체 HTML 은 캐시하지 않음) 블록 캐시를 끌 수 있습니다(`disableCache()`). 디자인 미리보기처럼 DB 블록을 바꾸지 않고 화면만 다르게 보여 줄 때 씁니다. 구독자가 없으면 동작은 이전과 같고, `BlockRenderService` 생성자에 선택 인자 `?EventDispatcher` 가 끝에 추가됐습니다
+
 ## [1.11.0] - 2026-11-18
 
 ### Added
