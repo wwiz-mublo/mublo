@@ -654,7 +654,8 @@ class ServiceProvider
                 $c->get(\Mublo\Repository\Block\BlockColumnRepository::class),
                 $c->get(CacheInterface::class),
                 $c,
-                $c->get(\Mublo\Repository\Block\BlockColumnContentRepository::class)
+                $c->get(\Mublo\Repository\Block\BlockColumnContentRepository::class),
+                $c->get(EventDispatcher::class)
             );
         });
 
