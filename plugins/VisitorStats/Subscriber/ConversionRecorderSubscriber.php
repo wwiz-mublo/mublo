@@ -5,13 +5,15 @@ namespace Mublo\Plugin\VisitorStats\Subscriber;
 
 use Mublo\Contract\Tracking\ConversionRecordedEvent;
 use Mublo\Contract\Tracking\ConversionSourceTypes;
+use Mublo\Contract\Tracking\ConversionStatusChangedEvent;
 use Mublo\Core\Event\EventSubscriberInterface;
 use Mublo\Plugin\VisitorStats\Repository\ConversionEventRepository;
 
 /**
  * ConversionRecorderSubscriber
  *
- * ConversionRecordedEvent 를 받아 전환을 기록한다.
+ * ConversionRecordedEvent 를 받아 전환을 기록하고,
+ * ConversionStatusChangedEvent 를 받아 이미 기록된 전환의 상태만 바꾼다.
  *
  * 발행자는 각 소스 서비스(렌탈 주문·상담 신청 등)이고, VisitorStats 는 그들이
  * 누구인지 알지 못한다 — 계약이 실어 온 sourceType 문자열만 보고 쌓는다.
@@ -22,13 +24,46 @@ use Mublo\Plugin\VisitorStats\Repository\ConversionEventRepository;
  */
 class ConversionRecorderSubscriber implements EventSubscriberInterface
 {
+    /** 상태 변경으로 받는 값 — 그 밖의 값은 집계 축을 어지럽히므로 버린다 */
+    private const CHANGEABLE_STATUSES = [
+        ConversionStatusChangedEvent::SUCCESS,
+        ConversionStatusChangedEvent::PENDING,
+        ConversionStatusChangedEvent::CANCELLED,
+        'failed',
+    ];
+
     public function __construct(private ConversionEventRepository $repository) {}
 
     public static function getSubscribedEvents(): array
     {
         return [
             ConversionRecordedEvent::class => 'onConversionRecorded',
+            ConversionStatusChangedEvent::class => 'onConversionStatusChanged',
         ];
+    }
+
+    public function onConversionStatusChanged(ConversionStatusChangedEvent $event): void
+    {
+        $sourceType = trim($event->sourceType);
+        $sourceId = trim($event->sourceId);
+        if (
+            $event->domainId <= 0 || $sourceType === '' || $sourceId === ''
+            || !in_array($event->status, self::CHANGEABLE_STATUSES, true)
+        ) {
+            return;
+        }
+
+        try {
+            // 기록할 때와 같은 길이로 잘라야 같은 행을 찾는다.
+            $this->repository->updateStatus(
+                $event->domainId,
+                mb_substr($sourceType, 0, 50),
+                mb_substr($sourceId, 0, 100),
+                $event->status
+            );
+        } catch (\Throwable $e) {
+            error_log('[VisitorStats] conversion status update failed: ' . $e->getMessage());
+        }
     }
 
     public function onConversionRecorded(ConversionRecordedEvent $event): void

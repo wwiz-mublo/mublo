@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Added
+- VisitorStats: 다른 확장이 방문자 통계 테이블을 읽지 않고 이벤트로 묻고 알릴 수 있게 `Contract\Tracking` 이벤트 3종을 추가하고 VisitorStats 가 구독합니다 — `ConversionStatusChangedEvent`(이미 기록된 전환의 상태만 변경, 캠페인 키·발생 시각 유지), `CampaignKeyLabelsEvent`(캠페인 키의 "그룹명 · 메모" 표시 이름 질의), `VisitorRefererLookupEvent`(세션·IP·시각으로 그날 방문의 유입경로 질의, 한 번에 200건). 마이그레이션은 필요 없습니다
+
 ## [1.11.0] - 2026-11-18
 
 ### Added

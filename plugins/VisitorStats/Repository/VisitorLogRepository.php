@@ -94,6 +94,54 @@ class VisitorLogRepository
     }
 
     /**
+     * 어떤 시점의 방문 기록 (VisitorRefererLookupEvent 응답용)
+     *
+     * 같은 날 같은 세션의 방문을 먼저 찾고, 없으면 같은 날 그 시점 이전의 같은 IP 마지막 방문을 찾는다.
+     * 방문 로그는 세션·날짜당 한 행이라(uk_session_date) 세션 조회는 그날 첫 유입이다.
+     *
+     * @param string $at 기준 시각 (strtotime 이 읽을 수 있는 형식)
+     * @return array{referer_type: string, referer_domain: ?string, referer_url: ?string, landing_url: string}|null
+     */
+    public function findVisitAt(int $domainId, ?string $sessionId, ?string $ipAddress, string $at): ?array
+    {
+        $ts = strtotime($at);
+        if ($ts === false) {
+            return null;
+        }
+        $date = date('Y-m-d', $ts);
+        $datetime = date('Y-m-d H:i:s', $ts);
+        $table = $this->table;
+        $columns = '`referer_type`, `referer_domain`, `referer_url`, `landing_url`';
+
+        if ($sessionId !== null && $sessionId !== '') {
+            $row = $this->db->selectOne(
+                "SELECT {$columns} FROM `{$table}`
+                 WHERE `domain_id` = ? AND `session_id` = ? AND `visit_date` = ?
+                 LIMIT 1",
+                [$domainId, $sessionId, $date]
+            );
+            if ($row) {
+                return $row;
+            }
+        }
+
+        if ($ipAddress !== null && $ipAddress !== '') {
+            $row = $this->db->selectOne(
+                "SELECT {$columns} FROM `{$table}`
+                 WHERE `domain_id` = ? AND `ip_address` = ? AND `visit_date` = ? AND `created_at` <= ?
+                 ORDER BY `created_at` DESC
+                 LIMIT 1",
+                [$domainId, $ipAddress, $date, $datetime]
+            );
+            if ($row) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * 특정 IP의 기간 내 접속 로그 목록
      */
     public function getLogsByIp(
