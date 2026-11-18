@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Added
+- Core: 확장 사이 결합용 계약을 추가했습니다 — `Contract\Auth\ApiTokenValidatorInterface`(앱 API 의 Bearer 토큰을 발급 확장을 모른 채 검증), `Contract\Fcm\DeviceBindingInterface`(전화번호 ↔ 업무용 기기 연결), `Contract\Fcm\ContactSaveInterface`(고객 연락처를 업무 기기 전화번호부에 저장 요청), `Contract\Fcm\ResolveFcmDeviceDomainEvent`(도메인이 어느 도메인의 업무 기기를 쓰는지 질의). 모두 구현 확장이 `ContractRegistry` 에 1:1 로 등록하는 선택 계약이며 번들 구현은 없습니다
+
 ## [1.11.0] - 2026-11-18
 
 ### Added
