@@ -10,12 +10,18 @@
  * @var int|null $activeCategoryId
  * @var array $skins 사용 가능한 스킨 목록
  * @var string $currentSkin 현재 적용된 스킨
+ * @var string[] $itemFormSections 편집 창 확장 칸 (FaqItemFormEvent — 확장이 넣은 HTML 조각)
+ *
+ * 확장 칸과는 #itemModal 요소의 DOM 이벤트로 주고받는다:
+ *   'faq:item-open'    detail.item (새 항목이면 null) — 칸을 그 항목 값(item.ext)으로 채운다
+ *   'faq:item-collect' detail.data                   — 저장할 값에 칸의 값을 넣는다 (FaqItemSavedEvent::getInput)
  */
 $categories = $categories ?? [];
 $items = $items ?? [];
 $activeCategoryId = $activeCategoryId ?? null;
 $skins = $skins ?? ['basic'];
 $currentSkin = $currentSkin ?? 'basic';
+$itemFormSections = $itemFormSections ?? [];
 ?>
 
 <?= editor_css() ?>
@@ -225,6 +231,9 @@ $currentSkin = $currentSkin ?? 'basic';
                         'placeholder' => '답변을 입력하세요 (HTML 사용 가능)',
                     ]) ?>
                 </div>
+                <?php foreach ($itemFormSections as $section): ?>
+                    <?= $section ?>
+                <?php endforeach; ?>
                 <div class="row">
                     <div class="col-3">
                         <label class="form-label">정렬 순서</label>
@@ -354,6 +363,9 @@ $currentSkin = $currentSkin ?? 'basic';
                 + '<td>'
                 + '  <div class="fw-semibold">' + escapeHtml(item.question) + '</div>'
                 + '  <div class="text-muted small mt-1">' + stripHtml(truncate(item.answer, 100)) + '</div>'
+                + (item.badges || []).map(function(b) {
+                    return '<span class="badge text-bg-light border fw-normal mt-1 me-1">' + escapeHtml(b) + '</span>';
+                }).join('')
                 + '</td>'
                 + '<td class="text-center">' + badge + '</td>'
                 + '<td class="text-center faq-row-sort">' + (item.sort_order || 0) + '</td>'
@@ -487,6 +499,8 @@ $currentSkin = $currentSkin ?? 'basic';
                         document.getElementById('itemQuestion').value = item.question;
                         document.getElementById('itemSortOrder').value = item.sort_order || 0;
                         document.getElementById('itemIsActive').checked = parseInt(item.is_active) === 1;
+                        // 확장 칸 채우기
+                        itemModalEl.dispatchEvent(new CustomEvent('faq:item-open', { detail: { item: item } }));
                         // 모달 표시 후 에디터에 내용 설정
                         var modal = new bootstrap.Modal(document.getElementById('itemModal'));
                         itemModalEl.addEventListener('shown.bs.modal', function onShown() {
@@ -500,6 +514,7 @@ $currentSkin = $currentSkin ?? 'basic';
             document.getElementById('itemQuestion').value = '';
             document.getElementById('itemSortOrder').value = '0';
             document.getElementById('itemIsActive').checked = true;
+            itemModalEl.dispatchEvent(new CustomEvent('faq:item-open', { detail: { item: null } }));
             var modal = new bootstrap.Modal(document.getElementById('itemModal'));
             itemModalEl.addEventListener('shown.bs.modal', function onShown() {
                 setEditorContent('');
@@ -518,6 +533,8 @@ $currentSkin = $currentSkin ?? 'basic';
             sort_order: document.getElementById('itemSortOrder').value,
             is_active: document.getElementById('itemIsActive').checked ? 1 : 0,
         };
+        // 확장 칸 값 (FaqItemSavedEvent::getInput 으로 돌아간다)
+        itemModalEl.dispatchEvent(new CustomEvent('faq:item-collect', { detail: { data: data } }));
 
         if (editId) {
             data.faq_id = parseInt(editId);

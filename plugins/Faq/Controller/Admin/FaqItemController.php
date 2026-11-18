@@ -78,6 +78,8 @@ class FaqItemController
                 'activeCategoryId' => $activeCategoryId,
                 'skins' => $skins,
                 'currentSkin' => $currentSkin,
+                // 편집 창 확장 칸 (FaqItemFormEvent — 플러그인은 칸의 뜻을 모른다)
+                'itemFormSections' => $this->faqService->collectItemFormSections($domainId),
             ]);
     }
 

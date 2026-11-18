@@ -37,7 +37,8 @@ class FaqController
             ->withData([
                 'pageTitle' => '자주 묻는 질문',
                 'categories' => $categories,
-                'grouped' => $grouped,
+                // 답변 아래 '관련 링크' — 확장이 FaqItemsLoadedEvent(front) 로 단다
+                'grouped' => $this->faqService->withRelatedLinks($domainId, $grouped),
                 'activeSlug' => null,
             ]);
     }
@@ -82,7 +83,7 @@ class FaqController
                     ? $activeCategory['category_name'] . ' - FAQ'
                     : '자주 묻는 질문',
                 'categories' => $categories,
-                'grouped' => $groupedForView,
+                'grouped' => $this->faqService->withRelatedLinks($domainId, $groupedForView),
                 'activeSlug' => $slug,
             ]);
     }
