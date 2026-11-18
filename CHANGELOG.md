@@ -6,6 +6,8 @@
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-18
+
 ### Added
 - Banner: basic 스킨이 블록 설정의 "좌우 화살표 표시"·"페이지 인디케이터 표시"를 따릅니다. 슬라이드 출력이고 배너가 2장 이상이면 이미지 좌우 가운데에 이전/다음 버튼, 아래에 점 인디케이터를 보여 줍니다. 지금까지 이 두 설정은 저장만 되고 쓰이지 않았으며, 값이 없는 기존 블록은 계속 표시하지 않습니다(설정 폼의 기본값도 꺼짐으로 맞췄습니다). 보이게 하려면 블록 설정에서 체크해 저장하세요
 - Shop(관리자): 주문 목록의 주문인 칸에 회원 아이디를 함께 보여 주고, 주문 엑셀에 "회원 아이디" 칼럼을 추가했습니다(엑셀 칼럼 선택 창의 기본 체크에 포함). 비회원·조회되지 않는 회원은 빈칸입니다
@@ -387,7 +389,8 @@
 - Plugin: SendonSms — 센드온 SMS/LMS/MMS 발송 (도메인별 API 연동)
 - Plugin: SendonTalk — 센드온 API 기반 카카오 알림톡 발송
 
-[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/wwiz-mublo/mublo/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/wwiz-mublo/mublo/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/wwiz-mublo/mublo/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/wwiz-mublo/mublo/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/wwiz-mublo/mublo/compare/v1.7.0...v1.8.0
