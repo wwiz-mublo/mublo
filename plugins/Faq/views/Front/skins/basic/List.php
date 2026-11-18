@@ -6,7 +6,8 @@
  *
  * @var string $pageTitle
  * @var array $categories [{category_id, category_name, category_slug, item_count}, ...]
- * @var array $grouped [{category_name, category_slug, items: [{faq_id, question, answer}]}, ...]
+ * @var array $grouped [{category_name, category_slug, items: [{faq_id, question, answer, related_links?, related_title?}]}, ...]
+ *      related_links [{label, url}] — 확장이 FaqItemsLoadedEvent(front) 로 단 관련 링크 (커스텀 스킨은 선택)
  * @var string|null $activeSlug
  */
 $categories = $categories ?? [];
@@ -65,7 +66,16 @@ $this->assets->addCss('/serve/plugin/Faq/views/Front/skins/basic/style.css');
                             <div class="faq-item__answer-inner">
                                 <div class="faq-item__answer-content">
                                     <span class="faq-item__a-mark">A.</span>
-                                    <div class="faq-item__a-text"><?= $item['answer'] ?></div>
+                                    <div class="faq-item__a-text"><?= $item['answer'] ?>
+                                    <?php if (!empty($item['related_links'])): ?>
+                                    <div class="faq-related">
+                                        <span class="faq-related__title"><?= htmlspecialchars((string) ($item['related_title'] ?? '관련 링크')) ?></span>
+                                        <?php foreach ($item['related_links'] as $link): ?>
+                                            <a class="faq-related__link" href="<?= htmlspecialchars((string) $link['url']) ?>"><?= htmlspecialchars((string) $link['label']) ?></a>
+                                        <?php endforeach; ?>
+                                    </div>
+                                    <?php endif; ?>
+                                    </div>
                                 </div>
                             </div>
                         </div>

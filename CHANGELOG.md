@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Added
+- Faq: 패키지가 FAQ 항목에 자기 값(예: 연결 상품)을 붙일 수 있게 이벤트 4종을 발행합니다 — `FaqItemFormEvent`(관리자 편집 창에 확장 입력 칸), `FaqItemsLoadedEvent`(관리자 목록의 확장 값·표시, 손님 `/faq` 답변 아래 관련 링크), `FaqItemSavedEvent`(등록·수정 뒤 확장 칸 값 전달), `FaqItemDeletedEvent`(항목 삭제·카테고리 삭제로 함께 지워진 항목). 관리자 편집 창은 `#itemModal` 의 `faq:item-open`·`faq:item-collect` DOM 이벤트로 확장 칸과 값을 주고받고, basic 프론트 스킨은 관련 링크를 표시합니다. 구독하는 확장이 없으면 화면과 동작은 이전과 같습니다. 커스텀 프론트 스킨은 항목의 `related_links` 를 선택적으로 출력할 수 있습니다
+
 ## [1.11.0] - 2026-11-18
 
 ### Added
