@@ -6,6 +6,9 @@
 
 ## [Unreleased]
 
+### Added
+- Core: schema.org JSON-LD 생성 헬퍼 `Mublo\Helper\Seo\StructuredDataHelper` 를 추가했습니다 — `organization()`(상호·로고·주소·고객센터·사업자등록번호·공식 SNS), `webSite()`(사이트 검색 액션), `breadcrumbList()`, `faqPage()`/`faqPageFromGrouped()`, `article()`(비밀·미게시 글 제외), `toScriptTag()`(`</script>` 조기 종료 방지). 값이 없으면 null 을 돌려 빈 마크업을 내보내지 않습니다. 코어 화면에는 아직 붙이지 않았으며 Controller·스킨에서 골라 씁니다
+
 ## [1.11.0] - 2026-11-18
 
 ### Added
