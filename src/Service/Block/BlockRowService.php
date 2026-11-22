@@ -215,7 +215,8 @@ class BlockRowService
                 'columns' => $this->columnsToPortableArrays($columns),
             ]);
         }
-        $context->changed('block:' . $rowId, 'block', $fingerprint);
+        // 공개 site-editor 자원 ID와 동일한 이름을 사용한다. 렌더 캐시의 block: 접두사와는 별개다.
+        $context->changed('block_row:' . $rowId, 'block', $fingerprint);
 
         if ($includeOrderScopes === null) {
             $includeOrderScopes = false;

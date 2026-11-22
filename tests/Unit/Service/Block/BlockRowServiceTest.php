@@ -385,8 +385,8 @@ class BlockRowServiceTest extends TestCase
                 return $context->domainId === 1
                     && $context->source === SiteMutationContext::SOURCE_ADMIN
                     && array_column($context->resources(), 'resourceId') === [
-                        'block:10',
                         'block_order:screen:index',
+                        'block_row:10',
                     ];
             })
         )->willReturn(new SiteMutationReceipt(1, 1, 1, SiteMutationContext::SOURCE_ADMIN, null, []));
@@ -444,7 +444,7 @@ class BlockRowServiceTest extends TestCase
 
         $this->assertTrue($result->isSuccess(), $result->getMessage());
         $this->assertSame(
-            ['block:10', 'block_order:screen:index'],
+            ['block_order:screen:index', 'block_row:10'],
             array_column($context->resources(), 'resourceId')
         );
     }
@@ -462,7 +462,7 @@ class BlockRowServiceTest extends TestCase
         $recorder = $this->createMock(SiteMutationRecorderInterface::class);
         $recorder->expects($this->once())->method('record')->with(
             $this->callback(static fn (SiteMutationContext $context): bool =>
-                array_column($context->resources(), 'resourceId') === ['block:10'])
+                array_column($context->resources(), 'resourceId') === ['block_row:10'])
         )->willReturn(new SiteMutationReceipt(1, 1, 1, SiteMutationContext::SOURCE_ADMIN, null, []));
 
         $service = new BlockRowService(
