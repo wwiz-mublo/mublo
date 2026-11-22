@@ -11,6 +11,7 @@ use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
+use Mublo\Contract\Menu\MenuTreeManagementInterface;
 use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
@@ -47,6 +48,7 @@ class ServiceProviderContractBindingTest extends TestCase
             DomainQueryInterface::class,
             SiteMutationRecorderInterface::class,
             MenuManagementInterface::class,
+            MenuTreeManagementInterface::class,
             MemberAccountGatewayInterface::class,
             ReauthenticationInterface::class,
             MemberLevelCatalogInterface::class,
