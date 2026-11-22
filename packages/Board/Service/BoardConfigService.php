@@ -18,6 +18,8 @@ use Mublo\Helper\Form\FormHelper;
 use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Contract\Site\SiteMutationFingerprint;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Board\BoardDescriptor;
+use Mublo\Contract\Board\BoardReadOverlayInterface;
 
 /**
  * BoardConfig Service
@@ -42,6 +44,7 @@ class BoardConfigService
     private ?EventDispatcher $eventDispatcher;
     private ?AuthContextInterface $authService;
     private ?SiteMutationRecorderInterface $mutationRecorder;
+    private ?BoardReadOverlayInterface $readOverlay;
 
     /**
      * 슬러그 예약어 목록
@@ -84,7 +87,8 @@ class BoardConfigService
         BoardArticleRepository $articleRepository,
         ?EventDispatcher $eventDispatcher = null,
         ?AuthContextInterface $authService = null,
-        ?SiteMutationRecorderInterface $mutationRecorder = null
+        ?SiteMutationRecorderInterface $mutationRecorder = null,
+        ?BoardReadOverlayInterface $readOverlay = null
     ) {
         $this->repository = $repository;
         $this->groupRepository = $groupRepository;
@@ -93,6 +97,7 @@ class BoardConfigService
         $this->eventDispatcher = $eventDispatcher;
         $this->authService = $authService;
         $this->mutationRecorder = $mutationRecorder;
+        $this->readOverlay = $readOverlay;
     }
 
     private function mutationContext(int $domainId, ?SiteMutationContext $context): ?SiteMutationContext
@@ -277,6 +282,10 @@ class BoardConfigService
      */
     public function getActiveBoards(int $domainId): array
     {
+        $overlay = $this->readOverlay?->boards($domainId, true);
+        if ($overlay !== null) {
+            return array_map(fn(BoardDescriptor $board): BoardConfig => $this->fromDescriptor($board), $overlay);
+        }
         return $this->repository->findActiveByDomain($domainId);
     }
 
@@ -285,6 +294,10 @@ class BoardConfigService
      */
     public function getBoard(int $boardId): ?BoardConfig
     {
+        $overlay = $this->readOverlay?->findById($boardId);
+        if ($overlay !== null) {
+            return $this->fromDescriptor($overlay);
+        }
         return $this->repository->find($boardId);
     }
 
@@ -293,7 +306,22 @@ class BoardConfigService
      */
     public function getBoardBySlug(int $domainId, string $slug): ?BoardConfig
     {
+        if ($this->readOverlay?->boards($domainId) !== null) {
+            $overlay = $this->readOverlay->findBySlug($domainId, $slug);
+            return $overlay !== null ? $this->fromDescriptor($overlay) : null;
+        }
         return $this->repository->findBySlug($domainId, $slug);
+    }
+
+    private function fromDescriptor(BoardDescriptor $board): BoardConfig
+    {
+        return BoardConfig::fromArray($board->values + [
+            'board_id' => $board->boardId,
+            'board_slug' => $board->slug,
+            'board_name' => $board->name,
+            'group_id' => $board->groupId,
+            'is_active' => $board->active ? 1 : 0,
+        ]);
     }
 
     /**

@@ -10,6 +10,7 @@ use Mublo\Contract\Block\BlockMutationInterface;
 use Mublo\Contract\Block\BlockMutationPreviewInterface;
 use Mublo\Contract\Block\BlockReadOverlayInterface;
 use Mublo\Contract\Block\BlockRenderContextInterface;
+use Mublo\Contract\Board\BoardReadOverlayInterface;
 use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
@@ -51,6 +52,7 @@ class ServiceProviderContractBindingTest extends TestCase
             BlockMutationPreviewInterface::class,
             BlockReadOverlayInterface::class,
             BlockRenderContextInterface::class,
+            BoardReadOverlayInterface::class,
             CompanyInfoInterface::class,
             DomainQueryInterface::class,
             SiteMutationRecorderInterface::class,
