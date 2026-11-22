@@ -9,6 +9,7 @@ use Mublo\Contract\Block\BlockPreviewRendererInterface;
 use Mublo\Contract\Block\BlockRenderContextInterface;
 use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
 use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
@@ -44,6 +45,7 @@ class ServiceProviderContractBindingTest extends TestCase
             BlockRenderContextInterface::class,
             CompanyInfoInterface::class,
             DomainQueryInterface::class,
+            SiteMutationRecorderInterface::class,
             MenuManagementInterface::class,
             MemberAccountGatewayInterface::class,
             ReauthenticationInterface::class,

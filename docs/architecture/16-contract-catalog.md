@@ -294,6 +294,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | Block | `BlockPreviewRendererInterface`, `BlockColumnView`, `BlockRenderContextInterface` | 저장 전 구성 미리보기 렌더·칸 뷰 계약 |
 | Block | `BlockContentCacheInvalidatorInterface` | 콘텐츠 타입·아이템 단위 블록 캐시 무효화 |
 | Site | `CompanyInfoInterface`, `DomainQueryInterface`, `DomainDescriptor` | 회사 정보·도메인 정보 조회 |
+| Site | `SiteMutationRecorderInterface`, `SiteMutationContext`, `SiteMutationReceipt` | 같은 트랜잭션에서 사이트 감사 revision과 자원별 revision·fingerprint 기록 |
 | Security | `CsrfTokenProviderInterface` | 폼·AJAX용 CSRF 토큰 발급 |
 | Security | `SensitiveValueCodecInterface` | 민감 값 암호화 + 검색 인덱스(암호화된 값의 동등 검색) |
 | Extension | `ExtensionCatalogInterface` | 현재 도메인의 활성 Plugin·Package 이름 목록 |
