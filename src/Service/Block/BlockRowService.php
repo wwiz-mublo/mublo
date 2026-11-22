@@ -570,6 +570,8 @@ class BlockRowService
 
         $normalizationWarnings = [];
         $shouldReplaceColumns = !empty($columnsData) || array_key_exists('columns', $data);
+        // columns는 칸 전체를 빈 배열로 교체한다는 API 신호일 뿐 block_rows 컬럼이 아니다.
+        unset($data['columns']);
         if ($shouldReplaceColumns) {
             $normalizedColumns = $this->columnNormalizer->normalizeMany(
                 $columnsData,

@@ -260,6 +260,41 @@ class BlockRowServiceTest extends TestCase
         $this->assertSame(4, $result->get('current_revision'));
     }
 
+    public function testUpdateRowTreatsColumnsKeyAsEmptyReplacementSignalNotDatabaseField(): void
+    {
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('find')->willReturn($this->row(10, 1, 2));
+        $rowRepository->expects($this->once())->method('updateIfRevision')->with(
+            10,
+            2,
+            $this->callback(static fn (array $data): bool => !array_key_exists('columns', $data))
+        )->willReturn(1);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->expects($this->once())->method('replaceByRow')->with(10, 1, []);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer()
+        );
+
+        $result = $service->updateRow(
+            10,
+            ['position' => 'index', 'columns' => true],
+            [],
+            1,
+            null,
+            2
+        );
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+    }
+
     public function testPostCommitCacheFailureDoesNotReportSavedUpdateAsFailure(): void
     {
         $rowRepository = $this->createMock(BlockRowRepository::class);

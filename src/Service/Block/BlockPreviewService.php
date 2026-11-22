@@ -135,7 +135,8 @@ class BlockPreviewService
         int $expectedDomainId,
         array $rowData,
         array $columnsData,
-        ?BlockColumnWriteContext $context = null
+        ?BlockColumnWriteContext $context = null,
+        bool $replaceColumns = false
     ): ?string
     {
         $existingRow = $this->rowRepository->find($rowId);
@@ -156,7 +157,7 @@ class BlockPreviewService
         $row = BlockRow::fromArray($mergedRowData);
 
         // 칸 데이터가 없으면 기존 칸 사용
-        if (empty($columnsData)) {
+        if (!$replaceColumns && empty($columnsData)) {
             $columns = $this->columnRepository->findByRowForDomain($rowId, $expectedDomainId);
         } else {
             $normalization = $this->columnNormalizer->normalizeMany(
