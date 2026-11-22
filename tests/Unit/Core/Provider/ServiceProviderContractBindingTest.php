@@ -14,6 +14,7 @@ use Mublo\Contract\Board\BoardReadOverlayInterface;
 use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Site\ThemeReadOverlayInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
 use Mublo\Contract\Menu\MenuTreeManagementInterface;
 use Mublo\Contract\Menu\MenuReadOverlayInterface;
@@ -56,6 +57,7 @@ class ServiceProviderContractBindingTest extends TestCase
             CompanyInfoInterface::class,
             DomainQueryInterface::class,
             SiteMutationRecorderInterface::class,
+            ThemeReadOverlayInterface::class,
             MenuManagementInterface::class,
             MenuTreeManagementInterface::class,
             MenuReadOverlayInterface::class,

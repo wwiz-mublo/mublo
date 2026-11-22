@@ -13,6 +13,7 @@ use Mublo\Core\Result\Result;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Event\Search\SearchSourceCollectEvent;
 use Mublo\Core\Rendering\ThemeSkinPolicy;
+use Mublo\Contract\Site\ThemeReadOverlayInterface;
 
 /**
  * DomainSettingsService
@@ -80,17 +81,20 @@ class DomainSettingsService implements CompanyInfoInterface
     private DomainResolver $domainResolver;
     private ?EventDispatcher $eventDispatcher;
     private ?SiteMutationRecorderInterface $mutationRecorder;
+    private ?ThemeReadOverlayInterface $themeReadOverlay;
 
     public function __construct(
         DomainRepository $domainRepository,
         DomainResolver $domainResolver,
         ?EventDispatcher $eventDispatcher = null,
-        ?SiteMutationRecorderInterface $mutationRecorder = null
+        ?SiteMutationRecorderInterface $mutationRecorder = null,
+        ?ThemeReadOverlayInterface $themeReadOverlay = null
     ) {
         $this->domainRepository = $domainRepository;
         $this->domainResolver = $domainResolver;
         $this->eventDispatcher = $eventDispatcher;
         $this->mutationRecorder = $mutationRecorder;
+        $this->themeReadOverlay = $themeReadOverlay;
     }
 
     private function mutationContext(int $domainId, ?SiteMutationContext $context): ?SiteMutationContext
@@ -203,6 +207,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getSiteConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultSiteConfig(), $overlay->siteConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultSiteConfig();
@@ -215,6 +223,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getCompanyConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultCompanyConfig(), $overlay->companyConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultCompanyConfig();
@@ -227,6 +239,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getSeoConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultSeoConfig(), $overlay->seoConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultSeoConfig();
@@ -239,6 +255,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getThemeConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultThemeConfig(), $overlay->themeConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultThemeConfig();
