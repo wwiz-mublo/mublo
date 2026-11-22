@@ -13,9 +13,17 @@ FROM `site_resource_revisions`
 WHERE `resource_type` = 'block'
   AND `resource_id` LIKE 'block:%'
 ON DUPLICATE KEY UPDATE
-    `fingerprint` = IF(VALUES(`revision`) >= `revision`, VALUES(`fingerprint`), `fingerprint`),
-    `updated_at` = IF(VALUES(`revision`) >= `revision`, VALUES(`updated_at`), `updated_at`),
-    `revision` = GREATEST(`revision`, VALUES(`revision`));
+    `fingerprint` = IF(
+        VALUES(`revision`) >= `site_resource_revisions`.`revision`,
+        VALUES(`fingerprint`),
+        `site_resource_revisions`.`fingerprint`
+    ),
+    `updated_at` = IF(
+        VALUES(`revision`) >= `site_resource_revisions`.`revision`,
+        VALUES(`updated_at`),
+        `site_resource_revisions`.`updated_at`
+    ),
+    `revision` = GREATEST(`site_resource_revisions`.`revision`, VALUES(`revision`));
 
 DELETE FROM `site_resource_revisions`
 WHERE `resource_type` = 'block'
