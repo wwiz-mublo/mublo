@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Service\Site;
 
 use Mublo\Contract\Site\SiteProvisioningInterface;
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Theme\FrameOverride;
 use Mublo\Entity\Block\BlockKit;
@@ -36,29 +37,53 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
     ) {
     }
 
-    public function createMenuItem(int $domainId, array $data): Result
+    public function createMenuItem(
+        int $domainId,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->createItem($domainId, $data);
+        return $this->menuService->createItem($domainId, $data, $mutationContext);
     }
 
-    public function placeMenuItem(int $domainId, string $menuCode, ?string $parentCode = null): Result
+    public function placeMenuItem(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->addToTree($domainId, $menuCode, $parentCode);
+        return $this->menuService->addToTree($domainId, $menuCode, $parentCode, $mutationContext);
     }
 
-    public function ensureMenuItem(int $domainId, string $provisioningKey, array $data): Result
+    public function ensureMenuItem(
+        int $domainId,
+        string $provisioningKey,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->ensureItem($domainId, $provisioningKey, $data);
+        return $this->menuService->ensureItem($domainId, $provisioningKey, $data, $mutationContext);
     }
 
-    public function ensureMenuPlacement(int $domainId, string $menuCode, ?string $parentCode = null): Result
+    public function ensureMenuPlacement(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->ensurePlacement($domainId, $menuCode, $parentCode);
+        return $this->menuService->ensurePlacement($domainId, $menuCode, $parentCode, $mutationContext);
     }
 
-    public function ensurePageMenuPlacement(int $domainId, string $pageCode, ?string $parentCode = null): Result
+    public function ensurePageMenuPlacement(
+        int $domainId,
+        string $pageCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->ensurePageMenuPlacement($domainId, $pageCode, $parentCode);
+        return $this->menuService->ensurePageMenuPlacement($domainId, $pageCode, $parentCode, $mutationContext);
     }
 
     public function setPackageFrameOverride(int $domainId, string $package, ?string $skin): Result

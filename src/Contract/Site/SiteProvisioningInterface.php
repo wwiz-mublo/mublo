@@ -17,6 +17,10 @@ use Mublo\Core\Result\Result;
  * 이 계약은 새 동작을 만들지 않는다. 코어가 이미 갖고 관리자 화면이 쓰는 동작을
  * 좁은 표면으로 노출할 뿐이다.
  *
+ * 메뉴 메서드의 선택적 SiteMutationContext는 여러 구축 작업을 하나의 바깥
+ * 트랜잭션과 revision으로 묶을 때 사용한다. 같은 문맥을 전달한 호출은 자원만
+ * 모으므로 최상위 호출자가 recorder를 한 번 호출해야 한다.
+ *
  * ## 왜 계약이 필요한가
  *
  * - 메뉴: `BlockPageCreatedEvent` 가 menu_items 를 자동 등록하지만 menu_tree 배치는
@@ -48,7 +52,11 @@ interface SiteProvisioningInterface
      *                    show_on_pc · show_on_mobile · show_in_utility · show_in_footer 등
      * @return Result 성공 data: {menu_code: string, item_id: int}
      */
-    public function createMenuItem(int $domainId, array $data): Result;
+    public function createMenuItem(
+        int $domainId,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 메뉴 트리에 배치 (menu_tree)
@@ -60,7 +68,12 @@ interface SiteProvisioningInterface
      *
      * @param string|null $parentCode null 이면 1차 메뉴
      */
-    public function placeMenuItem(int $domainId, string $menuCode, ?string $parentCode = null): Result;
+    public function placeMenuItem(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 프로비저닝 키로 메뉴 아이템을 멱등 보장
@@ -76,7 +89,12 @@ interface SiteProvisioningInterface
      *                    provider_name(core 외 필수, 소문자로 정규화됨) · url 등
      * @return Result 성공 data: {menu_code: string, item_id: int, created: bool}
      */
-    public function ensureMenuItem(int $domainId, string $provisioningKey, array $data): Result;
+    public function ensureMenuItem(
+        int $domainId,
+        string $provisioningKey,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 트리 배치를 멱등 보장
@@ -88,7 +106,12 @@ interface SiteProvisioningInterface
      * @param string|null $parentCode 부모 노드의 path_code (null 이면 1차 메뉴)
      * @return Result 성공 data: {node_id: int, path_code: string, created: bool}
      */
-    public function ensureMenuPlacement(int $domainId, string $menuCode, ?string $parentCode = null): Result;
+    public function ensureMenuPlacement(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 블록 페이지의 자동 등록 메뉴를 트리에 멱등 배치
@@ -99,7 +122,12 @@ interface SiteProvisioningInterface
      *
      * @return Result 성공 data: {node_id: int, path_code: string, menu_code: string, created: bool}
      */
-    public function ensurePageMenuPlacement(int $domainId, string $pageCode, ?string $parentCode = null): Result;
+    public function ensurePageMenuPlacement(
+        int $domainId,
+        string $pageCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 패키지 프레임 오버라이드 설정 (theme_config)
