@@ -45,6 +45,13 @@ class Database
     protected int $savepointLevel = 0;
 
     /**
+     * transaction() scope별 commit/rollback 이후 callback.
+     *
+     * @var list<array{commit:list<callable>,rollback:list<callable>}>
+     */
+    private array $transactionCallbackScopes = [];
+
+    /**
      * Constructor
      *
      * @param PDO $pdo PDO 인스턴스
@@ -363,7 +370,12 @@ class Database
      */
     public function beginTransaction(): bool
     {
-        return $this->pdo->beginTransaction();
+        $started = $this->pdo->beginTransaction();
+        if ($started) {
+            $this->transactionCallbackScopes = [$this->emptyCallbackScope()];
+            $this->savepointLevel = 0;
+        }
+        return $started;
     }
 
     /**
@@ -373,7 +385,13 @@ class Database
      */
     public function commit(): bool
     {
-        return $this->pdo->commit();
+        $committed = $this->pdo->commit();
+        if ($committed) {
+            $callbacks = $this->collectCallbacks('commit');
+            $this->resetTransactionState();
+            $this->runTransactionCallbacks($callbacks, 'commit');
+        }
+        return $committed;
     }
 
     /**
@@ -383,7 +401,41 @@ class Database
      */
     public function rollBack(): bool
     {
-        return $this->pdo->rollBack();
+        $rolledBack = $this->pdo->rollBack();
+        if ($rolledBack) {
+            $callbacks = $this->collectCallbacks('rollback');
+            $this->resetTransactionState();
+            $this->runTransactionCallbacks($callbacks, 'rollback');
+        }
+        return $rolledBack;
+    }
+
+    /**
+     * 최상위 transaction commit이 성공한 뒤 실행할 작업을 등록한다.
+     * 트랜잭션 밖에서는 이미 commit된 상태로 보고 즉시 실행한다.
+     */
+    public function afterCommit(callable $callback): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            $this->runTransactionCallbacks([$callback], 'commit');
+            return;
+        }
+        $this->ensureCallbackScope();
+        $last = array_key_last($this->transactionCallbackScopes);
+        $this->transactionCallbackScopes[$last]['commit'][] = $callback;
+    }
+
+    /**
+     * 현재 transaction scope가 rollback된 뒤 실행할 작업을 등록한다.
+     */
+    public function afterRollback(callable $callback): void
+    {
+        if (!$this->pdo->inTransaction()) {
+            throw new \LogicException('afterRollback() requires an active transaction.');
+        }
+        $this->ensureCallbackScope();
+        $last = array_key_last($this->transactionCallbackScopes);
+        $this->transactionCallbackScopes[$last]['rollback'][] = $callback;
     }
 
     /**
@@ -413,6 +465,8 @@ class Database
         if ($ownsTransaction) {
             $this->beginTransaction();
         } else {
+            $this->ensureCallbackScope();
+            $this->transactionCallbackScopes[] = $this->emptyCallbackScope();
             $savepoint = 'mublo_sp_' . (++$this->savepointLevel);
             $this->pdo->exec('SAVEPOINT ' . $savepoint);
         }
@@ -422,10 +476,10 @@ class Database
 
             if ($ownsTransaction) {
                 $this->commit();
-                $this->savepointLevel = 0;
             } else {
                 $this->pdo->exec('RELEASE SAVEPOINT ' . $savepoint);
                 $this->savepointLevel--;
+                $this->mergeNestedCallbackScope();
             }
 
             return $result;
@@ -435,10 +489,11 @@ class Database
                 if ($this->pdo->inTransaction()) {
                     $this->rollBack();
                 }
-                $this->savepointLevel = 0;
             } else {
                 $this->pdo->exec('ROLLBACK TO SAVEPOINT ' . $savepoint);
                 $this->savepointLevel--;
+                $scope = array_pop($this->transactionCallbackScopes) ?? $this->emptyCallbackScope();
+                $this->runTransactionCallbacks($scope['rollback'], 'rollback');
             }
 
             // 이미 감싼 예외를 다시 감싸면 'Transaction failed: Transaction failed: ...'
@@ -448,6 +503,65 @@ class Database
             }
 
             throw new DatabaseException('Transaction failed: ' . $e->getMessage(), 0, $e);
+        }
+    }
+
+    /** @return array{commit:list<callable>,rollback:list<callable>} */
+    private function emptyCallbackScope(): array
+    {
+        return ['commit' => [], 'rollback' => []];
+    }
+
+    private function ensureCallbackScope(): void
+    {
+        if ($this->transactionCallbackScopes === []) {
+            $this->transactionCallbackScopes[] = $this->emptyCallbackScope();
+        }
+    }
+
+    private function mergeNestedCallbackScope(): void
+    {
+        $scope = array_pop($this->transactionCallbackScopes);
+        if ($scope === null) {
+            return;
+        }
+        $this->ensureCallbackScope();
+        $parent = array_key_last($this->transactionCallbackScopes);
+        array_push($this->transactionCallbackScopes[$parent]['commit'], ...$scope['commit']);
+        array_push($this->transactionCallbackScopes[$parent]['rollback'], ...$scope['rollback']);
+    }
+
+    /** @return list<callable> */
+    private function collectCallbacks(string $type): array
+    {
+        $callbacks = [];
+        foreach ($this->transactionCallbackScopes as $scope) {
+            array_push($callbacks, ...$scope[$type]);
+        }
+        return $callbacks;
+    }
+
+    private function resetTransactionState(): void
+    {
+        $this->transactionCallbackScopes = [];
+        $this->savepointLevel = 0;
+    }
+
+    /** @param list<callable> $callbacks */
+    private function runTransactionCallbacks(array $callbacks, string $phase): void
+    {
+        foreach ($callbacks as $callback) {
+            try {
+                $callback();
+            } catch (\Throwable $error) {
+                error_log(sprintf(
+                    '[Database] after_%s callback failed: %s in %s:%d',
+                    $phase,
+                    $error->getMessage(),
+                    $error->getFile(),
+                    $error->getLine()
+                ));
+            }
         }
     }
 
