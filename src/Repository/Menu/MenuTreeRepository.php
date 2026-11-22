@@ -113,7 +113,7 @@ class MenuTreeRepository extends BaseRepository
      */
     public function findTreeWithItems(int $domainId, bool $activeOnly = true): array
     {
-        $sql = "SELECT mt.*, mi.label, mi.url, mi.icon, mi.target, mi.visibility,
+        $sql = "SELECT mt.*, mi.item_id, mi.label, mi.url, mi.icon, mi.target, mi.visibility,
                        mi.min_level, mi.required_permission, mi.show_on_pc, mi.show_on_mobile,
                        mi.is_active, mi.provider_type, mi.provider_name, mi.pair_code
                 FROM menu_tree mt

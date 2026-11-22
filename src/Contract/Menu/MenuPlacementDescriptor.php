@@ -19,7 +19,9 @@ final readonly class MenuPlacementDescriptor
         public int $depth,
         public int $sortOrder,
         public string $label,
-        public ?string $url
+        public ?string $url,
+        /** 메뉴 내용 수정에 쓰는 item ID. 오래된 제공자는 null일 수 있다. */
+        public ?int $itemId = null
     ) {
     }
 }

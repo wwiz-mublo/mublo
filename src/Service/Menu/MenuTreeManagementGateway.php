@@ -28,7 +28,8 @@ final class MenuTreeManagementGateway implements MenuTreeManagementInterface
                 (int) $row['depth'],
                 (int) $row['sort_order'],
                 (string) $row['label'],
-                isset($row['url']) ? (string) $row['url'] : null
+                isset($row['url']) ? (string) $row['url'] : null,
+                isset($row['item_id']) ? (int) $row['item_id'] : null
             ),
             array_values($this->treeRepository->findTreeWithItems($domainId, false))
         );
