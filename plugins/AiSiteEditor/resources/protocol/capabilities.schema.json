@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mublo.dev/site-editor/capabilities.schema.json",
+  "title": "Mublo site editor capabilities",
+  "type": "object",
+  "required": ["protocol_version", "plugin_version", "site_product", "site_product_version", "features", "tools", "limits", "errors"],
+  "properties": {
+    "protocol_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "plugin_version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "site_product": {"type": "string", "minLength": 1},
+    "site_product_version": {"type": "string"},
+    "features": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "resources": {"type": "object"},
+    "tools": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["input_schema", "result_schema"],
+        "properties": {"input_schema": {"type": "object"}, "result_schema": {"type": "object"}},
+        "additionalProperties": true
+      }
+    },
+    "limits": {
+      "type": "object",
+      "required": ["operations_per_plan", "preview_ttl_seconds"],
+      "properties": {"operations_per_plan": {"type": "integer", "minimum": 1}, "preview_ttl_seconds": {"type": "integer", "minimum": 60}},
+      "additionalProperties": false
+    },
+    "errors": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": false
+}
