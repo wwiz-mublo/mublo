@@ -26,6 +26,11 @@ final class MenuTreeManagementGatewayTest extends TestCase
             'sort_order' => '3',
             'label' => 'FAQ',
             'url' => '/faq',
+            'visibility' => 'member',
+            'show_on_pc' => '1',
+            'provider_type' => 'package',
+            'provider_name' => 'board',
+            'secret_column' => 'excluded',
         ]]);
 
         $placements = (new MenuTreeManagementGateway($service, $trees))->listPlacements(7);
@@ -35,6 +40,9 @@ final class MenuTreeManagementGatewayTest extends TestCase
         $this->assertSame(12, $placements[0]->placementId);
         $this->assertSame(9, $placements[0]->itemId);
         $this->assertSame('support', $placements[0]->parentCode);
+        $this->assertSame('member', $placements[0]->itemValues['visibility']);
+        $this->assertSame('board', $placements[0]->itemValues['provider_name']);
+        $this->assertArrayNotHasKey('secret_column', $placements[0]->itemValues);
     }
 
     public function testDelegatesScopedMutationsWithoutChangingContext(): void

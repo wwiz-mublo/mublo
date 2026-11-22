@@ -11,6 +11,14 @@ use Mublo\Repository\Menu\MenuTreeRepository;
 
 final class MenuTreeManagementGateway implements MenuTreeManagementInterface
 {
+    private const SNAPSHOT_FIELDS = [
+        'label', 'url', 'icon', 'target', 'visibility', 'pair_code',
+        'min_level', 'required_permission', 'show_on_pc', 'show_on_mobile',
+        'show_in_utility', 'show_in_footer', 'show_in_mypage',
+        'utility_order', 'footer_order', 'mypage_order', 'is_system',
+        'is_active', 'provider_type', 'provider_name',
+    ];
+
     public function __construct(
         private MenuService $menuService,
         private MenuTreeRepository $treeRepository
@@ -29,7 +37,8 @@ final class MenuTreeManagementGateway implements MenuTreeManagementInterface
                 (int) $row['sort_order'],
                 (string) $row['label'],
                 isset($row['url']) ? (string) $row['url'] : null,
-                isset($row['item_id']) ? (int) $row['item_id'] : null
+                isset($row['item_id']) ? (int) $row['item_id'] : null,
+                array_intersect_key($row, array_flip(self::SNAPSHOT_FIELDS))
             ),
             array_values($this->treeRepository->findTreeWithItems($domainId, false))
         );

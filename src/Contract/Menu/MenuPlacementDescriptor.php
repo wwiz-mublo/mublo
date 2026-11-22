@@ -21,7 +21,9 @@ final readonly class MenuPlacementDescriptor
         public string $label,
         public ?string $url,
         /** 메뉴 내용 수정에 쓰는 item ID. 오래된 제공자는 null일 수 있다. */
-        public ?int $itemId = null
+        public ?int $itemId = null,
+        /** @var array<string, mixed> 미리보기·복원에 허용된 메뉴 아이템 설정 */
+        public array $itemValues = []
     ) {
     }
 }
