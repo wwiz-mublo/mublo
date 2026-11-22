@@ -5,6 +5,7 @@ namespace Mublo\Service\Menu;
 
 use Mublo\Contract\Menu\MenuDescriptor;
 use Mublo\Contract\Menu\MenuManagementInterface;
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Repository\Menu\MenuItemRepository;
 
@@ -29,14 +30,23 @@ final class MenuManagementGateway implements MenuManagementInterface
         return $this->map($this->menuItems->findByUrlPrefix($domainId, $urlPrefix));
     }
 
-    public function updateMenu(int $domainId, int $itemId, array $values): Result
+    public function updateMenu(
+        int $domainId,
+        int $itemId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->updateItem($itemId, $values, $domainId);
+        return $this->menuService->updateItem($itemId, $values, $domainId, $mutationContext);
     }
 
-    public function removeMenu(int $domainId, int $itemId): Result
+    public function removeMenu(
+        int $domainId,
+        int $itemId,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->deleteItem($itemId, $domainId);
+        return $this->menuService->deleteItem($itemId, $domainId, $mutationContext);
     }
 
     /** @return list<MenuDescriptor> */
