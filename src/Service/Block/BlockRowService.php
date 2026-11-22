@@ -311,44 +311,38 @@ class BlockRowService
         $columnsData = $normalizedColumns->getNormalizedColumns();
         $normalizationWarnings = $normalizedColumns->getWarnings();
 
-        $this->db->beginTransaction();
-
         try {
-            // 데이터 정규화
-            $insertData = $this->normalizeData($data);
-            $insertData['domain_id'] = $domainId;
+            $rowId = $this->db->transaction(function () use ($data, $domainId, $columnsData): int {
+                $insertData = $this->normalizeData($data);
+                $insertData['domain_id'] = $domainId;
 
-            // 다음 정렬 순서
-            if (!empty($data['page_id'])) {
-                $insertData['sort_order'] = $this->repository->getNextSortOrderByPage((int) $data['page_id']);
-            } else {
-                $insertData['sort_order'] = $this->repository->getNextSortOrderByPosition($domainId, $data['position']);
-            }
+                if (!empty($data['page_id'])) {
+                    $insertData['sort_order'] = $this->repository->getNextSortOrderByPage((int) $data['page_id']);
+                } else {
+                    $insertData['sort_order'] = $this->repository->getNextSortOrderByPosition($domainId, $data['position']);
+                }
 
-            // 행 생성
-            $rowId = $this->repository->create($insertData);
+                $rowId = $this->repository->create($insertData);
+                if (!$rowId) {
+                    throw new \RuntimeException('행 생성 실패');
+                }
 
-            if (!$rowId) {
-                throw new \Exception('행 생성 실패');
-            }
+                if (!empty($columnsData)) {
+                    $this->saveColumns($rowId, $domainId, $columnsData);
+                }
 
-            // 칸 생성
-            if (!empty($columnsData)) {
-                $this->saveColumns($rowId, $domainId, $columnsData);
-            }
+                $this->runPostCommit('created row cache invalidation', function () use ($rowId): void {
+                    $newRow = $this->repository->find($rowId);
+                    if ($newRow) {
+                        $this->invalidateCache($newRow);
+                    }
+                });
 
-            $this->db->commit();
+                return $rowId;
+            });
         } catch (\Throwable $e) {
-            $this->db->rollBack();
             return Result::failure('행 생성에 실패했습니다: ' . $e->getMessage());
         }
-
-        $this->runPostCommit('created row cache invalidation', function () use ($rowId): void {
-            $newRow = $this->repository->find($rowId);
-            if ($newRow) {
-                $this->invalidateCache($newRow);
-            }
-        });
 
         return Result::success('행이 생성되었습니다.', [
             'row_id' => $rowId,
@@ -438,65 +432,62 @@ class BlockRowService
             : [];
         $expectedRevision ??= $row->getRevisionNo();
 
-        $this->db->beginTransaction();
-
         try {
-            $this->recordRevision($row, 'interactive', $actorId);
+            $this->db->transaction(function () use (
+                $row,
+                $rowId,
+                $actorId,
+                $data,
+                $expectedRevision,
+                $shouldReplaceColumns,
+                $columnsData,
+                $oldRow,
+                $oldImages
+            ): void {
+                $this->recordRevision($row, 'interactive', $actorId);
+                $updateData = $this->normalizeData($data);
+                unset($updateData['domain_id'], $updateData['sort_order']);
 
-            // 데이터 정규화
-            $updateData = $this->normalizeData($data);
+                if ($this->repository->updateIfRevision($rowId, $expectedRevision, $updateData) !== 1) {
+                    $current = $this->repository->find($rowId);
+                    throw new BlockRowTransactionAbort(Result::failure(
+                        '다른 운영자가 먼저 이 행을 수정했습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.',
+                        ['conflict' => true, 'current_revision' => $current?->getRevisionNo()]
+                    ));
+                }
 
-            // domain_id, sort_order는 수정 불가
-            unset($updateData['domain_id'], $updateData['sort_order']);
+                if ($shouldReplaceColumns) {
+                    $this->saveColumns($rowId, $row->getDomainId(), $columnsData);
+                }
 
-            // 행 수정
-            $affected = $this->repository->updateIfRevision($rowId, $expectedRevision, $updateData);
-            if ($affected !== 1) {
-                $this->db->rollBack();
-                $current = $this->repository->find($rowId);
-                return Result::failure(
-                    '다른 운영자가 먼저 이 행을 수정했습니다. 화면을 새로고침한 뒤 다시 시도해 주세요.',
-                    [
-                        'conflict' => true,
-                        'current_revision' => $current?->getRevisionNo(),
-                    ]
+                $this->runPostCommit('old row cache invalidation', fn () => $this->invalidateCache($oldRow));
+                $this->runPostCommit('updated row cache invalidation', function () use ($rowId): void {
+                    $updatedRow = $this->repository->find($rowId);
+                    if ($updatedRow) {
+                        $this->invalidateCache($updatedRow);
+                    }
+                });
+                $prunedSnapshots = [];
+                $this->runPostCommit(
+                    'block revision pruning',
+                    function () use ($row, $rowId, &$prunedSnapshots): void {
+                        $prunedSnapshots = $this->revisionRepository?->prune($row->getDomainId(), $rowId) ?? [];
+                    }
                 );
-            }
-
-            // 칸 동기화 (배열이 전달된 경우에만) — 스택 인지 경로
-            if ($shouldReplaceColumns) {
-                $this->saveColumns($rowId, $row->getDomainId(), $columnsData);
-            }
-
-            $this->db->commit();
+                $this->runPostCommit(
+                    'block image cleanup',
+                    function () use ($oldImages, &$prunedSnapshots): void {
+                        $prunedImages = $this->imageProcessor?->collectManagedImages($prunedSnapshots) ?? [];
+                        $this->imageProcessor?->cleanupUnreferenced(array_merge($oldImages, $prunedImages));
+                    }
+                );
+            });
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if (($abort = $this->transactionAbortResult($e)) !== null) {
+                return $abort;
+            }
             return Result::failure('행 수정에 실패했습니다: ' . $e->getMessage());
         }
-
-        // 이 아래는 이미 커밋된 데이터의 후처리다. 캐시/파일 정리 장애를
-        // 저장 실패로 오해시켜 운영자가 같은 수정을 다시 제출하게 하지 않는다.
-        $this->runPostCommit('old row cache invalidation', fn () => $this->invalidateCache($oldRow));
-        $this->runPostCommit('updated row cache invalidation', function () use ($rowId): void {
-            $updatedRow = $this->repository->find($rowId);
-            if ($updatedRow) {
-                $this->invalidateCache($updatedRow);
-            }
-        });
-        $prunedSnapshots = [];
-        $this->runPostCommit(
-            'block revision pruning',
-            function () use ($row, $rowId, &$prunedSnapshots): void {
-                $prunedSnapshots = $this->revisionRepository?->prune($row->getDomainId(), $rowId) ?? [];
-            }
-        );
-        $this->runPostCommit(
-            'block image cleanup',
-            function () use ($oldImages, $prunedSnapshots): void {
-                $prunedImages = $this->imageProcessor?->collectManagedImages($prunedSnapshots) ?? [];
-                $this->imageProcessor?->cleanupUnreferenced(array_merge($oldImages, $prunedImages));
-            }
-        );
 
         return Result::success('행이 수정되었습니다.', ['warnings' => $normalizationWarnings]);
     }
@@ -603,28 +594,24 @@ class BlockRowService
             )
             : [];
 
-        $this->db->beginTransaction();
-
         try {
-            $this->recordRevision($row, 'delete', $actorId);
+            $this->db->transaction(function () use ($row, $actorId, $rowId, $rowForCache, $oldImages): void {
+                $this->recordRevision($row, 'delete', $actorId);
+                $this->columnRepository->deleteByRow($rowId);
+                $this->repository->delete($rowId);
 
-            // 연결된 칸 삭제
-            $this->columnRepository->deleteByRow($rowId);
-
-            // 행 삭제
-            $this->repository->delete($rowId);
-
-            $this->db->commit();
+                $this->runPostCommit(
+                    'deleted row cache invalidation',
+                    fn () => $this->invalidateCache($rowForCache)
+                );
+                $this->runPostCommit(
+                    'deleted block image cleanup',
+                    fn () => $this->imageProcessor?->cleanupUnreferenced($oldImages)
+                );
+            });
         } catch (\Throwable $e) {
-            $this->db->rollBack();
             return Result::failure('행 삭제에 실패했습니다: ' . $e->getMessage());
         }
-
-        $this->runPostCommit('deleted row cache invalidation', fn () => $this->invalidateCache($rowForCache));
-        $this->runPostCommit(
-            'deleted block image cleanup',
-            fn () => $this->imageProcessor?->cleanupUnreferenced($oldImages)
-        );
 
         return Result::success('행이 삭제되었습니다.');
     }
@@ -859,70 +846,81 @@ class BlockRowService
             $rowData['background_config'] = json_encode($rowData['background_config'], JSON_UNESCAPED_UNICODE);
         }
 
-        $this->db->beginTransaction();
         try {
-            if ($current) {
-                $this->recordRevision($current, 'restore', $actorId);
-                $expectedRevision ??= $current->getRevisionNo();
-                unset($rowData['domain_id']);
-                if ($this->repository->updateIfRevision($current->getRowId(), $expectedRevision, $rowData) !== 1) {
-                    $this->db->rollBack();
-                    return Result::failure(
-                        '다른 운영자가 먼저 이 행을 수정했습니다. 이력을 다시 불러와 주세요.',
-                        ['conflict' => true]
-                    );
+            $rowId = $this->db->transaction(function () use (
+                $current,
+                $actorId,
+                $expectedRevision,
+                $rowData,
+                $domainId,
+                $originalRowId,
+                $normalized,
+                $oldImages
+            ): int {
+                if ($current) {
+                    $this->recordRevision($current, 'restore', $actorId);
+                    $revision = $expectedRevision ?? $current->getRevisionNo();
+                    unset($rowData['domain_id']);
+                    if ($this->repository->updateIfRevision($current->getRowId(), $revision, $rowData) !== 1) {
+                        throw new BlockRowTransactionAbort(Result::failure(
+                            '다른 운영자가 먼저 이 행을 수정했습니다. 이력을 다시 불러와 주세요.',
+                            ['conflict' => true]
+                        ));
+                    }
+                    $rowId = $current->getRowId();
+                } else {
+                    if (!$this->revisionRepository->claimRestore($domainId, $originalRowId)) {
+                        throw new BlockRowTransactionAbort(Result::failure(
+                            '이 삭제 이력은 이미 복구됐습니다. 삭제 이력을 다시 불러와 주세요.',
+                            ['conflict' => true]
+                        ));
+                    }
+                    $rowData['revision_no'] = 1;
+                    $rowId = (int) $this->repository->create($rowData);
+                    if ($rowId <= 0) {
+                        throw new \RuntimeException('삭제된 행을 다시 만들지 못했습니다.');
+                    }
+                    $this->revisionRepository->markRestored($domainId, $originalRowId, $rowId);
                 }
-                $rowId = $current->getRowId();
-            } else {
-                if (!$this->revisionRepository->claimRestore($domainId, $originalRowId)) {
-                    $this->db->rollBack();
-                    return Result::failure(
-                        '이 삭제 이력은 이미 복구됐습니다. 삭제 이력을 다시 불러와 주세요.',
-                        ['conflict' => true]
-                    );
-                }
-                $rowData['revision_no'] = 1;
-                $rowId = (int) $this->repository->create($rowData);
-                if ($rowId <= 0) {
-                    throw new \RuntimeException('삭제된 행을 다시 만들지 못했습니다.');
-                }
-                $this->revisionRepository->markRestored($domainId, $originalRowId, $rowId);
-            }
 
-            // 복구는 전체 교체 의미 — 기존 칸(스택 콘텐츠 cascade 포함)을 비운 뒤
-            // 스냅샷 구조를 새로 만든다. 빈 행에 대한 stable sync 는 전량 INSERT 라
-            // 구형 payload 방어와 충돌하지 않는다.
-            $this->columnRepository->deleteByRow($rowId);
-            $this->saveColumns($rowId, $domainId, $normalized->getNormalizedColumns());
-            $this->db->commit();
+                $this->columnRepository->deleteByRow($rowId);
+                $this->saveColumns($rowId, $domainId, $normalized->getNormalizedColumns());
+
+                if ($current) {
+                    $this->runPostCommit(
+                        'restored old row cache invalidation',
+                        fn () => $this->invalidateCache($current)
+                    );
+                }
+                $this->runPostCommit('restored row cache invalidation', function () use ($rowId): void {
+                    $restored = $this->repository->find($rowId);
+                    if ($restored) {
+                        $this->invalidateCache($restored);
+                    }
+                });
+                $prunedSnapshots = [];
+                $this->runPostCommit(
+                    'restored revision pruning',
+                    function () use ($domainId, $originalRowId, &$prunedSnapshots): void {
+                        $prunedSnapshots = $this->revisionRepository->prune($domainId, $originalRowId);
+                    }
+                );
+                $this->runPostCommit(
+                    'restored block image cleanup',
+                    function () use ($oldImages, &$prunedSnapshots): void {
+                        $prunedImages = $this->imageProcessor?->collectManagedImages($prunedSnapshots) ?? [];
+                        $this->imageProcessor?->cleanupUnreferenced(array_merge($oldImages, $prunedImages));
+                    }
+                );
+
+                return $rowId;
+            });
         } catch (\Throwable $e) {
-            $this->db->rollBack();
+            if (($abort = $this->transactionAbortResult($e)) !== null) {
+                return $abort;
+            }
             return Result::failure('블록 행을 복구하지 못했습니다: ' . $e->getMessage());
         }
-
-        if ($current) {
-            $this->runPostCommit('restored old row cache invalidation', fn () => $this->invalidateCache($current));
-        }
-        $this->runPostCommit('restored row cache invalidation', function () use ($rowId): void {
-            $restored = $this->repository->find($rowId);
-            if ($restored) {
-                $this->invalidateCache($restored);
-            }
-        });
-        $prunedSnapshots = [];
-        $this->runPostCommit(
-            'restored revision pruning',
-            function () use ($domainId, $originalRowId, &$prunedSnapshots): void {
-                $prunedSnapshots = $this->revisionRepository->prune($domainId, $originalRowId);
-            }
-        );
-        $this->runPostCommit(
-            'restored block image cleanup',
-            function () use ($oldImages, $prunedSnapshots): void {
-                $prunedImages = $this->imageProcessor?->collectManagedImages($prunedSnapshots) ?? [];
-                $this->imageProcessor?->cleanupUnreferenced(array_merge($oldImages, $prunedImages));
-            }
-        );
 
         return Result::success('선택한 이력으로 복구했습니다.', [
             'row_id' => $rowId,
@@ -932,12 +930,26 @@ class BlockRowService
 
     private function runPostCommit(string $operation, callable $callback): void
     {
-        try {
-            $callback();
-        } catch (\Throwable $e) {
-            error_log('[BlockRowService] post_commit_failed operation=' . $operation
-                . ' error=' . $e->getMessage());
-        }
+        $this->db->afterCommit(static function () use ($operation, $callback): void {
+            try {
+                $callback();
+            } catch (\Throwable $e) {
+                error_log('[BlockRowService] post_commit_failed operation=' . $operation
+                    . ' error=' . $e->getMessage());
+            }
+        });
+    }
+
+    private function transactionAbortResult(\Throwable $error): ?Result
+    {
+        do {
+            if ($error instanceof BlockRowTransactionAbort) {
+                return $error->result;
+            }
+            $error = $error->getPrevious();
+        } while ($error !== null);
+
+        return null;
     }
 
     /**
@@ -992,11 +1004,15 @@ class BlockRowService
         // row_id만으로 연결된 다른 도메인의 칸은 복사하지 않는다.
         $sourceColumns = $this->columnRepository->findAllByRowForDomain($rowId, $domainId);
 
-        $this->db->beginTransaction();
-
         try {
-            // 행 데이터 복사
-            $newRowData = [
+            [$newRowId, $normalizationWarnings] = $this->db->transaction(function () use (
+                $domainId,
+                $pageId,
+                $position,
+                $sourceRow,
+                $sourceColumns
+            ): array {
+                $newRowData = [
                 'domain_id' => $domainId,
                 'page_id' => $pageId ?: null,
                 'position' => $pageId ? null : $position,
@@ -1020,50 +1036,46 @@ class BlockRowService
                     ? json_encode($sourceRow->getBackgroundConfig(), JSON_UNESCAPED_UNICODE)
                     : null,
                 'is_active' => $sourceRow->isActive() ? 1 : 0,
-            ];
+                ];
 
-            // 다음 정렬 순서
-            if ($pageId) {
-                $newRowData['sort_order'] = $this->repository->getNextSortOrderByPage($pageId);
-            } else {
-                $newRowData['sort_order'] = $this->repository->getNextSortOrderByPosition($domainId, $position);
-            }
-
-            // 새 행 생성
-            $newRowId = $this->repository->create($newRowData);
-            if (!$newRowId) {
-                throw new \Exception('행 복사 실패');
-            }
-
-            // 칸 복사 — 스택 칸은 contents 포함, 원본 ID 는 재사용하지 않는다 (계획 9.2)
-            $columnsData = $this->stripPortableIds($this->columnsToPortableArrays($sourceColumns));
-
-            $normalizationWarnings = [];
-            if (!empty($columnsData)) {
-                $normalizedColumns = $this->columnNormalizer->normalizeMany(
-                    $columnsData,
-                    BlockColumnWriteContext::internalSeed($domainId)
-                );
-                if (!$normalizedColumns->isOk()) {
-                    throw new \RuntimeException($normalizedColumns->getFirstErrorMessage());
+                if ($pageId) {
+                    $newRowData['sort_order'] = $this->repository->getNextSortOrderByPage($pageId);
+                } else {
+                    $newRowData['sort_order'] = $this->repository->getNextSortOrderByPosition($domainId, $position);
                 }
-                $normalizationWarnings = $normalizedColumns->getWarnings();
-                $columnsData = $normalizedColumns->getNormalizedColumns();
-                $this->saveColumns($newRowId, $domainId, $columnsData);
-            }
 
-            $this->db->commit();
+                $newRowId = $this->repository->create($newRowData);
+                if (!$newRowId) {
+                    throw new \RuntimeException('행 복사 실패');
+                }
+
+                $columnsData = $this->stripPortableIds($this->columnsToPortableArrays($sourceColumns));
+
+                $normalizationWarnings = [];
+                if (!empty($columnsData)) {
+                    $normalizedColumns = $this->columnNormalizer->normalizeMany(
+                        $columnsData,
+                        BlockColumnWriteContext::internalSeed($domainId)
+                    );
+                    if (!$normalizedColumns->isOk()) {
+                        throw new \RuntimeException($normalizedColumns->getFirstErrorMessage());
+                    }
+                    $normalizationWarnings = $normalizedColumns->getWarnings();
+                    $this->saveColumns($newRowId, $domainId, $normalizedColumns->getNormalizedColumns());
+                }
+
+                $this->runPostCommit('copied row cache invalidation', function () use ($newRowId): void {
+                    $newRow = $this->repository->find($newRowId);
+                    if ($newRow) {
+                        $this->invalidateCache($newRow);
+                    }
+                });
+
+                return [$newRowId, $normalizationWarnings];
+            });
         } catch (\Throwable $e) {
-            $this->db->rollBack();
             return Result::failure('행 복사에 실패했습니다: ' . $e->getMessage());
         }
-
-        $this->runPostCommit('copied row cache invalidation', function () use ($newRowId): void {
-            $newRow = $this->repository->find($newRowId);
-            if ($newRow) {
-                $this->invalidateCache($newRow);
-            }
-        });
 
         return Result::success('행이 복사되었습니다.', [
             'row_id' => $newRowId,
@@ -1113,46 +1125,53 @@ class BlockRowService
             }
         }
 
-        $this->db->beginTransaction();
+        // 이동 전 위치 캐시 무효화를 위한 정보 저장
+        $oldRow = clone $row;
 
         try {
-            $updateData = [];
+            $this->db->transaction(function () use (
+                $oldRow,
+                $row,
+                $rowId,
+                $targetPageId,
+                $targetPosition
+            ): void {
+                $updateData = [];
 
-            if ($targetPageId) {
-                // 페이지 기반으로 이동
-                $updateData['page_id'] = $targetPageId;
-                $updateData['position'] = null;
-                $updateData['sort_order'] = $this->repository->getNextSortOrderByPage($targetPageId);
-            } else {
-                // 위치 기반으로 이동
-                $updateData['page_id'] = null;
-                $updateData['position'] = $targetPosition;
-                $updateData['sort_order'] = $this->repository->getNextSortOrderByPosition(
-                    $row->getDomainId(),
-                    $targetPosition
+                if ($targetPageId) {
+                    // 페이지 기반으로 이동
+                    $updateData['page_id'] = $targetPageId;
+                    $updateData['position'] = null;
+                    $updateData['sort_order'] = $this->repository->getNextSortOrderByPage($targetPageId);
+                } else {
+                    // 위치 기반으로 이동
+                    $updateData['page_id'] = null;
+                    $updateData['position'] = $targetPosition;
+                    $updateData['sort_order'] = $this->repository->getNextSortOrderByPosition(
+                        $row->getDomainId(),
+                        $targetPosition
+                    );
+                }
+
+                $this->recordRevision($row, 'move');
+                if ($this->repository->updateIfRevision($rowId, $row->getRevisionNo(), $updateData) !== 1) {
+                    throw new \RuntimeException('다른 운영자가 먼저 이 행을 수정했습니다.');
+                }
+
+                $this->runPostCommit(
+                    'moved old row cache invalidation',
+                    fn () => $this->invalidateCache($oldRow)
                 );
-            }
-
-            // 이동 전 위치 캐시 무효화를 위한 정보 저장
-            $oldRow = clone $row;
-
-            $this->recordRevision($row, 'move');
-            if ($this->repository->updateIfRevision($rowId, $row->getRevisionNo(), $updateData) !== 1) {
-                throw new \RuntimeException('다른 운영자가 먼저 이 행을 수정했습니다.');
-            }
-            $this->db->commit();
+                $this->runPostCommit('moved row cache invalidation', function () use ($rowId): void {
+                    $updatedRow = $this->repository->find($rowId);
+                    if ($updatedRow) {
+                        $this->invalidateCache($updatedRow);
+                    }
+                });
+            });
         } catch (\Throwable $e) {
-            $this->db->rollBack();
             return Result::failure('행 이동에 실패했습니다: ' . $e->getMessage());
         }
-
-        $this->runPostCommit('moved old row cache invalidation', fn () => $this->invalidateCache($oldRow));
-        $this->runPostCommit('moved row cache invalidation', function () use ($rowId): void {
-            $updatedRow = $this->repository->find($rowId);
-            if ($updatedRow) {
-                $this->invalidateCache($updatedRow);
-            }
-        });
 
         return Result::success('행이 이동되었습니다.');
     }
@@ -1267,5 +1286,13 @@ class BlockRowService
         }
 
         return $normalized;
+    }
+}
+
+final class BlockRowTransactionAbort extends \RuntimeException
+{
+    public function __construct(public readonly Result $result)
+    {
+        parent::__construct($result->getMessage());
     }
 }
