@@ -1,0 +1,9 @@
+{
+  "fixtures": [
+    {"file": "valid-plan.json", "kind": "plan", "valid": true},
+    {"file": "invalid-forward-reference.json", "kind": "plan", "valid": false, "error": "PLAN_REFERENCE_INVALID"},
+    {"file": "invalid-reference-type.json", "kind": "plan", "valid": false, "error": "PLAN_REFERENCE_INVALID"},
+    {"file": "guard-conflict.json", "kind": "guard", "valid": false, "error": "RESOURCE_REVISION_CONFLICT"},
+    {"file": "valid-snapshot.json", "kind": "snapshot", "valid": true}
+  ]
+}
