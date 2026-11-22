@@ -37,8 +37,12 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
     ) {
     }
 
-    public function ensureGroup(int $domainId, string $provisioningKey, array $preset = []): Result
-    {
+    public function ensureGroup(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
         $slug = trim($provisioningKey);
         if ($slug === '') {
             return Result::failure('프로비저닝 키는 필수입니다.');
@@ -55,7 +59,7 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
             ? $preset['group_name']
             : $slug;
 
-        $result = $this->groupService->createGroup($domainId, $data);
+        $result = $this->groupService->createGroup($domainId, $data, $mutationContext);
 
         if (!$result->isSuccess()) {
             // 동시 호출이 먼저 만들었으면 UNIQUE 로 막힌다. 그 행을 읽어 같은 결과를 준다.

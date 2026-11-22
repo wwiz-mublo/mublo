@@ -222,7 +222,8 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
         $container->singleton(BoardGroupService::class, fn(DependencyContainer $c) =>
             new BoardGroupService(
                 $c->get(BoardGroupRepository::class),
-                $c->get(BoardPermissionRepository::class)
+                $c->get(BoardPermissionRepository::class),
+                $c->get(SiteMutationRecorderInterface::class)
             )
         );
         $container->singleton(BoardReactionService::class, fn(DependencyContainer $c) =>
