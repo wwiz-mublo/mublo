@@ -347,6 +347,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Site\SiteProvisioningGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Site\SiteMutationRecorderInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Site\SiteMutationRecorder::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Menu\MenuManagementInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Menu\MenuManagementGateway::class)
         );
