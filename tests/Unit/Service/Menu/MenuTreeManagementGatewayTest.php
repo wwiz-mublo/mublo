@@ -18,6 +18,7 @@ final class MenuTreeManagementGatewayTest extends TestCase
         $trees = $this->createMock(MenuTreeRepository::class);
         $trees->expects($this->once())->method('findTreeWithItems')->with(7, false)->willReturn([[
             'node_id' => '12',
+            'item_id' => '9',
             'menu_code' => 'faq',
             'path_code' => 'support>faq',
             'parent_code' => 'support',
@@ -32,6 +33,7 @@ final class MenuTreeManagementGatewayTest extends TestCase
         $this->assertCount(1, $placements);
         $this->assertInstanceOf(MenuPlacementDescriptor::class, $placements[0]);
         $this->assertSame(12, $placements[0]->placementId);
+        $this->assertSame(9, $placements[0]->itemId);
         $this->assertSame('support', $placements[0]->parentCode);
     }
 
