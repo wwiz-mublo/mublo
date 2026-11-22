@@ -3,6 +3,9 @@
 namespace Tests\Unit\Service\Block;
 
 use Mublo\Infrastructure\Database\Database;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Site\SiteMutationReceipt;
 use Mublo\Entity\Block\BlockPage;
 use Mublo\Entity\Block\BlockRow;
 use Mublo\Repository\Block\BlockColumnRepository;
@@ -327,6 +330,123 @@ class BlockRowServiceTest extends TestCase
         }
 
         $this->assertSame(2, $invalidations);
+    }
+
+    public function testCreateRowRecordsBlockAndOrderResourcesInsideTransaction(): void
+    {
+        $row = $this->row(10, 1);
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('getNextSortOrderByPosition')->willReturn(0);
+        $rowRepository->method('create')->willReturn(10);
+        $rowRepository->method('find')->with(10)->willReturn($row);
+        $rowRepository->method('findByPositionScope')->with(1, 'index', null)->willReturn([$row]);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->method('findAllByRowForDomain')->with(10, 1)->willReturn([]);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+        $recorder = $this->createMock(SiteMutationRecorderInterface::class);
+        $recorder->expects($this->once())->method('record')->with(
+            $this->callback(static function (SiteMutationContext $context): bool {
+                return $context->domainId === 1
+                    && $context->source === SiteMutationContext::SOURCE_ADMIN
+                    && array_column($context->resources(), 'resourceId') === [
+                        'block:10',
+                        'block_order:screen:index',
+                    ];
+            })
+        )->willReturn(new SiteMutationReceipt(1, 1, 1, SiteMutationContext::SOURCE_ADMIN, null, []));
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer(),
+            null,
+            null,
+            null,
+            null,
+            $recorder
+        );
+
+        $result = $service->createRow(1, ['position' => 'index']);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+    }
+
+    public function testSharedMutationContextCollectsResourcesWithoutFlushingIt(): void
+    {
+        $row = $this->row(10, 1);
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('getNextSortOrderByPosition')->willReturn(0);
+        $rowRepository->method('create')->willReturn(10);
+        $rowRepository->method('find')->with(10)->willReturn($row);
+        $rowRepository->method('findByPositionScope')->willReturn([$row]);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->method('findAllByRowForDomain')->willReturn([]);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+        $recorder = $this->createMock(SiteMutationRecorderInterface::class);
+        $recorder->expects($this->never())->method('record');
+        $context = new SiteMutationContext(1, SiteMutationContext::SOURCE_EXTENSION, 'change-set-1');
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer(),
+            null,
+            null,
+            null,
+            null,
+            $recorder
+        );
+
+        $result = $service->createRow(1, ['position' => 'index'], [], null, $context);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+        $this->assertSame(
+            ['block:10', 'block_order:screen:index'],
+            array_column($context->resources(), 'resourceId')
+        );
+    }
+
+    public function testContentOnlyUpdateDoesNotAdvanceOrderScopeRevision(): void
+    {
+        $row = $this->row(10, 1, 2);
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('find')->with(10)->willReturn($row);
+        $rowRepository->method('updateIfRevision')->willReturn(1);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->method('findAllByRowForDomain')->willReturn([]);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+        $recorder = $this->createMock(SiteMutationRecorderInterface::class);
+        $recorder->expects($this->once())->method('record')->with(
+            $this->callback(static fn (SiteMutationContext $context): bool =>
+                array_column($context->resources(), 'resourceId') === ['block:10'])
+        )->willReturn(new SiteMutationReceipt(1, 1, 1, SiteMutationContext::SOURCE_ADMIN, null, []));
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer(),
+            null,
+            null,
+            null,
+            null,
+            $recorder
+        );
+
+        $result = $service->updateRow(10, ['admin_title' => '변경'], [], 1, null, 2);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
     }
 
     public function testUpdateOrderRunsTheWholeBatchInsideOneTransaction(): void

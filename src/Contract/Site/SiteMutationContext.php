@@ -8,7 +8,8 @@ namespace Mublo\Contract\Site;
  *
  * 같은 resource_id를 여러 번 기록하면 최종 fingerprint 하나만 감사 revision에
  * 반영한다. 호출자는 DB 변경과 같은 Database::transaction() 안에서 recorder에
- * 이 문맥을 전달해야 한다.
+ * 이 문맥을 전달해야 한다. 여러 mutation 서비스에 같은 문맥을 넘긴 경우 서비스는
+ * 자원만 수집하며, 최상위 호출자가 모든 변경 뒤 recorder::record()를 한 번 호출한다.
  */
 final class SiteMutationContext
 {
@@ -19,6 +20,11 @@ final class SiteMutationContext
 
     /** @var array<string, SiteMutationResource> */
     private array $resources = [];
+
+    public static function create(int $domainId, string $source, ?string $correlationId = null): self
+    {
+        return new self($domainId, $source, $correlationId);
+    }
 
     public function __construct(
         public readonly int $domainId,

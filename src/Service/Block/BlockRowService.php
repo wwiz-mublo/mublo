@@ -13,6 +13,9 @@ use Mublo\Enum\Block\BlockPosition;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Helper\Form\FormHelper;
 use Mublo\Core\Result\Result;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationFingerprint;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
 
 /**
  * BlockRow Service
@@ -40,6 +43,7 @@ class BlockRowService
     private ?BlockRowRevisionRepository $revisionRepository;
     private ?BlockColumnContentService $columnWriter;
     private ?BlockColumnContentRepository $contentRepository;
+    private ?SiteMutationRecorderInterface $mutationRecorder;
 
     /**
      * 유효한 위치 목록
@@ -63,7 +67,8 @@ class BlockRowService
         ?BlockImageProcessor $imageProcessor = null,
         ?BlockRowRevisionRepository $revisionRepository = null,
         ?BlockColumnContentService $columnWriter = null,
-        ?BlockColumnContentRepository $contentRepository = null
+        ?BlockColumnContentRepository $contentRepository = null,
+        ?SiteMutationRecorderInterface $mutationRecorder = null
     ) {
         $this->repository = $repository;
         $this->columnRepository = $columnRepository;
@@ -75,6 +80,7 @@ class BlockRowService
         $this->revisionRepository = $revisionRepository;
         $this->columnWriter = $columnWriter;
         $this->contentRepository = $contentRepository;
+        $this->mutationRecorder = $mutationRecorder;
     }
 
     /**
@@ -175,6 +181,157 @@ class BlockRowService
     }
 
     /**
+     * @param BlockRow[] $scopeRows 변경 전·후 정렬 scope를 대표하는 행
+     */
+    private function recordBlockMutation(
+        int $domainId,
+        int $rowId,
+        ?SiteMutationContext $context = null,
+        bool $deleted = false,
+        array $scopeRows = [],
+        ?bool $includeOrderScopes = true
+    ): void {
+        if ($context === null && $this->mutationRecorder === null) {
+            return;
+        }
+        if ($context !== null && $context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the block domain.');
+        }
+
+        $ownsContext = $context === null;
+        $context ??= SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+
+        $current = null;
+        if ($deleted) {
+            $fingerprint = SiteMutationFingerprint::hash(['deleted' => true, 'row_id' => $rowId]);
+        } else {
+            $current = $this->repository->find($rowId);
+            if (!$current || $current->getDomainId() !== $domainId) {
+                throw new \RuntimeException('Changed block row could not be read for revision recording.');
+            }
+            $columns = $this->columnRepository->findAllByRowForDomain($rowId, $domainId);
+            $fingerprint = SiteMutationFingerprint::hash([
+                'row' => $current->toArray(),
+                'columns' => $this->columnsToPortableArrays($columns),
+            ]);
+        }
+        $context->changed('block:' . $rowId, 'block', $fingerprint);
+
+        if ($includeOrderScopes === null) {
+            $includeOrderScopes = false;
+            foreach ($scopeRows as $scopeRow) {
+                if ($current === null
+                    || $this->blockOrderScopeId($scopeRow) !== $this->blockOrderScopeId($current)
+                    || $scopeRow->getSortOrder() !== $current->getSortOrder()) {
+                    $includeOrderScopes = true;
+                    break;
+                }
+            }
+        }
+        if (!$includeOrderScopes) {
+            $scopeRows = [];
+        } elseif ($current !== null) {
+            $scopeRows[] = $current;
+        }
+
+        $seenScopes = [];
+        foreach ($scopeRows as $scopeRow) {
+            if ($scopeRow->getDomainId() !== $domainId) {
+                continue;
+            }
+            [$resourceId, $rows] = $this->blockOrderScope($scopeRow);
+            if (isset($seenScopes[$resourceId])) {
+                continue;
+            }
+            $seenScopes[$resourceId] = true;
+            $context->changed($resourceId, 'block_order', SiteMutationFingerprint::hash(array_map(
+                static fn (BlockRow $row): array => [
+                    'row_id' => $row->getRowId(),
+                    'sort_order' => $row->getSortOrder(),
+                ],
+                $rows
+            )));
+        }
+
+        if ($ownsContext && $this->mutationRecorder !== null) {
+            $this->mutationRecorder->record($context);
+        }
+    }
+
+    /** @return array{0:string,1:BlockRow[]} */
+    private function blockOrderScope(BlockRow $row): array
+    {
+        $resourceId = $this->blockOrderScopeId($row);
+        if ($row->getPageId() !== null) {
+            $pageId = $row->getPageId();
+            return [
+                $resourceId,
+                $this->repository->findAllByPage($pageId),
+            ];
+        }
+
+        $position = $row->getPosition()?->value;
+        if ($position === null) {
+            throw new \RuntimeException('Block row has neither page nor screen position.');
+        }
+        $menuCode = $row->getPositionMenu();
+        return [
+            $resourceId,
+            $this->repository->findByPositionScope($row->getDomainId(), $position, $menuCode),
+        ];
+    }
+
+    private function blockOrderScopeId(BlockRow $row): string
+    {
+        if ($row->getPageId() !== null) {
+            return 'block_order:page:' . $row->getPageId();
+        }
+
+        $position = $row->getPosition()?->value;
+        if ($position === null) {
+            throw new \RuntimeException('Block row has neither page nor screen position.');
+        }
+        $resourceId = 'block_order:screen:' . $position;
+        $menuCode = $row->getPositionMenu();
+        if ($menuCode !== null && $menuCode !== '') {
+            $resourceId .= ':menu:' . rawurlencode($menuCode);
+        }
+        return $resourceId;
+    }
+
+    /** @param BlockRow[] $rows 변경 전 scope를 보존한 행 목록 */
+    private function recordBlockMutationBatch(array $rows, ?SiteMutationContext $context = null): void
+    {
+        if ($context === null && $this->mutationRecorder === null) {
+            return;
+        }
+
+        /** @var array<int, SiteMutationContext> $contexts */
+        $contexts = [];
+        foreach ($rows as $row) {
+            $domainId = $row->getDomainId();
+            if ($context !== null && $context->domainId !== $domainId) {
+                throw new \InvalidArgumentException('A shared site mutation context cannot span multiple domains.');
+            }
+            $contexts[$domainId] ??= $context
+                ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+            $this->recordBlockMutation(
+                $domainId,
+                $row->getRowId(),
+                $contexts[$domainId],
+                false,
+                [$row]
+            );
+        }
+
+        if ($context === null && $this->mutationRecorder !== null) {
+            foreach ($contexts as $ownedContext) {
+                $this->mutationRecorder->record($ownedContext);
+            }
+        }
+    }
+
+    /**
      * 도메인 소유권 검증
      *
      * @param BlockRow $row 검증 대상 행
@@ -268,7 +425,8 @@ class BlockRowService
         int $domainId,
         array $data,
         array $columnsData = [],
-        ?BlockColumnWriteContext $columnContext = null
+        ?BlockColumnWriteContext $columnContext = null,
+        ?SiteMutationContext $mutationContext = null
     ): Result
     {
         // 위치 또는 페이지 중 정확히 하나 필수 (상호배타)
@@ -312,7 +470,12 @@ class BlockRowService
         $normalizationWarnings = $normalizedColumns->getWarnings();
 
         try {
-            $rowId = $this->db->transaction(function () use ($data, $domainId, $columnsData): int {
+            $rowId = $this->db->transaction(function () use (
+                $data,
+                $domainId,
+                $columnsData,
+                $mutationContext
+            ): int {
                 $insertData = $this->normalizeData($data);
                 $insertData['domain_id'] = $domainId;
 
@@ -330,6 +493,8 @@ class BlockRowService
                 if (!empty($columnsData)) {
                     $this->saveColumns($rowId, $domainId, $columnsData);
                 }
+
+                $this->recordBlockMutation($domainId, $rowId, $mutationContext);
 
                 $this->runPostCommit('created row cache invalidation', function () use ($rowId): void {
                     $newRow = $this->repository->find($rowId);
@@ -365,7 +530,8 @@ class BlockRowService
         ?int $domainId = null,
         ?BlockColumnWriteContext $columnContext = null,
         ?int $expectedRevision = null,
-        ?int $actorId = null
+        ?int $actorId = null,
+        ?SiteMutationContext $mutationContext = null
     ): Result
     {
         $row = $this->repository->find($rowId);
@@ -442,7 +608,8 @@ class BlockRowService
                 $shouldReplaceColumns,
                 $columnsData,
                 $oldRow,
-                $oldImages
+                $oldImages,
+                $mutationContext
             ): void {
                 $this->recordRevision($row, 'interactive', $actorId);
                 $updateData = $this->normalizeData($data);
@@ -459,6 +626,15 @@ class BlockRowService
                 if ($shouldReplaceColumns) {
                     $this->saveColumns($rowId, $row->getDomainId(), $columnsData);
                 }
+
+                $this->recordBlockMutation(
+                    $row->getDomainId(),
+                    $rowId,
+                    $mutationContext,
+                    false,
+                    [$oldRow],
+                    null
+                );
 
                 $this->runPostCommit('old row cache invalidation', fn () => $this->invalidateCache($oldRow));
                 $this->runPostCommit('updated row cache invalidation', function () use ($rowId): void {
@@ -504,7 +680,12 @@ class BlockRowService
      * @param int|null $domainId 요청 도메인 ID (소유권 검증용)
      * @return Result
      */
-    public function setActive(int $rowId, bool $active, ?int $domainId = null): Result
+    public function setActive(
+        int $rowId,
+        bool $active,
+        ?int $domainId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $row = $this->repository->find($rowId);
 
@@ -518,20 +699,39 @@ class BlockRowService
             return $deny;
         }
 
-        if ($this->repository->updateIfRevision(
-            $rowId,
-            $row->getRevisionNo(),
-            ['is_active' => $active ? 1 : 0]
-        ) !== 1) {
-            return Result::failure('다른 운영자가 먼저 이 행을 수정했습니다. 목록을 새로고침해 주세요.');
-        }
+        try {
+            $this->db->transaction(function () use ($rowId, $row, $active, $mutationContext): void {
+                if ($this->repository->updateIfRevision(
+                    $rowId,
+                    $row->getRevisionNo(),
+                    ['is_active' => $active ? 1 : 0]
+                ) !== 1) {
+                    throw new BlockRowTransactionAbort(Result::failure(
+                        '다른 운영자가 먼저 이 행을 수정했습니다. 목록을 새로고침해 주세요.'
+                    ));
+                }
 
-        $this->runPostCommit('active row cache invalidation', function () use ($rowId): void {
-            $updatedRow = $this->repository->find($rowId);
-            if ($updatedRow) {
-                $this->invalidateCache($updatedRow);
+                $this->recordBlockMutation(
+                    $row->getDomainId(),
+                    $rowId,
+                    $mutationContext,
+                    false,
+                    [],
+                    false
+                );
+                $this->runPostCommit('active row cache invalidation', function () use ($rowId): void {
+                    $updatedRow = $this->repository->find($rowId);
+                    if ($updatedRow) {
+                        $this->invalidateCache($updatedRow);
+                    }
+                });
+            });
+        } catch (\Throwable $e) {
+            if (($abort = $this->transactionAbortResult($e)) !== null) {
+                return $abort;
             }
-        });
+            return Result::failure('사용 여부를 변경하지 못했습니다: ' . $e->getMessage());
+        }
 
         return Result::success(
             $active ? '사용으로 변경되었습니다.' : '미사용으로 변경되었습니다.'
@@ -571,7 +771,12 @@ class BlockRowService
      * @param int $rowId 행 ID
      * @return Result
      */
-    public function deleteRow(int $rowId, ?int $domainId = null, ?int $actorId = null): Result
+    public function deleteRow(
+        int $rowId,
+        ?int $domainId = null,
+        ?int $actorId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $row = $this->repository->find($rowId);
 
@@ -595,10 +800,24 @@ class BlockRowService
             : [];
 
         try {
-            $this->db->transaction(function () use ($row, $actorId, $rowId, $rowForCache, $oldImages): void {
+            $this->db->transaction(function () use (
+                $row,
+                $actorId,
+                $rowId,
+                $rowForCache,
+                $oldImages,
+                $mutationContext
+            ): void {
                 $this->recordRevision($row, 'delete', $actorId);
                 $this->columnRepository->deleteByRow($rowId);
                 $this->repository->delete($rowId);
+                $this->recordBlockMutation(
+                    $row->getDomainId(),
+                    $rowId,
+                    $mutationContext,
+                    true,
+                    [$row]
+                );
 
                 $this->runPostCommit(
                     'deleted row cache invalidation',
@@ -622,7 +841,11 @@ class BlockRowService
      * @param int[] $rowIds 정렬된 행 ID 배열
      * @return Result
      */
-    public function updateOrder(array $rowIds, ?int $domainId = null): Result
+    public function updateOrder(
+        array $rowIds,
+        ?int $domainId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         if (empty($rowIds)) {
             return Result::failure('정렬할 행 목록이 비어있습니다.');
@@ -636,9 +859,21 @@ class BlockRowService
         }
 
         try {
-            $this->db->transaction(function () use ($rowIds): void {
+            $this->db->transaction(function () use ($rowIds, $domainId, $mutationContext): void {
+                $rows = [];
+                if ($mutationContext !== null || $this->mutationRecorder !== null) {
+                    $rows = $domainId !== null
+                        ? $this->repository->findByIdsForDomain($domainId, $rowIds)
+                        : $this->repository->findByIds($rowIds);
+                    if (count($rows) !== count($rowIds)) {
+                        throw new \RuntimeException('정렬 대상 행이 변경되었거나 존재하지 않습니다.');
+                    }
+                }
                 if (!$this->repository->updateOrder($rowIds)) {
                     throw new \RuntimeException('정렬 대상 행이 변경되었거나 존재하지 않습니다.');
+                }
+                if ($rows !== []) {
+                    $this->recordBlockMutationBatch($rows, $mutationContext);
                 }
             });
 
@@ -661,7 +896,11 @@ class BlockRowService
      * @param array $orders [row_id => sort_order, ...]
      * @return Result
      */
-    public function setOrder(array $orders, ?int $domainId = null): Result
+    public function setOrder(
+        array $orders,
+        ?int $domainId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         if (empty($orders)) {
             return Result::failure('순서 정보가 비어있습니다.');
@@ -677,7 +916,7 @@ class BlockRowService
 
         $rowsToInvalidate = [];
         try {
-            $this->db->transaction(function () use ($orders, &$rowsToInvalidate): void {
+            $this->db->transaction(function () use ($orders, &$rowsToInvalidate, $mutationContext): void {
                 foreach ($orders as $rowId => $sortOrder) {
                     $rowId = (int) $rowId;
                     $row = $this->repository->find($rowId);
@@ -695,6 +934,8 @@ class BlockRowService
 
                     $rowsToInvalidate[] = $row;
                 }
+
+                $this->recordBlockMutationBatch($rowsToInvalidate, $mutationContext);
             });
         } catch (\Throwable) {
             return Result::failure('정렬 순서 변경에 실패했습니다. 목록을 새로고침한 뒤 다시 시도해 주세요.');
@@ -784,7 +1025,8 @@ class BlockRowService
         int $revisionId,
         ?int $expectedRevision = null,
         ?int $actorId = null,
-        bool $allowInclude = false
+        bool $allowInclude = false,
+        ?SiteMutationContext $mutationContext = null
     ): Result {
         if ($this->revisionRepository === null) {
             return Result::failure('블록 행 이력 기능을 사용할 수 없습니다.');
@@ -855,7 +1097,8 @@ class BlockRowService
                 $domainId,
                 $originalRowId,
                 $normalized,
-                $oldImages
+                $oldImages,
+                $mutationContext
             ): int {
                 if ($current) {
                     $this->recordRevision($current, 'restore', $actorId);
@@ -885,6 +1128,14 @@ class BlockRowService
 
                 $this->columnRepository->deleteByRow($rowId);
                 $this->saveColumns($rowId, $domainId, $normalized->getNormalizedColumns());
+                $this->recordBlockMutation(
+                    $domainId,
+                    $rowId,
+                    $mutationContext,
+                    false,
+                    $current ? [$current] : [],
+                    $current ? null : true
+                );
 
                 if ($current) {
                     $this->runPostCommit(
@@ -965,7 +1216,8 @@ class BlockRowService
         int $rowId,
         ?string $targetPosition = null,
         ?int $targetPageId = null,
-        ?int $targetDomainId = null
+        ?int $targetDomainId = null,
+        ?SiteMutationContext $mutationContext = null
     ): Result {
         // 원본 행 조회
         $sourceRow = $this->repository->find($rowId);
@@ -1010,7 +1262,8 @@ class BlockRowService
                 $pageId,
                 $position,
                 $sourceRow,
-                $sourceColumns
+                $sourceColumns,
+                $mutationContext
             ): array {
                 $newRowData = [
                 'domain_id' => $domainId,
@@ -1064,6 +1317,8 @@ class BlockRowService
                     $this->saveColumns($newRowId, $domainId, $normalizedColumns->getNormalizedColumns());
                 }
 
+                $this->recordBlockMutation($domainId, $newRowId, $mutationContext);
+
                 $this->runPostCommit('copied row cache invalidation', function () use ($newRowId): void {
                     $newRow = $this->repository->find($newRowId);
                     if ($newRow) {
@@ -1091,8 +1346,13 @@ class BlockRowService
      * @param int|null $targetPageId 대상 페이지 ID (null이면 position 필수)
      * @return Result
      */
-    public function moveRow(int $rowId, ?string $targetPosition = null, ?int $targetPageId = null, ?int $domainId = null): Result
-    {
+    public function moveRow(
+        int $rowId,
+        ?string $targetPosition = null,
+        ?int $targetPageId = null,
+        ?int $domainId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
         $row = $this->repository->find($rowId);
         if (!$row) {
             return Result::failure('이동할 행을 찾을 수 없습니다.');
@@ -1134,7 +1394,8 @@ class BlockRowService
                 $row,
                 $rowId,
                 $targetPageId,
-                $targetPosition
+                $targetPosition,
+                $mutationContext
             ): void {
                 $updateData = [];
 
@@ -1157,6 +1418,14 @@ class BlockRowService
                 if ($this->repository->updateIfRevision($rowId, $row->getRevisionNo(), $updateData) !== 1) {
                     throw new \RuntimeException('다른 운영자가 먼저 이 행을 수정했습니다.');
                 }
+
+                $this->recordBlockMutation(
+                    $row->getDomainId(),
+                    $rowId,
+                    $mutationContext,
+                    false,
+                    [$oldRow]
+                );
 
                 $this->runPostCommit(
                     'moved old row cache invalidation',
