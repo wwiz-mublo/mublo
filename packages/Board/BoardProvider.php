@@ -23,9 +23,12 @@ use Mublo\Core\Block\BlockRegistry;
 use Mublo\Core\Rendering\AssetManager;
 use Mublo\Core\Dashboard\DashboardWidgetRegistry;
 use Mublo\Contract\Board\BoardProvisioningInterface;
+use Mublo\Contract\Board\BoardManagementInterface;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
 use Mublo\Contract\Block\BlockContentCacheInvalidatorInterface;
 use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Packages\Board\Api\BoardProvisioningGateway;
+use Mublo\Packages\Board\Api\BoardManagementGateway;
 use Mublo\Enum\Block\BlockContentKind;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Infrastructure\Storage\FileUploader;
@@ -204,7 +207,8 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
                 $c->get(BoardCategoryMappingRepository::class),
                 $c->get(BoardArticleRepository::class),
                 $c->get(EventDispatcher::class),
-                $c->get(AuthContextInterface::class)
+                $c->get(AuthContextInterface::class),
+                $c->get(SiteMutationRecorderInterface::class)
             )
         );
         $container->singleton(BoardCategoryService::class, fn(DependencyContainer $c) =>
@@ -425,6 +429,14 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
                 $container->get(BoardConfigService::class),
                 $container->get(BoardConfigRepository::class),
                 $container->get(\Mublo\Infrastructure\Database\Database::class)
+            )
+        );
+        $container->get(ContractRegistry::class)->bind(
+            BoardManagementInterface::class,
+            fn(): BoardManagementGateway => new BoardManagementGateway(
+                $container->get(BoardConfigService::class),
+                $container->get(BoardConfigRepository::class),
+                $container->get(BoardCategoryMappingRepository::class)
             )
         );
 
