@@ -17,7 +17,7 @@ use Mublo\Core\Result\Result;
  * 이 계약은 새 동작을 만들지 않는다. 코어가 이미 갖고 관리자 화면이 쓰는 동작을
  * 좁은 표면으로 노출할 뿐이다.
  *
- * 메뉴 메서드의 선택적 SiteMutationContext는 여러 구축 작업을 하나의 바깥
+ * 변경 메서드의 선택적 SiteMutationContext는 여러 구축 작업을 하나의 바깥
  * 트랜잭션과 revision으로 묶을 때 사용한다. 같은 문맥을 전달한 호출은 자원만
  * 모으므로 최상위 호출자가 recorder를 한 번 호출해야 한다.
  *
@@ -139,17 +139,30 @@ interface SiteProvisioningInterface
      * @param string $package 패키지 식별자 — 소문자 canonical name 으로 정규화된다
      * @param string|null $skin 스킨명. **null·빈 문자열이면 오버라이드 제거**(코어 프레임 복귀)
      */
-    public function setPackageFrameOverride(int $domainId, string $package, ?string $skin): Result;
+    public function setPackageFrameOverride(
+        int $domainId,
+        string $package,
+        ?string $skin,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 회사 정보 부분 갱신 — 넘긴 키만 덮고 나머지는 보존한다.
      */
-    public function updateCompanyConfig(int $domainId, array $values): Result;
+    public function updateCompanyConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 사이트 설정 부분 갱신 — 넘긴 키만 덮고 나머지는 보존한다.
      */
-    public function updateSiteConfig(int $domainId, array $values): Result;
+    public function updateSiteConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 테마 설정 부분 갱신 — 넘긴 키만 덮고 나머지는 보존한다.
@@ -157,12 +170,20 @@ interface SiteProvisioningInterface
      * 패키지 프레임 오버라이드는 `Mublo\Core\Theme\FrameOverride::apply()` 로
      * 버킷을 만들어 넘긴다.
      */
-    public function updateThemeConfig(int $domainId, array $values): Result;
+    public function updateThemeConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * SEO 설정 부분 갱신 — 넘긴 키만 덮고 나머지는 보존한다.
      */
-    public function updateSeoConfig(int $domainId, array $values): Result;
+    public function updateSeoConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 메인화면(screen) 타깃 블록 킷 적용

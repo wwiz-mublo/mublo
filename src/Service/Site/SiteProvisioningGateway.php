@@ -86,7 +86,12 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
         return $this->menuService->ensurePageMenuPlacement($domainId, $pageCode, $parentCode, $mutationContext);
     }
 
-    public function setPackageFrameOverride(int $domainId, string $package, ?string $skin): Result
+    public function setPackageFrameOverride(
+        int $domainId,
+        string $package,
+        ?string $skin,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $package = strtolower(trim($package));
         if ($package === '') {
@@ -98,27 +103,43 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
         $themeConfig = $this->domainSettings->getThemeConfig($domainId);
         $merged = FrameOverride::apply($themeConfig, $package, $skin);
 
-        return $this->domainSettings->updateThemeConfig($domainId, $merged);
+        return $this->domainSettings->updateThemeConfig($domainId, $merged, $mutationContext);
     }
 
-    public function updateCompanyConfig(int $domainId, array $values): Result
+    public function updateCompanyConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateCompanyConfig($domainId, $values);
+        return $this->domainSettings->updateCompanyConfig($domainId, $values, $mutationContext);
     }
 
-    public function updateSiteConfig(int $domainId, array $values): Result
+    public function updateSiteConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateSiteConfig($domainId, $values);
+        return $this->domainSettings->updateSiteConfig($domainId, $values, $mutationContext);
     }
 
-    public function updateThemeConfig(int $domainId, array $values): Result
+    public function updateThemeConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateThemeConfig($domainId, $values);
+        return $this->domainSettings->updateThemeConfig($domainId, $values, $mutationContext);
     }
 
-    public function updateSeoConfig(int $domainId, array $values): Result
+    public function updateSeoConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateSeoConfig($domainId, $values);
+        return $this->domainSettings->updateSeoConfig($domainId, $values, $mutationContext);
     }
 
     public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result
