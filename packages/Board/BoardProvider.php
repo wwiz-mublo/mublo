@@ -208,13 +208,15 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
                 $c->get(BoardArticleRepository::class),
                 $c->get(EventDispatcher::class),
                 $c->get(AuthContextInterface::class),
-                $c->get(SiteMutationRecorderInterface::class)
+                $c->get(SiteMutationRecorderInterface::class),
+                $c->get(\Mublo\Contract\Board\BoardReadOverlayInterface::class)
             )
         );
         $container->singleton(BoardCategoryService::class, fn(DependencyContainer $c) =>
             new BoardCategoryService(
                 $c->get(BoardCategoryRepository::class),
-                $c->get(BoardCategoryMappingRepository::class)
+                $c->get(BoardCategoryMappingRepository::class),
+                $c->get(\Mublo\Contract\Board\BoardReadOverlayInterface::class)
             )
         );
         $container->singleton(BoardGroupService::class, fn(DependencyContainer $c) =>
