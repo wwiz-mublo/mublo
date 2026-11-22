@@ -335,6 +335,14 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockPreviewRenderer::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\BlockMutationInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationGateway::class)
+        );
+        $container->singleton(
+            \Mublo\Contract\Block\BlockMutationPreviewInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationPreviewGateway::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockRenderContextInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockRenderContext::class)
         );

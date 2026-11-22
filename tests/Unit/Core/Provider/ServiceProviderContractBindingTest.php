@@ -6,6 +6,8 @@ use Mublo\Contract\Block\BlockKitGatewayInterface;
 use Mublo\Contract\Block\BlockPageQueryInterface;
 use Mublo\Contract\Block\BlockContentCacheInvalidatorInterface;
 use Mublo\Contract\Block\BlockPreviewRendererInterface;
+use Mublo\Contract\Block\BlockMutationInterface;
+use Mublo\Contract\Block\BlockMutationPreviewInterface;
 use Mublo\Contract\Block\BlockRenderContextInterface;
 use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
@@ -43,6 +45,8 @@ class ServiceProviderContractBindingTest extends TestCase
             BlockPageQueryInterface::class,
             BlockContentCacheInvalidatorInterface::class,
             BlockPreviewRendererInterface::class,
+            BlockMutationInterface::class,
+            BlockMutationPreviewInterface::class,
             BlockRenderContextInterface::class,
             CompanyInfoInterface::class,
             DomainQueryInterface::class,
