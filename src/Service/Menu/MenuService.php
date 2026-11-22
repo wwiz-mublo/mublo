@@ -1093,6 +1093,261 @@ class MenuService
     }
 
     /**
+     * 도메인 소유권을 확인하고 트리 배치와 그 하위를 제거한다.
+     */
+    public function removeFromTreeInDomain(
+        int $domainId,
+        int $nodeId,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        if ($this->treeRepository->findByIdAndDomain($nodeId, $domainId) === null) {
+            return Result::failure('메뉴 배치를 찾을 수 없습니다.');
+        }
+
+        return $this->removeFromTree($nodeId, $mutationContext);
+    }
+
+    /**
+     * 배치 ID를 유지하면서 한 서브트리를 새 부모 아래로 옮긴다.
+     *
+     * afterNodeId가 null이면 새 부모의 첫 자식이 된다. 서브트리의 path_code,
+     * path_name, parent_code, depth를 한 트랜잭션에서 함께 바꾸고 두 부모의
+     * 형제 순서를 연속 번호로 정규화한다.
+     */
+    public function moveTreeNode(
+        int $domainId,
+        int $nodeId,
+        ?int $newParentNodeId,
+        ?int $afterNodeId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        $node = $this->treeRepository->findByIdAndDomain($nodeId, $domainId);
+        if ($node === null) {
+            return Result::failure('이동할 메뉴 배치를 찾을 수 없습니다.');
+        }
+
+        $parent = $newParentNodeId !== null
+            ? $this->treeRepository->findByIdAndDomain($newParentNodeId, $domainId)
+            : null;
+        if ($newParentNodeId !== null && $parent === null) {
+            return Result::failure('새 부모 메뉴 배치를 찾을 수 없습니다.');
+        }
+
+        $oldPathCode = (string) $node['path_code'];
+        if ($parent !== null) {
+            $parentPath = (string) $parent['path_code'];
+            if ($parentPath === $oldPathCode || str_starts_with($parentPath, $oldPathCode . '>')) {
+                return Result::failure('메뉴를 자기 자신이나 자기 하위로 옮길 수 없습니다.');
+            }
+        }
+
+        $rows = $this->treeRepository->findByDomain($domainId);
+        $subtree = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool =>
+                (string) $row['path_code'] === $oldPathCode
+                || str_starts_with((string) $row['path_code'], $oldPathCode . '>')
+        ));
+        $depthDelta = ($parent !== null ? (int) $parent['depth'] + 1 : 1) - (int) $node['depth'];
+        foreach ($subtree as $row) {
+            if ((int) $row['depth'] + $depthDelta > self::MAX_TREE_DEPTH) {
+                return Result::failure(sprintf('메뉴 깊이는 최대 %d단계까지 가능합니다.', self::MAX_TREE_DEPTH));
+            }
+        }
+
+        $oldParentCode = $node['parent_code'] !== null ? (string) $node['parent_code'] : null;
+        $newParentCode = $parent !== null ? (string) $parent['path_code'] : null;
+        $anchor = $afterNodeId !== null
+            ? $this->treeRepository->findByIdAndDomain($afterNodeId, $domainId)
+            : null;
+        if ($afterNodeId !== null && (
+            $anchor === null
+            || (int) $anchor['node_id'] === $nodeId
+            || ($anchor['parent_code'] !== null ? (string) $anchor['parent_code'] : null) !== $newParentCode
+        )) {
+            return Result::failure('기준 메뉴가 새 부모의 직계 자식이 아닙니다.');
+        }
+
+        $newPathCode = $newParentCode !== null
+            ? $newParentCode . '>' . (string) $node['menu_code']
+            : (string) $node['menu_code'];
+        foreach ($rows as $row) {
+            if ((int) $row['node_id'] !== $nodeId && (string) $row['path_code'] === $newPathCode) {
+                return Result::failure('같은 메뉴가 새 위치에 이미 배치되어 있습니다.');
+            }
+        }
+        $nodeNameParts = explode('>', (string) $node['path_name']);
+        $nodeName = (string) end($nodeNameParts);
+        $newPathName = $parent !== null
+            ? (string) $parent['path_name'] . '>' . $nodeName
+            : $nodeName;
+
+        $oldSiblingIds = $this->siblingNodeIds($rows, $oldParentCode, $nodeId);
+        $newSiblingIds = $oldParentCode === $newParentCode
+            ? $oldSiblingIds
+            : $this->siblingNodeIds($rows, $newParentCode, $nodeId);
+        $insertAt = 0;
+        if ($afterNodeId !== null) {
+            $anchorIndex = array_search($afterNodeId, $newSiblingIds, true);
+            if ($anchorIndex === false) {
+                return Result::failure('기준 메뉴의 현재 순서를 확인할 수 없습니다.');
+            }
+            $insertAt = $anchorIndex + 1;
+        }
+        array_splice($newSiblingIds, $insertAt, 0, [$nodeId]);
+        if (
+            $oldParentCode === $newParentCode
+            && $newSiblingIds === $this->siblingNodeIds($rows, $oldParentCode, -1)
+        ) {
+            return Result::success('메뉴가 이미 요청한 위치에 있습니다.', [
+                'node_id' => $nodeId,
+                'path_code' => $oldPathCode,
+            ]);
+        }
+
+        $oldCollectionCodes = [$oldParentCode];
+        $newCollectionCodes = [$newParentCode];
+        foreach ($subtree as $row) {
+            $pathCode = (string) $row['path_code'];
+            $oldCollectionCodes[] = $pathCode;
+            $newCollectionCodes[] = $newPathCode . substr($pathCode, strlen($oldPathCode));
+        }
+
+        try {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->treeRepository->getDb()->transaction(function () use (
+                $subtree,
+                $oldPathCode,
+                $newPathCode,
+                $node,
+                $newParentCode,
+                $depthDelta,
+                $newPathName,
+                $oldSiblingIds,
+                $newSiblingIds,
+                $oldParentCode,
+                $oldCollectionCodes,
+                $newCollectionCodes,
+                $domainId,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
+                foreach ($subtree as $row) {
+                    $pathCode = (string) $row['path_code'];
+                    $pathName = (string) $row['path_name'];
+                    $parentCode = $row['parent_code'] !== null ? (string) $row['parent_code'] : null;
+                    $this->treeRepository->update((int) $row['node_id'], [
+                        'path_code' => $newPathCode . substr($pathCode, strlen($oldPathCode)),
+                        'path_name' => $newPathName . substr($pathName, strlen((string) $node['path_name'])),
+                        'parent_code' => (int) $row['node_id'] === (int) $node['node_id']
+                            ? $newParentCode
+                            : $newPathCode . substr((string) $parentCode, strlen($oldPathCode)),
+                        'depth' => (int) $row['depth'] + $depthDelta,
+                    ]);
+                }
+
+                if ($oldParentCode !== $newParentCode) {
+                    $this->writeSiblingOrder($domainId, $oldSiblingIds);
+                }
+                $this->writeSiblingOrder($domainId, $newSiblingIds);
+                $this->recordMenuChildren(
+                    $domainId,
+                    [...$oldCollectionCodes, ...$newCollectionCodes],
+                    $mutationContext
+                );
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+            });
+        } catch (\Throwable $e) {
+            return Result::failure('메뉴 이동에 실패했습니다.');
+        }
+
+        return Result::success('메뉴를 이동했습니다.', [
+            'node_id' => $nodeId,
+            'path_code' => $newPathCode,
+        ]);
+    }
+
+    /**
+     * 한 부모의 직계 자식 전체를 정확히 주어진 순서로 정렬한다.
+     *
+     * @param list<int> $orderedNodeIds
+     */
+    public function reorderTreeChildren(
+        int $domainId,
+        ?int $parentNodeId,
+        array $orderedNodeIds,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        $parent = $parentNodeId !== null
+            ? $this->treeRepository->findByIdAndDomain($parentNodeId, $domainId)
+            : null;
+        if ($parentNodeId !== null && $parent === null) {
+            return Result::failure('부모 메뉴 배치를 찾을 수 없습니다.');
+        }
+        $parentCode = $parent !== null ? (string) $parent['path_code'] : null;
+        $rows = $parentCode === null
+            ? $this->treeRepository->findRootNodes($domainId)
+            : $this->treeRepository->findChildren($domainId, $parentCode);
+        $currentIds = array_map(static fn (array $row): int => (int) $row['node_id'], $rows);
+        $normalized = array_values(array_map('intval', $orderedNodeIds));
+        $expected = $currentIds;
+        $actual = $normalized;
+        sort($expected);
+        sort($actual);
+        if ($actual !== $expected || count(array_unique($normalized)) !== count($normalized)) {
+            return Result::failure('같은 부모의 모든 직계 메뉴를 중복 없이 지정해야 합니다.');
+        }
+        if ($normalized === $currentIds) {
+            return Result::success('메뉴가 이미 요청한 순서입니다.');
+        }
+
+        try {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->treeRepository->getDb()->transaction(function () use (
+                $domainId,
+                $normalized,
+                $parentCode,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
+                $this->writeSiblingOrder($domainId, $normalized);
+                $this->recordMenuChildren($domainId, [$parentCode], $mutationContext);
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+            });
+        } catch (\Throwable $e) {
+            return Result::failure('메뉴 순서 변경에 실패했습니다.');
+        }
+
+        return Result::success('메뉴 순서를 변경했습니다.');
+    }
+
+    /** @return list<int> */
+    private function siblingNodeIds(array $rows, ?string $parentCode, int $exceptNodeId): array
+    {
+        $siblings = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool =>
+                (int) $row['node_id'] !== $exceptNodeId
+                && ($row['parent_code'] !== null ? (string) $row['parent_code'] : null) === $parentCode
+        ));
+        usort($siblings, static fn (array $left, array $right): int =>
+            [(int) $left['sort_order'], (int) $left['node_id']]
+            <=> [(int) $right['sort_order'], (int) $right['node_id']]
+        );
+        return array_map(static fn (array $row): int => (int) $row['node_id'], $siblings);
+    }
+
+    /** @param list<int> $nodeIds */
+    private function writeSiblingOrder(int $domainId, array $nodeIds): void
+    {
+        foreach ($nodeIds as $index => $nodeId) {
+            $this->treeRepository->updateSortOrder($nodeId, $domainId, $index + 1);
+        }
+    }
+
+    /**
      * 트리 전체 저장 (재구성)
      */
     public function saveTree(
