@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Packages\Board\Api;
 
 use Mublo\Contract\Board\BoardProvisioningInterface;
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Packages\Board\Repository\BoardConfigRepository;
@@ -69,7 +70,12 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
         return $this->groupResult((int) $result->getData()['group_id'], $slug, true);
     }
 
-    public function ensureBoard(int $domainId, string $provisioningKey, array $preset = []): Result
+    public function ensureBoard(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $slug = trim($provisioningKey);
         if ($slug === '') {
@@ -99,7 +105,7 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
             ? $preset['board_name']
             : $slug;
 
-        $result = $this->boardService->createBoard($domainId, $data);
+        $result = $this->boardService->createBoard($domainId, $data, $mutationContext);
 
         if (!$result->isSuccess()) {
             $raced = $this->boardRepository->findBySlug($domainId, $slug);

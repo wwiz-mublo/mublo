@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Contract\Board;
 
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 
 /**
@@ -40,5 +41,10 @@ interface BoardProvisioningInterface
      *                      기존 게시판이 있으면 **덮지 않는다** — 운영자 편집을 보존한다
      * @return Result 성공 data: {board_id: int, board_slug: string, created: bool}
      */
-    public function ensureBoard(int $domainId, string $provisioningKey, array $preset = []): Result;
+    public function ensureBoard(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 }
