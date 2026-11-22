@@ -8,8 +8,11 @@ final class CapabilityService
     public const PROTOCOL_VERSION = '1.0.0';
     public const PLUGIN_VERSION = '0.2.0';
 
-    public function __construct(private readonly ProtocolCatalog $protocol)
-    {
+    public function __construct(
+        private readonly ProtocolCatalog $protocol,
+        private readonly string $siteProduct = 'mublo',
+        private readonly string $siteProductVersion = ''
+    ) {
     }
 
     /** @return array<string,mixed> */
@@ -38,10 +41,8 @@ final class CapabilityService
         return [
             'protocol_version' => (string) ($this->protocol->version()['protocol_version'] ?? self::PROTOCOL_VERSION),
             'plugin_version' => self::PLUGIN_VERSION,
-            'site_product' => 'mublo',
-            'site_product_version' => defined('Mublo\\Core\\App\\Application::VERSION')
-                ? \Mublo\Core\App\Application::VERSION
-                : '',
+            'site_product' => $this->siteProduct,
+            'site_product_version' => $this->siteProductVersion,
             'features' => array_values(array_filter([
                 $block || $menu || $board ? 'snapshot' : null,
                 $preview ? 'preview_overlay' : null,
