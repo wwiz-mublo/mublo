@@ -14,6 +14,8 @@ use Mublo\Repository\Domain\DomainAliasRepository;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Repository\Menu\MenuItemRepository;
 use Mublo\Service\Domain\DomainResolver;
+use Mublo\Contract\Site\ThemeReadOverlayInterface;
+use Mublo\Entity\Domain\Domain;
 
 /**
  * Class ContextBuilder
@@ -59,17 +61,20 @@ class ContextBuilder
     protected ?DomainResolver $domainResolver = null;
     protected ?MenuItemRepository $menuItemRepository = null;
     protected ?CacheInterface $cache = null;
+    private ?ThemeReadOverlayInterface $themeReadOverlay;
 
     private const MENU_URLMAP_TTL = 3600;
 
     public function __construct(
         ?DomainResolver $domainResolver = null,
         ?MenuItemRepository $menuItemRepository = null,
-        ?CacheInterface $cache = null
+        ?CacheInterface $cache = null,
+        ?ThemeReadOverlayInterface $themeReadOverlay = null
     ) {
         $this->domainResolver = $domainResolver;
         $this->menuItemRepository = $menuItemRepository;
         $this->cache = $cache;
+        $this->themeReadOverlay = $themeReadOverlay;
     }
 
     /**
@@ -100,6 +105,17 @@ class ContextBuilder
 
         // 도메인 정보 로드 (캐시 → DB)
         $domainInfo = $this->resolveDomain($domainName);
+        if ($domainInfo !== null) {
+            $snapshot = $this->themeReadOverlay?->snapshot($domainInfo->getDomainId());
+            if ($snapshot !== null) {
+                $values = $domainInfo->toArray();
+                $values['site_config'] = $snapshot->siteConfig;
+                $values['company_config'] = $snapshot->companyConfig;
+                $values['seo_config'] = $snapshot->seoConfig;
+                $values['theme_config'] = $snapshot->themeConfig;
+                $domainInfo = Domain::fromArray($values);
+            }
+        }
         $context->setDomainInfo($domainInfo);
 
         // 사이트 이미지 Full URL 변환 (DB/캐시는 상대경로 원본 유지)

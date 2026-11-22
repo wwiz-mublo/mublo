@@ -214,7 +214,8 @@ class ServiceProvider
 
         $container->factory(ContextBuilder::class, function (DependencyContainer $c) {
             return new ContextBuilder(
-                $c->get(DomainResolver::class)
+                $c->get(DomainResolver::class),
+                themeReadOverlay: $c->get(\Mublo\Contract\Site\ThemeReadOverlayInterface::class)
             );
         });
 
@@ -365,6 +366,10 @@ class ServiceProvider
         $container->singleton(
             \Mublo\Contract\Site\SiteMutationRecorderInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Site\SiteMutationRecorder::class)
+        );
+        $container->singleton(
+            \Mublo\Contract\Site\ThemeReadOverlayInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Site\ThemeReadOverlay::class)
         );
         $container->singleton(
             \Mublo\Contract\Menu\MenuManagementInterface::class,
