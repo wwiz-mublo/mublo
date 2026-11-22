@@ -9,6 +9,7 @@ use Mublo\Core\Result\Result;
 use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Contract\Site\SiteMutationFingerprint;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Menu\MenuReadOverlayInterface;
 use Mublo\Enum\Block\LayoutType;
 use Mublo\Entity\Menu\MenuItem;
 use Mublo\Entity\Menu\MenuNode;
@@ -46,6 +47,7 @@ class MenuService
     private ?EventDispatcher $eventDispatcher;
     private ?Context $context;
     private ?SiteMutationRecorderInterface $mutationRecorder;
+    private ?MenuReadOverlayInterface $readOverlay;
 
     public function __construct(
         MenuItemRepository $itemRepository,
@@ -54,7 +56,8 @@ class MenuService
         ?CacheInterface $cache = null,
         ?EventDispatcher $eventDispatcher = null,
         ?Context $context = null,
-        ?SiteMutationRecorderInterface $mutationRecorder = null
+        ?SiteMutationRecorderInterface $mutationRecorder = null,
+        ?MenuReadOverlayInterface $readOverlay = null
     ) {
         $this->itemRepository = $itemRepository;
         $this->treeRepository = $treeRepository;
@@ -63,6 +66,7 @@ class MenuService
         $this->eventDispatcher = $eventDispatcher;
         $this->context = $context;
         $this->mutationRecorder = $mutationRecorder;
+        $this->readOverlay = $readOverlay;
     }
 
     /**
@@ -708,10 +712,18 @@ class MenuService
      */
     public function getTree(int $domainId, bool $activeOnly = true): array
     {
+        $entries = $this->readOverlay?->tree($domainId, $activeOnly);
+        $tree = $entries === null
+            ? $this->treeRepository->findTreeWithItems($domainId, $activeOnly)
+            : array_map(
+                static fn(\Mublo\Contract\Menu\MenuTreeEntry $entry): array => $entry->toArray($domainId),
+                $entries
+            );
+
         return $this->applyFrontItemsFilter(
             MenuItemsFilterEvent::SCOPE_TREE,
             $domainId,
-            $this->treeRepository->findTreeWithItems($domainId, $activeOnly)
+            $tree
         );
     }
 

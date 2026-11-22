@@ -371,6 +371,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Menu\MenuTreeManagementGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Menu\MenuReadOverlayInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Menu\MenuReadOverlay::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Site\DomainQueryInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Domain\DomainQueryGateway::class)
         );
