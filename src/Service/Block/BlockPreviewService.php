@@ -214,16 +214,7 @@ class BlockPreviewService
      */
     private function createTempRow(array $data, int $domainId): BlockRow
     {
-        if (empty($data['row_id'])) {
-            $data['row_id'] = 0;
-        }
-
-        $data['domain_id'] = $domainId;
-        $data['is_active'] = $data['is_active'] ?? 1;
-        $data['created_at'] = $data['created_at'] ?? date('Y-m-d H:i:s');
-        $data['updated_at'] = $data['updated_at'] ?? date('Y-m-d H:i:s');
-
-        return BlockRow::fromArray($data);
+        return BlockSnapshotHydrator::row($data, $domainId, (int) ($data['row_id'] ?? 0));
     }
 
     /**
@@ -231,42 +222,7 @@ class BlockPreviewService
      */
     private function createTempColumns(array $columnsData, int $domainId): array
     {
-        $columns = [];
-
-        foreach ($columnsData as $index => $colData) {
-            if (empty($colData['column_id'])) {
-                $colData['column_id'] = 0;
-            }
-
-            $colData['row_id'] = $colData['row_id'] ?? 0;
-            $colData['domain_id'] = $domainId;
-            $colData['column_index'] = $colData['column_index'] ?? $index;
-            $colData['is_active'] = $colData['is_active'] ?? 1;
-            $colData['created_at'] = $colData['created_at'] ?? date('Y-m-d H:i:s');
-            $colData['updated_at'] = $colData['updated_at'] ?? date('Y-m-d H:i:s');
-
-            $column = BlockColumn::fromArray($colData);
-
-            // 스택 칸 미리보기 — 정규화된 contents 를 임시 엔티티로 주입한다.
-            // 미저장 draft 는 content_id 가 없으므로 항목 render key 용 임시
-            // ID(순번)를 부여한다 (미리보기 전용 — 저장 경로와 무관).
-            if ($column->isStack() && !empty($colData['contents']) && is_array($colData['contents'])) {
-                $contents = [];
-                foreach (array_values($colData['contents']) as $contentIndex => $contentData) {
-                    $contentData['content_id'] = (int) ($contentData['content_id'] ?? 0) > 0
-                        ? (int) $contentData['content_id']
-                        : ($contentIndex + 1);
-                    $contentData['column_id'] = $column->getColumnId();
-                    $contentData['domain_id'] = $domainId;
-                    $contents[] = BlockColumnContent::fromArray($contentData);
-                }
-                $column->setContents($contents);
-            }
-
-            $columns[] = $column;
-        }
-
-        return $columns;
+        return BlockSnapshotHydrator::columns($columnsData, $domainId);
     }
 
     /**

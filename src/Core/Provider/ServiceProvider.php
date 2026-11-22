@@ -343,6 +343,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationPreviewGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\BlockReadOverlayInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockReadOverlay::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockRenderContextInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockRenderContext::class)
         );
@@ -670,7 +674,8 @@ class ServiceProvider
                 $c->get(\Mublo\Repository\Block\BlockColumnRepository::class),
                 $c->get(CacheInterface::class),
                 $c,
-                $c->get(\Mublo\Repository\Block\BlockColumnContentRepository::class)
+                $c->get(\Mublo\Repository\Block\BlockColumnContentRepository::class),
+                $c->get(\Mublo\Contract\Block\BlockReadOverlayInterface::class)
             );
         });
 
