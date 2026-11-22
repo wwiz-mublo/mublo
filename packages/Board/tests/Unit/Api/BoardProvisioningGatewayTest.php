@@ -53,7 +53,7 @@ class BoardProvisioningGatewayTest extends TestCase
         $groupService = $this->createMock(BoardGroupService::class);
         $groupService->expects($this->once())
             ->method('createGroup')
-            ->with(1, $this->callback(fn(array $d): bool => $d['group_slug'] === 'site' && $d['group_name'] === '사이트'))
+            ->with(1, $this->callback(fn(array $d): bool => $d['group_slug'] === 'site' && $d['group_name'] === '사이트'), null)
             ->willReturn(Result::success('ok', ['group_id' => 9]));
 
         $result = $this->gateway($groupService, $groupRepo)->ensureGroup(1, 'site', ['group_name' => '사이트']);

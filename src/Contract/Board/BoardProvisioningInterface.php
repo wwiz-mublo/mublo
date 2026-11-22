@@ -29,7 +29,12 @@ interface BoardProvisioningInterface
      * @param array $preset group_name 등. 기존 그룹이 있으면 **덮지 않는다**
      * @return Result 성공 data: {group_id: int, group_slug: string, created: bool}
      */
-    public function ensureGroup(int $domainId, string $provisioningKey, array $preset = []): Result;
+    public function ensureGroup(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 게시판을 멱등 보장
