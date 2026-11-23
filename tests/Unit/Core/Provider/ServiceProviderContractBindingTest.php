@@ -52,6 +52,7 @@ class ServiceProviderContractBindingTest extends TestCase
             BlockMutationInterface::class,
             BlockMutationPreviewInterface::class,
             BlockReadOverlayInterface::class,
+            \Mublo\Contract\Block\BlockImageCleanupInterface::class,
             BlockRenderContextInterface::class,
             BoardReadOverlayInterface::class,
             CompanyInfoInterface::class,
