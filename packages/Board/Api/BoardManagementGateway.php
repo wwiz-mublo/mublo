@@ -15,14 +15,17 @@ use Mublo\Packages\Board\Service\BoardConfigService;
 
 final class BoardManagementGateway implements BoardManagementInterface
 {
-    /** AI·자동화 경로에서 부분 갱신할 수 있는 명시적 설정 목록. */
+    /**
+     * AI·자동화 경로에서 부분 갱신할 수 있는 명시적 설정 목록. board_configs 컬럼과 매핑 테이블로 저장하는
+     * category_ids만 둔다. 비회원 허용은 별도 컬럼이 없고 각 *_level = 0으로 표현한다.
+     */
     private const MUTABLE_FIELDS = [
-        'group_id', 'board_name', 'board_description', 'board_admin_ids',
+        'group_id', 'board_name', 'board_description',
         'list_level', 'read_level', 'write_level', 'comment_level', 'download_level',
         'daily_write_limit', 'daily_comment_limit',
         'board_skin', 'board_editor', 'notice_count', 'per_page',
         'use_secret', 'is_secret_board', 'use_category', 'use_comment', 'use_reaction',
-        'use_link', 'use_file', 'allow_guest', 'reaction_config',
+        'use_link', 'use_file', 'reaction_config',
         'file_count_limit', 'file_size_limit', 'file_extension_allowed',
         'is_active', 'category_ids',
     ];

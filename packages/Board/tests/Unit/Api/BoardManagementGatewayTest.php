@@ -103,4 +103,18 @@ final class BoardManagementGatewayTest extends TestCase
         $this->assertTrue($gateway->updateBoard(7, 12, ['board_name' => 'x'])->isFailure());
         $this->assertTrue($gateway->removeBoard(7, 12)->isFailure());
     }
+
+    /** 수정 가능 필드가 저장할 컬럼 없이 남으면 그 필드를 담은 요청은 항상 SQL 오류로 실패한다. */
+    public function testMutableFieldsArePersistedBoardColumns(): void
+    {
+        $schema = (string) file_get_contents(dirname(__DIR__, 3) . '/database/migrations/001_create_board_tables.sql');
+        self::assertSame(1, preg_match('/CREATE TABLE IF NOT EXISTS board_configs \((.*?)\n\)/s', $schema, $table));
+        preg_match_all('/^\s{4}([a-z_]+)\s+[A-Z]/m', $table[1], $columns);
+        $persisted = array_merge($columns[1], ['category_ids']); // category_ids는 매핑 테이블로 저장한다.
+
+        $fields = (new \ReflectionClassConstant(BoardManagementGateway::class, 'MUTABLE_FIELDS'))->getValue();
+
+        self::assertContains('write_level', $columns[1]);
+        self::assertSame([], array_values(array_diff($fields, $persisted)));
+    }
 }

@@ -43,7 +43,9 @@ interface BoardProvisioningInterface
      * `UNIQUE(domain_id, board_slug)` 가 동시 재시도를 막는다.
      *
      * @param array $preset board_name · group_slug · skin 등.
-     *                      기존 게시판이 있으면 **덮지 않는다** — 운영자 편집을 보존한다
+     *                      기존 게시판이 있으면 **덮지 않는다** — 운영자 편집을 보존한다.
+     *                      placeholder_posts: 새로 만들 때만 넣는 첫 글 [{title, content}] 목록.
+     *                      키가 없으면 기본 첫 글 하나를 넣고, 빈 배열이면 넣지 않는다.
      * @return Result 성공 data: {board_id: int, board_slug: string, created: bool}
      */
     public function ensureBoard(
