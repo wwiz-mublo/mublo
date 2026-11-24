@@ -25,12 +25,14 @@ use Mublo\Core\Dashboard\DashboardWidgetRegistry;
 use Mublo\Contract\Board\BoardProvisioningInterface;
 use Mublo\Contract\Board\BoardManagementInterface;
 use Mublo\Contract\Board\BoardGroupQueryInterface;
+use Mublo\Contract\Board\BoardGroupManagementInterface;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
 use Mublo\Contract\Block\BlockContentCacheInvalidatorInterface;
 use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Packages\Board\Api\BoardProvisioningGateway;
 use Mublo\Packages\Board\Api\BoardManagementGateway;
 use Mublo\Packages\Board\Api\BoardGroupQueryGateway;
+use Mublo\Packages\Board\Api\BoardGroupManagementGateway;
 use Mublo\Enum\Block\BlockContentKind;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Infrastructure\Storage\FileUploader;
@@ -447,6 +449,13 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
         $container->get(ContractRegistry::class)->bind(
             BoardGroupQueryInterface::class,
             fn(): BoardGroupQueryGateway => new BoardGroupQueryGateway(
+                $container->get(BoardGroupRepository::class)
+            )
+        );
+        $container->get(ContractRegistry::class)->bind(
+            BoardGroupManagementInterface::class,
+            fn(): BoardGroupManagementGateway => new BoardGroupManagementGateway(
+                $container->get(BoardGroupService::class),
                 $container->get(BoardGroupRepository::class)
             )
         );
