@@ -10,20 +10,34 @@
 - Core: 확장 사이 결합용 계약을 추가했습니다 — `Contract\Auth\ApiTokenValidatorInterface`(앱 API 의 Bearer 토큰을 발급 확장을 모른 채 검증), `Contract\Fcm\DeviceBindingInterface`(전화번호 ↔ 업무용 기기 연결), `Contract\Fcm\ContactSaveInterface`(고객 연락처를 업무 기기 전화번호부에 저장 요청), `Contract\Fcm\ResolveFcmDeviceDomainEvent`(도메인이 어느 도메인의 업무 기기를 쓰는지 질의). 모두 구현 확장이 `ContractRegistry` 에 1:1 로 등록하는 선택 계약이며 번들 구현은 없습니다
 - VisitorStats: 다른 확장이 방문자 통계 테이블을 읽지 않고 이벤트로 묻고 알릴 수 있게 `Contract\Tracking` 이벤트 3종을 추가하고 VisitorStats 가 구독합니다 — `ConversionStatusChangedEvent`(이미 기록된 전환의 상태만 변경, 캠페인 키·발생 시각 유지), `CampaignKeyLabelsEvent`(캠페인 키의 "그룹명 · 메모" 표시 이름 질의), `VisitorRefererLookupEvent`(세션·IP·시각으로 그날 방문의 유입경로 질의, 한 번에 200건). 마이그레이션은 필요 없습니다
 - Core: schema.org JSON-LD 생성 헬퍼 `Mublo\Helper\Seo\StructuredDataHelper` 를 추가했습니다 — `organization()`(상호·로고·주소·고객센터·사업자등록번호·공식 SNS), `webSite()`(사이트 검색 액션), `breadcrumbList()`, `faqPage()`/`faqPageFromGrouped()`, `article()`(비밀·미게시 글 제외), `toScriptTag()`(`</script>` 조기 종료 방지). 값이 없으면 null 을 돌려 빈 마크업을 내보내지 않습니다. 코어 화면에는 아직 붙이지 않았으며 Controller·스킨에서 골라 씁니다
-- Core(블록): 위치별 블록 렌더링 직전에 `Mublo\Core\Event\Block\BlockPositionRenderingEvent` 를 발행합니다. 확장은 이번 요청에서 그 위치를 저장된 블록 대신 다른 HTML 로 그리거나(`replaceWith()` — 전파를 멈추고 우선순위가 높은 대체가 이김, 대체 HTML 은 캐시하지 않음) 블록 캐시를 끌 수 있습니다(`disableCache()`). 디자인 미리보기처럼 DB 블록을 바꾸지 않고 화면만 다르게 보여 줄 때 씁니다. 구독자가 없으면 동작은 이전과 같고, `BlockRenderService` 생성자에 선택 인자 `?EventDispatcher` 가 끝에 추가됐습니다
+- Core(블록): 위치별 블록 렌더링 직전에 `Mublo\Core\Event\Block\BlockPositionRenderingEvent` 를 발행합니다. 확장은 이번 요청에서 그 위치를 저장된 블록 대신 다른 HTML 로 그리거나(`replaceWith()` — 전파를 멈추고 우선순위가 높은 대체가 이김, 대체 HTML 은 캐시하지 않음) 블록 캐시를 끌 수 있습니다(`disableCache()`). 디자인 미리보기처럼 DB 블록을 바꾸지 않고 화면만 다르게 보여 줄 때 씁니다. 구독자가 없으면 동작은 이전과 같고, `BlockRenderService` 생성자 끝에 선택 인자 `?BlockReadOverlayInterface`·`?EventDispatcher` 가 차례로 추가됐습니다
 - Faq: 패키지가 FAQ 항목에 자기 값(예: 연결 상품)을 붙일 수 있게 이벤트 4종을 발행합니다 — `FaqItemFormEvent`(관리자 편집 창에 확장 입력 칸), `FaqItemsLoadedEvent`(관리자 목록의 확장 값·표시, 손님 `/faq` 답변 아래 관련 링크), `FaqItemSavedEvent`(등록·수정 뒤 확장 칸 값 전달), `FaqItemDeletedEvent`(항목 삭제·카테고리 삭제로 함께 지워진 항목). 관리자 편집 창은 `#itemModal` 의 `faq:item-open`·`faq:item-collect` DOM 이벤트로 확장 칸과 값을 주고받고, basic 프론트 스킨은 관련 링크를 표시합니다. 구독하는 확장이 없으면 화면과 동작은 이전과 같습니다. 커스텀 프론트 스킨은 항목의 `related_links` 를 선택적으로 출력할 수 있습니다
-- Core: 사이트 변경 revision 기반을 추가했습니다(#135~#139, #148, #151). 블록 행·블록 순서·메뉴 항목·부모별 하위 메뉴·사이트/회사/SEO/테마/확장 설정·게시판·게시판 그룹이 바뀌면, 같은 트랜잭션에서 자원별 revision과 사이트 감사 revision이 오릅니다. 계약은 `SiteMutationContext`·`SiteMutationRecorderInterface`·`SiteMutationFingerprint`·`SiteMutationReceipt`·`SiteMutationResource`이고, 기록이 commit되면 `SiteMutationRecordedEvent`가 발행됩니다. **코어 마이그레이션 `031_create_site_mutation_revisions.sql`·`032_normalize_block_row_resource_ids.sql`을 실행해야 합니다**
-- Core: `Database::afterCommit()`·`afterRollback()`(#133). 중첩 트랜잭션에서는 최상위 commit·rollback 뒤에 실행됩니다. 블록 행 변경의 캐시 무효화·revision 정리·이미지 정리가 이 경로로 옮겨져, 바깥 트랜잭션 안에서 블록 서비스를 불러도 중첩 오류가 나지 않습니다(#134)
+- Core: 사이트 변경 revision 기반을 추가했습니다. 블록 행·블록 순서·메뉴 항목·부모별 하위 메뉴·사이트/회사/SEO/테마/확장 설정·프레임·게시판·게시판 그룹이 바뀌면, 같은 트랜잭션에서 자원별 revision과 사이트 감사 revision이 오릅니다. 관리자 화면뿐 아니라 블록 킷 적용, 프레임 게시·되돌리기, 확장 설정 저장, 새 도메인의 Board 기본 데이터 시드도 기록합니다. 계약은 `SiteMutationContext`·`SiteMutationRecorderInterface`·`SiteMutationFingerprint`·`SiteMutationReceipt`·`SiteMutationResource`이고, 기록이 commit되면 `SiteMutationRecordedEvent`가 발행됩니다. 변경 주체는 `SiteMutationScope`가 정합니다(관리자 화면은 `admin`, 확장 install/uninstall 훅은 `extension`, 도메인 생성 시드는 `automation`). **코어 마이그레이션 `031_create_site_mutation_revisions.sql`·`032_normalize_block_row_resource_ids.sql`을 실행해야 합니다**
+- Core: `Database::afterCommit()`·`afterRollback()`. 중첩 트랜잭션에서는 최상위 commit·rollback 뒤에 실행됩니다. 블록 행 변경과 블록 킷 적용의 캐시 무효화·revision 정리·이미지 정리·메뉴 동기화가 이 경로로 옮겨져, 바깥 트랜잭션 안에서 블록 서비스를 불러도 중첩 오류가 나지 않습니다
 - Core: 확장이 사이트 구조를 안전하게 바꾸는 관리 계약을 추가했습니다.
-  - `BlockMutationInterface`·`BlockMutationPreviewInterface`·`BlockRowSnapshot`(#142)
-  - `MenuTreeManagementInterface`(#141), `MenuManagementInterface`의 배치·스냅샷 값(#149, #153)
-  - `BoardManagementInterface`·`BoardDescriptor`(#140), `BoardGroupQueryInterface`·`BoardGroupDescriptor`(#152)
-- Core: 운영 DB를 바꾸지 않고 한 요청의 최종 상태를 실제 렌더 경로로 그리는 read overlay 계약을 추가했습니다. `BlockReadOverlayInterface`(#143), `MenuReadOverlayInterface`·`MenuTreeEntry`(#144), `BoardReadOverlayInterface`(#145), `ThemeReadOverlayInterface`·`ThemeReadSnapshot`(#146)입니다. 사이트 편집 미리보기가 사용합니다
-- Core: 사이트 편집 실행 계약을 추가했습니다(#147, #150). `SiteEditorClientAuthenticatorInterface`·`SiteEditorClientIdentity`, `SiteEditorOperationHandlerInterface`·`SiteEditorResourceRestoreHandlerInterface`·`SiteEditContext`·`SiteEditorOperationResult`입니다
-- AiSiteEditor 플러그인(#132): 앱이 만든 사이트 변경 계획을 검증·미리보기·적용·복원합니다. 활성화하면 플러그인 마이그레이션이 실행됩니다
+  - `BlockMutationInterface`·`BlockMutationPreviewInterface`·`BlockRowSnapshot`
+  - `BlockRestoreInterface` — 기록해 둔 블록 행을 다시 만들거나 내용을 되돌립니다(`expectedRevision` 충돌 검사). 관리자 리비전 복구와 같은 저장 정책을 써서 스크립트·include 블록도 원래대로 복원됩니다
+  - `MenuTreeManagementInterface`, `MenuManagementInterface`의 배치·스냅샷 값, `MenuRevisionCollectorInterface`(서비스를 거치지 않고 쓴 메뉴 변경을 같은 지문 규칙으로 기록)
+  - `BoardManagementInterface`·`BoardDescriptor`, `BoardGroupQueryInterface`·`BoardGroupDescriptor`, `BoardGroupManagementInterface`(빈 게시판 그룹 제거 — 다른 도메인 그룹이나 게시판이 남은 그룹은 거절)
+- Core: 운영 DB를 바꾸지 않고 한 요청의 최종 상태를 실제 렌더 경로로 그리는 read overlay 계약을 추가했습니다. `BlockReadOverlayInterface`, `MenuReadOverlayInterface`·`MenuTreeEntry`, `BoardReadOverlayInterface`, `BoardGroupReadOverlayInterface`, `ThemeReadOverlayInterface`·`ThemeReadSnapshot`입니다. 게시판 overlay는 아직 저장되지 않은 그룹을 음수 임시 ID로 받고, 커뮤니티 그룹 탭·`/community/group/{slug}`·게시판 그룹 블록도 overlay를 따릅니다. Context가 만들어진 뒤 등록된 테마 overlay는 `ContextBuilder::reapplyThemeOverlay()`로 다시 적용합니다. 사이트 편집 미리보기가 사용합니다
+- Core: 사이트 편집 실행 계약을 추가했습니다. `SiteEditorClientAuthenticatorInterface`·`SiteEditorClientIdentity`, `SiteEditorOperationHandlerInterface`·`SiteEditorResourceRestoreHandlerInterface`·`SiteEditContext`·`SiteEditorOperationResult`, 거절 사유를 프로토콜 오류 코드로 전달하는 `SiteEditorOperationRejectedException`, 콘텐츠 타입 소유 확장이 편집 가능한 필드를 설명·검증하는 `SiteEditorContentSchemaInterface`·`SiteEditorContentRejectedException`, 도구 입력의 도메인별 선택지를 알려 주는 `SiteEditorToolOptionsInterface`입니다
+- Core(블록): 확장이 블록 이미지를 보존하고 정리를 맡길 수 있습니다. `BlockImageRetentionInterface`(ContractRegistry 1:N 등록)가 보존 중이라고 답한 파일은 블록 이미지 정리에서 남기고(확인 중 예외도 보존으로 봄), `BlockImageCleanupInterface`는 보존을 끝낸 파일을 코어가 모든 참조를 확인한 뒤 그 도메인 저장소에서만 지웁니다. `BlockImageProcessor::cleanupUnreferenced()`는 지운 파일 수를 돌려줍니다
+- Core(AI): `HtmlBlockDraftInterface` — 몰 밖의 AI가 HTML 블록을 만들 때 관리자 블록 에디터 AI와 같은 프롬프트·응답 스키마(`prompts()`)와 정제·CSS 스코프 제한·반응형 검사(`finalize()`)를 거치게 합니다. 이 경로는 스크립트 없는 정적 HTML·CSS만 만듭니다. `HtmlBlockAiService`의 `prompts()`·`finalize()`·`scopeFor()`가 공개됐고 `generate()` 동작은 같습니다
+- Board: `BoardProvisioningInterface::ensureBoard()`에 `placeholder_posts: []`를 넘기면 기본 첫 글을 만들지 않습니다. 키를 생략하면 이전처럼 첫 글을 넣습니다
+- AiSiteEditor 플러그인: 앱이 만든 사이트 변경 계획을 검증·미리보기·적용·복원합니다. 활성화하면 플러그인 마이그레이션이 실행됩니다
 
 ### Changed
-- Core: 블록 행 변경(`BlockRowService`)이 직접 트랜잭션 대신 `Database::transaction()`을 씁니다(#134). 바깥 트랜잭션의 일부로 실행되고, 커밋 뒤 작업은 최상위 commit 이후에 실행됩니다
+- Core: 안정 계약 메서드 끝에 선택 인자 `?SiteMutationContext $mutationContext = null`을 추가했습니다. 바깥 트랜잭션과 같은 revision으로 기록하려는 호출자가 넘깁니다 — `SiteProvisioningInterface`(`createMenuItem`·`placeMenuItem`·`ensureMenuItem`·`ensureMenuPlacement`·`ensurePageMenuPlacement`·`setPackageFrameOverride`·`updateCompanyConfig`·`updateSiteConfig`·`updateThemeConfig`·`updateSeoConfig`·`applyScreen`), `BlockKitGatewayInterface`(`applyPage`·`applyPosition`), `MenuManagementInterface`(`updateMenu`·`removeMenu`), `BoardProvisioningInterface`(`ensureGroup`·`ensureBoard`). 호출하는 쪽은 그대로 동작하지만, **이 인터페이스를 직접 구현한 확장은 시그니처에 같은 인자를 추가해야 합니다**
+- Core: 블록 행 변경(`BlockRowService`)과 블록 킷 적용(`BlockKitApplier`)이 직접 트랜잭션 대신 `Database::transaction()`을 씁니다. 바깥 트랜잭션의 일부로 실행되고, 커밋 뒤 작업은 최상위 commit 이후에 실행됩니다
+- VisitorStats: 관리자 메뉴에서 방문자 통계를 1단 메뉴로 올렸습니다. 클릭하면 대시보드로 이동합니다. 메뉴 코드가 `002_P_VisitorStats_001`에서 `P_VisitorStats_001`로 바뀌어, **회원 등급별 관리자 메뉴 권한에서 방문자 통계를 막아 두었다면 업그레이드 후 다시 설정해야 합니다**
+
+### Removed
+- Core: `BlockColumnService`에서 호출처가 없고 revision을 남기지 않던 칸 단위 쓰기 메서드(`createColumn`·`updateColumn`·`deleteColumn`·`updateContent`·`updateTitleConfig`·`updateStyleConfig`)를 지웠습니다. 생성자에서 `BlockColumnPayloadNormalizer`·`BlockRenderService` 의존성도 빠졌습니다. 칸 쓰기는 `BlockRowService`의 행 단위 저장이나 `BlockMutationInterface`를 쓰세요. 읽기 메서드는 그대로입니다
+
+### Fixed
+- Board: 댓글 레벨을 0(비회원)으로 정해도 비회원 댓글이 막히던 문제를 고쳤습니다. 비회원 댓글 허용은 글쓰기와 같이 `comment_level`로만 판단합니다. 기본값(레벨 1)과 다른 레벨의 게시판은 동작이 같습니다
+- Board: `BoardProvisioningInterface::ensureBoard()`에 `placeholder_posts`·`author_name`을 넘기면 게시판 생성이 `Unknown column` 오류로 실패하던 문제를 고쳤습니다
+- Core(블록): 블록 이미지 정리가 사이트·회사·SEO·테마 설정이 가리키는 파일(로고·파비콘·공유 이미지 등)도 사용 중으로 봅니다. 블록에서 빠진 이미지를 사이트 설정이 쓰고 있으면 지워지던 문제를 막습니다
 
 ## [1.11.0] - 2026-11-18
 
