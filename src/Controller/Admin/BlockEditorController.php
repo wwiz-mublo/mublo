@@ -136,7 +136,11 @@ class BlockEditorController
             ));
         }
 
-        return ViewResponse::view('blockeditor/index')
+        $view = trim((string) $request->query('mode', '')) === 'shared'
+            ? 'blockeditor/shared'
+            : 'blockeditor/index';
+
+        return ViewResponse::view($view)
             ->fullPage()
             ->withData([
                 'pageTitle' => '블록 에디터',

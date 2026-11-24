@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "package": "@mublo/site-editor-react",
+  "files": {
+    "site-editor.css": {
+      "bytes": 16172,
+      "sha256": "7bbc58e90feecd5c1aeb9866f567dffd4fa5d77469fbab2339cb0974f997b716"
+    },
+    "site-editor.js": {
+      "bytes": 499858,
+      "sha256": "1486f21ab03c9d92c9d632753ee7900923afac375d29fc8b99d1cfacd82642bc"
+    }
+  }
+}
