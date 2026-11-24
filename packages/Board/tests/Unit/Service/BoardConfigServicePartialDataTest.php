@@ -83,6 +83,37 @@ class BoardConfigServicePartialDataTest extends TestCase
         $this->assertSame(1, $captured['is_active']);
     }
 
+    public function testUpdateWithoutCategoryIdsKeepsExistingMappings(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->repository->method('update')->willReturn(1);
+
+        $this->mappings->expects($this->never())->method('syncCategories');
+
+        $result = $this->service->updateBoard(20, ['board_name' => '새 이름']);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+    }
+
+    public function testUpdateWithCategoryIdsSyncsMappings(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->repository->method('update')->willReturn(1);
+
+        $this->mappings->expects($this->exactly(2))
+            ->method('syncCategories')
+            ->willReturnCallback(function (int $boardId, array $ids): bool {
+                static $calls = 0;
+                $expected = [[3, 5], []][$calls++];
+                $this->assertSame(20, $boardId);
+                $this->assertSame($expected, $ids);
+                return true;
+            });
+
+        $this->assertTrue($this->service->updateBoard(20, ['category_ids' => [3, 5]])->isSuccess());
+        $this->assertTrue($this->service->updateBoard(20, ['category_ids' => []])->isSuccess(), '빈 목록은 명시적 해제');
+    }
+
     public function testUpdateRejectsMovingToAnotherDomainsGroup(): void
     {
         $this->repository->method('find')->willReturn($this->existingBoard());

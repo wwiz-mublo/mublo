@@ -497,9 +497,11 @@ class BoardConfigService
             if ($affected < 0) {
                 return Result::failure('게시판 수정에 실패했습니다.');
             }
-            // 카테고리 매핑 저장
-            $categoryIds = $data['category_ids'] ?? [];
-            $this->categoryMappingRepository->syncCategories($boardId, is_array($categoryIds) ? $categoryIds : []);
+            // 카테고리 매핑 저장 — 부분 수정에 category_ids 가 없으면 기존 매핑을 둔다
+            if (array_key_exists('category_ids', $data)) {
+                $categoryIds = $data['category_ids'];
+                $this->categoryMappingRepository->syncCategories($boardId, is_array($categoryIds) ? $categoryIds : []);
+            }
             return Result::success('게시판이 수정되었습니다.');
         }
 
@@ -517,11 +519,13 @@ class BoardConfigService
             if ($affected < 0) {
                 return false;
             }
-            $categoryIds = $data['category_ids'] ?? [];
-            $this->categoryMappingRepository->syncCategories(
-                $boardId,
-                is_array($categoryIds) ? $categoryIds : []
-            );
+            if (array_key_exists('category_ids', $data)) {
+                $categoryIds = $data['category_ids'];
+                $this->categoryMappingRepository->syncCategories(
+                    $boardId,
+                    is_array($categoryIds) ? $categoryIds : []
+                );
+            }
             $this->recordBoardMutation(
                 $domainId,
                 $boardId,
