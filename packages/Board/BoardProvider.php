@@ -126,7 +126,10 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
             new BoardCommentRepository($c->get(Database::class))
         );
         $container->singleton(BoardConfigRepository::class, fn(DependencyContainer $c) =>
-            new BoardConfigRepository($c->get(Database::class))
+            new BoardConfigRepository(
+                $c->get(Database::class),
+                $c->get(\Mublo\Contract\Board\BoardReadOverlayInterface::class)
+            )
         );
         $container->singleton(BoardCategoryRepository::class, fn(DependencyContainer $c) =>
             new BoardCategoryRepository($c->get(Database::class))
@@ -212,8 +215,7 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
                 $c->get(BoardArticleRepository::class),
                 $c->get(EventDispatcher::class),
                 $c->get(AuthContextInterface::class),
-                $c->get(SiteMutationRecorderInterface::class),
-                $c->get(\Mublo\Contract\Board\BoardReadOverlayInterface::class)
+                $c->get(SiteMutationRecorderInterface::class)
             )
         );
         $container->singleton(BoardCategoryService::class, fn(DependencyContainer $c) =>
