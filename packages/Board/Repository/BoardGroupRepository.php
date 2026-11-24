@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Mublo\Packages\Board\Repository;
 
+use Mublo\Contract\Board\BoardGroupDescriptor;
+use Mublo\Contract\Board\BoardGroupReadOverlayInterface;
 use Mublo\Packages\Board\Entity\BoardGroup;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Repository\BaseRepository;
@@ -14,6 +16,8 @@ use Mublo\Repository\BaseRepository;
  * 책임:
  * - board_groups 테이블 CRUD
  * - BoardGroup Entity 반환
+ * - 요청 단위 read overlay가 있으면 도메인 조회(findByDomain·findActiveByDomain·findBySlug·findByIdForDomain)를
+ *   overlay의 최종 그룹 목록으로 응답. 커뮤니티 그룹 탭·그룹 화면·게시판 그룹 블록이 이 조회를 거친다.
  *
  * 금지:
  * - 비즈니스 로직 (Service 담당)
@@ -24,9 +28,15 @@ class BoardGroupRepository extends BaseRepository
     protected string $entityClass = BoardGroup::class;
     protected string $primaryKey = 'group_id';
 
-    public function __construct(Database $db)
+    public function __construct(Database $db, private readonly ?BoardGroupReadOverlayInterface $readOverlay = null)
     {
         parent::__construct($db);
+    }
+
+    /** @param list<BoardGroupDescriptor> $groups @return BoardGroup[] */
+    private function fromDescriptors(array $groups): array
+    {
+        return array_map(static fn(BoardGroupDescriptor $group): BoardGroup => BoardGroup::fromArray($group->values), $groups);
     }
 
     /**
@@ -39,6 +49,10 @@ class BoardGroupRepository extends BaseRepository
      */
     public function findByDomain(int $domainId, int $limit = 100, int $offset = 0): array
     {
+        $overlay = $this->readOverlay?->groups($domainId);
+        if ($overlay !== null) {
+            return array_slice($this->fromDescriptors($overlay), $offset, $limit);
+        }
         $rows = $this->getDb()->table($this->table)
             ->where('domain_id', '=', $domainId)
             ->orderBy('sort_order', 'ASC')
@@ -54,6 +68,11 @@ class BoardGroupRepository extends BaseRepository
      */
     public function findBySlug(int $domainId, string $slug): ?BoardGroup
     {
+        // overlay가 있는 도메인은 overlay 목록이 최종 상태다. 없는 슬러그는 미리보기에서 없는 그룹이다.
+        if ($this->readOverlay?->groups($domainId) !== null) {
+            $group = $this->readOverlay->findBySlug($domainId, $slug);
+            return $group !== null ? BoardGroup::fromArray($group->values) : null;
+        }
         return $this->findOneBy([
             'domain_id' => $domainId,
             'group_slug' => $slug,
@@ -63,6 +82,10 @@ class BoardGroupRepository extends BaseRepository
     /** 게시판 그룹은 전역 예외 없이 현재 도메인 소유만 허용한다. */
     public function findByIdForDomain(int $domainId, int $groupId): ?BoardGroup
     {
+        if ($this->readOverlay?->groups($domainId) !== null) {
+            $group = $this->readOverlay->findById($domainId, $groupId);
+            return $group !== null ? BoardGroup::fromArray($group->values) : null;
+        }
         return $this->findOneBy([
             'group_id' => $groupId,
             'domain_id' => $domainId,
@@ -109,6 +132,10 @@ class BoardGroupRepository extends BaseRepository
      */
     public function findActiveByDomain(int $domainId): array
     {
+        $overlay = $this->readOverlay?->groups($domainId, true);
+        if ($overlay !== null) {
+            return $this->fromDescriptors($overlay);
+        }
         $rows = $this->getDb()->table($this->table)
             ->where('domain_id', '=', $domainId)
             ->where('is_active', '=', 1)

@@ -135,7 +135,12 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
             new BoardCategoryRepository($c->get(Database::class))
         );
         $container->singleton(BoardGroupRepository::class, fn(DependencyContainer $c) =>
-            new BoardGroupRepository($c->get(Database::class))
+            new BoardGroupRepository(
+                $c->get(Database::class),
+                $c->has(\Mublo\Contract\Board\BoardGroupReadOverlayInterface::class)
+                    ? $c->get(\Mublo\Contract\Board\BoardGroupReadOverlayInterface::class)
+                    : null
+            )
         );
         $container->singleton(BoardAttachmentRepository::class, fn(DependencyContainer $c) =>
             new BoardAttachmentRepository($c->get(Database::class))

@@ -121,7 +121,8 @@ class BoardGroupRenderer implements RendererInterface
      */
     private function getBoardsByGroup(int $groupId, int $domainId): array
     {
-        $boards = $this->boardRepository->findByGroup($groupId);
+        // 미리보기 overlay(그룹 이동·새 게시판)를 따르도록 도메인 기준 조회를 쓴다
+        $boards = $this->boardRepository->findByGroupForDomain($domainId, $groupId);
 
         return array_values(array_filter(
             $boards,
