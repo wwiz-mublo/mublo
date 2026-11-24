@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Mublo\Service\Block;
 
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
 use Mublo\Core\Block\BlockRegistry;
 use Mublo\Core\Event\Block\BlockPageMenuSyncEvent;
 use Mublo\Core\Event\EventDispatcher;
@@ -111,6 +113,12 @@ class BlockKitApplier
     /** @var array<string, true> */
     private array $obsoleteImagesAfterApply = [];
 
+    /** @var BlockRow[] 이번 적용이 지운 행(revision 기록용) */
+    private array $removedRowsInApply = [];
+
+    /** @var list<int> 이번 적용이 만든 행(revision 기록용) */
+    private array $createdRowIdsInApply = [];
+
     public function __construct(
         private BlockContentSanitizer $contentSanitizer,
         private BlockRowRepository $rowRepository,
@@ -125,7 +133,9 @@ class BlockKitApplier
         private ?EventDispatcher $eventDispatcher = null,
         private ?BlockRowRevisionRepository $revisionRepository = null,
         private ?BlockImageProcessor $imageProcessor = null,
-        private ?BlockColumnContentService $columnWriter = null
+        private ?BlockColumnContentService $columnWriter = null,
+        private ?BlockRowService $blockRows = null,
+        private ?SiteMutationRecorderInterface $mutationRecorder = null
     ) {
         $this->columnNormalizer = $columnNormalizer;
     }
@@ -712,6 +722,8 @@ class BlockKitApplier
      * @param string $mode append | replace
      * @param bool $applySiteSettings 블록 킷의 레이아웃 요구를 site_config 에 병합할지(설계 5.4 ⑥ — 별도 체크박스)
      * @param null|callable(array<string, mixed>): void $beforeCommit 블록·설정과 같은 DB 트랜잭션에 묶을 후속 기록
+     * @param SiteMutationContext|null $mutationContext 호출자의 사이트 변경 문맥. 없으면 관리자 변경 하나로 기록한다.
+     *        바뀐 블록 행·정렬 scope와 병합한 site_config가 같은 문맥에 담긴다.
      * @return array{ok: bool, errors: string[], warnings: string[], summary: array<string, mixed>}
      */
     public function apply(
@@ -720,8 +732,12 @@ class BlockKitApplier
         string $mode = self::MODE_APPEND,
         bool $applySiteSettings = false,
         bool $allowScripts = true,
-        ?callable $beforeCommit = null
+        ?callable $beforeCommit = null,
+        ?SiteMutationContext $mutationContext = null
     ): array {
+        if ($mutationContext !== null && $mutationContext->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the block kit domain.');
+        }
         $validation = $this->dryRun($kit, ['domain_id' => $domainId]);
         if (!$validation['ok']) {
             return $validation;
@@ -761,50 +777,101 @@ class BlockKitApplier
 
         $db = $this->rowRepository->getDb();
         $this->obsoleteImagesAfterApply = [];
-        $db->beginTransaction();
-
-        $pageMenuSync = null;
+        $this->removedRowsInApply = [];
+        $this->createdRowIdsInApply = [];
+        // 바뀐 블록 행·정렬 scope와 병합한 site_config를 한 사이트 변경으로 남긴다
+        $ownsContext = $mutationContext === null;
+        $context = $mutationContext ?? ($this->mutationRecorder !== null
+            ? \Mublo\Contract\Site\SiteMutationScope::context($domainId)
+            : null);
+        /** @var list<string> $afterCommitWarnings */
+        $afterCommitWarnings = [];
 
         try {
-            $scope = match ($kind) {
-                'page' => $this->applyPageKit($domainId, $kit, $validation['normalized_rows'], $mode),
-                'screen' => $this->applyMainScreenKit($domainId, $kit, $validation['normalized_rows'], $mode),
-                default => $this->applyPositionKit($domainId, $kit, $validation['normalized_rows'], $mode),
-            };
-            $pageMenuSync = $scope['_page_menu_sync'] ?? null;
-            unset($scope['_page_menu_sync']);
+            // 바깥 트랜잭션(사이트 편집·프로비저닝) 안에서 불려도 savepoint로 함께 묶인다
+            $summary = $db->transaction(function () use (
+                $db, $domainId, $kit, $kind, $mode, $validation, $applySiteSettings, $siteConfigSnapshot,
+                $beforeCommit, $context, $ownsContext, &$afterCommitWarnings
+            ): array {
+                $scope = match ($kind) {
+                    'page' => $this->applyPageKit($domainId, $kit, $validation['normalized_rows'], $mode),
+                    'screen' => $this->applyMainScreenKit($domainId, $kit, $validation['normalized_rows'], $mode),
+                    default => $this->applyPositionKit($domainId, $kit, $validation['normalized_rows'], $mode),
+                };
+                $pageMenuSync = $scope['_page_menu_sync'] ?? null;
+                unset($scope['_page_menu_sync']);
 
-            // 블록만 적용되고 레이아웃 설정이 실패하면 사이드바 블록 킷이 보이지 않는
-            // 어중간한 상태가 되므로 같은 트랜잭션에 묶는다(설계 6.4).
-            $siteConfigChanges = [];
-            if ($applySiteSettings) {
-                $siteConfigChanges = $this->mergeSiteConfig($domainId, $kit, $siteConfigSnapshot ?? []);
-            }
+                // 블록만 적용되고 레이아웃 설정이 실패하면 사이드바 블록 킷이 보이지 않는
+                // 어중간한 상태가 되므로 같은 트랜잭션에 묶는다(설계 6.4).
+                $siteConfigChanges = [];
+                if ($applySiteSettings) {
+                    $siteConfigChanges = $this->mergeSiteConfig($domainId, $kit, $siteConfigSnapshot ?? [], $context);
+                }
 
-            $summary = $validation['summary'] + $scope + [
-                'mode' => $mode,
-                'site_config_changes' => $siteConfigChanges,
-                'site_config_snapshot' => $siteConfigSnapshot,
-            ];
+                $summary = $validation['summary'] + $scope + [
+                    'mode' => $mode,
+                    'site_config_changes' => $siteConfigChanges,
+                    'site_config_snapshot' => $siteConfigSnapshot,
+                ];
 
-            // 적용 이력처럼 성공 사실과 분리되면 안 되는 기록은 커밋 직전에 실행한다.
-            // 콜백 실패도 같은 catch로 들어가 블록·설정 변경까지 모두 롤백된다.
-            if ($beforeCommit !== null) {
-                $beforeCommit($summary);
-            }
+                if ($context !== null) {
+                    $this->blockRows?->collectExternalChanges(
+                        $context,
+                        $this->removedRowsInApply,
+                        $this->createdRowIdsInApply
+                    );
+                }
 
-            $db->commit();
+                // 적용 이력처럼 성공 사실과 분리되면 안 되는 기록은 커밋 직전에 실행한다.
+                // 콜백 실패도 같은 트랜잭션 안이라 블록·설정 변경까지 모두 롤백된다.
+                if ($beforeCommit !== null) {
+                    $beforeCommit($summary);
+                }
+                if ($ownsContext && $context !== null && !$context->isEmpty()) {
+                    $this->mutationRecorder?->record($context);
+                }
+
+                // 메뉴 동기화·캐시 무효화·이미지 정리는 최상위 commit이 확정된 뒤에만 한다
+                $obsoleteImages = array_keys($this->obsoleteImagesAfterApply);
+                // 페이지 메뉴 동기화가 만든 메뉴 변경은 이 적용의 주체를 물려받는다
+                $db->afterCommit(function () use ($domainId, $pageMenuSync, $obsoleteImages, $context, &$afterCommitWarnings): void {
+                    $afterCommitWarnings = \Mublo\Contract\Site\SiteMutationScope::inherit(
+                        $context,
+                        fn (): array => $this->afterApplied($domainId, $pageMenuSync, $obsoleteImages)
+                    );
+                });
+                return $summary;
+            });
         } catch (\Throwable $e) {
-            $db->rollBack();
+            // Database::transaction()은 원인을 "Transaction failed: …"로 감싼다. 사용자에게는 원인 문장을 보여 준다.
+            $cause = $e->getPrevious() !== null && str_starts_with($e->getMessage(), 'Transaction failed') ? $e->getPrevious() : $e;
 
             return [
                 'ok' => false,
-                'errors' => ['블록 킷 적용에 실패했습니다: ' . $e->getMessage()],
+                'errors' => ['블록 킷 적용에 실패했습니다: ' . $cause->getMessage()],
                 'warnings' => $validation['warnings'],
                 'summary' => $validation['summary'],
             ];
         }
 
+        return [
+            'ok' => true,
+            'errors' => [],
+            'warnings' => [...$validation['warnings'], ...$afterCommitWarnings],
+            'summary' => $summary,
+        ];
+    }
+
+    /**
+     * 커밋된 적용의 후속 작업. 실패해도 이미 커밋된 블록을 적용 실패로 오해시키지 않고 경고만 돌려준다.
+     *
+     * @param array<string, mixed>|null $pageMenuSync
+     * @param list<string> $obsoleteImages
+     * @return list<string>
+     */
+    private function afterApplied(int $domainId, ?array $pageMenuSync, array $obsoleteImages): array
+    {
+        $warnings = [];
         if (is_array($pageMenuSync)) {
             try {
                 $this->eventDispatcher?->dispatch(new BlockPageMenuSyncEvent(
@@ -814,9 +881,8 @@ class BlockKitApplier
                     (string) $pageMenuSync['page_title']
                 ));
             } catch (\Throwable $e) {
-                // 블록 DB는 이미 커밋됐다. 후속 메뉴 동기화 실패를 적용 실패로 오인시키지 않는다.
                 error_log('[BlockKitApplier] Page menu sync failed: ' . $e->getMessage());
-                $validation['warnings'][] = '블록은 적용됐지만 페이지 메뉴 동기화에 실패했습니다.';
+                $warnings[] = '블록은 적용됐지만 페이지 메뉴 동기화에 실패했습니다.';
             }
         }
 
@@ -827,22 +893,16 @@ class BlockKitApplier
             $this->renderService->invalidateDomainCache($domainId);
         } catch (\Throwable $e) {
             error_log('[BlockKitApplier] Cache invalidation failed: ' . $e->getMessage());
-            $validation['warnings'][] = '블록은 적용됐지만 캐시 즉시 갱신에 실패했습니다.';
+            $warnings[] = '블록은 적용됐지만 캐시 즉시 갱신에 실패했습니다.';
         }
         try {
-            $this->imageProcessor?->cleanupUnreferenced(array_keys($this->obsoleteImagesAfterApply));
+            $this->imageProcessor?->cleanupUnreferenced($obsoleteImages);
         } catch (\Throwable $e) {
-            // 이미 커밋된 블록을 적용 실패로 오해시키지 않고 고아 파일만 남겨 보존적으로 실패한다.
+            // 고아 파일만 남겨 보존적으로 실패한다.
             error_log('[BlockKitApplier] Image cleanup failed: ' . $e->getMessage());
-            $validation['warnings'][] = '블록은 적용됐지만 이전 이미지 정리를 완료하지 못했습니다.';
+            $warnings[] = '블록은 적용됐지만 이전 이미지 정리를 완료하지 못했습니다.';
         }
-
-        return [
-            'ok' => true,
-            'errors' => [],
-            'warnings' => $validation['warnings'],
-            'summary' => $summary,
-        ];
+        return $warnings;
     }
 
     /**
@@ -1053,6 +1113,7 @@ class BlockKitApplier
                 throw new \RuntimeException('행 생성에 실패했습니다.');
             }
             $createdRows++;
+            $this->createdRowIdsInApply[] = (int) $rowId;
 
             $columns = [];
             foreach ($row['columns'] ?? [] as $column) {
@@ -1111,7 +1172,7 @@ class BlockKitApplier
      * @param array<string, mixed> $currentConfig
      * @return array<string, array{from: mixed, to: mixed}> 실제로 바뀐 키
      */
-    private function mergeSiteConfig(int $domainId, array $kit, array $currentConfig): array
+    private function mergeSiteConfig(int $domainId, array $kit, array $currentConfig, ?SiteMutationContext $mutationContext = null): array
     {
         $requested = $kit['site_settings']['site_config'] ?? null;
         if (!is_array($requested) || $requested === []) {
@@ -1126,7 +1187,7 @@ class BlockKitApplier
 
         $merged = array_replace($currentConfig, $requested);
 
-        $result = $this->domainSettingsService->saveSettings($domainId, ['site' => $merged]);
+        $result = $this->domainSettingsService->saveSettings($domainId, ['site' => $merged], $mutationContext);
         if ($result->isFailure()) {
             throw new \RuntimeException('사이트 설정 저장에 실패했습니다: ' . $result->getMessage());
         }
@@ -1209,6 +1270,7 @@ class BlockKitApplier
     private function snapshotRowsForReplace(array $rows): void
     {
         foreach ($rows as $row) {
+            $this->removedRowsInApply[] = $row;
             $columns = $this->columnRepository->findAllByRowForDomain(
                 $row->getRowId(),
                 $row->getDomainId()

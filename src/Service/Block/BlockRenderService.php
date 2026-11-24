@@ -6,6 +6,8 @@ use Mublo\Core\Block\BlockRegistry;
 use Mublo\Enum\Block\BlockPosition;
 use Mublo\Core\Block\Renderer\RendererInterface;
 use Mublo\Core\Container\DependencyContainer;
+use Mublo\Core\Event\Block\BlockPositionRenderingEvent;
+use Mublo\Core\Event\EventDispatcher;
 use Mublo\Entity\Block\BlockRow;
 use Mublo\Entity\Block\BlockColumn;
 use Mublo\Repository\Block\BlockRowRepository;
@@ -33,6 +35,11 @@ use Mublo\Contract\Block\BlockRowSnapshot;
  * - 행 목록 캐시: block:ids:pos:{domainId}:{position} → row_id 배열
  * - 행 콘텐츠 캐시: block:row:{rowId} → 개별 행 HTML
  * - 행 1개 수정 시 해당 행만 재렌더링, 같은 위치의 다른 행은 캐시 유지
+ *
+ * 확장점:
+ * - renderPosition() 직전에 BlockPositionRenderingEvent 를 발행한다. 확장은 이번 요청에서
+ *   위치를 다른 HTML 로 대체하거나 캐시를 끌 수 있다 (미리보기 등). 이 서비스는 내부 API 이므로
+ *   확장이 직접 붙잡지 않고 이벤트로만 개입한다.
  */
 class BlockRenderService
 {
@@ -42,6 +49,7 @@ class BlockRenderService
     private CacheInterface $cache;
     private DependencyContainer $container;
     private ?BlockReadOverlayInterface $readOverlay;
+    private ?EventDispatcher $eventDispatcher;
 
     /**
      * 캐시 TTL (기본 1시간)
@@ -77,7 +85,8 @@ class BlockRenderService
         CacheInterface $cache,
         DependencyContainer $container,
         ?BlockColumnContentRepository $contentRepository = null,
-        ?BlockReadOverlayInterface $readOverlay = null
+        ?BlockReadOverlayInterface $readOverlay = null,
+        ?EventDispatcher $eventDispatcher = null
     ) {
         $this->rowRepository = $rowRepository;
         $this->columnRepository = $columnRepository;
@@ -85,6 +94,7 @@ class BlockRenderService
         $this->container = $container;
         $this->contentRepository = $contentRepository;
         $this->readOverlay = $readOverlay;
+        $this->eventDispatcher = $eventDispatcher;
         $this->isDebug = ($_ENV['APP_DEBUG'] ?? 'false') === 'true';
     }
 
@@ -172,6 +182,20 @@ class BlockRenderService
         $debug = '';
         if ($this->isDebug) {
             $debug = "<!-- [Block] renderPosition: domain={$domainId}, position={$position}, menu={$menuCode}, main=" . ($isMainScreen ? '1' : '0') . " -->\n";
+        }
+
+        // 확장점 — 이번 요청에서 이 위치를 다른 HTML 로 대체하거나 캐시를 끈다
+        if ($this->eventDispatcher !== null) {
+            $event = new BlockPositionRenderingEvent($domainId, $position, $menuCode, $isMainScreen);
+            $this->eventDispatcher->dispatch($event);
+
+            $replacement = $event->getReplacement();
+            if ($replacement !== null) {
+                return $debug . $replacement;
+            }
+            if ($event->isCacheDisabled()) {
+                $useCache = false;
+            }
         }
 
         // 1단계: 행 목록 캐시에서 row 조회

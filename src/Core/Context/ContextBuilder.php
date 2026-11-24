@@ -104,7 +104,37 @@ class ContextBuilder
         $context->setDomain($domainName);
 
         // 도메인 정보 로드 (캐시 → DB)
-        $domainInfo = $this->resolveDomain($domainName);
+        $this->applyDomain($context, $request, $this->resolveDomain($domainName));
+
+        if ($context->isApi() || $context->isAdmin()) {
+            return $context;
+        }
+
+        /* =====================================================
+         * 4. 현재 메뉴 코드 해석 (URL 매칭)
+         * ===================================================== */
+        $this->resolveCurrentMenu($request, $context);
+
+        return $context;
+    }
+
+    /**
+     * 확장이 요청 중에 사이트·테마 미리보기 overlay를 등록한 뒤 호출한다.
+     *
+     * Context는 확장이 로드되기 전에 만들어지므로, overlay를 등록한 확장이 이 hook으로
+     * 도메인 설정·사이트 이미지·로고 문구·스킨을 build()와 같은 규칙으로 다시 계산한다.
+     */
+    public function reapplyThemeOverlay(Context $context): void
+    {
+        $domainInfo = $context->getDomainInfo();
+        if ($domainInfo !== null) {
+            $this->applyDomain($context, $context->getRequest(), $domainInfo);
+        }
+    }
+
+    /** 도메인 설정(미리보기 overlay 포함)과 그에 따른 사이트 이미지·로고 문구·스킨을 Context에 싣는다. */
+    private function applyDomain(Context $context, Request $request, ?Domain $domainInfo): void
+    {
         if ($domainInfo !== null) {
             $snapshot = $this->themeReadOverlay?->snapshot($domainInfo->getDomainId());
             if ($snapshot !== null) {
@@ -145,7 +175,7 @@ class ContextBuilder
             // API 영역
             // -------------------------------
             // API 는 렌더링/스킨 개념 없음
-            return $context;
+            return;
         }
 
         if ($context->isAdmin()) {
@@ -155,7 +185,7 @@ class ContextBuilder
             $context->setAdminSkin(ThemeSkinPolicy::resolveExisting('admin', $themeConfig['admin'] ?? null));
 
             // Admin 은 Front / Block / Frame 스킨을 사용하지 않음
-            return $context;
+            return;
         }
 
         // -------------------------------
@@ -181,13 +211,6 @@ class ContextBuilder
         $context->setBlockSkin('latest', 'basic');
         $context->setBlockSkin('image',  'basic');
         $context->setBlockSkin('file',   'basic');
-
-        /* =====================================================
-         * 4. 현재 메뉴 코드 해석 (URL 매칭)
-         * ===================================================== */
-        $this->resolveCurrentMenu($request, $context);
-
-        return $context;
     }
 
     /* =========================================================
