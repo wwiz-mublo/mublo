@@ -1,6 +1,8 @@
 <?php
 
-namespace Tests\Integration;
+namespace Tests\VisitorStats\Integration;
+
+use Tests\Integration\DatabaseTestCase;
 
 /**
  * VisitorStats 004_move_admin_menu_permission_code.sql 을 실 DB 에 태운다.
@@ -8,9 +10,9 @@ namespace Tests\Integration;
  * 방문자 통계 메뉴 코드가 002_P_VisitorStats_001 → P_VisitorStats_001 로 바뀌었다.
  * 회원 등급별 차단 설정이 새 코드로 옮겨져야 업그레이드 뒤에도 차단이 유지된다.
  */
-class VisitorStatsMenuPermissionMigrationTest extends DatabaseTestCase
+class MenuPermissionMigrationTest extends DatabaseTestCase
 {
-    private const MIGRATION = __DIR__ . '/../../plugins/VisitorStats/database/migrations/004_move_admin_menu_permission_code.sql';
+    private const MIGRATION = __DIR__ . '/../../database/migrations/004_move_admin_menu_permission_code.sql';
 
     protected function setUp(): void
     {
