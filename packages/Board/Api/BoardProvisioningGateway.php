@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Packages\Board\Api;
 
 use Mublo\Contract\Board\BoardProvisioningInterface;
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Packages\Board\Repository\BoardConfigRepository;
@@ -36,8 +37,12 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
     ) {
     }
 
-    public function ensureGroup(int $domainId, string $provisioningKey, array $preset = []): Result
-    {
+    public function ensureGroup(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
         $slug = trim($provisioningKey);
         if ($slug === '') {
             return Result::failure('프로비저닝 키는 필수입니다.');
@@ -54,7 +59,7 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
             ? $preset['group_name']
             : $slug;
 
-        $result = $this->groupService->createGroup($domainId, $data);
+        $result = $this->groupService->createGroup($domainId, $data, $mutationContext);
 
         if (!$result->isSuccess()) {
             // 동시 호출이 먼저 만들었으면 UNIQUE 로 막힌다. 그 행을 읽어 같은 결과를 준다.
@@ -69,7 +74,12 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
         return $this->groupResult((int) $result->getData()['group_id'], $slug, true);
     }
 
-    public function ensureBoard(int $domainId, string $provisioningKey, array $preset = []): Result
+    public function ensureBoard(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $slug = trim($provisioningKey);
         if ($slug === '') {
@@ -91,15 +101,16 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
             return Result::failure("게시판 그룹 '{$groupSlug}' 이(가) 없습니다. ensureGroup() 을 먼저 호출하세요.");
         }
 
+        // 게시판 행이 아닌 프로비저닝 지시값은 저장 데이터에서 뗀다(첫 글은 seedFirstPosts가 쓴다).
         $data = $preset;
-        unset($data['group_slug']);
+        unset($data['group_slug'], $data['placeholder_posts'], $data['author_name']);
         $data['board_slug'] = $slug;
         $data['group_id'] = $group->getGroupId();
         $data['board_name'] = trim((string) ($preset['board_name'] ?? '')) !== ''
             ? $preset['board_name']
             : $slug;
 
-        $result = $this->boardService->createBoard($domainId, $data);
+        $result = $this->boardService->createBoard($domainId, $data, $mutationContext);
 
         if (!$result->isSuccess()) {
             $raced = $this->boardRepository->findBySlug($domainId, $slug);
@@ -135,12 +146,19 @@ class BoardProvisioningGateway implements BoardProvisioningInterface
      *
      * 문구는 **어느 업종에서도 참인 것**으로 고른다. 방문자에게도 보이는
      * 글이라, 지어낸 실적을 적으면 거짓말이 된다.
+     *
+     * 이미 운영 중인 사이트에 운영자가 게시판 하나를 더하는 경로(사이트 편집기 등)는
+     * `placeholder_posts: []`로 첫 글을 끈다. 미리보기에 없던 글이 생기거나
+     * 빈 게시판의 생성 취소가 막히면 안 된다.
      */
     private function seedFirstPosts(int $domainId, int $boardId, array $preset): void
     {
         $posts = $preset['placeholder_posts'] ?? null;
+        if ($posts === []) {
+            return;
+        }
 
-        if (!is_array($posts) || $posts === []) {
+        if (!is_array($posts)) {
             $posts = [[
                 'title' => '홈페이지를 새로 열었습니다',
                 'content' => '<p>방문해 주셔서 감사합니다.</p>'

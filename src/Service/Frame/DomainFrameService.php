@@ -4,6 +4,9 @@ declare(strict_types=1);
 namespace Mublo\Service\Frame;
 
 use Mublo\Contract\Frame\DomainFrameEditorInterface;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationFingerprint;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
 use Mublo\Core\Result\Result;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Repository\Frame\DomainFrameOverrideRepository;
@@ -48,7 +51,38 @@ class DomainFrameService implements DomainFrameEditorInterface
         private DomainRepository $domainRepository,
         private DomainResolver $domainResolver,
         private \Mublo\Infrastructure\Database\Database $db,
+        private ?SiteMutationRecorderInterface $mutationRecorder = null,
     ) {
+    }
+
+    /**
+     * 게시·되돌리기는 프런트에 보이는 헤더·푸터와 theme_config 플래그를 바꾼다.
+     * 같은 트랜잭션에서 `frame:<part>`(게시본)와 바뀐 경우 `config:theme` revision을 올린다.
+     *
+     * 실제로 바뀐 자원만 기록한다(같은 지문이어도 revision이 오르므로 바뀌지 않은 게시본은 건너뛴다).
+     *
+     * @param array<string, mixed>|null $before 바꾸기 전 게시본
+     * @param array<string, mixed>|null $themeConfig 플래그를 바꿨으면 저장한 theme_config 전체
+     */
+    private function recordMutation(int $domainId, string $part, ?array $before, ?array $themeConfig): void
+    {
+        if ($this->mutationRecorder === null) {
+            return;
+        }
+        $context = \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+        $after = $this->overrides->findPublished($domainId, $part);
+        $fingerprint = static fn(?array $row): string =>
+            SiteMutationFingerprint::hash($row ?? ['published' => false, 'part' => $part]);
+        if ($fingerprint($before) !== $fingerprint($after)) {
+            $context->changed('frame:' . $part, 'frame', $fingerprint($after));
+        }
+        if ($themeConfig !== null) {
+            // DomainSettingsService와 같은 지문 규칙(저장한 theme_config 전체)
+            $context->changed('config:theme', 'config', SiteMutationFingerprint::hash($themeConfig));
+        }
+        if (!$context->isEmpty()) {
+            $this->mutationRecorder->record($context);
+        }
     }
 
     /**
@@ -120,10 +154,12 @@ class DomainFrameService implements DomainFrameEditorInterface
         $invalidate = null;
         try {
             $published = $this->db->transaction(function () use ($domainId, $part, $updatedBy, &$invalidate): bool {
+                $before = $this->overrides->findPublished($domainId, $part);
                 if (!$this->overrides->publish($domainId, $part, $updatedBy)) {
                     return false;
                 }
-                $invalidate = $this->updateFlag($domainId, $part, true);
+                [$invalidate, $themeConfig] = $this->updateFlag($domainId, $part, true);
+                $this->recordMutation($domainId, $part, $before, $themeConfig);
                 return true;
             });
         } catch (\Throwable $e) {
@@ -157,8 +193,10 @@ class DomainFrameService implements DomainFrameEditorInterface
         $invalidate = null;
         try {
             $this->db->transaction(function () use ($domainId, $part, &$invalidate): bool {
+                $before = $this->overrides->findPublished($domainId, $part);
                 $this->overrides->unpublish($domainId, $part);
-                $invalidate = $this->updateFlag($domainId, $part, false);
+                [$invalidate, $themeConfig] = $this->updateFlag($domainId, $part, false);
+                $this->recordMutation($domainId, $part, $before, $themeConfig);
                 return true;
             });
         } catch (\Throwable $e) {
@@ -237,9 +275,10 @@ class DomainFrameService implements DomainFrameEditorInterface
      * 트랜잭션 안에서 호출된다 — 저장 실패는 예외로 승격해 전체를 롤백시키고,
      * 캐시 무효화는 커밋 후에 해야 하므로 콜백으로 반환한다.
      *
-     * @return callable 커밋 후 호출할 도메인 캐시 무효화 콜백
+     * @return array{0:callable,1:array<string,mixed>|null} 커밋 후 호출할 도메인 캐시 무효화 콜백,
+     *         플래그가 바뀌었으면 저장한 theme_config 전체(아니면 null)
      */
-    private function updateFlag(int $domainId, string $part, bool $on): callable
+    private function updateFlag(int $domainId, string $part, bool $on): array
     {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
@@ -265,7 +304,7 @@ class DomainFrameService implements DomainFrameEditorInterface
 
         $domainName = $domain->getDomain();
 
-        return fn () => $this->domainResolver->invalidate($domainName);
+        return [fn () => $this->domainResolver->invalidate($domainName), $newParts !== $parts ? $themeConfig : null];
     }
 
     private function assertPart(string $part): void

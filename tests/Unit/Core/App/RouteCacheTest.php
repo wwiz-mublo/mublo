@@ -205,9 +205,7 @@ class RouteCacheTest extends TestCase
             $clearer = $this->worker($mode);
             fwrite($clearer['pipes'][0], "go\n");
             $this->assertSame('clearing', $this->line($clearer['pipes'][1]));
-            $read = [$clearer['pipes'][1]];
-            $write = $except = [];
-            $this->assertSame(0, stream_select($read, $write, $except, 0, 100000), '삭제가 생성 잠금을 기다려야 한다');
+            $this->assertStillWaiting($clearer, '삭제가 생성 잠금을 기다려야 한다');
             fwrite($builder['pipes'][0], "finish\n");
             $this->line($builder['pipes'][1]);
             $this->finish($builder);
@@ -243,9 +241,7 @@ class RouteCacheTest extends TestCase
             $clearer = $this->worker('clear');
             fwrite($clearer['pipes'][0], "go\n");
             $this->assertSame('clearing', $this->line($clearer['pipes'][1]));
-            $read = [$clearer['pipes'][1]];
-            $write = $except = [];
-            $this->assertSame(0, stream_select($read, $write, $except, 0, 100000));
+            $this->assertStillWaiting($clearer, '삭제가 읽기 잠금을 기다려야 한다');
             fwrite($reader['pipes'][0], "finish\n");
             $result = json_decode($this->line($reader['pipes'][1]), true, flags: JSON_THROW_ON_ERROR);
             $this->assertSame('home', $result[0][1]);
@@ -275,6 +271,18 @@ class RouteCacheTest extends TestCase
             $this->stop($worker);
             throw $e;
         }
+    }
+
+    /**
+     * worker는 잠금을 얻으면 결과를 쓰고 곧바로 종료한다. 잠시 뒤에도 살아 있으면 잠금을 기다리는 중이다.
+     *
+     * 파이프에 stream_select()를 쓰지 않는다. Windows PHP는 proc_open 파이프를 데이터가 없어도
+     * 항상 읽을 수 있다고 보고해, 대기 여부를 판별할 수 없다.
+     */
+    private function assertStillWaiting(array $worker, string $message): void
+    {
+        usleep(300000);
+        $this->assertTrue(proc_get_status($worker['process'])['running'], $message);
     }
 
     private function line($stream): string

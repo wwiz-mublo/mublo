@@ -15,6 +15,9 @@ use Mublo\Packages\Board\Event\BoardConfigCreatedEvent;
 use Mublo\Packages\Board\Event\BoardConfigDeletedEvent;
 use Mublo\Helper\Directory\DirectoryHelper;
 use Mublo\Helper\Form\FormHelper;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationFingerprint;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
 
 /**
  * BoardConfig Service
@@ -38,6 +41,7 @@ class BoardConfigService
     private BoardArticleRepository $articleRepository;
     private ?EventDispatcher $eventDispatcher;
     private ?AuthContextInterface $authService;
+    private ?SiteMutationRecorderInterface $mutationRecorder;
 
     /**
      * 슬러그 예약어 목록
@@ -79,7 +83,8 @@ class BoardConfigService
         BoardCategoryMappingRepository $categoryMappingRepository,
         BoardArticleRepository $articleRepository,
         ?EventDispatcher $eventDispatcher = null,
-        ?AuthContextInterface $authService = null
+        ?AuthContextInterface $authService = null,
+        ?SiteMutationRecorderInterface $mutationRecorder = null
     ) {
         $this->repository = $repository;
         $this->groupRepository = $groupRepository;
@@ -87,6 +92,84 @@ class BoardConfigService
         $this->articleRepository = $articleRepository;
         $this->eventDispatcher = $eventDispatcher;
         $this->authService = $authService;
+        $this->mutationRecorder = $mutationRecorder;
+    }
+
+    private function mutationContext(int $domainId, ?SiteMutationContext $context): ?SiteMutationContext
+    {
+        if ($context !== null && $context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the board domain.');
+        }
+        if ($context === null && $this->mutationRecorder === null) {
+            return null;
+        }
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+    }
+
+    /**
+     * 이 서비스를 거치지 않고 게시판을 만든 경로(설치 시드)가 같은 지문 규칙으로 문맥에 담는다.
+     * 쓰기와 같은 트랜잭션 안에서 부른다.
+     *
+     * @param list<int> $boardIds
+     */
+    public function collectExternalChanges(SiteMutationContext $context, array $boardIds): void
+    {
+        foreach (array_unique($boardIds) as $boardId) {
+            $this->recordBoardMutation($context->domainId, (int) $boardId, $context);
+        }
+    }
+
+    private function recordBoardMutation(
+        int $domainId,
+        int $boardId,
+        ?SiteMutationContext $context,
+        bool $deleted = false,
+        ?string $beforeFingerprint = null
+    ): void {
+        if ($context === null) {
+            return;
+        }
+        if ($context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the board domain.');
+        }
+
+        if ($deleted) {
+            $fingerprint = SiteMutationFingerprint::hash(['deleted' => true, 'board_id' => $boardId]);
+        } else {
+            $fingerprint = $this->boardFingerprint($domainId, $boardId);
+            if ($beforeFingerprint !== null && $beforeFingerprint === $fingerprint) {
+                return;
+            }
+        }
+
+        $context->changed('board:' . $boardId, 'board', $fingerprint);
+    }
+
+    private function boardFingerprint(int $domainId, int $boardId): string
+    {
+        $board = $this->repository->find($boardId);
+        if ($board === null || $board->getDomainId() !== $domainId) {
+            throw new \RuntimeException('Changed board could not be read for revision recording.');
+        }
+        $mappings = array_map(
+            static fn (\Mublo\Packages\Board\Entity\BoardCategoryMapping $mapping): array => $mapping->toArray(),
+            $this->categoryMappingRepository->findByBoard($boardId, false)
+        );
+        usort($mappings, static fn (array $left, array $right): int =>
+            [(int) ($left['sort_order'] ?? 0), (int) ($left['category_id'] ?? 0)]
+            <=> [(int) ($right['sort_order'] ?? 0), (int) ($right['category_id'] ?? 0)]
+        );
+        return SiteMutationFingerprint::hash([
+            'config' => $board->toArray(),
+            'category_mappings' => $mappings,
+        ]);
+    }
+
+    private function finishMutation(?SiteMutationContext $context, bool $ownsContext): void
+    {
+        if ($ownsContext && $context !== null && !$context->isEmpty() && $this->mutationRecorder !== null) {
+            $this->mutationRecorder->record($context);
+        }
     }
 
     /**
@@ -211,7 +294,7 @@ class BoardConfigService
     }
 
     /**
-     * 단일 게시판 조회
+     * 단일 게시판 조회 (미리보기 read overlay는 저장소가 반영한다)
      */
     public function getBoard(int $boardId): ?BoardConfig
     {
@@ -219,7 +302,7 @@ class BoardConfigService
     }
 
     /**
-     * 슬러그로 게시판 조회
+     * 슬러그로 게시판 조회 (미리보기 read overlay는 저장소가 반영한다)
      */
     public function getBoardBySlug(int $domainId, string $slug): ?BoardConfig
     {
@@ -233,7 +316,11 @@ class BoardConfigService
      * @param array $data 게시판 데이터
      * @return Result
      */
-    public function createBoard(int $domainId, array $data): Result
+    public function createBoard(
+        int $domainId,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         // 필수 필드 검증
         if (empty($data['board_slug']) || empty($data['board_name'])) {
@@ -283,10 +370,14 @@ class BoardConfigService
             $insertData['reaction_config'] = json_encode(self::DEFAULT_REACTION_CONFIG, JSON_UNESCAPED_UNICODE);
         }
 
-        // 생성
-        $boardId = $this->repository->create($insertData);
-
-        if ($boardId) {
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            // 레거시 수동 생성 환경은 기존 동작을 유지한다. 운영 DI는 recorder를 주입한다.
+            $boardId = $this->repository->create($insertData);
+            if (!$boardId) {
+                return Result::failure('게시판 생성에 실패했습니다.');
+            }
             // 카테고리 매핑 저장
             $categoryIds = $data['category_ids'] ?? [];
             if (!empty($categoryIds) && is_array($categoryIds)) {
@@ -302,7 +393,40 @@ class BoardConfigService
             return Result::success('게시판이 생성되었습니다.', ['board_id' => $boardId]);
         }
 
-        return Result::failure('게시판 생성에 실패했습니다.');
+        $boardId = $this->repository->getDb()->transaction(function () use (
+            $domainId,
+            $data,
+            $insertData,
+            $mutationContext,
+            $ownsMutationContext
+        ): int {
+            $boardId = $this->repository->create($insertData);
+            if (!$boardId) {
+                return 0;
+            }
+            $categoryIds = $data['category_ids'] ?? [];
+            if (!empty($categoryIds) && is_array($categoryIds)) {
+                $this->categoryMappingRepository->syncCategories($boardId, $categoryIds);
+            }
+
+            $boardConfig = $this->repository->find($boardId);
+            if ($boardConfig === null) {
+                throw new \RuntimeException('Created board could not be read after insertion.');
+            }
+            $this->recordBoardMutation($domainId, $boardId, $mutationContext);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            $event = new BoardConfigCreatedEvent($boardConfig);
+            // 후속 작업(메뉴 자동 등록·삭제 등)은 이 변경의 주체(관리자·사이트 편집·확장)를 물려받아 기록한다
+            $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+                $mutationContext,
+                fn () => $this->dispatch($event)
+            ));
+            return $boardId;
+        });
+
+        return $boardId > 0
+            ? Result::success('게시판이 생성되었습니다.', ['board_id' => $boardId])
+            : Result::failure('게시판 생성에 실패했습니다.');
     }
 
     /**
@@ -312,7 +436,11 @@ class BoardConfigService
      * @param array $data 수정 데이터
      * @return Result
      */
-    public function updateBoard(int $boardId, array $data): Result
+    public function updateBoard(
+        int $boardId,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $board = $this->repository->find($boardId);
 
@@ -361,18 +489,53 @@ class BoardConfigService
         // domain_id, sort_order는 수정 불가
         unset($updateData['domain_id'], $updateData['sort_order']);
 
-        // 수정
-        $affected = $this->repository->update($boardId, $updateData);
-
-        if ($affected >= 0) {
+        $domainId = $board->getDomainId();
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            $affected = $this->repository->update($boardId, $updateData);
+            if ($affected < 0) {
+                return Result::failure('게시판 수정에 실패했습니다.');
+            }
             // 카테고리 매핑 저장
             $categoryIds = $data['category_ids'] ?? [];
             $this->categoryMappingRepository->syncCategories($boardId, is_array($categoryIds) ? $categoryIds : []);
-
             return Result::success('게시판이 수정되었습니다.');
         }
 
-        return Result::failure('게시판 수정에 실패했습니다.');
+        $beforeFingerprint = $this->boardFingerprint($domainId, $boardId);
+        $updated = $this->repository->getDb()->transaction(function () use (
+            $boardId,
+            $data,
+            $updateData,
+            $domainId,
+            $beforeFingerprint,
+            $mutationContext,
+            $ownsMutationContext
+        ): bool {
+            $affected = $this->repository->update($boardId, $updateData);
+            if ($affected < 0) {
+                return false;
+            }
+            $categoryIds = $data['category_ids'] ?? [];
+            $this->categoryMappingRepository->syncCategories(
+                $boardId,
+                is_array($categoryIds) ? $categoryIds : []
+            );
+            $this->recordBoardMutation(
+                $domainId,
+                $boardId,
+                $mutationContext,
+                false,
+                $beforeFingerprint
+            );
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            return true;
+        });
+
+        return $updated
+            ? Result::success('게시판이 수정되었습니다.')
+            : Result::failure('게시판 수정에 실패했습니다.');
     }
 
     /**
@@ -381,7 +544,7 @@ class BoardConfigService
      * @param int $boardId 게시판 ID
      * @return Result
      */
-    public function deleteBoard(int $boardId): Result
+    public function deleteBoard(int $boardId, ?SiteMutationContext $mutationContext = null): Result
     {
         $board = $this->repository->find($boardId);
 
@@ -400,17 +563,44 @@ class BoardConfigService
         $boardSlug = $board->getBoardSlug();
         $boardName = $board->getBoardName();
 
-        // 삭제
-        $affected = $this->repository->delete($boardId);
-
-        if ($affected > 0) {
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            $affected = $this->repository->delete($boardId);
+            if ($affected <= 0) {
+                return Result::failure('게시판 삭제에 실패했습니다.');
+            }
             // 이벤트 발행 (메뉴 자동 삭제 등)
             $this->dispatch(new BoardConfigDeletedEvent($domainId, $boardId, $boardSlug, $boardName));
-
             return Result::success('게시판이 삭제되었습니다.');
         }
 
-        return Result::failure('게시판 삭제에 실패했습니다.');
+        $affected = $this->repository->getDb()->transaction(function () use (
+            $domainId,
+            $boardId,
+            $boardSlug,
+            $boardName,
+            $mutationContext,
+            $ownsMutationContext
+        ): int {
+            $affected = $this->repository->delete($boardId);
+            if ($affected <= 0) {
+                return $affected;
+            }
+            $this->recordBoardMutation($domainId, $boardId, $mutationContext, true);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            $event = new BoardConfigDeletedEvent($domainId, $boardId, $boardSlug, $boardName);
+            // 후속 작업(메뉴 자동 등록·삭제 등)은 이 변경의 주체(관리자·사이트 편집·확장)를 물려받아 기록한다
+            $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+                $mutationContext,
+                fn () => $this->dispatch($event)
+            ));
+            return $affected;
+        });
+
+        return $affected > 0
+            ? Result::success('게시판이 삭제되었습니다.')
+            : Result::failure('게시판 삭제에 실패했습니다.');
     }
 
     /**
@@ -420,13 +610,59 @@ class BoardConfigService
      * @param int[] $boardIds 정렬된 게시판 ID 배열
      * @return Result
      */
-    public function updateOrder(int $domainId, array $boardIds): Result
+    public function updateOrder(
+        int $domainId,
+        array $boardIds,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         if (empty($boardIds)) {
             return Result::failure('정렬할 게시판 목록이 비어있습니다.');
         }
 
-        $result = $this->repository->updateOrder($boardIds);
+        $boards = [];
+        foreach ($boardIds as $boardId) {
+            $board = $this->repository->find((int) $boardId);
+            if ($board === null || $board->getDomainId() !== $domainId) {
+                return Result::failure('다른 도메인이거나 존재하지 않는 게시판이 포함되어 있습니다.');
+            }
+            $boards[] = $board;
+        }
+
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            $result = $this->repository->updateOrder($boardIds);
+        } else {
+            $before = [];
+            foreach ($boards as $board) {
+                $before[$board->getBoardId()] = $this->boardFingerprint($domainId, $board->getBoardId());
+            }
+            $result = $this->repository->getDb()->transaction(function () use (
+                $boardIds,
+                $boards,
+                $domainId,
+                $before,
+                $mutationContext,
+                $ownsMutationContext
+            ): bool {
+                if (!$this->repository->updateOrder($boardIds)) {
+                    return false;
+                }
+                foreach ($boards as $board) {
+                    $boardId = $board->getBoardId();
+                    $this->recordBoardMutation(
+                        $domainId,
+                        $boardId,
+                        $mutationContext,
+                        false,
+                        $before[$boardId]
+                    );
+                }
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+                return true;
+            });
+        }
 
         if ($result) {
             return Result::success('정렬 순서가 변경되었습니다.');
@@ -480,34 +716,89 @@ class BoardConfigService
      * @param array $items [boardId => [field => value, ...], ...]
      * @return Result
      */
-    public function batchUpdate(array $items): Result
+    public function batchUpdate(array $items, ?SiteMutationContext $mutationContext = null): Result
     {
         if (empty($items)) {
             return Result::failure('수정할 항목이 없습니다.', ['updated' => 0]);
         }
 
-        $updated = 0;
+        if ($mutationContext === null && $this->mutationRecorder === null) {
+            $updated = 0;
+            foreach ($items as $boardId => $data) {
+                $boardId = (int) $boardId;
+                $board = $this->repository->find($boardId);
+
+                if ($board) {
+                    $normalizedData = $this->normalizeData($data);
+                    unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
+                    if (!empty($normalizedData)) {
+                        $this->repository->update($boardId, $normalizedData);
+                        $updated++;
+                    }
+                }
+            }
+            return $updated > 0
+                ? Result::success("{$updated}개 항목이 수정되었습니다.", ['updated' => $updated])
+                : Result::failure('수정된 항목이 없습니다.', ['updated' => 0]);
+        }
+
+        $operations = [];
         foreach ($items as $boardId => $data) {
             $boardId = (int) $boardId;
             $board = $this->repository->find($boardId);
-
-            if ($board) {
-                $normalizedData = $this->normalizeData($data);
-                // domain_id, sort_order, board_slug는 일괄 수정에서 제외
-                unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
-
-                if (!empty($normalizedData)) {
-                    $this->repository->update($boardId, $normalizedData);
-                    $updated++;
-                }
+            if ($board === null) {
+                continue;
+            }
+            if ($mutationContext !== null && $mutationContext->domainId !== $board->getDomainId()) {
+                return Result::failure('공유 변경 문맥에 다른 도메인의 게시판이 포함되어 있습니다.');
+            }
+            $normalizedData = $this->normalizeData($data);
+            unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
+            if ($normalizedData !== []) {
+                $operations[] = [
+                    'board' => $board,
+                    'data' => $normalizedData,
+                    'before' => $this->boardFingerprint($board->getDomainId(), $boardId),
+                ];
             }
         }
-
-        if ($updated > 0) {
-            return Result::success("{$updated}개 항목이 수정되었습니다.", ['updated' => $updated]);
+        if ($operations === []) {
+            return Result::failure('수정된 항목이 없습니다.', ['updated' => 0]);
         }
 
-        return Result::failure('수정된 항목이 없습니다.', ['updated' => 0]);
+        /** @var array<int, SiteMutationContext> $contexts */
+        $contexts = [];
+        $updated = $this->repository->getDb()->transaction(function () use (
+            $operations,
+            $mutationContext,
+            &$contexts
+        ): int {
+            $updated = 0;
+            foreach ($operations as $operation) {
+                /** @var BoardConfig $board */
+                $board = $operation['board'];
+                $domainId = $board->getDomainId();
+                $contexts[$domainId] ??= $mutationContext
+                    ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+                $this->repository->update($board->getBoardId(), $operation['data']);
+                $this->recordBoardMutation(
+                    $domainId,
+                    $board->getBoardId(),
+                    $contexts[$domainId],
+                    false,
+                    $operation['before']
+                );
+                $updated++;
+            }
+            if ($mutationContext === null) {
+                foreach ($contexts as $context) {
+                    $this->finishMutation($context, true);
+                }
+            }
+            return $updated;
+        });
+
+        return Result::success("{$updated}개 항목이 수정되었습니다.", ['updated' => $updated]);
     }
 
     /**

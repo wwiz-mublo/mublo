@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Contract\Board;
 
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 
 /**
@@ -28,7 +29,12 @@ interface BoardProvisioningInterface
      * @param array $preset group_name 등. 기존 그룹이 있으면 **덮지 않는다**
      * @return Result 성공 data: {group_id: int, group_slug: string, created: bool}
      */
-    public function ensureGroup(int $domainId, string $provisioningKey, array $preset = []): Result;
+    public function ensureGroup(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
     /**
      * 게시판을 멱등 보장
@@ -37,8 +43,15 @@ interface BoardProvisioningInterface
      * `UNIQUE(domain_id, board_slug)` 가 동시 재시도를 막는다.
      *
      * @param array $preset board_name · group_slug · skin 등.
-     *                      기존 게시판이 있으면 **덮지 않는다** — 운영자 편집을 보존한다
+     *                      기존 게시판이 있으면 **덮지 않는다** — 운영자 편집을 보존한다.
+     *                      placeholder_posts: 새로 만들 때만 넣는 첫 글 [{title, content}] 목록.
+     *                      키가 없으면 기본 첫 글 하나를 넣고, 빈 배열이면 넣지 않는다.
      * @return Result 성공 data: {board_id: int, board_slug: string, created: bool}
      */
-    public function ensureBoard(int $domainId, string $provisioningKey, array $preset = []): Result;
+    public function ensureBoard(
+        int $domainId,
+        string $provisioningKey,
+        array $preset = [],
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 }

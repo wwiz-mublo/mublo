@@ -2,6 +2,10 @@
 declare(strict_types=1);
 namespace Mublo\Service\Extension;
 
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationFingerprint;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Site\SiteMutationScope;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Container\DependencyContainer;
 use Mublo\Core\Context\Context;
@@ -56,7 +60,8 @@ class ExtensionService
         DomainCache $domainCache,
         Database $db,
         ExtensionCompatibility $compatibility,
-        ?CacheInterface $cache = null
+        ?CacheInterface $cache = null,
+        private ?SiteMutationRecorderInterface $mutationRecorder = null
     ) {
         $this->domainRepository = $domainRepository;
         $this->domainCache = $domainCache;
@@ -334,8 +339,8 @@ class ExtensionService
             $sanitized = $this->executeLifecycle($domainId, $oldConfig, $sanitized, $container, $context);
         }
 
-        // 저장
-        $result = $this->domainRepository->updateExtensionConfig($domainId, $sanitized);
+        // 저장 (사이트 변경 revision과 같은 트랜잭션)
+        $result = $this->writeExtensionConfig($domainId, $oldConfig, $sanitized, \Mublo\Contract\Site\SiteMutationScope::source());
 
         // 메모 캐시 무효화 (같은 요청 내 이후 조회가 방금 저장한 값을 보도록)
         unset($this->domainByIdCache[$domainId]);
@@ -345,6 +350,32 @@ class ExtensionService
             return Result::success('확장 설정이 저장되었습니다.');
         }
         return Result::failure('확장 설정 저장에 실패했습니다.');
+    }
+
+    /**
+     * 확장 설정을 저장하고, 실제로 바뀌었으면 같은 트랜잭션에서 `config:extension` revision을 올린다.
+     * 지문 규칙은 DomainSettingsService와 같다(저장한 확장 설정 전체).
+     *
+     * @param array<string, mixed> $before
+     * @param array<string, mixed> $after
+     */
+    private function writeExtensionConfig(int $domainId, array $before, array $after, string $source): bool
+    {
+        if ($this->mutationRecorder === null) {
+            return $this->domainRepository->updateExtensionConfig($domainId, $after);
+        }
+        return (bool) $this->db->transaction(function () use ($domainId, $before, $after, $source): bool {
+            if (!$this->domainRepository->updateExtensionConfig($domainId, $after)) {
+                return false;
+            }
+            $fingerprint = SiteMutationFingerprint::hash($after);
+            if (SiteMutationFingerprint::hash($before) !== $fingerprint) {
+                $this->mutationRecorder->record(
+                    SiteMutationContext::create($domainId, $source)->changed('config:extension', 'config', $fingerprint)
+                );
+            }
+            return true;
+        });
     }
 
     /**
@@ -926,7 +957,7 @@ class ExtensionService
                     try {
                         $provider->register($container);
                         $this->runMigrationsOrFail($type, $name, $container);
-                        $provider->install($container, $context);
+                        SiteMutationScope::run(SiteMutationContext::SOURCE_EXTENSION, "extension:{$type}:{$name}:install", fn () => $provider->install($container, $context));
                         $this->markInstalled($newConfig, $type, $name);
                     } catch (\Throwable $e) {
                         error_log("Extension install error [{$type}:{$name}]: " . $e->getMessage());
@@ -959,7 +990,7 @@ class ExtensionService
             if ($provider instanceof InstallableExtensionInterface) {
                 try {
                     $provider->register($container);
-                    $provider->uninstall($container, $context);
+                    SiteMutationScope::run(SiteMutationContext::SOURCE_EXTENSION, "extension:{$type}:{$name}:uninstall", fn () => $provider->uninstall($container, $context));
                     $this->markUninstalled($newConfig, $type, $name);
                 } catch (\Throwable $e) {
                     error_log("Extension uninstall error [{$type}:{$name}]: " . $e->getMessage());
@@ -1094,7 +1125,7 @@ class ExtensionService
             }
             try {
                 $provider->register($container);
-                $provider->install($container, $context);
+                SiteMutationScope::run(SiteMutationContext::SOURCE_EXTENSION, "extension:{$type}:{$name}:install", fn () => $provider->install($container, $context));
             } catch (\Throwable $e) {
                 error_log("Extension post-migration seed error [{$type}:{$name}]: " . $e->getMessage());
             }
@@ -1176,12 +1207,13 @@ class ExtensionService
             $this->runMigrationsOrFail($type, $name, $container);
 
             $provider->register($container);
-            $provider->install($container, $context);
+            SiteMutationScope::run(SiteMutationContext::SOURCE_EXTENSION, "extension:{$type}:{$name}:install", fn () => $provider->install($container, $context));
 
             // 성공 시에만 installed 마킹 + 영속화
             $config = $this->getExtensionConfig($domainId);
+            $before = $config;
             $this->markInstalled($config, $type, $name);
-            $this->domainRepository->updateExtensionConfig($domainId, $config);
+            $this->writeExtensionConfig($domainId, $before, $config, SiteMutationContext::SOURCE_AUTOMATION);
 
             // 메모 캐시 무효화 (같은 요청의 이후 조회가 installed 마킹을 보도록)
             unset($this->domainByIdCache[$domainId]);

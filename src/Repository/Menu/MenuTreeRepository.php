@@ -40,6 +40,17 @@ class MenuTreeRepository extends BaseRepository
     }
 
     /**
+     * 도메인 소유권을 함께 확인해 단일 배치 조회
+     */
+    public function findByIdAndDomain(int $nodeId, int $domainId): ?array
+    {
+        return $this->db->table($this->table)
+            ->where('node_id', '=', $nodeId)
+            ->where('domain_id', '=', $domainId)
+            ->first();
+    }
+
+    /**
      * 루트 노드 조회 (depth = 1)
      */
     public function findRootNodes(int $domainId): array
@@ -102,7 +113,7 @@ class MenuTreeRepository extends BaseRepository
      */
     public function findTreeWithItems(int $domainId, bool $activeOnly = true): array
     {
-        $sql = "SELECT mt.*, mi.label, mi.url, mi.icon, mi.target, mi.visibility,
+        $sql = "SELECT mt.*, mi.item_id, mi.label, mi.url, mi.icon, mi.target, mi.visibility,
                        mi.min_level, mi.required_permission, mi.show_on_pc, mi.show_on_mobile,
                        mi.is_active, mi.provider_type, mi.provider_name, mi.pair_code
                 FROM menu_tree mt
