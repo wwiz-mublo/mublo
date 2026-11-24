@@ -138,6 +138,8 @@ Package는 자기 영역에서 코어 프레임 대신 자기 프레임을 쓸 �
 
 Helper는 `setHelper($name, $object)`로 주입되고 `$this->{name}`으로 접근한다(`__get`). 확장이 등록한 Helper도 같은 문법이다.
 
+구조화 데이터(schema.org JSON-LD)는 정적 헬퍼 `Mublo\Helper\Seo\StructuredDataHelper`(`src/Helper/Seo/StructuredDataHelper.php`)로 만든다. Controller가 화면에 실제로 그리는 값으로 배열을 만들어 넘기고 스킨은 `StructuredDataHelper::toScriptTag($schema)`로 출력한다 — `organization()`·`webSite()`(사이트 검색 `/search?q=`)·`breadcrumbList()`·`faqPage()`/`faqPageFromGrouped()`·`article()`. 값이 비면 `null`을 돌려주고 `toScriptTag(null)`은 빈 문자열이라, 껍데기 마크업(보이는 콘텐츠와 어긋나 리치결과에서 빠지는 원인)이 나가지 않는다. `toScriptTag()`는 `JSON_HEX_TAG` 등으로 `</script>` 조기 종료를 막는다.
+
 ## 확장 개입 지점 4종
 
 | 이벤트 | 발행 시점 | 개입 내용 | 실사용례 |

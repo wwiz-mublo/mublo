@@ -331,6 +331,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | `Promotion/PromotionQueryInterface` | 1:1 | Promotion Plugin → 블록·다른 Package 스킨 |
 | `Sitemap/SitemapUrlProviderInterface` | 1:N | Package/Plugin → 코어 `SitemapController` |
 | `Tracking/ConversionRecordedEvent`, `ConversionSourceTypes` | Event·상수 | 전환 기록 통지와 출처 타입 상수 ([26장](26-tracking.md)) |
+| `Tracking/ConversionStatusChangedEvent`, `CampaignKeyLabelsEvent`, `VisitorRefererLookupEvent` | Event | 기록된 전환의 상태 변경 통지, 캠페인 키 표시 이름·방문 유입경로 질의 ([26장](26-tracking.md)) |
 | `Notification/NotificationChannelTreeBuilderInterface`, `NotificationTemplateContextInterface`, `EmailTemplateProviderInterface` | 컨테이너 1:1 | 코어 → 알림 Plugin·Package |
 
 ### 요약표
@@ -351,7 +352,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | FAQ | `FaqQueryInterface` | 1:1 | Faq Plugin | Package |
 | 캐시 | `CachePurgerInterface` | 1:1 | 없음 | — |
 | 데이터 리셋 | `DataResettableInterface`, `DataResetFilesystemInterface` | Provider 노출 + Resetter 위임 | Provider 20곳 + Core | 관리자 데이터 초기화 |
-| 추적 | `TrackingKeys`, `ConversionSourceTypes`, `ConversionRecordedEvent` | 상수·Event | — | VisitorStats ↔ Shop |
+| 추적 | `TrackingKeys`, `ConversionSourceTypes`, `ConversionRecordedEvent`, `ConversionStatusChangedEvent`, `CampaignKeyLabelsEvent`, `VisitorRefererLookupEvent` | 상수·Event | VisitorStats(구독) | VisitorStats ↔ Shop·주문을 가진 Package |
 | 코어 제공 계약 | Auth·Member·CustomField·Block·Site·Security·Extension·Frame 등 | 컨테이너 1:1 | Core | 모든 확장 |
 | Provisioning | `SiteProvisioningInterface` 외 6종 | 컨테이너 1:1 | Core·기능 소유 확장 | 시작 킷·설치 마법사 |
 | 조회 | `ManualQueryInterface`, `PromotionQueryInterface` | 1:1 | Manual, Promotion Plugin | 코어·Package 스킨 |
