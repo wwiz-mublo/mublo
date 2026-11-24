@@ -340,6 +340,13 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\HtmlBlockDraftInterface::class,
+            fn (DependencyContainer $c) => new \Mublo\Service\AI\HtmlBlockDraftGateway(
+                $c->get(\Mublo\Service\AI\HtmlBlockAiService::class),
+                $c->get(\Mublo\Service\Domain\DomainSettingsService::class)
+            )
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockMutationPreviewInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationPreviewGateway::class)
         );
