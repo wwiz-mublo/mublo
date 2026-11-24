@@ -348,6 +348,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockReadOverlay::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\BlockImageCleanupInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockImageCleanupGateway::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockRenderContextInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockRenderContext::class)
         );
