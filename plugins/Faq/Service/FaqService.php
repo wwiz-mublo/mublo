@@ -7,12 +7,21 @@ use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Result\Result;
 use Mublo\Helper\Editor\EditorHelper;
 use Mublo\Plugin\Faq\Event\FaqContentChangedEvent;
+use Mublo\Plugin\Faq\Event\FaqItemDeletedEvent;
+use Mublo\Plugin\Faq\Event\FaqItemFormEvent;
+use Mublo\Plugin\Faq\Event\FaqItemSavedEvent;
+use Mublo\Plugin\Faq\Event\FaqItemsLoadedEvent;
 use Mublo\Plugin\Faq\Repository\FaqRepository;
 
 /**
  * FaqService
  *
  * FAQ 비즈니스 로직 + FaqQueryInterface 구현
+ *
+ * 확장 지점 (패키지가 구독 — 플러그인은 붙는 값의 뜻을 모른다):
+ *  - FaqItemFormEvent                        : 관리자 항목 편집 창에 확장 칸 (collectItemFormSections)
+ *  - FaqItemsLoadedEvent                     : 관리자 목록(ext·badges) / 손님 화면(related_links)
+ *  - FaqItemSavedEvent / FaqItemDeletedEvent : 항목 저장·삭제 뒤 (카테고리 삭제로 함께 지워진 항목 포함)
  */
 class FaqService implements FaqQueryInterface
 {
@@ -24,6 +33,82 @@ class FaqService implements FaqQueryInterface
     )
     {
         $this->faqRepository = $faqRepository;
+    }
+
+    // ─────────────────────────────────────────
+    // 확장 지점
+    // ─────────────────────────────────────────
+
+    /**
+     * 관리자 항목 편집 창에 확장이 넣을 HTML 조각 (FaqItemFormEvent)
+     *
+     * @return string[]
+     */
+    public function collectItemFormSections(int $domainId): array
+    {
+        if ($this->eventDispatcher === null) {
+            return [];
+        }
+
+        $event = new FaqItemFormEvent($domainId);
+        $this->eventDispatcher->dispatch($event);
+
+        return $event->getSections();
+    }
+
+    /**
+     * 손님 화면용 — 그룹 항목마다 확장이 단 관련 링크(related_links)·제목(related_title)을 붙인다.
+     *
+     * @param array $grouped [{category_name, category_slug, items: [{faq_id, question, answer}]}]
+     */
+    public function withRelatedLinks(int $domainId, array $grouped): array
+    {
+        $ids = [];
+        foreach ($grouped as $group) {
+            foreach ((array) ($group['items'] ?? []) as $item) {
+                $ids[] = (int) ($item['faq_id'] ?? 0);
+            }
+        }
+        $ids = array_values(array_filter(array_unique($ids)));
+        if ($ids === [] || $this->eventDispatcher === null) {
+            return $grouped;
+        }
+
+        $event = new FaqItemsLoadedEvent($domainId, $ids, FaqItemsLoadedEvent::SCOPE_FRONT);
+        $this->eventDispatcher->dispatch($event);
+
+        foreach ($grouped as $g => $group) {
+            foreach ((array) ($group['items'] ?? []) as $i => $item) {
+                $grouped[$g]['items'][$i]['related_links'] = $event->getRelatedLinks((int) ($item['faq_id'] ?? 0));
+                $grouped[$g]['items'][$i]['related_title'] = $event->getRelatedTitle();
+            }
+        }
+
+        return $grouped;
+    }
+
+    /**
+     * 관리자 목록용 — 항목마다 확장 값(ext)·짧은 표시(badges)를 붙인다.
+     *
+     * ext 는 JSON 으로 내려갈 때 빈 값도 객체({})가 되도록 object 로 둔다.
+     */
+    private function withAdminExtras(int $domainId, array $items): array
+    {
+        $ids = array_values(array_filter(array_map(static fn($i) => (int) ($i['faq_id'] ?? 0), $items)));
+        if ($ids === [] || $this->eventDispatcher === null) {
+            return $items;
+        }
+
+        $event = new FaqItemsLoadedEvent($domainId, $ids, FaqItemsLoadedEvent::SCOPE_ADMIN);
+        $this->eventDispatcher->dispatch($event);
+
+        foreach ($items as $i => $item) {
+            $id = (int) ($item['faq_id'] ?? 0);
+            $items[$i]['ext'] = (object) $event->getExtras($id);
+            $items[$i]['badges'] = $event->getBadges($id);
+        }
+
+        return $items;
     }
 
     // ─────────────────────────────────────────
@@ -213,8 +298,17 @@ class FaqService implements FaqQueryInterface
             return Result::failure('카테고리를 찾을 수 없습니다.');
         }
 
+        // 하위 항목은 FK CASCADE 로 함께 지워진다 — 확장이 정리하도록 지우기 전에 번호를 모은다
+        $faqIds = array_map(
+            static fn(array $item): int => (int) $item['faq_id'],
+            $this->faqRepository->findItems($domainId, $categoryId)
+        );
+
         $this->faqRepository->deleteCategory($categoryId, $domainId);
 
+        if ($faqIds !== []) {
+            $this->eventDispatcher?->dispatch(new FaqItemDeletedEvent($domainId, $faqIds));
+        }
         $this->dispatchChanged($domainId);
 
         return Result::success('카테고리가 삭제되었습니다.');
@@ -231,7 +325,7 @@ class FaqService implements FaqQueryInterface
     {
         $items = $this->faqRepository->findItems($domainId, $categoryId);
 
-        return Result::success('', ['items' => $items]);
+        return Result::success('', ['items' => $this->withAdminExtras($domainId, $items)]);
     }
 
     /**
@@ -293,6 +387,7 @@ class FaqService implements FaqQueryInterface
             $this->faqRepository->updateItem($faqId, $domainId, ['answer' => $processedAnswer]);
         }
 
+        $this->eventDispatcher?->dispatch(new FaqItemSavedEvent($domainId, (int) $faqId, $data, false));
         $this->dispatchChanged($domainId);
 
         return Result::success('FAQ 항목이 등록되었습니다.', ['faq_id' => $faqId]);
@@ -343,6 +438,7 @@ class FaqService implements FaqQueryInterface
 
         $this->faqRepository->updateItem($faqId, $domainId, $updateData);
 
+        $this->eventDispatcher?->dispatch(new FaqItemSavedEvent($domainId, $faqId, $data, true));
         $this->dispatchChanged($domainId);
 
         return Result::success('FAQ 항목이 수정되었습니다.');
@@ -360,6 +456,7 @@ class FaqService implements FaqQueryInterface
 
         $this->faqRepository->deleteItem($faqId, $domainId);
 
+        $this->eventDispatcher?->dispatch(new FaqItemDeletedEvent($domainId, [$faqId]));
         $this->dispatchChanged($domainId);
 
         return Result::success('FAQ 항목이 삭제되었습니다.');
