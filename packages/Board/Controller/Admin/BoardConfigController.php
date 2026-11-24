@@ -132,7 +132,7 @@ class BoardConfigController
 
         $board = $this->boardService->getBoard($boardId);
 
-        if (!$board) {
+        if (!$board || $board->getDomainId() !== $domainId) {
             return ViewResponse::view('Error/404')
                 ->withData(['message' => '게시판을 찾을 수 없습니다.']);
         }
@@ -173,7 +173,16 @@ class BoardConfigController
 
         $boardId = (int) ($data['board_id'] ?? 0);
 
+        if ($boardId > 0 && !$this->ownsBoard($boardId, $domainId)) {
+            return JsonResponse::error('게시판을 찾을 수 없습니다.');
+        }
+
         if ($boardId > 0) {
+            // 체크를 모두 푼 카테고리 목록은 폼에 실리지 않는다 — 수정 화면은 전체 목록을 보내므로 빈 목록으로 맞춘다
+            if (!array_key_exists('category_ids', $data)) {
+                $data['category_ids'] = [];
+            }
+
             // 반응 설정에서 제거된 key 감지 (저장 전 기존 설정과 비교)
             $removedReactionKeys = $this->detectRemovedReactionKeys($boardId, $data);
 
@@ -213,6 +222,10 @@ class BoardConfigController
 
         if ($boardId <= 0) {
             return JsonResponse::error('게시판 ID가 필요합니다.');
+        }
+
+        if (!$this->ownsBoard($boardId, $context->getDomainId() ?? 1)) {
+            return JsonResponse::error('게시판을 찾을 수 없습니다.');
         }
 
         $result = $this->boardService->deleteBoard($boardId);
@@ -270,6 +283,13 @@ class BoardConfigController
             return JsonResponse::error('수정할 항목을 선택해주세요.');
         }
 
+        // 다른 도메인의 게시판 ID는 처리하지 않는다
+        $domainId = $context->getDomainId() ?? 1;
+        $chk = array_values(array_filter(
+            (array) $chk,
+            fn ($id): bool => $this->ownsBoard((int) $id, $domainId)
+        ));
+
         // chk에 있는 항목만 데이터 수집
         $items = [];
         $editableFields = [
@@ -321,6 +341,13 @@ class BoardConfigController
         if (empty($chk)) {
             return JsonResponse::error('삭제할 항목을 선택해주세요.');
         }
+
+        // 다른 도메인의 게시판 ID는 처리하지 않는다
+        $domainId = $context->getDomainId() ?? 1;
+        $chk = array_values(array_filter(
+            (array) $chk,
+            fn ($id): bool => $this->ownsBoard((int) $id, $domainId)
+        ));
 
         $deleted = 0;
         $failed = 0;
@@ -481,5 +508,14 @@ class BoardConfigController
             ],
             'required_string' => ['board_slug', 'board_name'],
         ];
+    }
+
+    /**
+     * 요청 ID가 현재 도메인의 게시판인지 확인한다
+     */
+    private function ownsBoard(int $boardId, int $domainId): bool
+    {
+        $entity = $this->boardService->getBoard($boardId);
+        return $entity !== null && $entity->getDomainId() === $domainId;
     }
 }

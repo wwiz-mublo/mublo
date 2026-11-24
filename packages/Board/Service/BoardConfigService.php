@@ -333,7 +333,7 @@ class BoardConfigService
 
         // 그룹 존재 확인
         $group = $this->groupRepository->find((int) $data['group_id']);
-        if (!$group) {
+        if (!$group || $group->getDomainId() !== $domainId) {
             return Result::failure('선택한 그룹이 존재하지 않습니다.');
         }
 
@@ -463,7 +463,7 @@ class BoardConfigService
         // 그룹 변경 시 존재 확인
         if (!empty($data['group_id']) && (int) $data['group_id'] !== $board->getGroupId()) {
             $group = $this->groupRepository->find((int) $data['group_id']);
-            if (!$group) {
+            if (!$group || $group->getDomainId() !== $board->getDomainId()) {
                 return Result::failure('선택한 그룹이 존재하지 않습니다.');
             }
         }
@@ -497,9 +497,11 @@ class BoardConfigService
             if ($affected < 0) {
                 return Result::failure('게시판 수정에 실패했습니다.');
             }
-            // 카테고리 매핑 저장
-            $categoryIds = $data['category_ids'] ?? [];
-            $this->categoryMappingRepository->syncCategories($boardId, is_array($categoryIds) ? $categoryIds : []);
+            // 카테고리 매핑 저장 — 부분 수정에 category_ids 가 없으면 기존 매핑을 둔다
+            if (array_key_exists('category_ids', $data)) {
+                $categoryIds = $data['category_ids'];
+                $this->categoryMappingRepository->syncCategories($boardId, is_array($categoryIds) ? $categoryIds : []);
+            }
             return Result::success('게시판이 수정되었습니다.');
         }
 
@@ -517,11 +519,13 @@ class BoardConfigService
             if ($affected < 0) {
                 return false;
             }
-            $categoryIds = $data['category_ids'] ?? [];
-            $this->categoryMappingRepository->syncCategories(
-                $boardId,
-                is_array($categoryIds) ? $categoryIds : []
-            );
+            if (array_key_exists('category_ids', $data)) {
+                $categoryIds = $data['category_ids'];
+                $this->categoryMappingRepository->syncCategories(
+                    $boardId,
+                    is_array($categoryIds) ? $categoryIds : []
+                );
+            }
             $this->recordBoardMutation(
                 $domainId,
                 $boardId,
@@ -731,6 +735,9 @@ class BoardConfigService
                 if ($board) {
                     $normalizedData = $this->normalizeData($data);
                     unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
+                    if (!$this->groupAllowedForBoard($normalizedData, $board)) {
+                        continue;
+                    }
                     if (!empty($normalizedData)) {
                         $this->repository->update($boardId, $normalizedData);
                         $updated++;
@@ -754,6 +761,9 @@ class BoardConfigService
             }
             $normalizedData = $this->normalizeData($data);
             unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
+            if (!$this->groupAllowedForBoard($normalizedData, $board)) {
+                continue;
+            }
             if ($normalizedData !== []) {
                 $operations[] = [
                     'board' => $board,
@@ -1016,4 +1026,17 @@ class BoardConfigService
         return $options;
     }
 
+    /**
+     * 일괄 수정의 그룹 이동 대상이 게시판과 같은 도메인의 그룹인지 확인한다
+     *
+     * @param array<string, mixed> $data
+     */
+    private function groupAllowedForBoard(array $data, BoardConfig $board): bool
+    {
+        if (empty($data['group_id']) || (int) $data['group_id'] === $board->getGroupId()) {
+            return true;
+        }
+        $group = $this->groupRepository->find((int) $data['group_id']);
+        return $group !== null && $group->getDomainId() === $board->getDomainId();
+    }
 }

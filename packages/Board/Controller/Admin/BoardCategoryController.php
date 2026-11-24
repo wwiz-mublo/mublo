@@ -84,7 +84,7 @@ class BoardCategoryController
 
         $category = $this->categoryService->getCategory($categoryId);
 
-        if (!$category) {
+        if (!$category || $category->getDomainId() !== ($context->getDomainId() ?? 1)) {
             return ViewResponse::view('Error/404')
                 ->withData(['message' => '카테고리를 찾을 수 없습니다.']);
         }
@@ -112,6 +112,10 @@ class BoardCategoryController
         $data = FormHelper::normalizeFormData($formData, $this->getFormSchema());
 
         $categoryId = (int) ($data['category_id'] ?? 0);
+
+        if ($categoryId > 0 && !$this->ownsCategory($categoryId, $domainId)) {
+            return JsonResponse::error('카테고리를 찾을 수 없습니다.');
+        }
 
         if ($categoryId > 0) {
             // 수정
@@ -143,6 +147,10 @@ class BoardCategoryController
 
         if ($categoryId <= 0) {
             return JsonResponse::error('카테고리 ID가 필요합니다.');
+        }
+
+        if (!$this->ownsCategory($categoryId, $context->getDomainId() ?? 1)) {
+            return JsonResponse::error('카테고리를 찾을 수 없습니다.');
         }
 
         $result = $this->categoryService->deleteCategory($categoryId);
@@ -194,6 +202,13 @@ class BoardCategoryController
             return JsonResponse::error('수정할 항목을 선택해주세요.');
         }
 
+        // 다른 도메인의 카테고리 ID는 처리하지 않는다
+        $domainId = $context->getDomainId() ?? 1;
+        $chk = array_values(array_filter(
+            (array) $chk,
+            fn ($id): bool => $this->ownsCategory((int) $id, $domainId)
+        ));
+
         // chk에 있는 항목만 is_active 값 수집
         $items = [];
         foreach ($chk as $categoryId) {
@@ -229,6 +244,13 @@ class BoardCategoryController
         if (empty($chk)) {
             return JsonResponse::error('삭제할 항목을 선택해주세요.');
         }
+
+        // 다른 도메인의 카테고리 ID는 처리하지 않는다
+        $domainId = $context->getDomainId() ?? 1;
+        $chk = array_values(array_filter(
+            (array) $chk,
+            fn ($id): bool => $this->ownsCategory((int) $id, $domainId)
+        ));
 
         $deleted = 0;
         $failed = 0;
@@ -290,5 +312,14 @@ class BoardCategoryController
             'bool' => ['is_active'],
             'required_string' => ['category_slug', 'category_name'],
         ];
+    }
+
+    /**
+     * 요청 ID가 현재 도메인의 카테고리인지 확인한다
+     */
+    private function ownsCategory(int $categoryId, int $domainId): bool
+    {
+        $entity = $this->categoryService->getCategory($categoryId);
+        return $entity !== null && $entity->getDomainId() === $domainId;
     }
 }

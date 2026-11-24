@@ -83,6 +83,91 @@ class BoardConfigServicePartialDataTest extends TestCase
         $this->assertSame(1, $captured['is_active']);
     }
 
+    public function testUpdateWithoutCategoryIdsKeepsExistingMappings(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->repository->method('update')->willReturn(1);
+
+        $this->mappings->expects($this->never())->method('syncCategories');
+
+        $result = $this->service->updateBoard(20, ['board_name' => '새 이름']);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+    }
+
+    public function testUpdateWithCategoryIdsSyncsMappings(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->repository->method('update')->willReturn(1);
+
+        $this->mappings->expects($this->exactly(2))
+            ->method('syncCategories')
+            ->willReturnCallback(function (int $boardId, array $ids): bool {
+                static $calls = 0;
+                $expected = [[3, 5], []][$calls++];
+                $this->assertSame(20, $boardId);
+                $this->assertSame($expected, $ids);
+                return true;
+            });
+
+        $this->assertTrue($this->service->updateBoard(20, ['category_ids' => [3, 5]])->isSuccess());
+        $this->assertTrue($this->service->updateBoard(20, ['category_ids' => []])->isSuccess(), '빈 목록은 명시적 해제');
+    }
+
+    public function testUpdateRejectsMovingToAnotherDomainsGroup(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->groups->method('find')->willReturn($this->groupInDomain(9, 2));
+        $this->repository->expects($this->never())->method('update');
+
+        $result = $this->service->updateBoard(20, ['group_id' => 9]);
+
+        $this->assertFalse($result->isSuccess());
+    }
+
+    public function testBatchUpdateSkipsMovingToAnotherDomainsGroup(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->groups->method('find')->willReturnCallback(
+            fn (int $id): BoardGroup => $this->groupInDomain($id, $id === 9 ? 2 : 1)
+        );
+
+        $updated = [];
+        $this->repository->method('update')->willReturnCallback(function ($id, $data) use (&$updated) {
+            $updated[] = $data['group_id'] ?? null;
+            return 1;
+        });
+
+        $this->service->batchUpdate([20 => ['group_id' => 9]]);
+        $this->service->batchUpdate([20 => ['group_id' => 3]]);
+
+        $this->assertSame([3], $updated, '다른 도메인 그룹(9)으로의 이동은 건너뛴다');
+    }
+
+    public function testCreateRejectsAnotherDomainsGroup(): void
+    {
+        $this->groups->method('find')->willReturn($this->groupInDomain(9, 2));
+        $this->repository->expects($this->never())->method('create');
+
+        $result = $this->service->createBoard(1, [
+            'board_slug' => 'cross',
+            'board_name' => '다른 도메인 그룹',
+            'group_id' => 9,
+        ]);
+
+        $this->assertFalse($result->isSuccess());
+    }
+
+    private function groupInDomain(int $groupId, int $domainId): BoardGroup
+    {
+        return BoardGroup::fromArray([
+            'group_id' => $groupId,
+            'domain_id' => $domainId,
+            'group_slug' => "g{$groupId}",
+            'group_name' => "그룹{$groupId}",
+        ]);
+    }
+
     public function testCreateWithPartialDataLeavesAbsentBooleansToDbDefaults(): void
     {
         $this->groups->method('find')->willReturn(BoardGroup::fromArray([

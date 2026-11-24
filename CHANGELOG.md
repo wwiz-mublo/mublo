@@ -35,9 +35,13 @@
 - Core: `BlockColumnService`에서 호출처가 없고 revision을 남기지 않던 칸 단위 쓰기 메서드(`createColumn`·`updateColumn`·`deleteColumn`·`updateContent`·`updateTitleConfig`·`updateStyleConfig`)를 지웠습니다. 생성자에서 `BlockColumnPayloadNormalizer`·`BlockRenderService` 의존성도 빠졌습니다. 칸 쓰기는 `BlockRowService`의 행 단위 저장이나 `BlockMutationInterface`를 쓰세요. 읽기 메서드는 그대로입니다
 
 ### Fixed
+- Board: `BoardManagementInterface::updateBoard()`로 게시판 이름 같은 다른 필드만 고쳐도 게시판의 카테고리 연결이 모두 지워지던 문제를 고쳤습니다. `category_ids`를 넘길 때만 카테고리 연결을 바꾸고, 빈 목록을 넘기면 모두 해제합니다. 관리자 게시판 수정 화면 동작은 그대로입니다
 - Board: 댓글 레벨을 0(비회원)으로 정해도 비회원 댓글이 막히던 문제를 고쳤습니다. 비회원 댓글 허용은 글쓰기와 같이 `comment_level`로만 판단합니다. 기본값(레벨 1)과 다른 레벨의 게시판은 동작이 같습니다
 - Board: `BoardProvisioningInterface::ensureBoard()`에 `placeholder_posts`·`author_name`을 넘기면 게시판 생성이 `Unknown column` 오류로 실패하던 문제를 고쳤습니다
 - Core(블록): 블록 이미지 정리가 사이트·회사·SEO·테마 설정이 가리키는 파일(로고·파비콘·공유 이미지 등)도 사용 중으로 봅니다. 블록에서 빠진 이미지를 사이트 설정이 쓰고 있으면 지워지던 문제를 막습니다
+
+### Security
+- Board: 관리자 게시판·게시판 그룹·카테고리 화면(수정 화면, 저장, 삭제, 목록 일괄 수정·삭제, 그룹 관리자 추가·제거)이 요청한 ID가 현재 도메인 소유인지 확인하지 않아, 한 도메인의 관리자가 다른 도메인의 게시판·그룹·카테고리를 고치거나 지울 수 있던 문제를 고쳤습니다. 게시판을 다른 도메인의 그룹으로 옮기는 것도 막습니다
 
 ## [1.11.0] - 2026-11-18
 
