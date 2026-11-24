@@ -114,6 +114,60 @@ class BoardConfigServicePartialDataTest extends TestCase
         $this->assertTrue($this->service->updateBoard(20, ['category_ids' => []])->isSuccess(), '빈 목록은 명시적 해제');
     }
 
+    public function testUpdateRejectsMovingToAnotherDomainsGroup(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->groups->method('find')->willReturn($this->groupInDomain(9, 2));
+        $this->repository->expects($this->never())->method('update');
+
+        $result = $this->service->updateBoard(20, ['group_id' => 9]);
+
+        $this->assertFalse($result->isSuccess());
+    }
+
+    public function testBatchUpdateSkipsMovingToAnotherDomainsGroup(): void
+    {
+        $this->repository->method('find')->willReturn($this->existingBoard());
+        $this->groups->method('find')->willReturnCallback(
+            fn (int $id): BoardGroup => $this->groupInDomain($id, $id === 9 ? 2 : 1)
+        );
+
+        $updated = [];
+        $this->repository->method('update')->willReturnCallback(function ($id, $data) use (&$updated) {
+            $updated[] = $data['group_id'] ?? null;
+            return 1;
+        });
+
+        $this->service->batchUpdate([20 => ['group_id' => 9]]);
+        $this->service->batchUpdate([20 => ['group_id' => 3]]);
+
+        $this->assertSame([3], $updated, '다른 도메인 그룹(9)으로의 이동은 건너뛴다');
+    }
+
+    public function testCreateRejectsAnotherDomainsGroup(): void
+    {
+        $this->groups->method('find')->willReturn($this->groupInDomain(9, 2));
+        $this->repository->expects($this->never())->method('create');
+
+        $result = $this->service->createBoard(1, [
+            'board_slug' => 'cross',
+            'board_name' => '다른 도메인 그룹',
+            'group_id' => 9,
+        ]);
+
+        $this->assertFalse($result->isSuccess());
+    }
+
+    private function groupInDomain(int $groupId, int $domainId): BoardGroup
+    {
+        return BoardGroup::fromArray([
+            'group_id' => $groupId,
+            'domain_id' => $domainId,
+            'group_slug' => "g{$groupId}",
+            'group_name' => "그룹{$groupId}",
+        ]);
+    }
+
     public function testCreateWithPartialDataLeavesAbsentBooleansToDbDefaults(): void
     {
         $this->groups->method('find')->willReturn(BoardGroup::fromArray([
