@@ -706,7 +706,8 @@ class ServiceProvider
                 $c->get(CacheInterface::class),
                 $c,
                 $c->get(\Mublo\Repository\Block\BlockColumnContentRepository::class),
-                $c->get(\Mublo\Contract\Block\BlockReadOverlayInterface::class)
+                $c->get(\Mublo\Contract\Block\BlockReadOverlayInterface::class),
+                $c->get(EventDispatcher::class)
             );
         });
 

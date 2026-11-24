@@ -153,6 +153,7 @@ class ArticleSubscriber implements EventSubscriberInterface
 | Block | `BlockPageUpdatedEvent` | 블록 페이지 코드·제목 변경 후 자동 메뉴 동기화 |
 | Block | `BlockPageMenuSyncEvent` | 대체 생성 경로에서 블록 페이지 메뉴 아이템 동기화 요청 |
 | Block | `BlockPageRenderingEvent` | 블록 페이지(`/p/코드`) 렌더링 시 추가 HTML 주입 |
+| Block | `BlockPositionRenderingEvent` | 위치별 블록 렌더링 직전 — 이번 요청에서 위치를 다른 HTML 로 대체(`replaceWith`)하거나 블록 캐시를 끔(`disableCache`) |
 | Domain | `DomainCreatedEvent` | 도메인 생성 후(커밋 이후) 선택적 초기 데이터 시딩 |
 | Domain | `DomainProvisioningEvent` | 도메인 생성 **트랜잭션 안**의 필수 초기화 — fail-fast(실패 시 전체 롤백) |
 | Domain | `DomainOwnerValidatingEvent` | 코어 기본 소유자 검증 후 확장 정책 추가 검증 — `addError()`, fail-fast |

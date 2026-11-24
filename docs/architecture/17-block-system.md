@@ -163,6 +163,9 @@ BlockRegistry::registerContentType(
 | `BlockPageDeletedEvent` | DB 삭제 후 (readonly) | 프론트 메뉴 아이템 자동 삭제 |
 | `BlockPageMenuSyncEvent` | 대체 생성 경로 | 위 세 이벤트를 타지 않는 경로에서 메뉴 동기화를 명시 요청 |
 | `BlockPageRenderingEvent` | `/p/{code}` 렌더 시 (`PageController.view`) | Package가 페이지에 추가 HTML 주입 — `addHtml($html, $order)` |
+| `BlockPositionRenderingEvent` | 위치별 렌더 직전 (`BlockRenderService::renderPosition`) | 이번 요청에서 위치를 다른 HTML 로 대체(`replaceWith` — 전파 중단, 우선순위가 높은 쪽이 이김)하거나 행 목록·행 HTML 캐시를 끔(`disableCache`). DB 블록은 바꾸지 않는다 |
+
+`BlockPositionRenderingEvent`는 디자인 미리보기(적용 전 구성을 메인에 그리되 운영 캐시에 섞지 않음)나 특별한 진입 화면처럼 "이번 요청만 다르게" 그려야 할 때 쓴다. 대체 HTML 은 행 캐시를 거치지 않으므로 필요하면 대체하는 쪽이 직접 캐시한다. 메뉴별 위치도 같은 이벤트로 오므로 `getMenuCode()` 로 거른다. `BlockRenderService` 는 내부 API 라 확장이 직접 붙잡지 않고 이 이벤트로만 개입한다.
 
 `BlockPageRenderingEvent`는 `getPage()->getPageConfig()`로 페이지 설정을 읽어 조건부로 HTML을 붙이는 패턴을 상정한다(소스 주석의 예: 회사 정보 푸터). 페이지 코드에는 예약어가 있다(`BlockPageService::RESERVED_CODES` — `admin`, `api`, `board`, `p` 등).
 

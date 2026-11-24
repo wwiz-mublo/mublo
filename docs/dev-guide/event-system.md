@@ -247,6 +247,23 @@ MemberRegisteredByUserEvent::class => 'onUserRegistration',  // 사용자 직접
 특징:
 - 블록 페이지 전용 확장점이다
 
+### 2.6 `BlockPositionRenderingEvent`
+
+발행 파일:
+- [`src/Service/Block/BlockRenderService.php`](../../src/Service/Block/BlockRenderService.php)
+
+발행 시점:
+- `renderPosition()` 이 행 목록·행 HTML 캐시를 보기 전 (index·left·right·topbar 등 위치마다, 메뉴별 위치 포함)
+
+용도:
+- 디자인 미리보기 — 적용 전 구성을 메인(index)에 그리되 운영 캐시에 섞지 않는다
+- 특별한 진입 화면에서 위치를 코드가 만든 구성으로 대체
+
+특징:
+- `replaceWith($html)` 은 그 위치 전체를 대체하고 전파를 멈춘다 (우선순위가 높은 대체가 이긴다). 대체 HTML 은 캐시하지 않는다
+- `disableCache()` 는 이번 렌더링의 캐시 읽기·쓰기를 끈다
+- 저장된 블록(DB)은 바꾸지 않는다 — 요청 단위
+
 ## 3. 인증과 로그인 UI
 
 주요 발행 파일:
@@ -615,6 +632,7 @@ MemberRegisteredByUserEvent::class => 'onUserRegistration',  // 사용자 직접
 | [`src/Controller/Front/MemberController.php`](../../src/Controller/Front/MemberController.php) | `LoginFormRenderingEvent`, `RegisterFormRenderingEvent`, `MemberRegisterValidatingEvent` |
 | [`src/Service/Mypage/MypageSectionRegistry.php`](../../src/Service/Mypage/MypageSectionRegistry.php) | `MypageSectionBuildingEvent` |
 | [`src/Controller/Front/PageController.php`](../../src/Controller/Front/PageController.php) | `BlockPageRenderingEvent` |
+| [`src/Service/Block/BlockRenderService.php`](../../src/Service/Block/BlockRenderService.php) | `BlockPositionRenderingEvent` |
 | [`src/Controller/Admin/DomainsController.php`](../../src/Controller/Admin/DomainsController.php) | `DomainSettingsLinksEvent`, `DomainFormRenderingEvent` |
 | [`src/Controller/Admin/MemberController.php`](../../src/Controller/Admin/MemberController.php) | `MemberFormRenderingEvent`, `MemberDataEnrichingEvent` |
 | [`src/Controller/Admin/BlockRowController.php`](../../src/Controller/Admin/BlockRowController.php) | `BlockContentItemsCollectEvent` |
@@ -759,6 +777,7 @@ MemberRegisteredByUserEvent::class => 'onUserRegistration',  // 사용자 직접
 - `PageTypeResolveEvent`
 - `BlockContentItemsCollectEvent`
 - `BlockPageRenderingEvent`
+- `BlockPositionRenderingEvent`
 - `MemberRegisterValidatingEvent`
 - `MemberDataEnrichingEvent`
 - `BalanceAdjustingEvent`
