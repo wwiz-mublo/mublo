@@ -356,6 +356,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Board\BoardReadOverlay::class)
         );
         $container->singleton(
+            \Mublo\Contract\Board\BoardGroupReadOverlayInterface::class,
+            fn () => new \Mublo\Service\Board\BoardGroupReadOverlay()
+        );
+        $container->singleton(
             \Mublo\Contract\Site\CompanyInfoInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Domain\DomainSettingsService::class)
         );

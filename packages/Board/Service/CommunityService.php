@@ -43,7 +43,7 @@ class CommunityService
         array $filters,
         Context $context
     ): Result {
-        $allowedBoardIds = $this->getAllowedBoardIds($domainId, $context);
+        $allowedBoardIds = $this->getAllowedBoardIds($domainId, $context, $filters);
         if (empty($allowedBoardIds)) {
             return Result::success('', $this->emptyResult($perPage));
         }
@@ -69,7 +69,7 @@ class CommunityService
         array $filters,
         Context $context
     ): Result {
-        $allowedBoardIds = $this->getAllowedBoardIds($domainId, $context);
+        $allowedBoardIds = $this->getAllowedBoardIds($domainId, $context, $filters);
         if (empty($allowedBoardIds)) {
             return Result::success('', $this->emptyResult($perPage));
         }
@@ -103,12 +103,19 @@ class CommunityService
     /**
      * 허용된 게시판 ID 목록 (권한 필터링)
      */
-    private function getAllowedBoardIds(int $domainId, Context $context): array
+    private function getAllowedBoardIds(int $domainId, Context $context, array &$filters): array
     {
         $activeBoards = $this->boardConfigRepository->findActiveByDomain($domainId);
         $allowedIds = [];
+        // 그룹 필터는 DB 조인 대신 "그 그룹의 활성 게시판"으로 바꾼다. 게시판 조회가 미리보기 overlay(그룹 이동·
+        // 새 그룹)를 따르므로 미리보기 그룹 화면도 실제 적용 뒤와 같은 글을 보여 준다. 운영 요청에서는 결과가 같다.
+        $groupId = !empty($filters['group_id']) ? (int) $filters['group_id'] : null;
+        unset($filters['group_id']);
 
         foreach ($activeBoards as $board) {
+            if ($groupId !== null && $board->getGroupId() !== $groupId) {
+                continue;
+            }
             if ($this->permissionService->canList($board, $context)) {
                 $allowedIds[] = $board->getBoardId();
             }

@@ -103,6 +103,29 @@ class BoardConfigRepository extends BaseRepository
     }
 
     /**
+     * 이 도메인의 그룹별 게시판 목록. overlay가 있으면 overlay의 최종 게시판(그룹 이동·새 게시판·음수 임시 그룹 포함)을 쓴다.
+     *
+     * @return BoardConfig[]
+     */
+    public function findByGroupForDomain(int $domainId, int $groupId): array
+    {
+        $overlay = $this->readOverlay?->boards($domainId);
+        if ($overlay !== null) {
+            $boards = array_values(array_filter($overlay, static fn($board): bool => $board->groupId === $groupId));
+            usort($boards, static fn($a, $b): int =>
+                (int) ($a->values['sort_order'] ?? 0) <=> (int) ($b->values['sort_order'] ?? 0));
+            return $this->fromDescriptors($boards);
+        }
+        $rows = $this->getDb()->table($this->table)
+            ->where('domain_id', '=', $domainId)
+            ->where('group_id', '=', $groupId)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+
+        return $this->toEntities($rows);
+    }
+
+    /**
      * 도메인+슬러그로 게시판 조회
      */
     public function findBySlug(int $domainId, string $slug): ?BoardConfig
