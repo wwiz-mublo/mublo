@@ -21,12 +21,11 @@ class AdminMenuSubscriber implements EventSubscriberInterface
     {
         $event->setSource('plugin', self::PLUGIN_NAME);
 
-        $event->addSubmenusTo('002', [
-            [
-                'label' => '방문자 통계',
-                'url' => '/admin/visitor-stats/dashboard',
-                'code' => '001',
-            ],
+        $event->addMenu('plugin', [
+            'label' => '방문통계',
+            'url' => '/admin/visitor-stats/dashboard',
+            'icon' => 'bi-bar-chart-line',
+            'code' => '001',
         ]);
     }
 }

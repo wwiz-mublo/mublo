@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Contract\Menu;
 
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 
 /**
@@ -11,6 +12,10 @@ use Mublo\Core\Result\Result;
  * 메뉴 생성과 트리 배치는 SiteProvisioningInterface를 사용한다. 이 계약은
  * 이미 생성된 메뉴의 조회·수정·삭제만 제공하며, 모든 변경에 도메인 소유권을
  * 강제한다.
+ *
+ * 여러 변경을 하나의 바깥 트랜잭션으로 묶을 때는 같은 SiteMutationContext를
+ * 전달한다. 이 경우 구현체는 자원만 수집하며 최상위 호출자가 recorder를 한 번
+ * 호출한다. 문맥을 생략한 단독 호출은 admin 변경으로 즉시 기록된다.
  */
 interface MenuManagementInterface
 {
@@ -24,7 +29,16 @@ interface MenuManagementInterface
     /** @return list<MenuDescriptor> */
     public function findMenusByUrlPrefix(int $domainId, string $urlPrefix): array;
 
-    public function updateMenu(int $domainId, int $itemId, array $values): Result;
+    public function updateMenu(
+        int $domainId,
+        int $itemId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 
-    public function removeMenu(int $domainId, int $itemId): Result;
+    public function removeMenu(
+        int $domainId,
+        int $itemId,
+        ?SiteMutationContext $mutationContext = null
+    ): Result;
 }

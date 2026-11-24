@@ -6,10 +6,18 @@ use Mublo\Contract\Block\BlockKitGatewayInterface;
 use Mublo\Contract\Block\BlockPageQueryInterface;
 use Mublo\Contract\Block\BlockContentCacheInvalidatorInterface;
 use Mublo\Contract\Block\BlockPreviewRendererInterface;
+use Mublo\Contract\Block\BlockMutationInterface;
+use Mublo\Contract\Block\BlockMutationPreviewInterface;
+use Mublo\Contract\Block\BlockReadOverlayInterface;
 use Mublo\Contract\Block\BlockRenderContextInterface;
+use Mublo\Contract\Board\BoardReadOverlayInterface;
 use Mublo\Contract\Site\CompanyInfoInterface;
 use Mublo\Contract\Site\DomainQueryInterface;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Site\ThemeReadOverlayInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
+use Mublo\Contract\Menu\MenuTreeManagementInterface;
+use Mublo\Contract\Menu\MenuReadOverlayInterface;
 use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
@@ -41,10 +49,19 @@ class ServiceProviderContractBindingTest extends TestCase
             BlockPageQueryInterface::class,
             BlockContentCacheInvalidatorInterface::class,
             BlockPreviewRendererInterface::class,
+            BlockMutationInterface::class,
+            BlockMutationPreviewInterface::class,
+            BlockReadOverlayInterface::class,
+            \Mublo\Contract\Block\BlockImageCleanupInterface::class,
             BlockRenderContextInterface::class,
+            BoardReadOverlayInterface::class,
             CompanyInfoInterface::class,
             DomainQueryInterface::class,
+            SiteMutationRecorderInterface::class,
+            ThemeReadOverlayInterface::class,
             MenuManagementInterface::class,
+            MenuTreeManagementInterface::class,
+            MenuReadOverlayInterface::class,
             MemberAccountGatewayInterface::class,
             ReauthenticationInterface::class,
             MemberLevelCatalogInterface::class,

@@ -137,6 +137,18 @@ $orderPayload = [
 - **시각은 갈음한다** — `occurredAt`이 없거나 형식이 깨졌으면 수신 시각을 쓴다. 통계에서 빠지는 것보다 근사한 시각으로 남는 편이 낫다.
 - **실패는 삼킨다** — 기록 실패가 주문·상담 트랜잭션을 깨뜨리면 안 된다(`error_log`만 남긴다). VisitorStats의 방문 수집과 같은 태도다.
 
+### 상태 변경·표시용 질의 — 이벤트 3종
+
+전환을 기록한 뒤의 흐름과, 다른 확장의 관리자 목록이 통계 데이터를 빌려 쓰는 흐름도 `src/Contract/Tracking/` 이벤트로만 오간다. 묻는 확장은 VisitorStats 테이블을 읽지 않고, VisitorStats가 없으면 답이 비어 원래 값만 보인다.
+
+| 이벤트 | 방향 | VisitorStats 구독자 | 동작 |
+|---|---|---|---|
+| `ConversionStatusChangedEvent` | 발행 확장 → VisitorStats | `ConversionRecorderSubscriber::onConversionStatusChanged` | 같은 `(domain_id, source_type, source_id)` 행의 `status` 만 바꾼다. 캠페인 키·발생 시각은 그대로. `success`·`pending`·`cancelled`·`failed` 외 값과 식별 불가 통보는 버린다. 기록 전이면 아무 일도 없다 |
+| `CampaignKeyLabelsEvent` | 질의 (`[domainId => [키, ...]]`) | `CampaignKeyLabelSubscriber` | 등록된 캠페인 키의 "그룹명 · 메모(40자)"를 `setLabel()` 로 채운다 |
+| `VisitorRefererLookupEvent` | 질의 (`[참조키 => {domain_id, session_id, ip, at}]`) | `VisitorRefererLookupSubscriber` | 같은 날 같은 세션의 방문, 없으면 그 시각 이전 같은 IP 의 마지막 방문에서 유입 유형·도메인·URL·첫 페이지를 `setResult()` 로 채운다. 한 번에 200건까지, 방문 로그 보관 기간이 지나면 결과가 없다 |
+
+`ConversionRecordedEvent` 를 다시 보내 상태를 바꾸면 캠페인 키·발생 시각까지 덮어쓰므로, 상태만 바뀔 때는 `ConversionStatusChangedEvent` 를 쓴다. 두 질의 이벤트는 표시용이라 조회 실패를 삼킨다.
+
 ### 전환 통계 화면의 데이터 원천 — 두 저장소
 
 전환 화면은 **소유자가 다른 두 저장소**를 나란히 보여 준다. 합치지 않는 것이 요점이다.
@@ -209,7 +221,7 @@ class MyTrackingSubscriber implements EventSubscriberInterface
 | 표면 | 지위 |
 |---|---|
 | `PageViewedEvent`, `PageTypeResolveEvent`, `SiteContextReadyEvent` | 공식 Event — 확장이 구독해도 되는 공개 표면 |
-| `TrackingKeys`, `ConversionSourceTypes`, `ConversionRecordedEvent` | 공개 Contract (16장 카탈로그 소속) |
+| `TrackingKeys`, `ConversionSourceTypes`, `ConversionRecordedEvent`, `ConversionStatusChangedEvent`, `CampaignKeyLabelsEvent`, `VisitorRefererLookupEvent` | 공개 Contract (16장 카탈로그 소속) |
 | `MubloTracking.js` | 공개 클라이언트 라이브러리 (28장 소속) |
 | `VisitorCollector`, `VisitorStatsService`, Repository 8종 | VisitorStats 내부 구현 — 외부 참조 금지 |
 | `plugin_visitor_*` 테이블 | VisitorStats 소유 — 다른 확장이 직접 읽고 쓰지 않는다 |

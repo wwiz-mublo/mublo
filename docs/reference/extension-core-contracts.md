@@ -87,11 +87,16 @@ $page = $rankings->paginate($domainId, BalanceRankingMetric::EARNED, $from, $to,
 | `BlockRenderContextInterface` | 요청별 블록 렌더 variant 설정 | Rental |
 | `MenuManagementInterface` | 도메인 소유권을 강제한 확장 메뉴 조회·수정·삭제 | Board, Mshop, Rental, Shop, Faq, Manual, Promotion, Qna |
 | `DomainQueryInterface` | 내부 Domain Entity 없이 ID·hostname·활성 도메인 조회 | Rental, EmailNotify |
+| `SiteMutationRecorderInterface` | 실제 사이트 변경과 같은 트랜잭션에서 감사 revision과 자원별 fingerprint 기록 | 사이트 편집·자동 프로비저닝 확장 |
 
 메뉴 생성과 배치는 `SiteProvisioningInterface`가 담당하고, 운영 중 변경·삭제는
 `MenuManagementInterface`가 담당합니다. 이 분리는 확장이 메뉴 Repository나 트리 저장 형식을
 알지 못하게 합니다. `BlockPreviewRendererInterface`는 기존 Renderer 시그니처 때문에
 `BlockRow`·`BlockColumn`을 사용하며, 이 Block Entity namespace만 명시적 안정 예외입니다.
+
+`SiteMutationRecorderInterface::record()`는 활성 `Database::transaction()` 안에서만 호출할 수
+있습니다. 같은 `resource_id`를 한 문맥에 여러 번 넣으면 최종 fingerprint 하나로 revision을 한 번만
+올리고, `SiteMutationRecordedEvent`는 최상위 commit이 끝난 뒤에만 발행됩니다.
 
 ## 민감정보와 커스텀 필드
 

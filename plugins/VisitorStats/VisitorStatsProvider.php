@@ -33,7 +33,9 @@ use Mublo\Plugin\VisitorStats\Service\GeoIpService;
 use Mublo\Plugin\VisitorStats\Service\VisitorCollector;
 use Mublo\Plugin\VisitorStats\Service\VisitorStatsService;
 use Mublo\Plugin\VisitorStats\Service\VisitorStatsDataResetter;
+use Mublo\Plugin\VisitorStats\Subscriber\CampaignKeyLabelSubscriber;
 use Mublo\Plugin\VisitorStats\Subscriber\ConversionRecorderSubscriber;
+use Mublo\Plugin\VisitorStats\Subscriber\VisitorRefererLookupSubscriber;
 use Mublo\Plugin\VisitorStats\Subscriber\VisitorTrackingSubscriber;
 
 class VisitorStatsProvider implements ExtensionProviderInterface, DataResettableInterface
@@ -151,6 +153,15 @@ class VisitorStatsProvider implements ExtensionProviderInterface, DataResettable
         // 발행자가 누구인지는 알지 못하고, 계약이 실어 온 sourceType 만 본다.
         $eventDispatcher->addSubscriber(new ConversionRecorderSubscriber(
             $container->get(ConversionEventRepository::class)
+        ));
+
+        // 다른 확장의 관리자 목록이 묻는 캠페인 키 표시 이름·방문 유입경로에 답한다.
+        // 묻는 쪽은 VisitorStats 테이블을 읽지 않고 Contract\Tracking 이벤트만 안다.
+        $eventDispatcher->addSubscriber(new CampaignKeyLabelSubscriber(
+            $container->get(VisitorCampaignKeyRepository::class)
+        ));
+        $eventDispatcher->addSubscriber(new VisitorRefererLookupSubscriber(
+            $container->get(VisitorLogRepository::class)
         ));
 
         // 블록 콘텐츠 타입 등록 (설정 없이 스킨 선택만, 매 방문마다 바뀌므로 noCache)

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "plan_id": "pln_invalid_ref",
+  "observed_site_revision": 42,
+  "summary": "잘못된 선행 참조 예시",
+  "operations": [
+    {"op_id": "op_01", "tool": "menu.ensure", "target": {"key": "inquiry-menu"}, "input": {"name": "문의", "url": {"$ref": "op_02.result.board_url"}}},
+    {"op_id": "op_02", "tool": "board.ensure", "target": {"key": "inquiry"}, "input": {"name": "문의", "group_key": "support"}}
+  ]
+}
+

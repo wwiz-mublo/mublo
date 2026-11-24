@@ -7,6 +7,8 @@
 ## [Unreleased]
 
 ### Added
+- Core: 확장 사이 결합용 계약을 추가했습니다 — `Contract\Auth\ApiTokenValidatorInterface`(앱 API 의 Bearer 토큰을 발급 확장을 모른 채 검증), `Contract\Fcm\DeviceBindingInterface`(전화번호 ↔ 업무용 기기 연결), `Contract\Fcm\ContactSaveInterface`(고객 연락처를 업무 기기 전화번호부에 저장 요청), `Contract\Fcm\ResolveFcmDeviceDomainEvent`(도메인이 어느 도메인의 업무 기기를 쓰는지 질의). 모두 구현 확장이 `ContractRegistry` 에 1:1 로 등록하는 선택 계약이며 번들 구현은 없습니다
+- VisitorStats: 다른 확장이 방문자 통계 테이블을 읽지 않고 이벤트로 묻고 알릴 수 있게 `Contract\Tracking` 이벤트 3종을 추가하고 VisitorStats 가 구독합니다 — `ConversionStatusChangedEvent`(이미 기록된 전환의 상태만 변경, 캠페인 키·발생 시각 유지), `CampaignKeyLabelsEvent`(캠페인 키의 "그룹명 · 메모" 표시 이름 질의), `VisitorRefererLookupEvent`(세션·IP·시각으로 그날 방문의 유입경로 질의, 한 번에 200건). 마이그레이션은 필요 없습니다
 - Core: schema.org JSON-LD 생성 헬퍼 `Mublo\Helper\Seo\StructuredDataHelper` 를 추가했습니다 — `organization()`(상호·로고·주소·고객센터·사업자등록번호·공식 SNS), `webSite()`(사이트 검색 액션), `breadcrumbList()`, `faqPage()`/`faqPageFromGrouped()`, `article()`(비밀·미게시 글 제외), `toScriptTag()`(`</script>` 조기 종료 방지). 값이 없으면 null 을 돌려 빈 마크업을 내보내지 않습니다. 코어 화면에는 아직 붙이지 않았으며 Controller·스킨에서 골라 씁니다
 
 ## [1.11.0] - 2026-11-18

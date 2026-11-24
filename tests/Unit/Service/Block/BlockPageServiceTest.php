@@ -253,17 +253,24 @@ class BlockPageServiceTest extends TestCase
         $this->repositoryMock->method('find')->with(5)->willReturn($page);
         $this->repositoryMock->method('existsByCode')->with(7, 'new-page', 5)->willReturn(false);
         $this->repositoryMock->method('update')->willReturn(1);
+        $db = new \Mublo\Infrastructure\Database\Database(new \PDO('sqlite::memory:'));
+        $this->repositoryMock->method('getDb')->willReturn($db);
         $dispatcher = new EventDispatcher();
         $captured = null;
-        $dispatcher->addListener(BlockPageUpdatedEvent::class, function ($event) use (&$captured): void {
+        $dispatcher->addListener(BlockPageUpdatedEvent::class, function ($event) use (&$captured, $db): void {
+            $this->assertFalse($db->getPdo()->inTransaction(), '메뉴를 바꾸는 후속 이벤트는 최상위 commit 뒤에 나간다');
             $captured = $event;
         });
         $service = new BlockPageService($this->repositoryMock, $this->rowRepositoryMock, $dispatcher);
 
-        $result = $service->updatePage(5, [
-            'page_code' => 'new-page',
-            'page_title' => '새 제목',
-        ], 7);
+        $result = $db->transaction(function () use ($service, &$captured) {
+            $result = $service->updatePage(5, [
+                'page_code' => 'new-page',
+                'page_title' => '새 제목',
+            ], 7);
+            $this->assertNull($captured, '바깥 트랜잭션이 끝나기 전에는 발행하지 않는다');
+            return $result;
+        });
 
         $this->assertTrue($result->isSuccess());
         $this->assertInstanceOf(BlockPageUpdatedEvent::class, $captured);

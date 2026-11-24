@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace Mublo\Service\Block;
 
+use Mublo\Contract\Block\BlockImageRetentionInterface;
+use Mublo\Core\Registry\ContractRegistry;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use Mublo\Repository\Block\BlockImageReferenceRepository;
@@ -22,7 +24,8 @@ class BlockImageProcessor
         private FileUploader $uploader,
         ?string $publicPath = null,
         ?string $storagePath = null,
-        private ?BlockImageReferenceRepository $referenceRepository = null
+        private ?BlockImageReferenceRepository $referenceRepository = null,
+        private ?ContractRegistry $contracts = null
     ) {
         $this->publicPath = $publicPath ?? MUBLO_PUBLIC_PATH;
         $this->storagePath = $storagePath ?? MUBLO_PUBLIC_STORAGE_PATH;
@@ -376,15 +379,42 @@ class BlockImageProcessor
         }
     }
 
-    /** @param string[] $imageUrls */
-    public function cleanupUnreferenced(array $imageUrls): void
+    /**
+     * 블록 DB 참조도, 확장 보존(BlockImageRetentionInterface)도 없는 파일만 지운다.
+     *
+     * @param string[] $imageUrls
+     * @return int 실제로 지운 파일 수
+     */
+    public function cleanupUnreferenced(array $imageUrls): int
     {
+        $deleted = 0;
         foreach (array_unique($imageUrls) as $imageUrl) {
-            if ($this->referenceRepository?->isReferenced($imageUrl)) {
+            if ($this->referenceRepository?->isReferenced($imageUrl) || $this->isRetained($imageUrl)) {
                 continue;
             }
-            $this->deleteBlockImage($imageUrl);
+            $deleted += $this->deleteBlockImage($imageUrl) ? 1 : 0;
         }
+        return $deleted;
+    }
+
+    /** 확인할 수 없으면 보존 중으로 본다. 잘못 지운 파일은 되살릴 수 없다. */
+    private function isRetained(string $imageUrl): bool
+    {
+        if ($this->contracts === null) {
+            return false;
+        }
+        foreach ($this->contracts->keys(BlockImageRetentionInterface::class) as $key) {
+            try {
+                $retention = $this->contracts->get(BlockImageRetentionInterface::class, $key);
+                if (!$retention instanceof BlockImageRetentionInterface || $retention->isRetained($imageUrl)) {
+                    return true;
+                }
+            } catch (\Throwable $error) {
+                error_log(sprintf('[BlockImageProcessor] retention check failed (%s): %s', $key, $error->getMessage()));
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -503,27 +533,27 @@ class BlockImageProcessor
         return $message !== '' ? $message : '업로드 파일이 유효하지 않습니다.';
     }
 
-    private function deleteBlockImage(string $imageUrl): void
+    private function deleteBlockImage(string $imageUrl): bool
     {
         if (empty($imageUrl) || $imageUrl === '__pending__' || str_contains($imageUrl, '..')) {
-            return;
+            return false;
         }
 
         if (!str_starts_with($imageUrl, '/storage/')) {
-            return;
+            return false;
         }
 
         $fullPath = $this->publicPath . $imageUrl;
         $realPath = realpath($fullPath);
         if ($realPath === false) {
-            return;
+            return false;
         }
 
         $storageBase = realpath($this->storagePath);
         if ($storageBase === false || !str_starts_with($realPath, $storageBase)) {
-            return;
+            return false;
         }
 
-        @unlink($realPath);
+        return @unlink($realPath);
     }
 }

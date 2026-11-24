@@ -59,6 +59,23 @@ class ConversionEventRepository
     }
 
     /**
+     * 이미 기록된 전환의 상태만 바꾼다 (ConversionStatusChangedEvent 응답용)
+     *
+     * 캠페인 키·발생 시각은 건드리지 않는다. 기록되지 않은 전환이면 0 행.
+     *
+     * @return int 바뀐 행 수
+     */
+    public function updateStatus(int $domainId, string $sourceType, string $sourceId, string $status): int
+    {
+        $table = $this->table;
+
+        return $this->db->execute(
+            "UPDATE `{$table}` SET status = ? WHERE domain_id = ? AND source_type = ? AND source_id = ?",
+            [$status, $domainId, $sourceType, $sourceId]
+        );
+    }
+
+    /**
      * 소스별 집계 (성공 건수 + 금액 합)
      *
      * 타입뿐 아니라 **라벨까지 묶음 축에 넣는다.** 한 타입 안의 갈래(폼 제목·상품군

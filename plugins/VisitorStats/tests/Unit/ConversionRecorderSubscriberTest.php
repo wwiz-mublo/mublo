@@ -5,6 +5,7 @@ namespace Tests\VisitorStats\Unit;
 
 use Mublo\Contract\Tracking\ConversionRecordedEvent;
 use Mublo\Contract\Tracking\ConversionSourceTypes;
+use Mublo\Contract\Tracking\ConversionStatusChangedEvent;
 use Mublo\Plugin\VisitorStats\Repository\ConversionEventRepository;
 use Mublo\Plugin\VisitorStats\Subscriber\ConversionRecorderSubscriber;
 use PHPUnit\Framework\TestCase;
@@ -33,9 +34,63 @@ class ConversionRecorderSubscriberTest extends TestCase
     public function testSubscribesToTheContractEvent(): void
     {
         $this->assertSame(
-            [ConversionRecordedEvent::class => 'onConversionRecorded'],
+            [
+                ConversionRecordedEvent::class => 'onConversionRecorded',
+                ConversionStatusChangedEvent::class => 'onConversionStatusChanged',
+            ],
             ConversionRecorderSubscriber::getSubscribedEvents()
         );
+    }
+
+    public function testStatusChangeUpdatesOnlyStatusOfTheSameSource(): void
+    {
+        $calls = [];
+        $repo = $this->createMock(ConversionEventRepository::class);
+        $repo->expects($this->never())->method('record');
+        $repo->method('updateStatus')->willReturnCallback(
+            function (int $domainId, string $type, string $id, string $status) use (&$calls): int {
+                $calls[] = [$domainId, $type, $id, $status];
+                return 1;
+            }
+        );
+
+        (new ConversionRecorderSubscriber($repo))->onConversionStatusChanged(
+            new ConversionStatusChangedEvent(3, ' member_signup ', ' 2026-0001 ', ConversionStatusChangedEvent::CANCELLED)
+        );
+
+        $this->assertSame([[3, 'member_signup', '2026-0001', 'cancelled']], $calls);
+    }
+
+    /**
+     * @return iterable<string, array{ConversionStatusChangedEvent}>
+     */
+    public static function ignoredStatusChanges(): iterable
+    {
+        yield 'unknown status' => [new ConversionStatusChangedEvent(3, 'order', '1', 'refunded')];
+        yield 'no domain' => [new ConversionStatusChangedEvent(0, 'order', '1', 'success')];
+        yield 'no source type' => [new ConversionStatusChangedEvent(3, ' ', '1', 'success')];
+        yield 'no source id' => [new ConversionStatusChangedEvent(3, 'order', '', 'success')];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('ignoredStatusChanges')]
+    public function testIgnoresStatusChangeThatCannotIdentifyAConversion(ConversionStatusChangedEvent $event): void
+    {
+        $repo = $this->createMock(ConversionEventRepository::class);
+        $repo->expects($this->never())->method('updateStatus');
+
+        (new ConversionRecorderSubscriber($repo))->onConversionStatusChanged($event);
+    }
+
+    public function testStatusChangeFailureIsSwallowed(): void
+    {
+        $repo = $this->createMock(ConversionEventRepository::class);
+        $repo->method('updateStatus')->willThrowException(new \RuntimeException('db down'));
+
+        (new ConversionRecorderSubscriber($repo))->onConversionStatusChanged(
+            new ConversionStatusChangedEvent(3, 'order', '1', 'success')
+        );
+
+        $this->addToAssertionCount(1);
     }
 
     public function testRecordsConversionWithGivenValues(): void
