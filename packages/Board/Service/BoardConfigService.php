@@ -108,7 +108,20 @@ class BoardConfigService
         if ($context === null && $this->mutationRecorder === null) {
             return null;
         }
-        return $context ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+    }
+
+    /**
+     * 이 서비스를 거치지 않고 게시판을 만든 경로(설치 시드)가 같은 지문 규칙으로 문맥에 담는다.
+     * 쓰기와 같은 트랜잭션 안에서 부른다.
+     *
+     * @param list<int> $boardIds
+     */
+    public function collectExternalChanges(SiteMutationContext $context, array $boardIds): void
+    {
+        foreach (array_unique($boardIds) as $boardId) {
+            $this->recordBoardMutation($context->domainId, (int) $boardId, $context);
+        }
     }
 
     private function recordBoardMutation(
@@ -431,7 +444,11 @@ class BoardConfigService
             $this->recordBoardMutation($domainId, $boardId, $mutationContext);
             $this->finishMutation($mutationContext, $ownsMutationContext);
             $event = new BoardConfigCreatedEvent($boardConfig);
-            $this->repository->getDb()->afterCommit(fn () => $this->dispatch($event));
+            // 후속 작업(메뉴 자동 등록·삭제 등)은 이 변경의 주체(관리자·사이트 편집·확장)를 물려받아 기록한다
+            $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+                $mutationContext,
+                fn () => $this->dispatch($event)
+            ));
             return $boardId;
         });
 
@@ -601,7 +618,11 @@ class BoardConfigService
             $this->recordBoardMutation($domainId, $boardId, $mutationContext, true);
             $this->finishMutation($mutationContext, $ownsMutationContext);
             $event = new BoardConfigDeletedEvent($domainId, $boardId, $boardSlug, $boardName);
-            $this->repository->getDb()->afterCommit(fn () => $this->dispatch($event));
+            // 후속 작업(메뉴 자동 등록·삭제 등)은 이 변경의 주체(관리자·사이트 편집·확장)를 물려받아 기록한다
+            $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+                $mutationContext,
+                fn () => $this->dispatch($event)
+            ));
             return $affected;
         });
 
@@ -786,7 +807,7 @@ class BoardConfigService
                 $board = $operation['board'];
                 $domainId = $board->getDomainId();
                 $contexts[$domainId] ??= $mutationContext
-                    ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+                    ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
                 $this->repository->update($board->getBoardId(), $operation['data']);
                 $this->recordBoardMutation(
                     $domainId,

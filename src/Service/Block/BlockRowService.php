@@ -181,6 +181,28 @@ class BlockRowService
     }
 
     /**
+     * 이 서비스를 거치지 않고 블록 행을 바꾼 경로(블록 킷 적용)가 바뀐 행을 같은 지문 규칙으로 문맥에 담는다.
+     * 모든 쓰기를 마친 뒤, 쓰기와 같은 트랜잭션 안에서 부른다. 정렬 scope는 그 시점(최종) 상태로 기록된다.
+     *
+     * @param BlockRow[] $removedRows 지운 행(지우기 전 엔티티)
+     * @param list<int> $changedRowIds 새로 만들거나 바꾼 행
+     */
+    public function collectExternalChanges(
+        SiteMutationContext $context,
+        array $removedRows,
+        array $changedRowIds
+    ): void {
+        foreach ($removedRows as $row) {
+            if ($row->getDomainId() === $context->domainId) {
+                $this->recordBlockMutation($context->domainId, $row->getRowId(), $context, true, [$row]);
+            }
+        }
+        foreach (array_unique($changedRowIds) as $rowId) {
+            $this->recordBlockMutation($context->domainId, (int) $rowId, $context);
+        }
+    }
+
+    /**
      * @param BlockRow[] $scopeRows 변경 전·후 정렬 scope를 대표하는 행
      */
     private function recordBlockMutation(
@@ -199,7 +221,7 @@ class BlockRowService
         }
 
         $ownsContext = $context === null;
-        $context ??= SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        $context ??= \Mublo\Contract\Site\SiteMutationScope::context($domainId);
 
         $current = null;
         if ($deleted) {
@@ -315,7 +337,7 @@ class BlockRowService
                 throw new \InvalidArgumentException('A shared site mutation context cannot span multiple domains.');
             }
             $contexts[$domainId] ??= $context
-                ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+                ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
             $this->recordBlockMutation(
                 $domainId,
                 $row->getRowId(),

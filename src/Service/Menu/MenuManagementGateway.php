@@ -5,16 +5,22 @@ namespace Mublo\Service\Menu;
 
 use Mublo\Contract\Menu\MenuDescriptor;
 use Mublo\Contract\Menu\MenuManagementInterface;
+use Mublo\Contract\Menu\MenuRevisionCollectorInterface;
 use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Repository\Menu\MenuItemRepository;
 
-final class MenuManagementGateway implements MenuManagementInterface
+final class MenuManagementGateway implements MenuManagementInterface, MenuRevisionCollectorInterface
 {
     public function __construct(
         private MenuService $menuService,
         private MenuItemRepository $menuItems
     ) {
+    }
+
+    public function collectMenuItems(SiteMutationContext $context, array $menuCodes): void
+    {
+        $this->menuService->collectExternalChanges($context, $menuCodes);
     }
 
     public function findProviderMenus(

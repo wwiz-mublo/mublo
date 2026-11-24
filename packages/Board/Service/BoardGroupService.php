@@ -169,10 +169,15 @@ class BoardGroupService
         $insertData['sort_order'] = $sortOrder;
 
         // 생성
-        $groupId = $this->repository->create($insertData);
+        $groupId = $this->mutate($domainId, $mutationContext, function (?SiteMutationContext $context) use ($insertData, $domainId): int {
+            $groupId = (int) $this->repository->create($insertData);
+            if ($groupId > 0) {
+                $this->recordGroupMutation($domainId, $groupId, $context);
+            }
+            return $groupId;
+        });
 
         if ($groupId) {
-            $this->recordGroupMutation($domainId, (int) $groupId, $mutationContext);
             return Result::success('그룹이 생성되었습니다.', ['group_id' => $groupId]);
         }
 
@@ -217,12 +222,15 @@ class BoardGroupService
         unset($updateData['domain_id'], $updateData['sort_order']);
 
         // 수정
-        $affected = $this->repository->update($groupId, $updateData);
+        $affected = $this->mutate($group->getDomainId(), $mutationContext, function (?SiteMutationContext $context) use ($group, $groupId, $updateData): int {
+            $affected = $this->repository->update($groupId, $updateData);
+            if ($affected > 0) {
+                $this->recordGroupMutation($group->getDomainId(), $groupId, $context);
+            }
+            return $affected;
+        });
 
         if ($affected >= 0) {
-            if ($affected > 0) {
-                $this->recordGroupMutation($group->getDomainId(), $groupId, $mutationContext);
-            }
             return Result::success('그룹이 수정되었습니다.');
         }
 
@@ -249,46 +257,86 @@ class BoardGroupService
             return Result::failure("그룹에 속한 게시판({$boardCount}개)이 있어 삭제할 수 없습니다.");
         }
 
-        // 그룹 관련 권한 삭제
-        $this->deleteGroupPermissions($groupId);
-
-        // 삭제
-        $affected = $this->repository->delete($groupId);
+        // 권한 삭제·그룹 삭제·revision 기록을 한 트랜잭션으로 묶는다(하나만 남는 상태를 만들지 않는다)
+        $affected = $this->mutate($group->getDomainId(), $mutationContext, function (?SiteMutationContext $context) use ($group, $groupId): int {
+            $this->deleteGroupPermissions($groupId);
+            $affected = $this->repository->delete($groupId);
+            if ($affected > 0) {
+                $this->recordGroupMutation($group->getDomainId(), $groupId, $context, true);
+            }
+            return $affected;
+        });
 
         if ($affected > 0) {
-            $this->recordGroupMutation($group->getDomainId(), $groupId, $mutationContext, true);
             return Result::success('그룹이 삭제되었습니다.');
         }
 
         return Result::failure('그룹 삭제에 실패했습니다.');
     }
 
+    /**
+     * 쓰기와 revision 기록을 한 트랜잭션에서 실행한다. 기록 장치는 활성 트랜잭션 안에서만 기록하므로,
+     * 바깥 문맥이 없는 관리자 저장도 여기서 트랜잭션을 연다. 바깥 문맥이 있으면 그 호출자가 기록한다.
+     *
+     * @template T
+     * @param callable(?SiteMutationContext): T $work
+     * @return T
+     */
+    private function mutate(int $domainId, ?SiteMutationContext $mutationContext, callable $work): mixed
+    {
+        $ownsContext = $mutationContext === null;
+        $context = $this->mutationContext($domainId, $mutationContext);
+        if ($context === null) {
+            return $work(null);
+        }
+        return $this->repository->getDb()->transaction(function () use ($work, $context, $ownsContext): mixed {
+            $result = $work($context);
+            $this->finishMutations($context, $ownsContext);
+            return $result;
+        });
+    }
+
+    private function groupFingerprint(int $groupId): string
+    {
+        $group = $this->repository->find($groupId);
+        return SiteMutationFingerprint::hash($group?->toArray() ?? ['deleted' => true, 'group_id' => $groupId]);
+    }
+
+    /**
+     * 이 서비스를 거치지 않고 그룹을 만든 경로(설치 시드)가 같은 지문 규칙으로 문맥에 담는다.
+     *
+     * @param list<int> $groupIds
+     */
+    public function collectExternalChanges(SiteMutationContext $context, array $groupIds): void
+    {
+        foreach (array_unique($groupIds) as $groupId) {
+            $this->recordGroupMutation($context->domainId, (int) $groupId, $context);
+        }
+    }
+
+    /** 바뀐 그룹을 문맥에 담는다. 문맥이 없으면(기록 장치 없는 구성) 아무것도 하지 않는다. */
     private function recordGroupMutation(
         int $domainId,
         int $groupId,
         ?SiteMutationContext $context,
-        bool $deleted = false
+        bool $deleted = false,
+        ?string $beforeFingerprint = null
     ): void {
-        if ($context === null && $this->mutationRecorder === null) {
+        if ($context === null) {
             return;
         }
-        if ($context !== null && $context->domainId !== $domainId) {
+        if ($context->domainId !== $domainId) {
             throw new \InvalidArgumentException('Site mutation context domain does not match the board group domain.');
         }
-        $ownsContext = $context === null;
-        $context ??= SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
         $group = $deleted ? null : $this->repository->find($groupId);
         if ($group === null && !$deleted) {
             throw new \RuntimeException('Changed board group could not be read for revision recording.');
         }
-        $context->changed(
-            'board_group:' . $groupId,
-            'board_group',
-            SiteMutationFingerprint::hash($group?->toArray() ?? ['deleted' => true, 'group_id' => $groupId])
-        );
-        if ($ownsContext) {
-            $this->mutationRecorder?->record($context);
+        $fingerprint = SiteMutationFingerprint::hash($group?->toArray() ?? ['deleted' => true, 'group_id' => $groupId]);
+        if ($beforeFingerprint !== null && $beforeFingerprint === $fingerprint) {
+            return;
         }
+        $context->changed('board_group:' . $groupId, 'board_group', $fingerprint);
     }
 
     /**
@@ -308,18 +356,28 @@ class BoardGroupService
             return Result::failure('정렬할 그룹 목록이 비어있습니다.');
         }
 
-        $result = $this->repository->updateOrder($groupIds);
+        // 저장소의 정렬 쓰기는 도메인 조건이 없다. 다른 도메인 그룹이 섞이면 쓰기 전에 거절한다.
+        $before = [];
+        foreach ($groupIds as $groupId) {
+            $group = $this->repository->find((int) $groupId);
+            if ($group === null || $group->getDomainId() !== $domainId) {
+                return Result::failure('다른 도메인이거나 존재하지 않는 그룹이 포함되어 있습니다.');
+            }
+            $before[(int) $groupId] = $this->groupFingerprint((int) $groupId);
+        }
+
+        $result = $this->mutate($domainId, $mutationContext, function (?SiteMutationContext $context) use ($groupIds, $domainId, $before): bool {
+            if (!$this->repository->updateOrder($groupIds)) {
+                return false;
+            }
+            // 순서가 실제로 바뀐 그룹만 기록한다
+            foreach ($before as $groupId => $fingerprint) {
+                $this->recordGroupMutation($domainId, $groupId, $context, false, $fingerprint);
+            }
+            return true;
+        });
 
         if ($result) {
-            $ownsContext = $mutationContext === null;
-            $mutationContext = $this->mutationContext($domainId, $mutationContext);
-            foreach ($groupIds as $groupId) {
-                $group = $this->repository->find((int) $groupId);
-                if ($group !== null && $group->getDomainId() === $domainId) {
-                    $this->recordGroupMutation($domainId, (int) $groupId, $mutationContext);
-                }
-            }
-            $this->finishMutations($mutationContext, $ownsContext);
             return Result::success('정렬 순서가 변경되었습니다.');
         }
 
@@ -377,40 +435,43 @@ class BoardGroupService
             return Result::failure('수정할 항목이 없습니다.', ['updated' => 0]);
         }
 
-        $updated = 0;
-        /** @var array<int, SiteMutationContext> $contexts */
-        $contexts = [];
-        foreach ($items as $groupId => $data) {
-            $groupId = (int) $groupId;
-            $group = $this->repository->find($groupId);
-
-            if ($group) {
+        $work = function () use ($items, $mutationContext): int {
+            $updated = 0;
+            /** @var array<int, SiteMutationContext> $contexts */
+            $contexts = [];
+            foreach ($items as $groupId => $data) {
+                $groupId = (int) $groupId;
+                $group = $this->repository->find($groupId);
+                if (!$group) {
+                    continue;
+                }
                 $normalizedData = $this->normalizeData($data);
                 // domain_id, sort_order, group_slug는 일괄 수정에서 제외
                 unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['group_slug']);
-
-                if (!empty($normalizedData)) {
-                    $affected = $this->repository->update($groupId, $normalizedData);
-                    if ($affected > 0) {
-                        $domainId = $group->getDomainId();
-                        if ($mutationContext !== null && $mutationContext->domainId !== $domainId) {
-                            throw new \InvalidArgumentException('Site mutation context domain does not match the board group domain.');
-                        }
-                        $context = $mutationContext
-                            ?? $contexts[$domainId]
-                            ??= SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
-                        $this->recordGroupMutation($domainId, $groupId, $context);
-                        $updated++;
-                    }
+                if (empty($normalizedData)) {
+                    continue;
+                }
+                $domainId = $group->getDomainId();
+                if ($mutationContext !== null && $mutationContext->domainId !== $domainId) {
+                    throw new \InvalidArgumentException('Site mutation context domain does not match the board group domain.');
+                }
+                if ($this->repository->update($groupId, $normalizedData) > 0) {
+                    $context = $mutationContext ?? ($this->mutationRecorder !== null
+                        ? ($contexts[$domainId] ??= \Mublo\Contract\Site\SiteMutationScope::context($domainId))
+                        : null);
+                    $this->recordGroupMutation($domainId, $groupId, $context);
+                    $updated++;
                 }
             }
-        }
-
-        if ($mutationContext === null && $this->mutationRecorder !== null) {
             foreach ($contexts as $context) {
                 $this->finishMutations($context, true);
             }
-        }
+            return $updated;
+        };
+        // 도메인별 문맥을 모두 같은 트랜잭션에서 기록한다
+        $updated = $mutationContext === null && $this->mutationRecorder === null
+            ? $work()
+            : $this->repository->getDb()->transaction($work);
 
         if ($updated > 0) {
             return Result::success("{$updated}개 항목이 수정되었습니다.", ['updated' => $updated]);
@@ -427,7 +488,7 @@ class BoardGroupService
         if ($context === null && $this->mutationRecorder === null) {
             return null;
         }
-        return $context ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
     }
 
     private function finishMutations(?SiteMutationContext $context, bool $ownsContext): void

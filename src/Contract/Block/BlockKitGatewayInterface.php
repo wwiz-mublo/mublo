@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Mublo\Contract\Block;
 
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 
 /**
@@ -39,10 +40,11 @@ interface BlockKitGatewayInterface
      *
      * @param array $kit 디코딩된 킷 JSON (target.kind 가 'page' 여야 한다)
      * @param string $mode self::MODE_APPEND | self::MODE_REPLACE
+     * @param SiteMutationContext|null $mutationContext 호출자의 사이트 변경 문맥(바뀐 블록 행이 여기에 담긴다). 없으면 코어가 기록한다
      * @return Result 성공 data: {summary: array{page_id, created_page, created_rows,
      *                deleted_rows, ...}, warnings: string[]}
      */
-    public function applyPage(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result;
+    public function applyPage(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result;
 
     /**
      * position 타깃 블록 킷 적용 — 메인화면(`index`) 처럼 페이지가 아니라
@@ -54,8 +56,9 @@ interface BlockKitGatewayInterface
      *
      * @param array $kit 디코딩된 킷 JSON (target.kind 가 'position' 이어야 한다)
      * @param string $mode self::MODE_APPEND | self::MODE_REPLACE
+     * @param SiteMutationContext|null $mutationContext 호출자의 사이트 변경 문맥. 없으면 코어가 기록한다
      * @return Result 성공 data: {summary: array{created_rows, deleted_rows, ...},
      *                warnings: string[]}
      */
-    public function applyPosition(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result;
+    public function applyPosition(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result;
 }

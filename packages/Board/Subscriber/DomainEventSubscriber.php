@@ -18,9 +18,17 @@ class DomainEventSubscriber implements EventSubscriberInterface
 {
     private Database $db;
 
-    public function __construct(Database $db)
+    /** @var (callable(int, array{groups:list<int>,boards:list<int>,menus:list<string>}): void)|null */
+    private $recordCreated;
+
+    /**
+     * @param (callable(int, array{groups:list<int>,boards:list<int>,menus:list<string>}): void)|null $recordCreated
+     *        새로 만든 자원을 사이트 변경 revision으로 남기는 콜백(BoardProvider가 서비스로 만든다)
+     */
+    public function __construct(Database $db, ?callable $recordCreated = null)
     {
         $this->db = $db;
+        $this->recordCreated = $recordCreated;
     }
 
     public static function getSubscribedEvents(): array
@@ -33,7 +41,7 @@ class DomainEventSubscriber implements EventSubscriberInterface
     public function onDomainCreated(DomainCreatedEvent $event): void
     {
         $domainId = $event->getDomainId();
-        self::seedBoards($this->db, $domainId);
+        self::seedBoards($this->db, $domainId, $this->recordCreated);
     }
 
     /**
@@ -45,32 +53,53 @@ class DomainEventSubscriber implements EventSubscriberInterface
      *    (초기설치는 부팅 reconcile이 install()을 1회 호출 → seedBoards)
      *
      * 항목별 멱등 — 여러 번/여러 경로로 호출돼도 중복 없이 누락분만 채운다.
+     *
+     * 새로 만든 그룹·게시판·메뉴는 $recordCreated로 넘겨 같은 트랜잭션에서 사이트 변경 revision을 올린다.
+     * 운영 중인 몰에서 패키지를 켜도 사이트 편집기가 그 변경을 알 수 있다. 설치 단계(컨테이너 없음)에서는 생략된다.
+     *
+     * @param (callable(int, array{groups:list<int>,boards:list<int>,menus:list<string>}): void)|null $recordCreated
      */
-    public static function seedBoards(Database $db, int $domainId): void
+    public static function seedBoards(Database $db, int $domainId, ?callable $recordCreated = null): void
     {
         if (!$domainId) {
             return;
         }
+        $db->transaction(static function () use ($db, $domainId, $recordCreated): void {
+            $created = self::seed($db, $domainId);
+            if ($recordCreated !== null && ($created['groups'] !== [] || $created['boards'] !== [] || $created['menus'] !== [])) {
+                $recordCreated($domainId, $created);
+            }
+        });
+    }
+
+    /** @return array{groups:list<int>,boards:list<int>,menus:list<string>} 새로 만든 자원 */
+    private static function seed(Database $db, int $domainId): array
+    {
+        $created = ['groups' => [], 'boards' => [], 'menus' => []];
 
         $now = date('Y-m-d H:i:s');
 
         // 기본 그룹 (멱등: uk_domain_slug(domain_id, group_slug))
-        $groupId = $db->insert(
-            "INSERT IGNORE INTO board_groups (domain_id, group_slug, group_name, sort_order, is_active, created_at, updated_at)
-             VALUES (?, 'default', '기본 그룹', 0, 1, ?, ?)",
-            [$domainId, $now, $now]
-        );
-
-        if (!$groupId) {
-            $row = $db->selectOne(
-                "SELECT group_id FROM board_groups WHERE domain_id = ? AND group_slug = 'default'",
-                [$domainId]
+        // 새로 만들었는지는 쓰기 전 존재 여부로 판단한다 — 무시된 INSERT IGNORE 뒤의 lastInsertId는 믿을 수 없다.
+        $findGroup = static fn(): ?int => ($row = $db->selectOne(
+            "SELECT group_id FROM board_groups WHERE domain_id = ? AND group_slug = 'default'",
+            [$domainId]
+        )) !== null ? (int) $row['group_id'] : null;
+        $groupId = $findGroup();
+        if ($groupId === null) {
+            $db->insert(
+                "INSERT IGNORE INTO board_groups (domain_id, group_slug, group_name, sort_order, is_active, created_at, updated_at)
+                 VALUES (?, 'default', '기본 그룹', 0, 1, ?, ?)",
+                [$domainId, $now, $now]
             );
-            $groupId = $row['group_id'] ?? null;
+            $groupId = $findGroup();
+            if ($groupId !== null) {
+                $created['groups'][] = $groupId;
+            }
         }
 
         if (!$groupId) {
-            return;
+            return $created;
         }
 
         // 기본 게시판 정의
@@ -95,6 +124,11 @@ class DomainEventSubscriber implements EventSubscriberInterface
 
         foreach ($boards as $board) {
             // 게시판 (멱등: uk_domain_slug(domain_id, board_slug))
+            $findBoard = static fn(): ?int => ($row = $db->selectOne(
+                'SELECT board_id FROM board_configs WHERE domain_id = ? AND board_slug = ? LIMIT 1',
+                [$domainId, $board['slug']]
+            )) !== null ? (int) $row['board_id'] : null;
+            $existed = $findBoard() !== null;
             $db->insert(
                 "INSERT IGNORE INTO board_configs
                     (domain_id, group_id, board_slug, board_name, board_description,
@@ -106,19 +140,26 @@ class DomainEventSubscriber implements EventSubscriberInterface
                 [$domainId, $groupId, $board['slug'], $board['name'], $board['description'],
                  $board['write_level'], $board['use_reaction'], $board['sort_order'], $now, $now]
             );
+            $boardId = $existed ? null : $findBoard();
+            if ($boardId !== null) {
+                $created['boards'][] = $boardId;
+            }
 
             // 게시판 메뉴 아이템 (멱등: url+provider 기준) — 미배치 등록(배치는 별도 트랙)
-            self::ensureMenuItem($db, $domainId, $board['name'], '/board/' . $board['slug']);
+            $created['menus'][] = self::ensureMenuItem($db, $domainId, $board['name'], '/board/' . $board['slug']);
         }
 
         self::seedFirstNotice($db, $domainId, $now);
 
         // Board 고정 메뉴 후보 — 커뮤니티 + 마이페이지 섹션(글/댓글). 미배치 등록 → 운영자가 배치.
         // (게시판이 코어→패키지로 분리됨에 따라 코어 시드에서 이관. Board가 곧 메뉴 소유.)
-        self::ensureMenuItem($db, $domainId, '커뮤니티', '/community');
-        self::ensureMenuItem($db, $domainId, '마이보드', '/mypage/board', 'member');
-        self::ensureMenuItem($db, $domainId, '내가 쓴 글', '/mypage/board/articles', 'member');
-        self::ensureMenuItem($db, $domainId, '내가 쓴 댓글', '/mypage/board/comments', 'member');
+        $created['menus'][] = self::ensureMenuItem($db, $domainId, '커뮤니티', '/community');
+        $created['menus'][] = self::ensureMenuItem($db, $domainId, '마이보드', '/mypage/board', 'member');
+        $created['menus'][] = self::ensureMenuItem($db, $domainId, '내가 쓴 글', '/mypage/board/articles', 'member');
+        $created['menus'][] = self::ensureMenuItem($db, $domainId, '내가 쓴 댓글', '/mypage/board/comments', 'member');
+        $created['menus'] = array_values(array_filter($created['menus'], 'is_string'));
+
+        return $created;
     }
 
     /**
@@ -186,7 +227,8 @@ class DomainEventSubscriber implements EventSubscriberInterface
      * 같은 url의 Board 메뉴 아이템이 이미 있으면 건너뛴다.
      * 배치(메인 트리/푸터/유틸/마이페이지)는 지정하지 않는다 — 미배치 등록.
      */
-    private static function ensureMenuItem(Database $db, int $domainId, string $label, string $url, string $visibility = 'all'): void
+    /** @return string|null 새로 만들었으면 메뉴 코드 */
+    private static function ensureMenuItem(Database $db, int $domainId, string $label, string $url, string $visibility = 'all'): ?string
     {
         $existing = $db->selectOne(
             "SELECT item_id FROM menu_items
@@ -195,7 +237,7 @@ class DomainEventSubscriber implements EventSubscriberInterface
             [$domainId, $url]
         );
         if ($existing) {
-            return;
+            return null;
         }
 
         $menuCode = StringHelper::random(8);
@@ -211,5 +253,7 @@ class DomainEventSubscriber implements EventSubscriberInterface
              VALUES (?, ?, ?, ?, ?, 'package', 'Board', 1, NOW(), NOW())",
             [$domainId, $menuCode, $label, $url, $visibility]
         );
+
+        return $menuCode;
     }
 }
