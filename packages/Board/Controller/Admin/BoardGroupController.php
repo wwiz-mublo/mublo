@@ -95,7 +95,7 @@ class BoardGroupController
 
         $group = $this->groupService->getGroup($groupId);
 
-        if (!$group) {
+        if (!$group || $group->getDomainId() !== ($context->getDomainId() ?? 1)) {
             return ViewResponse::view('Error/404')
                 ->withData(['message' => '그룹을 찾을 수 없습니다.']);
         }
@@ -134,6 +134,10 @@ class BoardGroupController
 
         $groupId = (int) ($data['group_id'] ?? 0);
 
+        if ($groupId > 0 && !$this->ownsGroup($groupId, $domainId)) {
+            return JsonResponse::error('그룹을 찾을 수 없습니다.');
+        }
+
         if ($groupId > 0) {
             // 수정
             $result = $this->groupService->updateGroup($groupId, $data);
@@ -164,6 +168,10 @@ class BoardGroupController
 
         if ($groupId <= 0) {
             return JsonResponse::error('그룹 ID가 필요합니다.');
+        }
+
+        if (!$this->ownsGroup($groupId, $context->getDomainId() ?? 1)) {
+            return JsonResponse::error('그룹을 찾을 수 없습니다.');
         }
 
         $result = $this->groupService->deleteGroup($groupId);
@@ -246,6 +254,13 @@ class BoardGroupController
             return JsonResponse::error('수정할 항목을 선택해주세요.');
         }
 
+        // 다른 도메인의 그룹 ID는 처리하지 않는다
+        $domainId = $context->getDomainId() ?? 1;
+        $chk = array_values(array_filter(
+            (array) $chk,
+            fn ($id): bool => $this->ownsGroup((int) $id, $domainId)
+        ));
+
         // chk에 있는 항목만 데이터 수집
         $items = [];
         foreach ($chk as $groupId) {
@@ -303,6 +318,13 @@ class BoardGroupController
             return JsonResponse::error('삭제할 항목을 선택해주세요.');
         }
 
+        // 다른 도메인의 그룹 ID는 처리하지 않는다
+        $domainId = $context->getDomainId() ?? 1;
+        $chk = array_values(array_filter(
+            (array) $chk,
+            fn ($id): bool => $this->ownsGroup((int) $id, $domainId)
+        ));
+
         $deleted = 0;
         $failed = 0;
 
@@ -344,6 +366,10 @@ class BoardGroupController
             return JsonResponse::error('그룹 ID와 회원 ID가 필요합니다.');
         }
 
+        if (!$this->ownsGroup($groupId, $context->getDomainId() ?? 1)) {
+            return JsonResponse::error('그룹을 찾을 수 없습니다.');
+        }
+
         $result = $this->permissionService->addGroupAdmin($domainId, $groupId, $memberId);
 
         if ($result->isSuccess()) {
@@ -370,6 +396,10 @@ class BoardGroupController
 
         if ($groupId <= 0 || $memberId <= 0) {
             return JsonResponse::error('그룹 ID와 회원 ID가 필요합니다.');
+        }
+
+        if (!$this->ownsGroup($groupId, $context->getDomainId() ?? 1)) {
+            return JsonResponse::error('그룹을 찾을 수 없습니다.');
         }
 
         $result = $this->permissionService->removeGroupAdmin($groupId, $memberId);
@@ -412,5 +442,14 @@ class BoardGroupController
             'bool' => ['is_active'],
             'required_string' => ['group_slug', 'group_name'],
         ];
+    }
+
+    /**
+     * 요청 ID가 현재 도메인의 그룹인지 확인한다
+     */
+    private function ownsGroup(int $groupId, int $domainId): bool
+    {
+        $entity = $this->groupService->getGroup($groupId);
+        return $entity !== null && $entity->getDomainId() === $domainId;
     }
 }

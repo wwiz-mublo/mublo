@@ -333,7 +333,7 @@ class BoardConfigService
 
         // 그룹 존재 확인
         $group = $this->groupRepository->find((int) $data['group_id']);
-        if (!$group) {
+        if (!$group || $group->getDomainId() !== $domainId) {
             return Result::failure('선택한 그룹이 존재하지 않습니다.');
         }
 
@@ -463,7 +463,7 @@ class BoardConfigService
         // 그룹 변경 시 존재 확인
         if (!empty($data['group_id']) && (int) $data['group_id'] !== $board->getGroupId()) {
             $group = $this->groupRepository->find((int) $data['group_id']);
-            if (!$group) {
+            if (!$group || $group->getDomainId() !== $board->getDomainId()) {
                 return Result::failure('선택한 그룹이 존재하지 않습니다.');
             }
         }
@@ -731,6 +731,9 @@ class BoardConfigService
                 if ($board) {
                     $normalizedData = $this->normalizeData($data);
                     unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
+                    if (!$this->groupAllowedForBoard($normalizedData, $board)) {
+                        continue;
+                    }
                     if (!empty($normalizedData)) {
                         $this->repository->update($boardId, $normalizedData);
                         $updated++;
@@ -754,6 +757,9 @@ class BoardConfigService
             }
             $normalizedData = $this->normalizeData($data);
             unset($normalizedData['domain_id'], $normalizedData['sort_order'], $normalizedData['board_slug']);
+            if (!$this->groupAllowedForBoard($normalizedData, $board)) {
+                continue;
+            }
             if ($normalizedData !== []) {
                 $operations[] = [
                     'board' => $board,
@@ -1016,4 +1022,17 @@ class BoardConfigService
         return $options;
     }
 
+    /**
+     * 일괄 수정의 그룹 이동 대상이 게시판과 같은 도메인의 그룹인지 확인한다
+     *
+     * @param array<string, mixed> $data
+     */
+    private function groupAllowedForBoard(array $data, BoardConfig $board): bool
+    {
+        if (empty($data['group_id']) || (int) $data['group_id'] === $board->getGroupId()) {
+            return true;
+        }
+        $group = $this->groupRepository->find((int) $data['group_id']);
+        return $group !== null && $group->getDomainId() === $board->getDomainId();
+    }
 }
