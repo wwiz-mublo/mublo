@@ -36,6 +36,18 @@ final class BoardReadOverlayTest extends TestCase
         $this->assertSame($draft, $overlay->findById(-1));
     }
 
+    public function testAcceptsDraftBoardInUnsavedGroupButRequiresAGroup(): void
+    {
+        $overlay = new BoardReadOverlay();
+        $draftGroup = new BoardDescriptor(0, 'faq', 'FAQ', -1, true, 0, [], []);
+
+        $this->assertTrue($overlay->replaceBoards(7, [$draftGroup])->isSuccess());
+        $this->assertSame(-1, $overlay->findBySlug(7, 'faq')?->groupId);
+        $this->assertTrue($overlay->replaceBoards(7, [
+            new BoardDescriptor(0, 'faq', 'FAQ', 0, true, 0, [], []),
+        ])->isFailure());
+    }
+
     public function testRejectsDuplicateSlugWithoutReplacingExistingBoards(): void
     {
         $overlay = new BoardReadOverlay();

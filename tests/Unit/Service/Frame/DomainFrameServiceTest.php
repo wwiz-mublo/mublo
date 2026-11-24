@@ -17,7 +17,8 @@ class DomainFrameServiceTest extends TestCase
     private function service(
         ?DomainFrameOverrideRepository $overrides = null,
         ?DomainRepository $domains = null,
-        ?DomainResolver $resolver = null
+        ?DomainResolver $resolver = null,
+        ?\Mublo\Contract\Site\SiteMutationRecorderInterface $recorder = null
     ): DomainFrameService {
         // 트랜잭션 목: 콜백을 그대로 실행 (예외는 전파 = 롤백 후 재던짐과 동일 관측)
         $db = $this->createMock(\Mublo\Infrastructure\Database\Database::class);
@@ -27,8 +28,37 @@ class DomainFrameServiceTest extends TestCase
             $overrides ?? $this->createMock(DomainFrameOverrideRepository::class),
             $domains ?? $this->createMock(DomainRepository::class),
             $resolver ?? $this->createMock(DomainResolver::class),
-            $db
+            $db,
+            $recorder
         );
+    }
+
+    // ---- 사이트 변경 revision (관리자 저장 경로도 사이트 편집기 guard에 드러나야 한다) ----
+
+    public function testPublishRecordsFrameAndThemeRevisionsButAnUnchangedRevertRecordsNothing(): void
+    {
+        $recorded = [];
+        $recorder = $this->createMock(\Mublo\Contract\Site\SiteMutationRecorderInterface::class);
+        $recorder->method('record')->willReturnCallback(function (\Mublo\Contract\Site\SiteMutationContext $context) use (&$recorded) {
+            $recorded[] = array_map(static fn ($resource) => $resource->resourceId, $context->resources());
+            return new \Mublo\Contract\Site\SiteMutationReceipt(1, 1, 1, 'admin', null, []);
+        });
+        $overrides = $this->createMock(DomainFrameOverrideRepository::class);
+        $overrides->method('publish')->willReturn(true);
+        $overrides->method('findPublished')->willReturnOnConsecutiveCalls(null, ['html' => '<header>새</header>']);
+        $domains = $this->createMock(DomainRepository::class);
+        $domains->method('find')->willReturn($this->domainMock(['skin' => 'basic']));
+        $domains->method('updateThemeConfig')->willReturn(true);
+
+        $this->assertTrue($this->service($overrides, $domains, null, $recorder)->publish(1, 'header')->isSuccess());
+        $this->assertSame([['config:theme', 'frame:header']], $recorded);
+
+        // 게시본이 없고 플래그도 꺼진 상태에서 되돌리기 — 바뀐 것이 없으니 revision을 올리지 않는다
+        $recorded = [];
+        $idle = $this->createMock(DomainFrameOverrideRepository::class);
+        $idle->method('findPublished')->willReturn(null);
+        $this->service($idle, $domains, null, $recorder)->revertToSkin(1, 'header');
+        $this->assertSame([], $recorded);
     }
 
     private function domainMock(array $themeConfig): Domain

@@ -142,7 +142,7 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
         return $this->domainSettings->updateSeoConfig($domainId, $values, $mutationContext);
     }
 
-    public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result
+    public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result
     {
         if (($kit['target']['kind'] ?? null) !== BlockKit::TARGET_SCREEN) {
             return Result::failure('screen 타깃 블록 킷이 아닙니다.');
@@ -155,7 +155,7 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
         // applySiteSettings 는 넘기지 않는다 — kind=screen 이면 코어가 강제로 켠다
         // (메인화면은 슬롯 구성과 레이아웃 설정이 한 단위다).
         // allowScripts=false — 확장 경로에는 사용자 권한 문맥이 없다.
-        $result = $this->kitApplier->apply($domainId, $kit, $mode, false, false);
+        $result = $this->kitApplier->apply($domainId, $kit, $mode, false, false, null, $mutationContext);
 
         if (empty($result['ok'])) {
             return Result::failure(implode(' / ', $result['errors'] ?? ['블록 킷 적용에 실패했습니다.']));

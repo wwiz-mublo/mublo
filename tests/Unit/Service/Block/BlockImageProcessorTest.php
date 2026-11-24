@@ -270,6 +270,66 @@ class BlockImageProcessorTest extends TestCase
         };
     }
 
+    /** 확장이 보존 중인 파일은 블록 참조가 없어도 남기고, 보존 확인 오류도 보존으로 본다. */
+    public function testCleanupKeepsFilesRetainedByExtensions(): void
+    {
+        $directory = $this->tempRoot . '/public/storage/D7/block/images';
+        mkdir($directory, 0777, true);
+        foreach (['held.jpg', 'broken.jpg', 'free.jpg'] as $name) {
+            file_put_contents($directory . '/' . $name, 'x');
+        }
+        $contracts = new \Mublo\Core\Registry\ContractRegistry();
+        $contracts->register(\Mublo\Contract\Block\BlockImageRetentionInterface::class, 'restore-points', new class implements \Mublo\Contract\Block\BlockImageRetentionInterface {
+            public function isRetained(string $imageUrl): bool
+            {
+                if (str_ends_with($imageUrl, 'broken.jpg')) {
+                    throw new \RuntimeException('database unavailable');
+                }
+                return str_ends_with($imageUrl, 'held.jpg');
+            }
+        });
+        $processor = new BlockImageProcessor(
+            $this->createMock(FileUploader::class),
+            $this->tempRoot . '/public',
+            $this->tempRoot . '/public/storage',
+            null,
+            $contracts
+        );
+
+        $deleted = $processor->cleanupUnreferenced([
+            '/storage/D7/block/images/held.jpg',
+            '/storage/D7/block/images/broken.jpg',
+            '/storage/D7/block/images/free.jpg',
+        ]);
+
+        $this->assertSame(1, $deleted);
+        $this->assertFileExists($directory . '/held.jpg');
+        $this->assertFileExists($directory . '/broken.jpg');
+        $this->assertFileDoesNotExist($directory . '/free.jpg');
+    }
+
+    /** 확장 정리 요청은 해당 도메인 저장소 파일만 대상으로 한다. */
+    public function testCleanupGatewayIgnoresOtherDomainFiles(): void
+    {
+        foreach (['D7', 'D8'] as $domain) {
+            mkdir($this->tempRoot . "/public/storage/$domain/block/images", 0777, true);
+            file_put_contents($this->tempRoot . "/public/storage/$domain/block/images/a.jpg", 'x');
+        }
+        $gateway = new \Mublo\Service\Block\BlockImageCleanupGateway(new BlockImageProcessor(
+            $this->createMock(FileUploader::class),
+            $this->tempRoot . '/public',
+            $this->tempRoot . '/public/storage'
+        ));
+
+        $this->assertSame(1, $gateway->cleanupUnreferenced(7, [
+            '/storage/D7/block/images/a.jpg',
+            '/storage/D8/block/images/a.jpg',
+            '/storage/D7/../D8/block/images/a.jpg',
+        ]));
+        $this->assertFileDoesNotExist($this->tempRoot . '/public/storage/D7/block/images/a.jpg');
+        $this->assertFileExists($this->tempRoot . '/public/storage/D8/block/images/a.jpg');
+    }
+
     private function nestedFiles(): array
     {
         return [

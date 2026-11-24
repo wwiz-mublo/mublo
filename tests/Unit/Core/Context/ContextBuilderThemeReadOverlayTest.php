@@ -56,4 +56,47 @@ final class ContextBuilderThemeReadOverlayTest extends TestCase
         $this->assertSame('미리보기 사이트', $context->getSiteLogoText());
         $this->assertSame('운영 사이트', $stored->getSiteConfig()['site_title']);
     }
+
+    /**
+     * Context는 확장보다 먼저 만들어진다. 요청 중에 overlay를 등록한 확장은 reapplyThemeOverlay()로
+     * build()와 같은 규칙(도메인 설정·로고 문구·스킨)을 다시 적용한다.
+     */
+    public function testReapplyUsesAnOverlayRegisteredAfterBuild(): void
+    {
+        $stored = new Domain(
+            7,
+            'preview.test',
+            siteConfig: ['site_title' => '운영 사이트'],
+            themeConfig: ['frame' => 'basic', 'index' => 'basic']
+        );
+        $overlay = new ThemeReadOverlay();
+        $builder = new class($stored, $overlay) extends ContextBuilder {
+            public function __construct(
+                private Domain $resolvedDomain,
+                ThemeReadOverlayInterface $overlay
+            ) {
+                parent::__construct(themeReadOverlay: $overlay);
+            }
+
+            protected function resolveDomain(?string $domainName): ?Domain
+            {
+                return $this->resolvedDomain;
+            }
+        };
+        $context = $builder->build(new Request('GET', '/', server: ['HTTP_HOST' => 'preview.test']));
+        $this->assertSame('운영 사이트', $context->getSiteLogoText());
+
+        $this->assertTrue($overlay->replace(new ThemeReadSnapshot(
+            7,
+            ['site_title' => '미리보기 사이트'],
+            [],
+            [],
+            ['frame' => 'basic', 'index' => 'basic']
+        ))->isSuccess());
+        $builder->reapplyThemeOverlay($context);
+
+        $this->assertSame('미리보기 사이트', $context->getDomainInfo()?->getSiteConfig()['site_title']);
+        $this->assertSame('미리보기 사이트', $context->getSiteLogoText());
+        $this->assertSame('운영 사이트', $stored->getSiteConfig()['site_title'], '운영 도메인 객체는 바뀌지 않는다');
+    }
 }

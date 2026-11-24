@@ -68,6 +68,22 @@ final class BlockImageReferenceRepository
             }
         }
 
+        // 사이트 설정(로고·공유 이미지·파비콘, 패키지가 사이트 설정에 둔 배너 등)이 쓰는 파일도 사용 중이다.
+        // 사이트 편집 복원 지점의 보존 기한이 끝나 정리를 맡겨도 지금 쓰는 로고를 지우면 안 된다.
+        if ($this->db->tableExists('domain_configs')) {
+            $config = $this->db->selectOne(
+                'SELECT 1 AS found FROM domain_configs'
+                . ' WHERE site_config LIKE ? OR site_config LIKE ?'
+                . ' OR seo_config LIKE ? OR seo_config LIKE ?'
+                . ' OR company_config LIKE ? OR company_config LIKE ?'
+                . ' OR theme_config LIKE ? OR theme_config LIKE ? LIMIT 1',
+                [$needle, $jsonNeedle, $needle, $jsonNeedle, $needle, $jsonNeedle, $needle, $jsonNeedle]
+            );
+            if ($config !== null) {
+                return true;
+            }
+        }
+
         // 복구 이력에서 참조하는 파일은 이력 보존 기간 동안 지우지 않는다.
         if ($this->db->tableExists('block_row_revisions')) {
             $revision = $this->db->selectOne(

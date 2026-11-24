@@ -196,7 +196,8 @@ interface SiteProvisioningInterface
      *   계약은 가장 좁은 쪽으로 고정한다.
      *
      * @param array $kit 디코딩된 킷 JSON (mublo-starter-kit 형식)
+     * @param SiteMutationContext|null $mutationContext 호출자의 사이트 변경 문맥(바뀐 블록 행과 병합한 site_config가 담긴다)
      * @return Result 성공 data: {summary: array, warnings: string[]}
      */
-    public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result;
+    public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result;
 }

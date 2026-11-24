@@ -472,6 +472,7 @@ $container->singleton(BannerRenderer::class, function ($c) {
 | `BlockPageDeletedEvent` | 블록 페이지 삭제 후 후처리 |
 | `BlockContentItemsCollectEvent` | 콘텐츠 타입별 선택 항목 공급 |
 | `BlockPageRenderingEvent` | 블록 페이지 렌더링 시 추가 HTML 주입 |
+| `BlockPositionRenderingEvent` | 위치별 블록 렌더링 직전 — 이번 요청만 위치 대체(`replaceWith`) 또는 캐시 끄기(`disableCache`) |
 
 예시:
 - 메뉴 자동 등록/삭제

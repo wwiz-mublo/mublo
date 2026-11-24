@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Tests\Board\Unit\Service;
 
 use Mublo\Contract\Board\BoardDescriptor;
+use Mublo\Infrastructure\Database\Database;
 use Mublo\Packages\Board\Repository\BoardArticleRepository;
 use Mublo\Packages\Board\Repository\BoardCategoryMappingRepository;
 use Mublo\Packages\Board\Repository\BoardCategoryRepository;
@@ -18,43 +19,51 @@ use PHPUnit\Framework\TestCase;
 
 final class BoardConfigReadOverlayTest extends TestCase
 {
-    public function testFrontReadMethodsUseOverlayWithoutReadingConfigRepository(): void
+    /**
+     * 글 목록·글 보기·댓글·파일·커뮤니티·게시판 블록은 모두 저장소 조회를 거친다.
+     * overlay를 저장소에서 반영해야 한 미리보기 요청 안에서 게시판 설정이 어긋나지 않는다.
+     */
+    public function testRepositoryFrontReadsUseOverlayWithoutQueryingDatabase(): void
     {
-        $repository = $this->createMock(BoardConfigRepository::class);
-        $repository->expects($this->never())->method('find');
-        $repository->expects($this->never())->method('findBySlug');
-        $repository->expects($this->never())->method('findActiveByDomain');
-        $overlay = new BoardReadOverlay();
-        $result = $overlay->replaceBoards(7, [new BoardDescriptor(
-            0,
-            'preview-notice',
-            '미리보기 공지',
-            3,
-            true,
-            0,
-            ['board_skin' => 'basic', 'per_page' => 15],
-            []
-        )]);
-        $this->assertTrue($result->isSuccess(), $result->getMessage());
-        $service = new BoardConfigService(
-            $repository,
-            $this->createMock(BoardGroupRepository::class),
-            $this->createMock(BoardCategoryMappingRepository::class),
-            $this->createMock(BoardArticleRepository::class),
-            readOverlay: $overlay
-        );
+        $db = $this->createMock(Database::class);
+        $db->expects($this->never())->method('table');
+        $repository = new BoardConfigRepository($db, $this->overlay());
 
-        $bySlug = $service->getBoardBySlug(7, 'preview-notice');
+        $bySlug = $repository->findBySlug(7, 'preview-notice');
         $this->assertNotNull($bySlug);
         $this->assertSame(-1, $bySlug->getBoardId());
         $this->assertSame(7, $bySlug->getDomainId());
+        $this->assertSame(3, $bySlug->getGroupId());
         $this->assertSame('미리보기 공지', $bySlug->getBoardName());
-        $this->assertSame($bySlug->getBoardId(), $service->getBoard(-1)?->getBoardId());
+        $this->assertSame(0, $bySlug->getListLevel());
+        $this->assertSame(-1, $repository->find(-1)?->getBoardId());
+        $this->assertSame(-1, $repository->findAccessibleById(7, -1)?->getBoardId());
+        $this->assertSame([-1], array_map(
+            static fn(BoardConfig $board): int => $board->getBoardId(),
+            $repository->findActiveByDomain(7)
+        ));
+        // overlay가 있는 도메인에서는 overlay 목록이 최종 상태다.
+        $this->assertNull($repository->findBySlug(7, 'deleted-from-preview'));
+        $this->assertNull($repository->findAccessibleById(7, 99));
+    }
+
+    public function testServiceReadsGoThroughOverlayAwareRepository(): void
+    {
+        $db = $this->createMock(Database::class);
+        $db->expects($this->never())->method('table');
+        $service = new BoardConfigService(
+            new BoardConfigRepository($db, $this->overlay()),
+            $this->createMock(BoardGroupRepository::class),
+            $this->createMock(BoardCategoryMappingRepository::class),
+            $this->createMock(BoardArticleRepository::class)
+        );
+
+        $this->assertSame(-1, $service->getBoardBySlug(7, 'preview-notice')?->getBoardId());
+        $this->assertSame(-1, $service->getBoard(-1)?->getBoardId());
         $this->assertSame([-1], array_map(
             static fn(BoardConfig $board): int => $board->getBoardId(),
             $service->getActiveBoards(7)
         ));
-        $this->assertNull($service->getBoardBySlug(7, 'deleted-from-preview'));
     }
 
     public function testMissingOverlayKeepsRepositoryPath(): void
@@ -65,8 +74,7 @@ final class BoardConfigReadOverlayTest extends TestCase
             $repository,
             $this->createMock(BoardGroupRepository::class),
             $this->createMock(BoardCategoryMappingRepository::class),
-            $this->createMock(BoardArticleRepository::class),
-            readOverlay: new BoardReadOverlay()
+            $this->createMock(BoardArticleRepository::class)
         );
 
         $this->assertNull($service->getBoardBySlug(7, 'notice'));
@@ -104,5 +112,22 @@ final class BoardConfigReadOverlayTest extends TestCase
             'category_name' => '일반',
             'category_slug' => 'general',
         ]], $service->getCategoriesByBoard(-10));
+    }
+
+    private function overlay(): BoardReadOverlay
+    {
+        $overlay = new BoardReadOverlay();
+        $result = $overlay->replaceBoards(7, [new BoardDescriptor(
+            0,
+            'preview-notice',
+            '미리보기 공지',
+            3,
+            true,
+            0,
+            ['board_skin' => 'basic', 'per_page' => 15, 'list_level' => 0],
+            []
+        )]);
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+        return $overlay;
     }
 }
