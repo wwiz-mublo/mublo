@@ -2,6 +2,8 @@
 
 namespace Tests\Unit\Service\Block;
 
+use Mublo\Contract\Block\BlockReadOverlayInterface;
+use Mublo\Contract\Block\BlockRowSnapshot;
 use Mublo\Core\Container\DependencyContainer;
 use Mublo\Entity\Block\BlockColumn;
 use Mublo\Entity\Block\BlockRow;
@@ -15,6 +17,41 @@ use ReflectionClass;
 
 class BlockRenderServiceTest extends TestCase
 {
+    public function testPositionOverlayBypassesDatabaseAndBothCacheLevels(): void
+    {
+        $rows = $this->createMock(BlockRowRepository::class);
+        $rows->expects($this->never())->method('findByPosition');
+        $columns = $this->createMock(BlockColumnRepository::class);
+        $columns->expects($this->never())->method('findByRowForDomain');
+        $cache = $this->createMock(CacheInterface::class);
+        $cache->expects($this->never())->method('get');
+        $cache->expects($this->never())->method('set');
+        $overlay = $this->createMock(BlockReadOverlayInterface::class);
+        $overlay->expects($this->once())
+            ->method('positionRows')
+            ->with(7, 'index', null, true)
+            ->willReturn([new BlockRowSnapshot(
+                -1,
+                7,
+                0,
+                ['position' => 'index', 'section_id' => 'draft', 'is_active' => 1],
+                [['content_mode' => 'single', 'is_active' => 1]]
+            )]);
+        $service = new BlockRenderService(
+            $rows,
+            $columns,
+            $cache,
+            $this->createMock(DependencyContainer::class),
+            null,
+            $overlay
+        );
+
+        $html = $service->renderPosition(7, 'index', null, true, true);
+
+        $this->assertStringContainsString('id="draft"', $html);
+        $this->assertStringContainsString('block-placeholder', $html);
+    }
+
     public function testImageColumnWithBorderRadiusClipsOverflow(): void
     {
         $service = $this->makeService();

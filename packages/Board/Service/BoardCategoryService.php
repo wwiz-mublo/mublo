@@ -7,6 +7,7 @@ use Mublo\Packages\Board\Repository\BoardCategoryMappingRepository;
 use Mublo\Packages\Board\Entity\BoardCategory;
 use Mublo\Core\Result\Result;
 use Mublo\Helper\Form\FormHelper;
+use Mublo\Contract\Board\BoardReadOverlayInterface;
 
 /**
  * BoardCategory Service
@@ -26,6 +27,7 @@ class BoardCategoryService
 {
     private BoardCategoryRepository $repository;
     private BoardCategoryMappingRepository $mappingRepository;
+    private ?BoardReadOverlayInterface $readOverlay;
 
     /**
      * 슬러그 예약어 목록
@@ -40,10 +42,12 @@ class BoardCategoryService
 
     public function __construct(
         BoardCategoryRepository $repository,
-        BoardCategoryMappingRepository $mappingRepository
+        BoardCategoryMappingRepository $mappingRepository,
+        ?BoardReadOverlayInterface $readOverlay = null
     ) {
         $this->repository = $repository;
         $this->mappingRepository = $mappingRepository;
+        $this->readOverlay = $readOverlay;
     }
 
     /**
@@ -54,6 +58,22 @@ class BoardCategoryService
      */
     public function getCategoriesByBoard(int $boardId): array
     {
+        $overlay = $this->readOverlay?->findById($boardId);
+        if ($overlay !== null) {
+            $categories = [];
+            foreach ($overlay->categoryIds as $categoryId) {
+                $category = $this->repository->find($categoryId);
+                if ($category === null || !$category->isActive()) {
+                    continue;
+                }
+                $categories[] = [
+                    'category_id' => $category->getCategoryId(),
+                    'category_name' => $category->getCategoryName(),
+                    'category_slug' => $category->getCategorySlug(),
+                ];
+            }
+            return $categories;
+        }
         $mappings = $this->mappingRepository->findByBoardWithCategory($boardId);
 
         return array_map(fn($item) => [

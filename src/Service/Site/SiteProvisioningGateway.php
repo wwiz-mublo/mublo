@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Service\Site;
 
 use Mublo\Contract\Site\SiteProvisioningInterface;
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Theme\FrameOverride;
 use Mublo\Entity\Block\BlockKit;
@@ -36,32 +37,61 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
     ) {
     }
 
-    public function createMenuItem(int $domainId, array $data): Result
+    public function createMenuItem(
+        int $domainId,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->createItem($domainId, $data);
+        return $this->menuService->createItem($domainId, $data, $mutationContext);
     }
 
-    public function placeMenuItem(int $domainId, string $menuCode, ?string $parentCode = null): Result
+    public function placeMenuItem(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->addToTree($domainId, $menuCode, $parentCode);
+        return $this->menuService->addToTree($domainId, $menuCode, $parentCode, $mutationContext);
     }
 
-    public function ensureMenuItem(int $domainId, string $provisioningKey, array $data): Result
+    public function ensureMenuItem(
+        int $domainId,
+        string $provisioningKey,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->ensureItem($domainId, $provisioningKey, $data);
+        return $this->menuService->ensureItem($domainId, $provisioningKey, $data, $mutationContext);
     }
 
-    public function ensureMenuPlacement(int $domainId, string $menuCode, ?string $parentCode = null): Result
+    public function ensureMenuPlacement(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->ensurePlacement($domainId, $menuCode, $parentCode);
+        return $this->menuService->ensurePlacement($domainId, $menuCode, $parentCode, $mutationContext);
     }
 
-    public function ensurePageMenuPlacement(int $domainId, string $pageCode, ?string $parentCode = null): Result
+    public function ensurePageMenuPlacement(
+        int $domainId,
+        string $pageCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->menuService->ensurePageMenuPlacement($domainId, $pageCode, $parentCode);
+        return $this->menuService->ensurePageMenuPlacement($domainId, $pageCode, $parentCode, $mutationContext);
     }
 
-    public function setPackageFrameOverride(int $domainId, string $package, ?string $skin): Result
+    public function setPackageFrameOverride(
+        int $domainId,
+        string $package,
+        ?string $skin,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $package = strtolower(trim($package));
         if ($package === '') {
@@ -73,30 +103,46 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
         $themeConfig = $this->domainSettings->getThemeConfig($domainId);
         $merged = FrameOverride::apply($themeConfig, $package, $skin);
 
-        return $this->domainSettings->updateThemeConfig($domainId, $merged);
+        return $this->domainSettings->updateThemeConfig($domainId, $merged, $mutationContext);
     }
 
-    public function updateCompanyConfig(int $domainId, array $values): Result
+    public function updateCompanyConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateCompanyConfig($domainId, $values);
+        return $this->domainSettings->updateCompanyConfig($domainId, $values, $mutationContext);
     }
 
-    public function updateSiteConfig(int $domainId, array $values): Result
+    public function updateSiteConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateSiteConfig($domainId, $values);
+        return $this->domainSettings->updateSiteConfig($domainId, $values, $mutationContext);
     }
 
-    public function updateThemeConfig(int $domainId, array $values): Result
+    public function updateThemeConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateThemeConfig($domainId, $values);
+        return $this->domainSettings->updateThemeConfig($domainId, $values, $mutationContext);
     }
 
-    public function updateSeoConfig(int $domainId, array $values): Result
+    public function updateSeoConfig(
+        int $domainId,
+        array $values,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        return $this->domainSettings->updateSeoConfig($domainId, $values);
+        return $this->domainSettings->updateSeoConfig($domainId, $values, $mutationContext);
     }
 
-    public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result
+    public function applyScreen(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result
     {
         if (($kit['target']['kind'] ?? null) !== BlockKit::TARGET_SCREEN) {
             return Result::failure('screen 타깃 블록 킷이 아닙니다.');
@@ -109,7 +155,7 @@ class SiteProvisioningGateway implements SiteProvisioningInterface
         // applySiteSettings 는 넘기지 않는다 — kind=screen 이면 코어가 강제로 켠다
         // (메인화면은 슬롯 구성과 레이아웃 설정이 한 단위다).
         // allowScripts=false — 확장 경로에는 사용자 권한 문맥이 없다.
-        $result = $this->kitApplier->apply($domainId, $kit, $mode, false, false);
+        $result = $this->kitApplier->apply($domainId, $kit, $mode, false, false, null, $mutationContext);
 
         if (empty($result['ok'])) {
             return Result::failure(implode(' / ', $result['errors'] ?? ['블록 킷 적용에 실패했습니다.']));

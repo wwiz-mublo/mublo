@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "plan_id": "pln_invalid_type",
+  "observed_site_revision": 42,
+  "summary": "결과 타입이 맞지 않는 참조 예시",
+  "operations": [
+    {"op_id": "op_01", "tool": "board.ensure", "target": {"key": "inquiry"}, "input": {"name": "문의", "group_key": "support"}},
+    {"op_id": "op_02", "tool": "menu.ensure", "target": {"key": "inquiry-menu"}, "input": {"name": "문의", "url": {"$ref": "op_01.result.created"}}}
+  ]
+}
+

@@ -3,6 +3,9 @@
 namespace Tests\Unit\Service\Block;
 
 use Mublo\Infrastructure\Database\Database;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Site\SiteMutationReceipt;
 use Mublo\Entity\Block\BlockPage;
 use Mublo\Entity\Block\BlockRow;
 use Mublo\Repository\Block\BlockColumnRepository;
@@ -14,6 +17,7 @@ use Mublo\Service\Block\BlockContentSanitizer;
 use Mublo\Service\Block\BlockSkinService;
 use Mublo\Service\Block\BlockRowService;
 use PHPUnit\Framework\TestCase;
+use PHPUnit\Framework\MockObject\MockObject;
 use ReflectionClass;
 
 class BlockRowServiceTest extends TestCase
@@ -28,7 +32,7 @@ class BlockRowServiceTest extends TestCase
 
         $rowRepository->expects($this->never())->method('create');
         $columnRepository->expects($this->never())->method('replaceByRow');
-        $db->expects($this->never())->method('beginTransaction');
+        $db->expects($this->never())->method('transaction');
 
         $service = new BlockRowService(
             $rowRepository,
@@ -59,9 +63,7 @@ class BlockRowServiceTest extends TestCase
         $rowRepository->method('getNextSortOrderByPosition')->willReturn(0);
         $rowRepository->method('create')->willReturn(10);
         $rowRepository->method('find')->willReturn(null);
-        $db->expects($this->once())->method('beginTransaction')->willReturn(true);
-        $db->expects($this->once())->method('commit')->willReturn(true);
-        $db->expects($this->never())->method('rollBack');
+        $this->executeTransactionsImmediately($db);
         $columnRepository->expects($this->once())
             ->method('replaceByRow')
             ->with(10, 1, $this->callback(function (array $columns): bool {
@@ -102,8 +104,7 @@ class BlockRowServiceTest extends TestCase
         $rowRepository->method('create')->willReturn(10);
         $rowRepository->method('find')->willReturn(null);
         $columnRepository->method('replaceByRow')->willReturn(true);
-        $db->method('beginTransaction')->willReturn(true);
-        $db->method('commit')->willReturn(true);
+        $this->executeTransactionsImmediately($db);
 
         $service = new BlockRowService(
             $rowRepository,
@@ -133,7 +134,7 @@ class BlockRowServiceTest extends TestCase
 
         $rowRepository->expects($this->never())->method('create');
         $columnRepository->expects($this->never())->method('replaceByRow');
-        $db->expects($this->never())->method('beginTransaction');
+        $db->expects($this->never())->method('transaction');
 
         $service = new BlockRowService(
             $rowRepository,
@@ -161,7 +162,7 @@ class BlockRowServiceTest extends TestCase
         $db = $this->createMock(Database::class);
         $pageRepository->method('find')->with(30)->willReturn($this->page(30, 2));
         $rowRepository->expects($this->never())->method('create');
-        $db->expects($this->never())->method('beginTransaction');
+        $db->expects($this->never())->method('transaction');
 
         $service = new BlockRowService(
             $rowRepository,
@@ -187,7 +188,7 @@ class BlockRowServiceTest extends TestCase
         $rowRepository->method('find')->with(10)->willReturn($this->row(10, 1));
         $pageRepository->method('find')->with(30)->willReturn($this->page(30, 2));
         $rowRepository->expects($this->never())->method('update');
-        $db->expects($this->never())->method('beginTransaction');
+        $db->expects($this->never())->method('transaction');
 
         $service = new BlockRowService(
             $rowRepository,
@@ -211,7 +212,7 @@ class BlockRowServiceTest extends TestCase
         $pageRepository = $this->createMock(BlockPageRepository::class);
         $rowRepository->expects($this->never())->method('updateIfRevision');
         $db = $this->createMock(Database::class);
-        $db->expects($this->never())->method('beginTransaction');
+        $db->expects($this->never())->method('transaction');
 
         $service = new BlockRowService(
             $rowRepository,
@@ -241,9 +242,7 @@ class BlockRowServiceTest extends TestCase
             ->method('updateIfRevision')
             ->with(10, 3, $this->isType('array'))
             ->willReturn(0);
-        $db->expects($this->once())->method('beginTransaction')->willReturn(true);
-        $db->expects($this->once())->method('rollBack')->willReturn(true);
-        $db->expects($this->never())->method('commit');
+        $this->executeTransactionsImmediately($db);
 
         $service = new BlockRowService(
             $rowRepository,
@@ -261,15 +260,48 @@ class BlockRowServiceTest extends TestCase
         $this->assertSame(4, $result->get('current_revision'));
     }
 
+    public function testUpdateRowTreatsColumnsKeyAsEmptyReplacementSignalNotDatabaseField(): void
+    {
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('find')->willReturn($this->row(10, 1, 2));
+        $rowRepository->expects($this->once())->method('updateIfRevision')->with(
+            10,
+            2,
+            $this->callback(static fn (array $data): bool => !array_key_exists('columns', $data))
+        )->willReturn(1);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->expects($this->once())->method('replaceByRow')->with(10, 1, []);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer()
+        );
+
+        $result = $service->updateRow(
+            10,
+            ['position' => 'index', 'columns' => true],
+            [],
+            1,
+            null,
+            2
+        );
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+    }
+
     public function testPostCommitCacheFailureDoesNotReportSavedUpdateAsFailure(): void
     {
         $rowRepository = $this->createMock(BlockRowRepository::class);
         $rowRepository->method('find')->willReturn($this->row(10, 1, 2));
         $rowRepository->method('updateIfRevision')->willReturn(1);
         $db = $this->createMock(Database::class);
-        $db->expects($this->once())->method('beginTransaction')->willReturn(true);
-        $db->expects($this->once())->method('commit')->willReturn(true);
-        $db->expects($this->never())->method('rollBack');
+        $this->executeTransactionsImmediately($db);
         $render = $this->createMock(BlockRenderService::class);
         $render->method('invalidateRowRelatedCache')
             ->willThrowException(new \RuntimeException('cache unavailable'));
@@ -286,6 +318,170 @@ class BlockRowServiceTest extends TestCase
         $result = $service->updateRow(10, ['admin_title' => '저장됨'], [], 1, null, 2);
 
         $this->assertTrue($result->isSuccess(), '커밋 후 후처리 장애는 저장 실패로 응답하면 안 된다.');
+    }
+
+    public function testUpdateRowDefersCacheInvalidationUntilTransactionCommitCallback(): void
+    {
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('find')->willReturn($this->row(10, 1, 2));
+        $rowRepository->method('updateIfRevision')->willReturn(1);
+
+        $afterCommitCallbacks = [];
+        $db = $this->createMock(Database::class);
+        $db->method('transaction')->willReturnCallback(
+            static fn (callable $callback) => $callback()
+        );
+        $db->method('afterCommit')->willReturnCallback(
+            static function (callable $callback) use (&$afterCommitCallbacks): void {
+                $afterCommitCallbacks[] = $callback;
+            }
+        );
+
+        $invalidations = 0;
+        $render = $this->createMock(BlockRenderService::class);
+        $render->method('invalidateRowRelatedCache')->willReturnCallback(
+            static function () use (&$invalidations): void {
+                ++$invalidations;
+            }
+        );
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $this->createMock(BlockColumnRepository::class),
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $render,
+            $this->normalizer()
+        );
+
+        $result = $service->updateRow(10, ['admin_title' => '저장됨'], [], 1, null, 2);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+        $this->assertSame(0, $invalidations, '트랜잭션 커밋 전에는 캐시를 비우면 안 된다.');
+        $this->assertNotEmpty($afterCommitCallbacks);
+
+        foreach ($afterCommitCallbacks as $callback) {
+            $callback();
+        }
+
+        $this->assertSame(2, $invalidations);
+    }
+
+    public function testCreateRowRecordsBlockAndOrderResourcesInsideTransaction(): void
+    {
+        $row = $this->row(10, 1);
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('getNextSortOrderByPosition')->willReturn(0);
+        $rowRepository->method('create')->willReturn(10);
+        $rowRepository->method('find')->with(10)->willReturn($row);
+        $rowRepository->method('findByPositionScope')->with(1, 'index', null)->willReturn([$row]);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->method('findAllByRowForDomain')->with(10, 1)->willReturn([]);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+        $recorder = $this->createMock(SiteMutationRecorderInterface::class);
+        $recorder->expects($this->once())->method('record')->with(
+            $this->callback(static function (SiteMutationContext $context): bool {
+                return $context->domainId === 1
+                    && $context->source === SiteMutationContext::SOURCE_ADMIN
+                    && array_column($context->resources(), 'resourceId') === [
+                        'block_order:screen:index',
+                        'block_row:10',
+                    ];
+            })
+        )->willReturn(new SiteMutationReceipt(1, 1, 1, SiteMutationContext::SOURCE_ADMIN, null, []));
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer(),
+            null,
+            null,
+            null,
+            null,
+            $recorder
+        );
+
+        $result = $service->createRow(1, ['position' => 'index']);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+    }
+
+    public function testSharedMutationContextCollectsResourcesWithoutFlushingIt(): void
+    {
+        $row = $this->row(10, 1);
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('getNextSortOrderByPosition')->willReturn(0);
+        $rowRepository->method('create')->willReturn(10);
+        $rowRepository->method('find')->with(10)->willReturn($row);
+        $rowRepository->method('findByPositionScope')->willReturn([$row]);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->method('findAllByRowForDomain')->willReturn([]);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+        $recorder = $this->createMock(SiteMutationRecorderInterface::class);
+        $recorder->expects($this->never())->method('record');
+        $context = new SiteMutationContext(1, SiteMutationContext::SOURCE_EXTENSION, 'change-set-1');
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer(),
+            null,
+            null,
+            null,
+            null,
+            $recorder
+        );
+
+        $result = $service->createRow(1, ['position' => 'index'], [], null, $context);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
+        $this->assertSame(
+            ['block_order:screen:index', 'block_row:10'],
+            array_column($context->resources(), 'resourceId')
+        );
+    }
+
+    public function testContentOnlyUpdateDoesNotAdvanceOrderScopeRevision(): void
+    {
+        $row = $this->row(10, 1, 2);
+        $rowRepository = $this->createMock(BlockRowRepository::class);
+        $rowRepository->method('find')->with(10)->willReturn($row);
+        $rowRepository->method('updateIfRevision')->willReturn(1);
+        $columnRepository = $this->createMock(BlockColumnRepository::class);
+        $columnRepository->method('findAllByRowForDomain')->willReturn([]);
+        $db = $this->createMock(Database::class);
+        $this->executeTransactionsImmediately($db);
+        $recorder = $this->createMock(SiteMutationRecorderInterface::class);
+        $recorder->expects($this->once())->method('record')->with(
+            $this->callback(static fn (SiteMutationContext $context): bool =>
+                array_column($context->resources(), 'resourceId') === ['block_row:10'])
+        )->willReturn(new SiteMutationReceipt(1, 1, 1, SiteMutationContext::SOURCE_ADMIN, null, []));
+
+        $service = new BlockRowService(
+            $rowRepository,
+            $columnRepository,
+            $this->createMock(BlockPageRepository::class),
+            $db,
+            $this->createMock(BlockRenderService::class),
+            $this->normalizer(),
+            null,
+            null,
+            null,
+            null,
+            $recorder
+        );
+
+        $result = $service->updateRow(10, ['admin_title' => '변경'], [], 1, null, 2);
+
+        $this->assertTrue($result->isSuccess(), $result->getMessage());
     }
 
     public function testUpdateOrderRunsTheWholeBatchInsideOneTransaction(): void
@@ -389,6 +585,18 @@ class BlockRowServiceTest extends TestCase
     private function normalizer(): BlockColumnPayloadNormalizer
     {
         return new BlockColumnPayloadNormalizer(new BlockContentSanitizer(), new BlockSkinService());
+    }
+
+    private function executeTransactionsImmediately(Database&MockObject $db): void
+    {
+        $db->method('transaction')->willReturnCallback(
+            static fn (callable $callback) => $callback()
+        );
+        $db->method('afterCommit')->willReturnCallback(
+            static function (callable $callback): void {
+                $callback();
+            }
+        );
     }
 
     private function page(int $pageId, int $domainId): BlockPage

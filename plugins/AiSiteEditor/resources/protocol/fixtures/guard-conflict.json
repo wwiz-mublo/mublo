@@ -1,0 +1,11 @@
+{
+  "plan": {
+    "schema_version": 1,
+    "plan_id": "pln_guard_conflict",
+    "observed_site_revision": 42,
+    "summary": "메뉴를 이동합니다.",
+    "operations": [{"op_id": "op_01", "tool": "menu.move", "target": {"resource_id": "menu_item:9"}, "input": {"parent": {"resource_id": "menu_item:44"}}}],
+    "guard_set": [{"resource_id": "menu_children:menu_item:44", "expected_revision": 5}]
+  },
+  "current_revisions": {"menu_children:menu_item:44": 6}
+}

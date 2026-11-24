@@ -133,6 +133,7 @@ class BlockPositionRenderingEventTest extends TestCase
             $cache,
             $this->createMock(DependencyContainer::class),
             null,
+            null,
             $dispatcher
         );
     }

@@ -4,11 +4,16 @@ declare(strict_types=1);
 namespace Mublo\Service\Domain;
 
 use Mublo\Contract\Site\CompanyInfoInterface;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationFingerprint;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Entity\Domain\Domain;
 use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Core\Result\Result;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Event\Search\SearchSourceCollectEvent;
 use Mublo\Core\Rendering\ThemeSkinPolicy;
+use Mublo\Contract\Site\ThemeReadOverlayInterface;
 
 /**
  * DomainSettingsService
@@ -75,15 +80,122 @@ class DomainSettingsService implements CompanyInfoInterface
     private DomainRepository $domainRepository;
     private DomainResolver $domainResolver;
     private ?EventDispatcher $eventDispatcher;
+    private ?SiteMutationRecorderInterface $mutationRecorder;
+    private ?ThemeReadOverlayInterface $themeReadOverlay;
 
     public function __construct(
         DomainRepository $domainRepository,
         DomainResolver $domainResolver,
-        ?EventDispatcher $eventDispatcher = null
+        ?EventDispatcher $eventDispatcher = null,
+        ?SiteMutationRecorderInterface $mutationRecorder = null,
+        ?ThemeReadOverlayInterface $themeReadOverlay = null
     ) {
         $this->domainRepository = $domainRepository;
         $this->domainResolver = $domainResolver;
         $this->eventDispatcher = $eventDispatcher;
+        $this->mutationRecorder = $mutationRecorder;
+        $this->themeReadOverlay = $themeReadOverlay;
+    }
+
+    private function mutationContext(int $domainId, ?SiteMutationContext $context): ?SiteMutationContext
+    {
+        if ($context !== null && $context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the settings domain.');
+        }
+        if ($context === null && $this->mutationRecorder === null) {
+            return null;
+        }
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+    }
+
+    private function recordConfigMutation(
+        string $bucket,
+        array $config,
+        ?SiteMutationContext $context
+    ): void {
+        if ($context === null) {
+            return;
+        }
+        $context->changed(
+            'config:' . $bucket,
+            'config',
+            SiteMutationFingerprint::hash($config)
+        );
+    }
+
+    private function finishMutation(?SiteMutationContext $context, bool $ownsContext): void
+    {
+        if ($ownsContext && $context !== null && !$context->isEmpty() && $this->mutationRecorder !== null) {
+            $this->mutationRecorder->record($context);
+        }
+    }
+
+    private function currentConfig(Domain $domain, string $bucket): array
+    {
+        return match ($bucket) {
+            'site' => $domain->getSiteConfig(),
+            'company' => $domain->getCompanyConfig(),
+            'seo' => $domain->getSeoConfig(),
+            'theme' => $domain->getThemeConfig(),
+            'extension' => $domain->getExtensionConfig(),
+            default => throw new \InvalidArgumentException('Unsupported config bucket: ' . $bucket),
+        };
+    }
+
+    /** @param callable():void $write */
+    private function writeConfigIfChanged(
+        Domain $domain,
+        string $bucket,
+        array $config,
+        callable $write,
+        ?SiteMutationContext $mutationContext
+    ): bool {
+        if (SiteMutationFingerprint::hash($this->currentConfig($domain, $bucket))
+            === SiteMutationFingerprint::hash($config)) {
+            return false;
+        }
+
+        $write();
+        $this->recordConfigMutation($bucket, $config, $mutationContext);
+        return true;
+    }
+
+    /**
+     * @param callable():void $write
+     */
+    private function commitConfig(
+        int $domainId,
+        Domain $domain,
+        string $bucket,
+        array $config,
+        callable $write,
+        ?SiteMutationContext $mutationContext
+    ): void {
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            if ($this->writeConfigIfChanged($domain, $bucket, $config, $write, null)) {
+                $this->domainResolver->invalidate($domain->getDomain());
+            }
+            return;
+        }
+
+        $this->domainRepository->getDb()->transaction(function () use (
+            $domain,
+            $bucket,
+            $config,
+            $write,
+            $mutationContext,
+            $ownsMutationContext
+        ): void {
+            $changed = $this->writeConfigIfChanged($domain, $bucket, $config, $write, $mutationContext);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            if ($changed) {
+                $this->domainRepository->getDb()->afterCommit(
+                    fn () => $this->domainResolver->invalidate($domain->getDomain())
+                );
+            }
+        });
     }
 
     // =========================================================================
@@ -95,6 +207,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getSiteConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultSiteConfig(), $overlay->siteConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultSiteConfig();
@@ -107,6 +223,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getCompanyConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultCompanyConfig(), $overlay->companyConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultCompanyConfig();
@@ -119,6 +239,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getSeoConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultSeoConfig(), $overlay->seoConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultSeoConfig();
@@ -131,6 +255,10 @@ class DomainSettingsService implements CompanyInfoInterface
      */
     public function getThemeConfig(int $domainId): array
     {
+        $overlay = $this->themeReadOverlay?->snapshot($domainId);
+        if ($overlay !== null) {
+            return array_merge($this->getDefaultThemeConfig(), $overlay->themeConfig);
+        }
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return $this->getDefaultThemeConfig();
@@ -251,14 +379,59 @@ class DomainSettingsService implements CompanyInfoInterface
      * @param array $settings 섹션별 설정 데이터 ['site' => [...], 'company' => [...], ...]
      * @return Result
      */
-    public function saveSettings(int $domainId, array $settings): Result
+    public function saveSettings(
+        int $domainId,
+        array $settings,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
-        $errors = [];
-
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
             return Result::failure('도메인을 찾을 수 없습니다.', ['errors' => ['domain' => '도메인을 찾을 수 없습니다.']]);
         }
+
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            $errors = $this->persistSettings($domainId, $settings, $domain, null);
+            $this->domainResolver->invalidate($domain->getDomain());
+        } else {
+            $errors = $this->domainRepository->getDb()->transaction(function () use (
+                $domainId,
+                $settings,
+                $domain,
+                $mutationContext,
+                $ownsMutationContext
+            ): array {
+                $errors = $this->persistSettings($domainId, $settings, $domain, $mutationContext);
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+                $this->domainRepository->getDb()->afterCommit(
+                    fn () => $this->domainResolver->invalidate($domain->getDomain())
+                );
+                return $errors;
+            });
+        }
+
+        if (!empty($errors)) {
+            return Result::failure('일부 설정 저장에 실패했습니다.', ['errors' => $errors]);
+        }
+
+        return Result::success('설정이 저장되었습니다.');
+    }
+
+    /**
+     * 유효한 섹션은 저장하고 해당 config 자원을 문맥에 모은다.
+     * 기존 관리자 계약대로 한 섹션의 검증 실패가 다른 정상 섹션 저장을 막지는 않는다.
+     *
+     * @return array<string, string>
+     */
+    private function persistSettings(
+        int $domainId,
+        array $settings,
+        Domain $domain,
+        ?SiteMutationContext $mutationContext
+    ): array {
+        $errors = [];
 
         // site 설정
         if (isset($settings['site'])) {
@@ -267,7 +440,13 @@ class DomainSettingsService implements CompanyInfoInterface
             if (!$validation['valid']) {
                 $errors = array_merge($errors, $validation['errors']);
             } else {
-                $this->domainRepository->updateSiteConfig($domainId, $siteConfig);
+                $this->writeConfigIfChanged(
+                    $domain,
+                    'site',
+                    $siteConfig,
+                    fn () => $this->domainRepository->updateSiteConfig($domainId, $siteConfig),
+                    $mutationContext
+                );
             }
         }
 
@@ -278,14 +457,26 @@ class DomainSettingsService implements CompanyInfoInterface
             if (!$validation['valid']) {
                 $errors = array_merge($errors, $validation['errors']);
             } else {
-                $this->domainRepository->updateCompanyConfig($domainId, $companyConfig);
+                $this->writeConfigIfChanged(
+                    $domain,
+                    'company',
+                    $companyConfig,
+                    fn () => $this->domainRepository->updateCompanyConfig($domainId, $companyConfig),
+                    $mutationContext
+                );
             }
         }
 
         // seo 설정
         if (isset($settings['seo'])) {
             $seoConfig = $this->sanitizeSeoConfig($settings['seo']);
-            $this->domainRepository->updateSeoConfig($domainId, $seoConfig);
+            $this->writeConfigIfChanged(
+                $domain,
+                'seo',
+                $seoConfig,
+                fn () => $this->domainRepository->updateSeoConfig($domainId, $seoConfig),
+                $mutationContext
+            );
         }
 
         // theme 설정
@@ -308,24 +499,29 @@ class DomainSettingsService implements CompanyInfoInterface
                         $themeConfig[$bucket] = $existingBucket;
                     }
                 }
-                $this->domainRepository->updateThemeConfig($domainId, $themeConfig);
+                $this->writeConfigIfChanged(
+                    $domain,
+                    'theme',
+                    $themeConfig,
+                    fn () => $this->domainRepository->updateThemeConfig($domainId, $themeConfig),
+                    $mutationContext
+                );
             }
         }
 
         // extension 설정 (플러그인/패키지 활성화)
         if (isset($settings['extension'])) {
             $extensionConfig = $this->sanitizeExtensionConfig($settings['extension']);
-            $this->domainRepository->updateExtensionConfig($domainId, $extensionConfig);
+            $this->writeConfigIfChanged(
+                $domain,
+                'extension',
+                $extensionConfig,
+                fn () => $this->domainRepository->updateExtensionConfig($domainId, $extensionConfig),
+                $mutationContext
+            );
         }
 
-        // 캐시 무효화
-        $this->domainResolver->invalidate($domain->getDomain());
-
-        if (!empty($errors)) {
-            return Result::failure('일부 설정 저장에 실패했습니다.', ['errors' => $errors]);
-        }
-
-        return Result::success('설정이 저장되었습니다.');
+        return $errors;
     }
 
     // =========================================================================
@@ -335,7 +531,11 @@ class DomainSettingsService implements CompanyInfoInterface
     /**
      * 사이트 설정 업데이트
      */
-    public function updateSiteConfig(int $domainId, array $config): Result
+    public function updateSiteConfig(
+        int $domainId,
+        array $config,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
@@ -343,8 +543,14 @@ class DomainSettingsService implements CompanyInfoInterface
         }
 
         $mergedConfig = array_merge($domain->getSiteConfig(), $config);
-        $this->domainRepository->updateSiteConfig($domainId, $mergedConfig);
-        $this->domainResolver->invalidate($domain->getDomain());
+        $this->commitConfig(
+            $domainId,
+            $domain,
+            'site',
+            $mergedConfig,
+            fn () => $this->domainRepository->updateSiteConfig($domainId, $mergedConfig),
+            $mutationContext
+        );
 
         return Result::success('사이트 설정이 저장되었습니다.');
     }
@@ -352,7 +558,11 @@ class DomainSettingsService implements CompanyInfoInterface
     /**
      * 회사 정보 업데이트
      */
-    public function updateCompanyConfig(int $domainId, array $config): Result
+    public function updateCompanyConfig(
+        int $domainId,
+        array $config,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
@@ -360,8 +570,14 @@ class DomainSettingsService implements CompanyInfoInterface
         }
 
         $mergedConfig = array_merge($domain->getCompanyConfig(), $config);
-        $this->domainRepository->updateCompanyConfig($domainId, $mergedConfig);
-        $this->domainResolver->invalidate($domain->getDomain());
+        $this->commitConfig(
+            $domainId,
+            $domain,
+            'company',
+            $mergedConfig,
+            fn () => $this->domainRepository->updateCompanyConfig($domainId, $mergedConfig),
+            $mutationContext
+        );
 
         return Result::success('회사 정보가 저장되었습니다.');
     }
@@ -369,7 +585,11 @@ class DomainSettingsService implements CompanyInfoInterface
     /**
      * SEO 설정 업데이트
      */
-    public function updateSeoConfig(int $domainId, array $config): Result
+    public function updateSeoConfig(
+        int $domainId,
+        array $config,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
@@ -377,8 +597,14 @@ class DomainSettingsService implements CompanyInfoInterface
         }
 
         $mergedConfig = array_merge($domain->getSeoConfig(), $config);
-        $this->domainRepository->updateSeoConfig($domainId, $mergedConfig);
-        $this->domainResolver->invalidate($domain->getDomain());
+        $this->commitConfig(
+            $domainId,
+            $domain,
+            'seo',
+            $mergedConfig,
+            fn () => $this->domainRepository->updateSeoConfig($domainId, $mergedConfig),
+            $mutationContext
+        );
 
         return Result::success('SEO 설정이 저장되었습니다.');
     }
@@ -386,7 +612,11 @@ class DomainSettingsService implements CompanyInfoInterface
     /**
      * 테마 설정 업데이트
      */
-    public function updateThemeConfig(int $domainId, array $config): Result
+    public function updateThemeConfig(
+        int $domainId,
+        array $config,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
@@ -414,8 +644,14 @@ class DomainSettingsService implements CompanyInfoInterface
         }
 
         $mergedConfig = array_merge($domain->getThemeConfig(), $config);
-        $this->domainRepository->updateThemeConfig($domainId, $mergedConfig);
-        $this->domainResolver->invalidate($domain->getDomain());
+        $this->commitConfig(
+            $domainId,
+            $domain,
+            'theme',
+            $mergedConfig,
+            fn () => $this->domainRepository->updateThemeConfig($domainId, $mergedConfig),
+            $mutationContext
+        );
 
         return Result::success('테마 설정이 저장되었습니다.');
     }
@@ -423,7 +659,11 @@ class DomainSettingsService implements CompanyInfoInterface
     /**
      * 확장 기능 설정 업데이트
      */
-    public function updateExtensionConfig(int $domainId, array $config): Result
+    public function updateExtensionConfig(
+        int $domainId,
+        array $config,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $domain = $this->domainRepository->find($domainId);
         if (!$domain) {
@@ -431,8 +671,14 @@ class DomainSettingsService implements CompanyInfoInterface
         }
 
         // 확장 기능은 병합이 아닌 덮어쓰기 (plugins, packages 배열)
-        $this->domainRepository->updateExtensionConfig($domainId, $config);
-        $this->domainResolver->invalidate($domain->getDomain());
+        $this->commitConfig(
+            $domainId,
+            $domain,
+            'extension',
+            $config,
+            fn () => $this->domainRepository->updateExtensionConfig($domainId, $config),
+            $mutationContext
+        );
 
         return Result::success('확장 기능 설정이 저장되었습니다.');
     }

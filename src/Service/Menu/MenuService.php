@@ -6,6 +6,10 @@ use Mublo\Core\Context\Context;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Event\Menu\MenuItemsFilterEvent;
 use Mublo\Core\Result\Result;
+use Mublo\Contract\Site\SiteMutationContext;
+use Mublo\Contract\Site\SiteMutationFingerprint;
+use Mublo\Contract\Site\SiteMutationRecorderInterface;
+use Mublo\Contract\Menu\MenuReadOverlayInterface;
 use Mublo\Enum\Block\LayoutType;
 use Mublo\Entity\Menu\MenuItem;
 use Mublo\Entity\Menu\MenuNode;
@@ -42,6 +46,8 @@ class MenuService
     private ?CacheInterface $cache;
     private ?EventDispatcher $eventDispatcher;
     private ?Context $context;
+    private ?SiteMutationRecorderInterface $mutationRecorder;
+    private ?MenuReadOverlayInterface $readOverlay;
 
     public function __construct(
         MenuItemRepository $itemRepository,
@@ -49,7 +55,9 @@ class MenuService
         CodeGenerator $codeGenerator,
         ?CacheInterface $cache = null,
         ?EventDispatcher $eventDispatcher = null,
-        ?Context $context = null
+        ?Context $context = null,
+        ?SiteMutationRecorderInterface $mutationRecorder = null,
+        ?MenuReadOverlayInterface $readOverlay = null
     ) {
         $this->itemRepository = $itemRepository;
         $this->treeRepository = $treeRepository;
@@ -57,6 +65,181 @@ class MenuService
         $this->cache = $cache;
         $this->eventDispatcher = $eventDispatcher;
         $this->context = $context;
+        $this->mutationRecorder = $mutationRecorder;
+        $this->readOverlay = $readOverlay;
+    }
+
+    /**
+     * 이 서비스를 거치지 않고 메뉴 항목을 만든 경로(패키지 설치 시드)가 같은 지문 규칙으로 문맥에 담는다.
+     * 쓰기와 같은 트랜잭션 안에서 부른다.
+     *
+     * @param list<string> $menuCodes
+     */
+    public function collectExternalChanges(SiteMutationContext $context, array $menuCodes): void
+    {
+        $this->recordMenuItems($context->domainId, $menuCodes, $context);
+    }
+
+    /**
+     * @param list<string> $menuCodes
+     * @param list<string> $deletedCodes
+     */
+    private function recordMenuItems(
+        int $domainId,
+        array $menuCodes,
+        ?SiteMutationContext $context = null,
+        array $deletedCodes = []
+    ): void {
+        if ($context === null && $this->mutationRecorder === null) {
+            return;
+        }
+        if ($context !== null && $context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the menu domain.');
+        }
+
+        $ownsContext = $context === null;
+        $context ??= \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+        $deleted = array_fill_keys($deletedCodes, true);
+
+        foreach (array_values(array_unique($menuCodes)) as $menuCode) {
+            $row = isset($deleted[$menuCode]) ? null : $this->itemRepository->findByMenuCode($domainId, $menuCode);
+            if ($row === null && !isset($deleted[$menuCode])) {
+                throw new \RuntimeException('Changed menu item could not be read for revision recording.');
+            }
+            $context->changed(
+                'menu:' . rawurlencode($menuCode),
+                'menu',
+                SiteMutationFingerprint::hash($row ?? ['deleted' => true, 'menu_code' => $menuCode])
+            );
+        }
+
+        if ($ownsContext && $this->mutationRecorder !== null && !$context->isEmpty()) {
+            $this->mutationRecorder->record($context);
+        }
+    }
+
+    /** @param list<string|null> $parentCodes */
+    private function recordMenuChildren(
+        int $domainId,
+        array $parentCodes,
+        ?SiteMutationContext $context = null
+    ): void {
+        if ($context === null && $this->mutationRecorder === null) {
+            return;
+        }
+        if ($context !== null && $context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the menu domain.');
+        }
+
+        $ownsContext = $context === null;
+        $context ??= \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+        $keys = [];
+        foreach ($parentCodes as $parentCode) {
+            $keys[$parentCode ?? ''] = $parentCode;
+        }
+        foreach ($keys as $parentCode) {
+            $context->changed(
+                $this->menuChildrenResourceId($parentCode),
+                'menu_children',
+                $this->menuChildrenFingerprint($domainId, $parentCode)
+            );
+        }
+
+        if ($ownsContext && $this->mutationRecorder !== null && !$context->isEmpty()) {
+            $this->mutationRecorder->record($context);
+        }
+    }
+
+    private function menuChildrenResourceId(?string $parentCode): string
+    {
+        if ($parentCode === null) {
+            return 'menu_children:root';
+        }
+        $readable = 'menu_children:' . $parentCode;
+        return strlen($readable) <= 191
+            ? $readable
+            : 'menu_children:sha256:' . hash('sha256', $parentCode);
+    }
+
+    private function menuChildrenFingerprint(int $domainId, ?string $parentCode): string
+    {
+        $rows = $parentCode === null
+            ? $this->treeRepository->findRootNodes($domainId)
+            : $this->treeRepository->findChildren($domainId, $parentCode);
+        $fingerprintRows = array_map(
+            static fn (array $row): array => [
+                'path_code' => (string) $row['path_code'],
+                'menu_code' => (string) $row['menu_code'],
+                'sort_order' => (int) $row['sort_order'],
+            ],
+            $rows
+        );
+        usort($fingerprintRows, static fn (array $left, array $right): int =>
+            [$left['sort_order'], $left['path_code']] <=> [$right['sort_order'], $right['path_code']]
+        );
+        return SiteMutationFingerprint::hash($fingerprintRows);
+    }
+
+    /**
+     * @param list<string|null> $parentCodes
+     * @return array<string, string>
+     */
+    private function menuChildrenFingerprints(int $domainId, array $parentCodes): array
+    {
+        $fingerprints = [];
+        foreach ($parentCodes as $parentCode) {
+            $resourceId = $this->menuChildrenResourceId($parentCode);
+            $fingerprints[$resourceId] = $this->menuChildrenFingerprint($domainId, $parentCode);
+        }
+        return $fingerprints;
+    }
+
+    private function mutationContext(int $domainId, ?SiteMutationContext $context): ?SiteMutationContext
+    {
+        if ($context !== null && $context->domainId !== $domainId) {
+            throw new \InvalidArgumentException('Site mutation context domain does not match the menu domain.');
+        }
+        if ($context === null && $this->mutationRecorder === null) {
+            return null;
+        }
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+    }
+
+    private function finishMutation(?SiteMutationContext $context, bool $ownsContext): void
+    {
+        if ($ownsContext && $context !== null && !$context->isEmpty() && $this->mutationRecorder !== null) {
+            $this->mutationRecorder->record($context);
+        }
+    }
+
+    /**
+     * @param array<int, array<string, mixed>> $rows
+     * @return array<string, string>
+     */
+    private function menuFingerprintsByCode(array $rows): array
+    {
+        $fingerprints = [];
+        foreach ($rows as $row) {
+            $fingerprints[(string) $row['menu_code']] = SiteMutationFingerprint::hash($row);
+        }
+        return $fingerprints;
+    }
+
+    /**
+     * @param array<string, string> $before
+     * @return list<string>
+     */
+    private function changedMenuCodes(int $domainId, array $before): array
+    {
+        $changed = [];
+        foreach ($this->itemRepository->findByDomain($domainId) as $row) {
+            $menuCode = (string) $row['menu_code'];
+            if (($before[$menuCode] ?? null) !== SiteMutationFingerprint::hash($row)) {
+                $changed[] = $menuCode;
+            }
+            unset($before[$menuCode]);
+        }
+        return [...$changed, ...array_keys($before)];
     }
 
     /**
@@ -197,19 +380,19 @@ class MenuService
     /**
      * 메뉴 아이템 생성
      */
-    public function createItem(int $domainId, array $data): Result
+    public function createItem(
+        int $domainId,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         // 필수값 검증
         if (empty($data['label'])) {
             return Result::failure('메뉴명은 필수입니다.');
         }
 
-        // 메뉴 코드 생성 (unique_codes 테이블에서 관리)
-        $menuCode = $this->codeGenerator->generate('menu', 8);
-
         $insertData = [
             'domain_id' => $domainId,
-            'menu_code' => $menuCode,
             'label' => $data['label'],
             'url' => $data['url'] ?? null,
             'icon' => $data['icon'] ?? null,
@@ -237,17 +420,43 @@ class MenuService
             'is_active' => (int) ($data['is_active'] ?? 1),
         ];
 
-        $itemId = $this->itemRepository->create($insertData);
-
-        if (!$itemId) {
-            return Result::failure('메뉴 생성에 실패했습니다.');
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            $menuCode = $this->codeGenerator->generate('menu', 8);
+            $insertData['menu_code'] = $menuCode;
+            $itemId = $this->itemRepository->create($insertData);
+            if (!$itemId) {
+                return Result::failure('메뉴 생성에 실패했습니다.');
+            }
+            $this->invalidateUrlMapCache($domainId);
+            return Result::success('메뉴가 생성되었습니다.', [
+                'item_id' => $itemId,
+                'menu_code' => $menuCode,
+            ]);
         }
-
-        $this->invalidateUrlMapCache($domainId);
+        $created = $this->itemRepository->getDb()->transaction(function () use (
+            $insertData,
+            $domainId,
+            $mutationContext,
+            $ownsMutationContext
+        ): array {
+            // unique_codes 등록과 menu_items 생성, revision 기록을 하나의 원자적 변경으로 묶는다.
+            $menuCode = $this->codeGenerator->generate('menu', 8);
+            $insertData['menu_code'] = $menuCode;
+            $itemId = $this->itemRepository->create($insertData);
+            if (!$itemId) {
+                throw new \RuntimeException('Menu item insert failed after reserving its code.');
+            }
+            $this->recordMenuItems($domainId, [$menuCode], $mutationContext);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            $this->itemRepository->getDb()->afterCommit(fn () => $this->invalidateUrlMapCache($domainId));
+            return ['item_id' => $itemId, 'menu_code' => $menuCode];
+        });
 
         return Result::success('메뉴가 생성되었습니다.', [
-            'item_id' => $itemId,
-            'menu_code' => $menuCode,
+            'item_id' => $created['item_id'],
+            'menu_code' => $created['menu_code'],
         ]);
     }
 
@@ -258,7 +467,12 @@ class MenuService
      * @param array $data 수정 데이터
      * @param int|null $domainId 도메인 ID (소유권 검증, null이면 검증 생략)
      */
-    public function updateItem(int $itemId, array $data, ?int $domainId = null): Result
+    public function updateItem(
+        int $itemId,
+        array $data,
+        ?int $domainId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $item = $this->getItem($itemId, $domainId);
         if (!$item) {
@@ -313,15 +527,27 @@ class MenuService
         // 실패하면 경로명이 옛 이름으로 남아 브레드크럼이 어긋난다 — 한 단위로 묶는다.
         // Database::transaction() 은 중첩 시 SAVEPOINT 를 쓰므로 호출자가 이미
         // 트랜잭션을 열어둔 경우에도 안전하다.
-        $this->itemRepository->getDb()->transaction(function () use ($itemId, $updateData, $item, $labelChanged): void {
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($item->getDomainId(), $mutationContext);
+        $this->itemRepository->getDb()->transaction(function () use (
+            $itemId,
+            $updateData,
+            $item,
+            $labelChanged,
+            $mutationContext,
+            $ownsMutationContext
+        ): void {
             $this->itemRepository->update($itemId, $updateData);
 
             if ($labelChanged) {
                 $this->rebuildTreePathNames($item->getDomainId(), $item->getMenuCode());
             }
+            $this->recordMenuItems($item->getDomainId(), [$item->getMenuCode()], $mutationContext);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            $this->itemRepository->getDb()->afterCommit(
+                fn () => $this->invalidateUrlMapCache($item->getDomainId())
+            );
         });
-
-        $this->invalidateUrlMapCache($item->getDomainId());
 
         return Result::success('메뉴가 수정되었습니다.');
     }
@@ -332,7 +558,11 @@ class MenuService
      * @param int $itemId 아이템 ID
      * @param int|null $domainId 도메인 ID (소유권 검증, null이면 검증 생략)
      */
-    public function deleteItem(int $itemId, ?int $domainId = null): Result
+    public function deleteItem(
+        int $itemId,
+        ?int $domainId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $item = $this->getItem($itemId, $domainId);
         if (!$item) {
@@ -340,9 +570,22 @@ class MenuService
         }
 
         $domainId = $item->getDomainId();
+        $parentCodes = array_map(
+            static fn (array $node): ?string => $node['parent_code'] !== null ? (string) $node['parent_code'] : null,
+            $this->treeRepository->findByMenuCode($domainId, $item->getMenuCode())
+        );
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
 
         try {
-            $this->itemRepository->getDb()->transaction(function () use ($item, $itemId) {
+            $this->itemRepository->getDb()->transaction(function () use (
+                $item,
+                $itemId,
+                $domainId,
+                $parentCodes,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
                 // 트리에서도 삭제
                 $this->treeRepository->deleteByMenuCode($item->getDomainId(), $item->getMenuCode());
 
@@ -351,9 +594,16 @@ class MenuService
 
                 // 아이템 삭제
                 $this->itemRepository->delete($itemId);
+                $this->recordMenuItems(
+                    $domainId,
+                    [$item->getMenuCode()],
+                    $mutationContext,
+                    [$item->getMenuCode()]
+                );
+                $this->recordMenuChildren($domainId, $parentCodes, $mutationContext);
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+                $this->itemRepository->getDb()->afterCommit(fn () => $this->invalidateUrlMapCache($domainId));
             });
-
-            $this->invalidateUrlMapCache($domainId);
 
             return Result::success('메뉴가 삭제되었습니다.');
         } catch (\Throwable $e) {
@@ -369,7 +619,12 @@ class MenuService
      * @param array $fieldData 필드별 데이터 ['visibility' => [item_id => value], ...]
      * @return Result
      */
-    public function bulkUpdateItems(int $domainId, array $itemIds, array $fieldData): Result
+    public function bulkUpdateItems(
+        int $domainId,
+        array $itemIds,
+        array $fieldData,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         // 정수화 + 중복 제거 (crafted 요청의 문자열·중복 방어)
         $itemIds = array_values(array_unique(array_map('intval', $itemIds)));
@@ -385,11 +640,33 @@ class MenuService
             return Result::failure('다른 도메인이거나 존재하지 않는 메뉴가 포함되어 있습니다.');
         }
 
+        $menuCodesById = [];
+        if ($mutationContext !== null || $this->mutationRecorder !== null) {
+            foreach ($itemIds as $itemId) {
+                $item = $this->getItem($itemId, $domainId);
+                if ($item === null) {
+                    return Result::failure('수정할 메뉴를 다시 조회할 수 없습니다.');
+                }
+                $menuCodesById[$itemId] = $item->getMenuCode();
+            }
+        }
+
         $allowedFields = ['min_level', 'show_on_pc', 'show_on_mobile', 'is_active'];
 
         try {
-            $updatedCount = $this->itemRepository->getDb()->transaction(function () use ($domainId, $itemIds, $fieldData, $allowedFields) {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $updatedCount = $this->itemRepository->getDb()->transaction(function () use (
+                $domainId,
+                $itemIds,
+                $fieldData,
+                $allowedFields,
+                $menuCodesById,
+                $mutationContext,
+                $ownsMutationContext
+            ): int {
                 $count = 0;
+                $changedCodes = [];
 
                 foreach ($itemIds as $itemId) {
                     $updateData = [];
@@ -412,8 +689,15 @@ class MenuService
                         // 도메인 스코프 UPDATE — 사전 검증을 통과했어도 WHERE 에 domain_id 를 걸어 심층 방어.
                         $this->itemRepository->updateInDomain($itemId, $domainId, $updateData);
                         $count++;
+                        if (isset($menuCodesById[$itemId])) {
+                            $changedCodes[] = $menuCodesById[$itemId];
+                        }
                     }
                 }
+
+                $this->recordMenuItems($domainId, $changedCodes, $mutationContext);
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+                $this->itemRepository->getDb()->afterCommit(fn () => $this->invalidateUrlMapCache($domainId));
 
                 return $count;
             });
@@ -421,9 +705,6 @@ class MenuService
             if ($updatedCount === 0) {
                 return Result::failure('수정된 항목이 없습니다.');
             }
-
-            // 전달받은 도메인으로 직접 캐시 무효화 (재조회 없이).
-            $this->invalidateUrlMapCache($domainId);
 
             return Result::success("{$updatedCount}개 항목이 수정되었습니다.", [
                 'updated_count' => $updatedCount,
@@ -442,10 +723,18 @@ class MenuService
      */
     public function getTree(int $domainId, bool $activeOnly = true): array
     {
+        $entries = $this->readOverlay?->tree($domainId, $activeOnly);
+        $tree = $entries === null
+            ? $this->treeRepository->findTreeWithItems($domainId, $activeOnly)
+            : array_map(
+                static fn(\Mublo\Contract\Menu\MenuTreeEntry $entry): array => $entry->toArray($domainId),
+                $entries
+            );
+
         return $this->applyFrontItemsFilter(
             MenuItemsFilterEvent::SCOPE_TREE,
             $domainId,
-            $this->treeRepository->findTreeWithItems($domainId, $activeOnly)
+            $tree
         );
     }
 
@@ -489,7 +778,12 @@ class MenuService
     /**
      * 트리에 노드 추가
      */
-    public function addToTree(int $domainId, string $menuCode, ?string $parentCode = null): Result
+    public function addToTree(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         // 메뉴 아이템 존재 확인
         $item = $this->itemRepository->findByMenuCode($domainId, $menuCode);
@@ -539,7 +833,33 @@ class MenuService
             'sort_order' => $sortOrder,
         ];
 
-        $nodeId = $this->treeRepository->create($nodeData);
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        if ($mutationContext === null) {
+            $nodeId = $this->treeRepository->create($nodeData);
+            if (!$nodeId) {
+                return Result::failure('트리 추가에 실패했습니다.');
+            }
+            return Result::success('메뉴가 트리에 추가되었습니다.', [
+                'node_id' => $nodeId,
+                'path_code' => $pathCode,
+            ]);
+        }
+        $nodeId = $this->treeRepository->getDb()->transaction(function () use (
+            $nodeData,
+            $domainId,
+            $parentCode,
+            $mutationContext,
+            $ownsMutationContext
+        ): int {
+            $nodeId = $this->treeRepository->create($nodeData);
+            if (!$nodeId) {
+                return 0;
+            }
+            $this->recordMenuChildren($domainId, [$parentCode], $mutationContext);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+            return $nodeId;
+        });
 
         if (!$nodeId) {
             return Result::failure('트리 추가에 실패했습니다.');
@@ -583,7 +903,12 @@ class MenuService
      * @param array $data label(필수) · provider_type(필수) · provider_name(필수) · url 등
      * @return Result data: {menu_code, item_id, created}
      */
-    public function ensureItem(int $domainId, string $provisioningKey, array $data): Result
+    public function ensureItem(
+        int $domainId,
+        string $provisioningKey,
+        array $data,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $provisioningKey = trim($provisioningKey);
         if ($provisioningKey === '') {
@@ -628,7 +953,7 @@ class MenuService
         $data['provider_type'] = $providerType;
         $data['provider_name'] = $providerName;
 
-        $result = $this->createItem($domainId, $data);
+        $result = $this->createItem($domainId, $data, $mutationContext);
         if (!$result->isSuccess()) {
             return $result;
         }
@@ -666,7 +991,12 @@ class MenuService
      * @param string|null $parentCode 부모 노드의 path_code (null 이면 1차 메뉴)
      * @return Result data: {node_id, path_code, created}
      */
-    public function ensurePlacement(int $domainId, string $menuCode, ?string $parentCode = null): Result
+    public function ensurePlacement(
+        int $domainId,
+        string $menuCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $pathCode = $parentCode !== null ? $parentCode . '>' . $menuCode : $menuCode;
 
@@ -680,7 +1010,7 @@ class MenuService
         }
 
         try {
-            $result = $this->addToTree($domainId, $menuCode, $parentCode);
+            $result = $this->addToTree($domainId, $menuCode, $parentCode, $mutationContext);
         } catch (\Throwable $e) {
             // 동시 호출이 먼저 배치했을 수 있다. 그 행이 있으면 같은 결과를 준다.
             // DB 제약으로 막지 않는 이유: 같은 노드를 같은 자리에 동시에 넣는 것은
@@ -718,7 +1048,12 @@ class MenuService
      *
      * @return Result data: {node_id, path_code, menu_code, created}
      */
-    public function ensurePageMenuPlacement(int $domainId, string $pageCode, ?string $parentCode = null): Result
+    public function ensurePageMenuPlacement(
+        int $domainId,
+        string $pageCode,
+        ?string $parentCode = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $targetUrl = '/p/' . $pageCode;
         $menuCode = null;
@@ -734,7 +1069,7 @@ class MenuService
             return Result::failure("페이지 '{$pageCode}' 의 메뉴 아이템을 찾을 수 없습니다.");
         }
 
-        $result = $this->ensurePlacement($domainId, $menuCode, $parentCode);
+        $result = $this->ensurePlacement($domainId, $menuCode, $parentCode, $mutationContext);
         if (!$result->isSuccess()) {
             return $result;
         }
@@ -745,23 +1080,304 @@ class MenuService
     /**
      * 트리에서 노드 제거
      */
-    public function removeFromTree(int $nodeId): Result
+    public function removeFromTree(int $nodeId, ?SiteMutationContext $mutationContext = null): Result
     {
         $node = $this->treeRepository->find($nodeId);
         if (!$node) {
             return Result::failure('노드를 찾을 수 없습니다.');
         }
 
-        // 자식 노드도 함께 삭제
-        $this->treeRepository->deleteByPathPrefix($node->getDomainId(), $node->getPathCode());
+        $domainId = $node->getDomainId();
+        $pathPrefix = $node->getPathCode();
+        $parentCodes = [];
+        foreach ($this->treeRepository->findByDomain($domainId) as $row) {
+            $pathCode = (string) $row['path_code'];
+            if ($pathCode === $pathPrefix || str_starts_with($pathCode, $pathPrefix . '>')) {
+                $parentCodes[] = $row['parent_code'] !== null ? (string) $row['parent_code'] : null;
+            }
+        }
+
+        $ownsMutationContext = $mutationContext === null;
+        $mutationContext = $this->mutationContext($domainId, $mutationContext);
+        $this->treeRepository->getDb()->transaction(function () use (
+            $domainId,
+            $pathPrefix,
+            $parentCodes,
+            $mutationContext,
+            $ownsMutationContext
+        ): void {
+            // 자식 노드도 함께 삭제
+            $this->treeRepository->deleteByPathPrefix($domainId, $pathPrefix);
+            $this->recordMenuChildren($domainId, $parentCodes, $mutationContext);
+            $this->finishMutation($mutationContext, $ownsMutationContext);
+        });
 
         return Result::success('메뉴가 트리에서 제거되었습니다.');
     }
 
     /**
+     * 도메인 소유권을 확인하고 트리 배치와 그 하위를 제거한다.
+     */
+    public function removeFromTreeInDomain(
+        int $domainId,
+        int $nodeId,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        if ($this->treeRepository->findByIdAndDomain($nodeId, $domainId) === null) {
+            return Result::failure('메뉴 배치를 찾을 수 없습니다.');
+        }
+
+        return $this->removeFromTree($nodeId, $mutationContext);
+    }
+
+    /**
+     * 배치 ID를 유지하면서 한 서브트리를 새 부모 아래로 옮긴다.
+     *
+     * afterNodeId가 null이면 새 부모의 첫 자식이 된다. 서브트리의 path_code,
+     * path_name, parent_code, depth를 한 트랜잭션에서 함께 바꾸고 두 부모의
+     * 형제 순서를 연속 번호로 정규화한다.
+     */
+    public function moveTreeNode(
+        int $domainId,
+        int $nodeId,
+        ?int $newParentNodeId,
+        ?int $afterNodeId = null,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        $node = $this->treeRepository->findByIdAndDomain($nodeId, $domainId);
+        if ($node === null) {
+            return Result::failure('이동할 메뉴 배치를 찾을 수 없습니다.');
+        }
+
+        $parent = $newParentNodeId !== null
+            ? $this->treeRepository->findByIdAndDomain($newParentNodeId, $domainId)
+            : null;
+        if ($newParentNodeId !== null && $parent === null) {
+            return Result::failure('새 부모 메뉴 배치를 찾을 수 없습니다.');
+        }
+
+        $oldPathCode = (string) $node['path_code'];
+        if ($parent !== null) {
+            $parentPath = (string) $parent['path_code'];
+            if ($parentPath === $oldPathCode || str_starts_with($parentPath, $oldPathCode . '>')) {
+                return Result::failure('메뉴를 자기 자신이나 자기 하위로 옮길 수 없습니다.');
+            }
+        }
+
+        $rows = $this->treeRepository->findByDomain($domainId);
+        $subtree = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool =>
+                (string) $row['path_code'] === $oldPathCode
+                || str_starts_with((string) $row['path_code'], $oldPathCode . '>')
+        ));
+        $depthDelta = ($parent !== null ? (int) $parent['depth'] + 1 : 1) - (int) $node['depth'];
+        foreach ($subtree as $row) {
+            if ((int) $row['depth'] + $depthDelta > self::MAX_TREE_DEPTH) {
+                return Result::failure(sprintf('메뉴 깊이는 최대 %d단계까지 가능합니다.', self::MAX_TREE_DEPTH));
+            }
+        }
+
+        $oldParentCode = $node['parent_code'] !== null ? (string) $node['parent_code'] : null;
+        $newParentCode = $parent !== null ? (string) $parent['path_code'] : null;
+        $anchor = $afterNodeId !== null
+            ? $this->treeRepository->findByIdAndDomain($afterNodeId, $domainId)
+            : null;
+        if ($afterNodeId !== null && (
+            $anchor === null
+            || (int) $anchor['node_id'] === $nodeId
+            || ($anchor['parent_code'] !== null ? (string) $anchor['parent_code'] : null) !== $newParentCode
+        )) {
+            return Result::failure('기준 메뉴가 새 부모의 직계 자식이 아닙니다.');
+        }
+
+        $newPathCode = $newParentCode !== null
+            ? $newParentCode . '>' . (string) $node['menu_code']
+            : (string) $node['menu_code'];
+        foreach ($rows as $row) {
+            if ((int) $row['node_id'] !== $nodeId && (string) $row['path_code'] === $newPathCode) {
+                return Result::failure('같은 메뉴가 새 위치에 이미 배치되어 있습니다.');
+            }
+        }
+        $nodeNameParts = explode('>', (string) $node['path_name']);
+        $nodeName = (string) end($nodeNameParts);
+        $newPathName = $parent !== null
+            ? (string) $parent['path_name'] . '>' . $nodeName
+            : $nodeName;
+
+        $oldSiblingIds = $this->siblingNodeIds($rows, $oldParentCode, $nodeId);
+        $newSiblingIds = $oldParentCode === $newParentCode
+            ? $oldSiblingIds
+            : $this->siblingNodeIds($rows, $newParentCode, $nodeId);
+        $insertAt = 0;
+        if ($afterNodeId !== null) {
+            $anchorIndex = array_search($afterNodeId, $newSiblingIds, true);
+            if ($anchorIndex === false) {
+                return Result::failure('기준 메뉴의 현재 순서를 확인할 수 없습니다.');
+            }
+            $insertAt = $anchorIndex + 1;
+        }
+        array_splice($newSiblingIds, $insertAt, 0, [$nodeId]);
+        if (
+            $oldParentCode === $newParentCode
+            && $newSiblingIds === $this->siblingNodeIds($rows, $oldParentCode, -1)
+        ) {
+            return Result::success('메뉴가 이미 요청한 위치에 있습니다.', [
+                'node_id' => $nodeId,
+                'path_code' => $oldPathCode,
+            ]);
+        }
+
+        $oldCollectionCodes = [$oldParentCode];
+        $newCollectionCodes = [$newParentCode];
+        foreach ($subtree as $row) {
+            $pathCode = (string) $row['path_code'];
+            $oldCollectionCodes[] = $pathCode;
+            $newCollectionCodes[] = $newPathCode . substr($pathCode, strlen($oldPathCode));
+        }
+
+        try {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->treeRepository->getDb()->transaction(function () use (
+                $subtree,
+                $oldPathCode,
+                $newPathCode,
+                $node,
+                $newParentCode,
+                $depthDelta,
+                $newPathName,
+                $oldSiblingIds,
+                $newSiblingIds,
+                $oldParentCode,
+                $oldCollectionCodes,
+                $newCollectionCodes,
+                $domainId,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
+                foreach ($subtree as $row) {
+                    $pathCode = (string) $row['path_code'];
+                    $pathName = (string) $row['path_name'];
+                    $parentCode = $row['parent_code'] !== null ? (string) $row['parent_code'] : null;
+                    $this->treeRepository->update((int) $row['node_id'], [
+                        'path_code' => $newPathCode . substr($pathCode, strlen($oldPathCode)),
+                        'path_name' => $newPathName . substr($pathName, strlen((string) $node['path_name'])),
+                        'parent_code' => (int) $row['node_id'] === (int) $node['node_id']
+                            ? $newParentCode
+                            : $newPathCode . substr((string) $parentCode, strlen($oldPathCode)),
+                        'depth' => (int) $row['depth'] + $depthDelta,
+                    ]);
+                }
+
+                if ($oldParentCode !== $newParentCode) {
+                    $this->writeSiblingOrder($domainId, $oldSiblingIds);
+                }
+                $this->writeSiblingOrder($domainId, $newSiblingIds);
+                $this->recordMenuChildren(
+                    $domainId,
+                    [...$oldCollectionCodes, ...$newCollectionCodes],
+                    $mutationContext
+                );
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+            });
+        } catch (\Throwable $e) {
+            return Result::failure('메뉴 이동에 실패했습니다.');
+        }
+
+        return Result::success('메뉴를 이동했습니다.', [
+            'node_id' => $nodeId,
+            'path_code' => $newPathCode,
+        ]);
+    }
+
+    /**
+     * 한 부모의 직계 자식 전체를 정확히 주어진 순서로 정렬한다.
+     *
+     * @param list<int> $orderedNodeIds
+     */
+    public function reorderTreeChildren(
+        int $domainId,
+        ?int $parentNodeId,
+        array $orderedNodeIds,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        $parent = $parentNodeId !== null
+            ? $this->treeRepository->findByIdAndDomain($parentNodeId, $domainId)
+            : null;
+        if ($parentNodeId !== null && $parent === null) {
+            return Result::failure('부모 메뉴 배치를 찾을 수 없습니다.');
+        }
+        $parentCode = $parent !== null ? (string) $parent['path_code'] : null;
+        $rows = $parentCode === null
+            ? $this->treeRepository->findRootNodes($domainId)
+            : $this->treeRepository->findChildren($domainId, $parentCode);
+        $currentIds = array_map(static fn (array $row): int => (int) $row['node_id'], $rows);
+        $normalized = array_values(array_map('intval', $orderedNodeIds));
+        $expected = $currentIds;
+        $actual = $normalized;
+        sort($expected);
+        sort($actual);
+        if ($actual !== $expected || count(array_unique($normalized)) !== count($normalized)) {
+            return Result::failure('같은 부모의 모든 직계 메뉴를 중복 없이 지정해야 합니다.');
+        }
+        if ($normalized === $currentIds) {
+            return Result::success('메뉴가 이미 요청한 순서입니다.');
+        }
+
+        try {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->treeRepository->getDb()->transaction(function () use (
+                $domainId,
+                $normalized,
+                $parentCode,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
+                $this->writeSiblingOrder($domainId, $normalized);
+                $this->recordMenuChildren($domainId, [$parentCode], $mutationContext);
+                $this->finishMutation($mutationContext, $ownsMutationContext);
+            });
+        } catch (\Throwable $e) {
+            return Result::failure('메뉴 순서 변경에 실패했습니다.');
+        }
+
+        return Result::success('메뉴 순서를 변경했습니다.');
+    }
+
+    /** @return list<int> */
+    private function siblingNodeIds(array $rows, ?string $parentCode, int $exceptNodeId): array
+    {
+        $siblings = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool =>
+                (int) $row['node_id'] !== $exceptNodeId
+                && ($row['parent_code'] !== null ? (string) $row['parent_code'] : null) === $parentCode
+        ));
+        usort($siblings, static fn (array $left, array $right): int =>
+            [(int) $left['sort_order'], (int) $left['node_id']]
+            <=> [(int) $right['sort_order'], (int) $right['node_id']]
+        );
+        return array_map(static fn (array $row): int => (int) $row['node_id'], $siblings);
+    }
+
+    /** @param list<int> $nodeIds */
+    private function writeSiblingOrder(int $domainId, array $nodeIds): void
+    {
+        foreach ($nodeIds as $index => $nodeId) {
+            $this->treeRepository->updateSortOrder($nodeId, $domainId, $index + 1);
+        }
+    }
+
+    /**
      * 트리 전체 저장 (재구성)
      */
-    public function saveTree(int $domainId, array $treeData): Result
+    public function saveTree(
+        int $domainId,
+        array $treeData,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         // 트리는 관리자 드래그앤드롭 UI가 만들지만 서버는 그 UI를 신뢰하지 않는다.
         // 저장을 시작하기 전에 거부한다 — 기존 트리를 지운 뒤에 실패하면 롤백이
@@ -777,13 +1393,49 @@ class MenuService
             $itemsByCode[(string) $row['menu_code']] = $row;
         }
 
+        $oldParentCodes = array_map(
+            static fn (array $row): ?string => $row['parent_code'] !== null ? (string) $row['parent_code'] : null,
+            $this->treeRepository->findByDomain($domainId)
+        );
+        $oldChildrenFingerprints = $this->menuChildrenFingerprints($domainId, $oldParentCodes);
+
         try {
-            $this->treeRepository->getDb()->transaction(function () use ($domainId, $treeData, $itemsByCode) {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->treeRepository->getDb()->transaction(function () use (
+                $domainId,
+                $treeData,
+                $itemsByCode,
+                $oldParentCodes,
+                $oldChildrenFingerprints,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
                 // 기존 트리 삭제
                 $this->treeRepository->deleteByDomain($domainId);
 
                 // 새 트리 구성
                 $this->insertTreeNodes($domainId, $treeData, null, 1, '', $itemsByCode);
+                $newParentCodes = array_map(
+                    static fn (array $row): ?string => $row['parent_code'] !== null
+                        ? (string) $row['parent_code']
+                        : null,
+                    $this->treeRepository->findByDomain($domainId)
+                );
+                $changedParentCodes = [];
+                foreach ([...$oldParentCodes, ...$newParentCodes] as $parentCode) {
+                    $resourceId = $this->menuChildrenResourceId($parentCode);
+                    $currentFingerprint = $this->menuChildrenFingerprint($domainId, $parentCode);
+                    if (($oldChildrenFingerprints[$resourceId] ?? null) !== $currentFingerprint) {
+                        $changedParentCodes[$resourceId] = $parentCode;
+                    }
+                }
+                $this->recordMenuChildren(
+                    $domainId,
+                    array_values($changedParentCodes),
+                    $mutationContext
+                );
+                $this->finishMutation($mutationContext, $ownsMutationContext);
             });
 
             return Result::success('메뉴 트리가 저장되었습니다.');
@@ -1013,17 +1665,36 @@ class MenuService
     /**
      * 유틸리티 메뉴 저장 (포함 목록 + 순서 전체 교체)
      */
-    public function saveUtilityOrder(int $domainId, array $itemIds): Result
+    public function saveUtilityOrder(
+        int $domainId,
+        array $itemIds,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $itemIds = $this->expandWithPairedItems($domainId, $itemIds);
+        $before = $this->menuFingerprintsByCode($this->itemRepository->findByDomain($domainId));
 
         try {
-            $this->itemRepository->getDb()->transaction(function () use ($domainId, $itemIds) {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->itemRepository->getDb()->transaction(function () use (
+                $domainId,
+                $itemIds,
+                $before,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
                 $this->itemRepository->resetUtilityFlags($domainId);
                 $order = 1;
                 foreach ($itemIds as $itemId) {
                     $this->itemRepository->setUtilityActive((int) $itemId, $domainId, $order++);
                 }
+                $this->recordMenuItems(
+                    $domainId,
+                    $this->changedMenuCodes($domainId, $before),
+                    $mutationContext
+                );
+                $this->finishMutation($mutationContext, $ownsMutationContext);
             });
 
             return Result::success('유틸리티 메뉴가 저장되었습니다.');
@@ -1035,17 +1706,36 @@ class MenuService
     /**
      * 푸터 메뉴 저장 (포함 목록 + 순서 전체 교체)
      */
-    public function saveFooterOrder(int $domainId, array $itemIds): Result
+    public function saveFooterOrder(
+        int $domainId,
+        array $itemIds,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $itemIds = $this->expandWithPairedItems($domainId, $itemIds);
+        $before = $this->menuFingerprintsByCode($this->itemRepository->findByDomain($domainId));
 
         try {
-            $this->itemRepository->getDb()->transaction(function () use ($domainId, $itemIds) {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->itemRepository->getDb()->transaction(function () use (
+                $domainId,
+                $itemIds,
+                $before,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
                 $this->itemRepository->resetFooterFlags($domainId);
                 $order = 1;
                 foreach ($itemIds as $itemId) {
                     $this->itemRepository->setFooterActive((int) $itemId, $domainId, $order++);
                 }
+                $this->recordMenuItems(
+                    $domainId,
+                    $this->changedMenuCodes($domainId, $before),
+                    $mutationContext
+                );
+                $this->finishMutation($mutationContext, $ownsMutationContext);
             });
 
             return Result::success('푸터 메뉴가 저장되었습니다.');
@@ -1069,12 +1759,25 @@ class MenuService
     /**
      * 마이페이지 메뉴 저장 (포함 목록 + 순서 전체 교체, 시스템 메뉴 제외)
      */
-    public function saveMypageOrder(int $domainId, array $itemIds): Result
+    public function saveMypageOrder(
+        int $domainId,
+        array $itemIds,
+        ?SiteMutationContext $mutationContext = null
+    ): Result
     {
         $itemIds = $this->expandWithPairedItems($domainId, $itemIds);
+        $before = $this->menuFingerprintsByCode($this->itemRepository->findByDomain($domainId));
 
         try {
-            $this->itemRepository->getDb()->transaction(function () use ($domainId, $itemIds) {
+            $ownsMutationContext = $mutationContext === null;
+            $mutationContext = $this->mutationContext($domainId, $mutationContext);
+            $this->itemRepository->getDb()->transaction(function () use (
+                $domainId,
+                $itemIds,
+                $before,
+                $mutationContext,
+                $ownsMutationContext
+            ): void {
                 // 시스템 메뉴(회원정보=head/회원탈퇴=tail)는 sentinel order(0/9999)를 유지한다.
                 // resetMypageFlags가 is_system 행을 건드리지 않고, 재부여 루프에서도 제외하여
                 // 운영자 저장·패키지 재시딩과 무관하게 항상 양끝에 고정되도록 한다.
@@ -1087,6 +1790,12 @@ class MenuService
                     }
                     $this->itemRepository->setMypageActive((int) $itemId, $domainId, $order++);
                 }
+                $this->recordMenuItems(
+                    $domainId,
+                    $this->changedMenuCodes($domainId, $before),
+                    $mutationContext
+                );
+                $this->finishMutation($mutationContext, $ownsMutationContext);
             });
 
             return Result::success('마이페이지 메뉴가 저장되었습니다.');

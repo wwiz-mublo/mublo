@@ -53,7 +53,7 @@ class BoardProvisioningGatewayTest extends TestCase
         $groupService = $this->createMock(BoardGroupService::class);
         $groupService->expects($this->once())
             ->method('createGroup')
-            ->with(1, $this->callback(fn(array $d): bool => $d['group_slug'] === 'site' && $d['group_name'] === '사이트'))
+            ->with(1, $this->callback(fn(array $d): bool => $d['group_slug'] === 'site' && $d['group_name'] === '사이트'), null)
             ->willReturn(Result::success('ok', ['group_id' => 9]));
 
         $result = $this->gateway($groupService, $groupRepo)->ensureGroup(1, 'site', ['group_name' => '사이트']);
@@ -125,5 +125,48 @@ class BoardProvisioningGatewayTest extends TestCase
         $this->assertTrue($result->isSuccess());
         $this->assertSame(21, $result->getData()['board_id']);
         $this->assertFalse($result->getData()['created']);
+    }
+
+    /** 새 사이트 구축 경로는 키를 생략하면 기본 첫 글 하나를 받는다. */
+    public function testNewBoardGetsDefaultFirstPostWhenPresetOmitsPosts(): void
+    {
+        $this->assertSame(1, $this->insertedFirstPosts(['group_slug' => 'site']));
+    }
+
+    /** 운영 중인 사이트에 게시판을 더하는 경로는 빈 배열로 첫 글을 끈다. */
+    public function testEmptyPlaceholderPostsCreatesBoardWithoutArticles(): void
+    {
+        $this->assertSame(0, $this->insertedFirstPosts(['group_slug' => 'site', 'placeholder_posts' => []]));
+    }
+
+    private function insertedFirstPosts(array $preset): int
+    {
+        $boardRepo = $this->createMock(BoardConfigRepository::class);
+        $boardRepo->method('findBySlug')->willReturn(null);
+        $groupRepo = $this->createMock(BoardGroupRepository::class);
+        $groupRepo->method('findBySlug')->willReturn(BoardGroup::fromArray(['group_id' => 5, 'group_slug' => 'site']));
+        $boardService = $this->createMock(BoardConfigService::class);
+        // 첫 글·그룹 지시값은 board_configs 컬럼이 아니므로 저장 데이터에 남으면 INSERT가 실패한다.
+        $boardService->expects($this->once())->method('createBoard')->with(
+            1,
+            $this->callback(static fn(array $data): bool => !array_key_exists('placeholder_posts', $data)
+                && !array_key_exists('author_name', $data)
+                && !array_key_exists('group_slug', $data)
+                && $data['group_id'] === 5),
+            null
+        )->willReturn(Result::success('', ['board_id' => 21]));
+        $inserted = 0;
+        $query = $this->createMock(\Mublo\Infrastructure\Database\QueryBuilder::class);
+        $query->method('insert')->willReturnCallback(static function () use (&$inserted): int {
+            $inserted++;
+            return 1;
+        });
+        $db = $this->createMock(Database::class);
+        $db->method('table')->with('board_articles')->willReturn($query);
+
+        $result = $this->gateway(null, $groupRepo, $boardService, $boardRepo, $db)->ensureBoard(1, 'inquiry', $preset);
+
+        $this->assertTrue($result->getData()['created']);
+        return $inserted;
     }
 }

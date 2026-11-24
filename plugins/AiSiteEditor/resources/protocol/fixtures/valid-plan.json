@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "plan_id": "pln_example_01",
+  "observed_site_revision": 42,
+  "summary": "상품문의 게시판과 메뉴를 구성합니다.",
+  "operations": [
+    {"op_id": "op_01", "tool": "board.ensure", "target": {"key": "product-inquiry"}, "input": {"name": "상품문의", "group_key": "customer-center"}},
+    {"op_id": "op_02", "tool": "menu.ensure", "target": {"key": "product-inquiry-menu"}, "input": {"name": "상품문의", "url": {"$ref": "op_01.result.board_url"}, "parent": {"resource_id": "menu_item:44"}}}
+  ],
+  "guard_set": [{"resource_id": "menu_children:menu_item:44", "expected_revision": 5}],
+  "warnings": [],
+  "requires_confirmation": false
+}
+

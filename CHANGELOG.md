@@ -7,6 +7,7 @@
 ## [Unreleased]
 
 ### Added
+- Core: 확장 사이 결합용 계약을 추가했습니다 — `Contract\Auth\ApiTokenValidatorInterface`(앱 API 의 Bearer 토큰을 발급 확장을 모른 채 검증), `Contract\Fcm\DeviceBindingInterface`(전화번호 ↔ 업무용 기기 연결), `Contract\Fcm\ContactSaveInterface`(고객 연락처를 업무 기기 전화번호부에 저장 요청), `Contract\Fcm\ResolveFcmDeviceDomainEvent`(도메인이 어느 도메인의 업무 기기를 쓰는지 질의). 모두 구현 확장이 `ContractRegistry` 에 1:1 로 등록하는 선택 계약이며 번들 구현은 없습니다
 - Core(블록): 위치별 블록 렌더링 직전에 `Mublo\Core\Event\Block\BlockPositionRenderingEvent` 를 발행합니다. 확장은 이번 요청에서 그 위치를 저장된 블록 대신 다른 HTML 로 그리거나(`replaceWith()` — 전파를 멈추고 우선순위가 높은 대체가 이김, 대체 HTML 은 캐시하지 않음) 블록 캐시를 끌 수 있습니다(`disableCache()`). 디자인 미리보기처럼 DB 블록을 바꾸지 않고 화면만 다르게 보여 줄 때 씁니다. 구독자가 없으면 동작은 이전과 같고, `BlockRenderService` 생성자에 선택 인자 `?EventDispatcher` 가 끝에 추가됐습니다
 
 ## [1.11.0] - 2026-11-18

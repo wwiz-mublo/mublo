@@ -17,6 +17,8 @@ use Mublo\Repository\Menu\MenuItemRepository;
 use Mublo\Core\Rendering\AssetManager;
 use Mublo\Core\Rendering\FrontViewRuntime;
 use Mublo\Infrastructure\Cache\CacheInterface;
+use Mublo\Contract\Block\BlockReadOverlayInterface;
+use Mublo\Contract\Block\BlockRowSnapshot;
 
 /**
  * BlockRenderService
@@ -46,6 +48,7 @@ class BlockRenderService
     private ?BlockColumnContentRepository $contentRepository;
     private CacheInterface $cache;
     private DependencyContainer $container;
+    private ?BlockReadOverlayInterface $readOverlay;
     private ?EventDispatcher $eventDispatcher;
 
     /**
@@ -82,6 +85,7 @@ class BlockRenderService
         CacheInterface $cache,
         DependencyContainer $container,
         ?BlockColumnContentRepository $contentRepository = null,
+        ?BlockReadOverlayInterface $readOverlay = null,
         ?EventDispatcher $eventDispatcher = null
     ) {
         $this->rowRepository = $rowRepository;
@@ -89,6 +93,7 @@ class BlockRenderService
         $this->cache = $cache;
         $this->container = $container;
         $this->contentRepository = $contentRepository;
+        $this->readOverlay = $readOverlay;
         $this->eventDispatcher = $eventDispatcher;
         $this->isDebug = ($_ENV['APP_DEBUG'] ?? 'false') === 'true';
     }
@@ -155,6 +160,20 @@ class BlockRenderService
         bool $useCache = true,
         bool $isMainScreen = false
     ): string {
+        $overlayRows = $this->readOverlay?->positionRows(
+            $domainId,
+            $position,
+            $menuCode,
+            $isMainScreen
+        );
+        if ($overlayRows !== null) {
+            $html = $this->renderSnapshotRows($overlayRows);
+            if ($position === BlockPosition::TOPBAR->value && str_contains($html, 'block-topbar-dismissible')) {
+                $html .= $this->renderTopbarDismissAssets();
+            }
+            return $html;
+        }
+
         // 디버그 모드에서는 캐시 비활성화
         if ($this->isDebug) {
             $useCache = false;
@@ -251,6 +270,11 @@ HTML;
      */
     public function renderPage(int $pageId, bool $useCache = true): string
     {
+        $overlayRows = $this->readOverlay?->pageRows($pageId);
+        if ($overlayRows !== null) {
+            return $this->renderSnapshotRows($overlayRows);
+        }
+
         // 디버그 모드에서는 캐시 비활성화
         if ($this->isDebug) {
             $useCache = false;
@@ -261,6 +285,20 @@ HTML;
 
         // 2단계: 각 행을 개별 캐시에서 렌더링
         return $this->renderRowsWithCache($rows, $useCache);
+    }
+
+    /** @param list<BlockRowSnapshot> $snapshots */
+    private function renderSnapshotRows(array $snapshots): string
+    {
+        $html = '';
+        foreach ($snapshots as $snapshot) {
+            [$row, $columns] = BlockSnapshotHydrator::hydrate($snapshot);
+            if (!$row->isActive()) {
+                continue;
+            }
+            $html .= $this->renderRowFromEntities($row, $columns);
+        }
+        return $html;
     }
 
     /**

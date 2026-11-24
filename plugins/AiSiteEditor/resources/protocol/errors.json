@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "errors": [
+    {"code": "SITE_EDITOR_UNAVAILABLE", "retryable": false},
+    {"code": "PROTOCOL_VERSION_UNSUPPORTED", "retryable": false},
+    {"code": "RESOURCE_REVISION_CONFLICT", "retryable": true},
+    {"code": "PLAN_SCHEMA_INVALID", "retryable": true},
+    {"code": "PLAN_REFERENCE_INVALID", "retryable": true},
+    {"code": "PLAN_OPERATION_UNSUPPORTED", "retryable": true},
+    {"code": "PLAN_CONFIRMATION_REQUIRED", "retryable": false},
+    {"code": "FIELD_LOCKED_BY_AUTOMATION", "retryable": true},
+    {"code": "BLOCK_VARIANT_UNAVAILABLE", "retryable": true},
+    {"code": "MENU_CYCLE", "retryable": true},
+    {"code": "TARGET_NOT_FOUND", "retryable": true},
+    {"code": "PREVIEW_FAILED", "retryable": true},
+    {"code": "PREVIEW_EXPIRED", "retryable": true},
+    {"code": "APPLY_FAILED", "retryable": true},
+    {"code": "RESTORE_RESOURCE_CHANGED", "retryable": false},
+    {"code": "REVERT_CONFLICT", "retryable": false},
+    {"code": "RESTORE_FAILED", "retryable": false}
+  ]
+}
+

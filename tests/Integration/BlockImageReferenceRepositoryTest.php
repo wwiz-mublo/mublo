@@ -90,6 +90,21 @@ class BlockImageReferenceRepositoryTest extends DatabaseTestCase
         $this->assertFalse($this->repository->isReferenced('/storage/block/2026/ghost.png'));
     }
 
+    public function testSiteSettingImagesAreInUse(): void
+    {
+        $this->createTable('domain_configs', '
+            domain_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+            site_config JSON NULL, company_config JSON NULL, seo_config JSON NULL, theme_config JSON NULL
+        ');
+        $this->seed('domain_configs', [[
+            'site_config' => '{"affiliate_main_banners":"[{\"image\":\"\\\\/storage\\\\/D1\\\\/site\\\\/banner.png\"}]"}',
+            'seo_config' => '{"logo_pc":"\/storage\/D1\/site\/logo.png"}',
+        ]]);
+
+        $this->assertTrue($this->repository->isReferenced('/storage/D1/site/logo.png'), '현재 로고는 정리 대상이 아니다');
+        $this->assertFalse($this->repository->isReferenced('/storage/D1/site/old-logo.png'));
+    }
+
     public function testWorksWithoutContentsTableBeforeMigration(): void
     {
         // 마이그레이션(021) 전 설치 — 테이블이 없어도 기존 판정 경로가 동작해야 한다.
