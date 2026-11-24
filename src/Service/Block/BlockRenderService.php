@@ -6,6 +6,8 @@ use Mublo\Core\Block\BlockRegistry;
 use Mublo\Enum\Block\BlockPosition;
 use Mublo\Core\Block\Renderer\RendererInterface;
 use Mublo\Core\Container\DependencyContainer;
+use Mublo\Core\Event\Block\BlockPositionRenderingEvent;
+use Mublo\Core\Event\EventDispatcher;
 use Mublo\Entity\Block\BlockRow;
 use Mublo\Entity\Block\BlockColumn;
 use Mublo\Repository\Block\BlockRowRepository;
@@ -15,6 +17,8 @@ use Mublo\Repository\Menu\MenuItemRepository;
 use Mublo\Core\Rendering\AssetManager;
 use Mublo\Core\Rendering\FrontViewRuntime;
 use Mublo\Infrastructure\Cache\CacheInterface;
+use Mublo\Contract\Block\BlockReadOverlayInterface;
+use Mublo\Contract\Block\BlockRowSnapshot;
 
 /**
  * BlockRenderService
@@ -31,6 +35,11 @@ use Mublo\Infrastructure\Cache\CacheInterface;
  * - 행 목록 캐시: block:ids:pos:{domainId}:{position} → row_id 배열
  * - 행 콘텐츠 캐시: block:row:{rowId} → 개별 행 HTML
  * - 행 1개 수정 시 해당 행만 재렌더링, 같은 위치의 다른 행은 캐시 유지
+ *
+ * 확장점:
+ * - renderPosition() 직전에 BlockPositionRenderingEvent 를 발행한다. 확장은 이번 요청에서
+ *   위치를 다른 HTML 로 대체하거나 캐시를 끌 수 있다 (미리보기 등). 이 서비스는 내부 API 이므로
+ *   확장이 직접 붙잡지 않고 이벤트로만 개입한다.
  */
 class BlockRenderService
 {
@@ -39,6 +48,8 @@ class BlockRenderService
     private ?BlockColumnContentRepository $contentRepository;
     private CacheInterface $cache;
     private DependencyContainer $container;
+    private ?BlockReadOverlayInterface $readOverlay;
+    private ?EventDispatcher $eventDispatcher;
 
     /**
      * 캐시 TTL (기본 1시간)
@@ -73,13 +84,17 @@ class BlockRenderService
         BlockColumnRepository $columnRepository,
         CacheInterface $cache,
         DependencyContainer $container,
-        ?BlockColumnContentRepository $contentRepository = null
+        ?BlockColumnContentRepository $contentRepository = null,
+        ?BlockReadOverlayInterface $readOverlay = null,
+        ?EventDispatcher $eventDispatcher = null
     ) {
         $this->rowRepository = $rowRepository;
         $this->columnRepository = $columnRepository;
         $this->cache = $cache;
         $this->container = $container;
         $this->contentRepository = $contentRepository;
+        $this->readOverlay = $readOverlay;
+        $this->eventDispatcher = $eventDispatcher;
         $this->isDebug = ($_ENV['APP_DEBUG'] ?? 'false') === 'true';
     }
 
@@ -145,6 +160,20 @@ class BlockRenderService
         bool $useCache = true,
         bool $isMainScreen = false
     ): string {
+        $overlayRows = $this->readOverlay?->positionRows(
+            $domainId,
+            $position,
+            $menuCode,
+            $isMainScreen
+        );
+        if ($overlayRows !== null) {
+            $html = $this->renderSnapshotRows($overlayRows);
+            if ($position === BlockPosition::TOPBAR->value && str_contains($html, 'block-topbar-dismissible')) {
+                $html .= $this->renderTopbarDismissAssets();
+            }
+            return $html;
+        }
+
         // 디버그 모드에서는 캐시 비활성화
         if ($this->isDebug) {
             $useCache = false;
@@ -153,6 +182,20 @@ class BlockRenderService
         $debug = '';
         if ($this->isDebug) {
             $debug = "<!-- [Block] renderPosition: domain={$domainId}, position={$position}, menu={$menuCode}, main=" . ($isMainScreen ? '1' : '0') . " -->\n";
+        }
+
+        // 확장점 — 이번 요청에서 이 위치를 다른 HTML 로 대체하거나 캐시를 끈다
+        if ($this->eventDispatcher !== null) {
+            $event = new BlockPositionRenderingEvent($domainId, $position, $menuCode, $isMainScreen);
+            $this->eventDispatcher->dispatch($event);
+
+            $replacement = $event->getReplacement();
+            if ($replacement !== null) {
+                return $debug . $replacement;
+            }
+            if ($event->isCacheDisabled()) {
+                $useCache = false;
+            }
         }
 
         // 1단계: 행 목록 캐시에서 row 조회
@@ -227,6 +270,11 @@ HTML;
      */
     public function renderPage(int $pageId, bool $useCache = true): string
     {
+        $overlayRows = $this->readOverlay?->pageRows($pageId);
+        if ($overlayRows !== null) {
+            return $this->renderSnapshotRows($overlayRows);
+        }
+
         // 디버그 모드에서는 캐시 비활성화
         if ($this->isDebug) {
             $useCache = false;
@@ -237,6 +285,20 @@ HTML;
 
         // 2단계: 각 행을 개별 캐시에서 렌더링
         return $this->renderRowsWithCache($rows, $useCache);
+    }
+
+    /** @param list<BlockRowSnapshot> $snapshots */
+    private function renderSnapshotRows(array $snapshots): string
+    {
+        $html = '';
+        foreach ($snapshots as $snapshot) {
+            [$row, $columns] = BlockSnapshotHydrator::hydrate($snapshot);
+            if (!$row->isActive()) {
+                continue;
+            }
+            $html .= $this->renderRowFromEntities($row, $columns);
+        }
+        return $html;
     }
 
     /**

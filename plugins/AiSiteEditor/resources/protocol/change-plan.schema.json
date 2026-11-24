@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mublo.dev/site-editor/change-plan.schema.json",
+  "title": "Mublo site change plan",
+  "type": "object",
+  "required": ["schema_version", "plan_id", "observed_site_revision", "summary", "operations"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "plan_id": {"type": "string", "pattern": "^pln_[A-Za-z0-9_-]+$"},
+    "observed_site_revision": {"type": "integer", "minimum": 0},
+    "summary": {"type": "string", "minLength": 1, "maxLength": 500},
+    "operations": {"type": "array", "minItems": 1, "maxItems": 50, "items": {"$ref": "#/$defs/operation"}},
+    "guard_set": {"type": "array", "items": {"$ref": "#/$defs/guard"}},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "requires_confirmation": {"type": "boolean"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "resourceId": {"type": "string", "pattern": "^[a-z][a-z0-9_]*(?::[^:\\s]+)+$"},
+    "reference": {
+      "type": "object",
+      "required": ["$ref"],
+      "properties": {"$ref": {"type": "string", "pattern": "^op_[A-Za-z0-9_-]+\\.result(?:\\.[A-Za-z_][A-Za-z0-9_]*)+$"}},
+      "additionalProperties": false
+    },
+    "operation": {
+      "type": "object",
+      "required": ["op_id", "tool", "target", "input"],
+      "properties": {
+        "op_id": {"type": "string", "pattern": "^op_[A-Za-z0-9_-]+$"},
+        "tool": {"type": "string", "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$"},
+        "target": {"type": "object"},
+        "input": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "guard": {
+      "type": "object",
+      "required": ["resource_id", "expected_revision"],
+      "properties": {
+        "resource_id": {"$ref": "#/$defs/resourceId"},
+        "expected_revision": {"type": "integer", "minimum": 0},
+        "expected_fingerprint": {"type": "string", "pattern": "^(sha256:[a-f0-9]{64}|missing)$"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

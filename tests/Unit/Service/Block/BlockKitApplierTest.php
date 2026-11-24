@@ -18,6 +18,7 @@ use Mublo\Core\Event\EventDispatcher;
 use Mublo\Service\Domain\DomainSettingsService;
 use Mublo\Service\Extension\ExtensionCompatibility;
 use Mublo\Service\System\InstallIdProvider;
+use Mublo\Entity\Block\BlockRow;
 use PHPUnit\Framework\TestCase;
 
 class BlockKitApplierTest extends TestCase
@@ -29,7 +30,9 @@ class BlockKitApplierTest extends TestCase
         ?DomainSettingsService $domainSettingsService = null,
         ?InstallIdProvider $installIdProvider = null,
         ?BlockPageRepository $pageRepository = null,
-        ?EventDispatcher $eventDispatcher = null
+        ?EventDispatcher $eventDispatcher = null,
+        ?\Mublo\Service\Block\BlockRowService $blockRows = null,
+        ?\Mublo\Contract\Site\SiteMutationRecorderInterface $recorder = null
     ): BlockKitApplier {
         return new BlockKitApplier(
             new BlockContentSanitizer(),
@@ -42,8 +45,54 @@ class BlockKitApplierTest extends TestCase
             new ExtensionCompatibility(),
             new BlockColumnPayloadNormalizer(new BlockContentSanitizer(), new BlockSkinService()),
             new MainScreenComposition(),
-            $eventDispatcher
+            $eventDispatcher,
+            null,
+            null,
+            null,
+            $blockRows,
+            $recorder
         );
+    }
+
+    /**
+     * 관리자·확장의 킷 적용도 블록 편집과 같은 규칙으로 사이트 변경 revision을 남긴다.
+     * 교체로 지운 행과 새로 만든 행을 쓰기와 같은 트랜잭션에서 관리자 변경 하나로 기록한다.
+     */
+    public function testReplaceApplyRecordsRemovedAndCreatedRowsInTheApplyTransaction(): void
+    {
+        $db = $this->makeDb();
+        $rowRepository = $this->makeRowRepository($db);
+        $existing = BlockRow::fromArray(['row_id' => 7, 'domain_id' => 1, 'position' => 'index', 'sort_order' => 1,
+            'created_at' => '2026-01-01 00:00:00', 'updated_at' => '2026-01-01 00:00:00']);
+        $rowRepository->method('findByPositionScope')->willReturn([$existing]);
+        $rowRepository->method('findAllByPosition')->willReturn([$existing]);
+        $rowRepository->method('create')->willReturn(100);
+        $columns = $this->createMock(BlockColumnRepository::class);
+        $columns->method('findAllByRowForDomain')->willReturn([]);
+
+        $blockRows = $this->createMock(\Mublo\Service\Block\BlockRowService::class);
+        $blockRows->expects($this->once())->method('collectExternalChanges')->willReturnCallback(
+            function (\Mublo\Contract\Site\SiteMutationContext $context, array $removed, array $created) use ($db): void {
+                $this->assertTrue($db->getPdo()->inTransaction());
+                $this->assertSame([7], array_map(static fn (BlockRow $row): int => $row->getRowId(), $removed));
+                $this->assertSame([100], $created);
+                $context->changed('block_row:100', 'block', str_repeat('a', 64));
+            }
+        );
+        $recorder = $this->createMock(\Mublo\Contract\Site\SiteMutationRecorderInterface::class);
+        $recorder->expects($this->once())->method('record')->willReturnCallback(
+            function (\Mublo\Contract\Site\SiteMutationContext $context) use ($db): \Mublo\Contract\Site\SiteMutationReceipt {
+                $this->assertTrue($db->getPdo()->inTransaction(), '적용과 같은 트랜잭션에서 기록한다');
+                $this->assertSame(\Mublo\Contract\Site\SiteMutationContext::SOURCE_ADMIN, $context->source);
+                return new \Mublo\Contract\Site\SiteMutationReceipt(1, 1, 1, $context->source, null, []);
+            }
+        );
+
+        $result = $this->makeApplier($rowRepository, $columns, null, null, null, null, null, $blockRows, $recorder)
+            ->apply(1, $this->makeKit(), BlockKitApplier::MODE_REPLACE);
+
+        $this->assertTrue($result['ok'], implode(' / ', $result['errors']));
+        $this->assertFalse($db->getPdo()->inTransaction());
     }
     public function testDryRunSanitizesHtmlAndWarnsForMissingContentType(): void
     {
@@ -708,10 +757,8 @@ class BlockKitApplierTest extends TestCase
 
     public function testApplyRollsBackAndSkipsCacheInvalidationOnFailure(): void
     {
-        $db = $this->createMock(Database::class);
-        $db->expects($this->once())->method('beginTransaction');
-        $db->expects($this->never())->method('commit');
-        $db->expects($this->once())->method('rollBack');
+        // 실제 Database 트랜잭션(sqlite 메모리) — 실패하면 롤백되어 트랜잭션이 남지 않는다
+        $db = $this->makeDb();
 
         $rowRepository = $this->makeRowRepository($db);
         $rowRepository->method('create')->willReturn(null); // 행 생성 실패
@@ -727,10 +774,8 @@ class BlockKitApplierTest extends TestCase
 
     public function testApplyRollsBackWhenTransactionalHistoryHookFails(): void
     {
-        $db = $this->createMock(Database::class);
-        $db->expects($this->once())->method('beginTransaction');
-        $db->expects($this->never())->method('commit');
-        $db->expects($this->once())->method('rollBack');
+        // 실제 Database 트랜잭션(sqlite 메모리) — 실패하면 롤백되어 트랜잭션이 남지 않는다
+        $db = $this->makeDb();
 
         $rowRepository = $this->makeRowRepository($db);
         $rowRepository->method('create')->willReturn(100);
@@ -962,15 +1007,7 @@ class BlockKitApplierTest extends TestCase
 
     public function testPageKitCreatesPageWhenCodeDoesNotExist(): void
     {
-        $committed = false;
-        $db = $this->createMock(Database::class);
-        $db->expects($this->once())->method('beginTransaction');
-        $db->expects($this->once())->method('commit')->willReturnCallback(
-            static function () use (&$committed): bool {
-                $committed = true;
-                return true;
-            }
-        );
+        $db = $this->makeDb();
 
         $rowRepository = $this->makeRowRepository($db);
         $rowRepository->method('getNextSortOrderByPage')->willReturn(0);
@@ -995,8 +1032,8 @@ class BlockKitApplierTest extends TestCase
         $eventDispatcher = new EventDispatcher();
         $eventDispatcher->addListener(
             BlockPageMenuSyncEvent::class,
-            function (BlockPageMenuSyncEvent $event) use (&$dispatched, &$committed): void {
-                $this->assertTrue($committed, '메뉴 동기화 이벤트는 킷 트랜잭션 커밋 후 발행해야 한다.');
+            function (BlockPageMenuSyncEvent $event) use (&$dispatched, $db): void {
+                $this->assertFalse($db->getPdo()->inTransaction(), '메뉴 동기화 이벤트는 킷 트랜잭션 커밋 후 발행해야 한다.');
                 $dispatched = $event;
             }
         );
@@ -1318,10 +1355,8 @@ class BlockKitApplierTest extends TestCase
 
     public function testFailedSettingsSaveRollsBackBlocks(): void
     {
-        $db = $this->createMock(Database::class);
-        $db->expects($this->once())->method('beginTransaction');
-        $db->expects($this->never())->method('commit');
-        $db->expects($this->once())->method('rollBack');
+        // 실제 Database 트랜잭션(sqlite 메모리) — 실패하면 롤백되어 트랜잭션이 남지 않는다
+        $db = $this->makeDb();
 
         $rowRepository = $this->makeRowRepository($db);
         $rowRepository->method('create')->willReturn(100);
@@ -1413,11 +1448,7 @@ class BlockKitApplierTest extends TestCase
 
     private function makeDb(): Database
     {
-        $db = $this->createMock(Database::class);
-        $db->method('beginTransaction');
-        $db->method('commit');
-
-        return $db;
+        return new Database(new \PDO('sqlite::memory:'));
     }
 
     private function makeRowRepository(Database $db): BlockRowRepository

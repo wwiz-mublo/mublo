@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "site_revision": 42,
+  "resource_revisions": {"block_order:screen:index": 9, "menu_children:root": 17, "config:theme": 3},
+  "skin": {"id": "t01-market-dense", "brand": "#e5322d"},
+  "pages": [{"id": "main", "label": "메인", "editable": true}],
+  "blocks": [{"resource_id": "block_row:12", "revision": 4, "section_id": "affiliate-products-4", "location": {"kind": "screen_slot", "position": "index"}, "row": {"visible": true, "config": {}}, "columns": [{"resource_id": "block_column:22", "contents": [{"resource_id": "block_content:31", "type": "affiliate_storefront", "config": {}}]}]}],
+  "board_groups": [],
+  "boards": [],
+  "menus": [],
+  "site_profile": {},
+  "capabilities": {}
+}
+

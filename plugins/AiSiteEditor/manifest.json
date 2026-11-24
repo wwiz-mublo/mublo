@@ -1,0 +1,12 @@
+{
+  "name": "AiSiteEditor",
+  "label": "AI 사이트 에디터",
+  "description": "앱이 만든 사이트 변경 계획을 검증·미리보기·적용·복원하는 공통 실행 플러그인",
+  "version": "0.2.0",
+  "author": "Mublo",
+  "vendor": "mublo",
+  "type": "plugin",
+  "category": "content",
+  "icon": "bi-stars",
+  "requires": { "core": ">=1.11.0" }
+}

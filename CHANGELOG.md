@@ -7,6 +7,10 @@
 ## [Unreleased]
 
 ### Added
+- Core: 확장 사이 결합용 계약을 추가했습니다 — `Contract\Auth\ApiTokenValidatorInterface`(앱 API 의 Bearer 토큰을 발급 확장을 모른 채 검증), `Contract\Fcm\DeviceBindingInterface`(전화번호 ↔ 업무용 기기 연결), `Contract\Fcm\ContactSaveInterface`(고객 연락처를 업무 기기 전화번호부에 저장 요청), `Contract\Fcm\ResolveFcmDeviceDomainEvent`(도메인이 어느 도메인의 업무 기기를 쓰는지 질의). 모두 구현 확장이 `ContractRegistry` 에 1:1 로 등록하는 선택 계약이며 번들 구현은 없습니다
+- VisitorStats: 다른 확장이 방문자 통계 테이블을 읽지 않고 이벤트로 묻고 알릴 수 있게 `Contract\Tracking` 이벤트 3종을 추가하고 VisitorStats 가 구독합니다 — `ConversionStatusChangedEvent`(이미 기록된 전환의 상태만 변경, 캠페인 키·발생 시각 유지), `CampaignKeyLabelsEvent`(캠페인 키의 "그룹명 · 메모" 표시 이름 질의), `VisitorRefererLookupEvent`(세션·IP·시각으로 그날 방문의 유입경로 질의, 한 번에 200건). 마이그레이션은 필요 없습니다
+- Core: schema.org JSON-LD 생성 헬퍼 `Mublo\Helper\Seo\StructuredDataHelper` 를 추가했습니다 — `organization()`(상호·로고·주소·고객센터·사업자등록번호·공식 SNS), `webSite()`(사이트 검색 액션), `breadcrumbList()`, `faqPage()`/`faqPageFromGrouped()`, `article()`(비밀·미게시 글 제외), `toScriptTag()`(`</script>` 조기 종료 방지). 값이 없으면 null 을 돌려 빈 마크업을 내보내지 않습니다. 코어 화면에는 아직 붙이지 않았으며 Controller·스킨에서 골라 씁니다
+- Core(블록): 위치별 블록 렌더링 직전에 `Mublo\Core\Event\Block\BlockPositionRenderingEvent` 를 발행합니다. 확장은 이번 요청에서 그 위치를 저장된 블록 대신 다른 HTML 로 그리거나(`replaceWith()` — 전파를 멈추고 우선순위가 높은 대체가 이김, 대체 HTML 은 캐시하지 않음) 블록 캐시를 끌 수 있습니다(`disableCache()`). 디자인 미리보기처럼 DB 블록을 바꾸지 않고 화면만 다르게 보여 줄 때 씁니다. 구독자가 없으면 동작은 이전과 같고, `BlockRenderService` 생성자에 선택 인자 `?EventDispatcher` 가 끝에 추가됐습니다
 - Faq: 패키지가 FAQ 항목에 자기 값(예: 연결 상품)을 붙일 수 있게 이벤트 4종을 발행합니다 — `FaqItemFormEvent`(관리자 편집 창에 확장 입력 칸), `FaqItemsLoadedEvent`(관리자 목록의 확장 값·표시, 손님 `/faq` 답변 아래 관련 링크), `FaqItemSavedEvent`(등록·수정 뒤 확장 칸 값 전달), `FaqItemDeletedEvent`(항목 삭제·카테고리 삭제로 함께 지워진 항목). 관리자 편집 창은 `#itemModal` 의 `faq:item-open`·`faq:item-collect` DOM 이벤트로 확장 칸과 값을 주고받고, basic 프론트 스킨은 관련 링크를 표시합니다. 구독하는 확장이 없으면 화면과 동작은 이전과 같습니다. 커스텀 프론트 스킨은 항목의 `related_links` 를 선택적으로 출력할 수 있습니다
 
 ## [1.11.0] - 2026-11-18

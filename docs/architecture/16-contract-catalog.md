@@ -157,16 +157,23 @@ $registry->register(
 );
 ```
 
-### 푸시 — `Contract/Fcm/` 2종
+### 푸시 — `Contract/Fcm/` 4종 + 이벤트 1종
 
 | 계약 | 용도 |
 |---|---|
 | `FcmMessageServiceInterface` | 범용 FCM 디스패처. `dispatchToInstallation`(단일 활성 Installation), `dispatchToMember`(회원의 활성 Installation), `dispatchToTopic`(도메인 논리 토픽) 세 경로를 제공한다. 반환은 `Mublo\Core\Result\Result` |
 | `TopicSubscriptionInterface` | FCM 토픽 구독 관리 — `subscribe`/`unsubscribe`(설치 단위), `subscribeMember`/`unsubscribeMember`(회원 단위 bulk), `subscribersOf`(통계·관리용 목록). 게시판 새글 알림 같은 브로드캐스트 시나리오 |
+| `DeviceBindingInterface` | 전화번호 ↔ 업무용 기기 연결 — `resolveDeviceForPhone`, `bind`(있으면 사용 시각만 갱신), `unbind`, `rebind`(명시적 재배정). 주문·상담 패키지가 "이 고객을 맡는 기기"를 FCM 세부 없이 다룬다 |
+| `ContactSaveInterface` | 고객 연락처를 업무용 기기(앱) 전화번호부에 저장하도록 요청 — `saveContact`. 대상 기기는 `DeviceBindingInterface` 를 따르고, 반환은 `Result`(`contact_id`·`device_id`·`status`) |
+| `ResolveFcmDeviceDomainEvent` (Event) | "이 도메인의 업무 기기 알림은 어느 도메인 기기로 보내는가" 질의. 기기 관리 확장이 발행하고 도메인 관계를 아는 패키지가 `setDeviceDomainId()` 로 답한다. 답이 없으면 자기 도메인 |
 
 두 계약에서 Installation은 Web Browser, Android App, iOS App을 포함하는 활성 Push 수신 지점이다. 구현체는 Installation의 도메인 소유권·활성 상태를 검증하고 논리 토픽을 실제 FCM 토픽 이름으로 안전하게 변환해야 한다(각 인터페이스 docblock).
 
-현재 저장소에는 이 두 인터페이스의 구현체나 소비자가 없고, `ContractRegistry` 등록 규약도 정의되어 있지 않다. 따라서 구현체의 배포 형태나 조회 방법을 현재 규약으로 가정해서는 안 된다.
+현재 저장소에는 `FcmMessageServiceInterface`·`TopicSubscriptionInterface` 의 구현체나 소비자가 없고, `ContractRegistry` 등록 규약도 정의되어 있지 않다. 따라서 구현체의 배포 형태나 조회 방법을 현재 규약으로 가정해서는 안 된다. 업무용 기기 계약 두 종(`DeviceBindingInterface`·`ContactSaveInterface`)은 기기를 관리하는 확장이 `ContractRegistry::bind()` 로 1:1 등록하고, 소비자는 `has()` 로 설치 여부를 먼저 확인한다 — 이 저장소에는 번들 구현이 없다.
+
+### API 토큰 — `Contract/Auth/ApiTokenValidatorInterface`
+
+모바일 앱처럼 세션 없이 `Authorization: Bearer` 로 들어오는 API 를 받는 확장이, 토큰을 발급한 확장을 모른 채 토큰을 검증하는 1:1 계약이다. `validate(string $rawToken): ?array` 하나뿐이며 유효하면 최소 `member_id`·`domain_id` 를 담은 배열, 아니면 `null` 이다. 구현체는 예외를 던지지 않는다. 세션 로그인 사용자는 이 계약이 아니라 코어의 `AuthContextInterface` 로 확인한다. 번들 구현은 없다.
 
 ### 잔액/포인트 — `Contract/Balance/`
 
@@ -294,6 +301,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | Block | `BlockPreviewRendererInterface`, `BlockColumnView`, `BlockRenderContextInterface` | 저장 전 구성 미리보기 렌더·칸 뷰 계약 |
 | Block | `BlockContentCacheInvalidatorInterface` | 콘텐츠 타입·아이템 단위 블록 캐시 무효화 |
 | Site | `CompanyInfoInterface`, `DomainQueryInterface`, `DomainDescriptor` | 회사 정보·도메인 정보 조회 |
+| Site | `SiteMutationRecorderInterface`, `SiteMutationContext`, `SiteMutationReceipt` | 같은 트랜잭션에서 사이트 감사 revision과 자원별 revision·fingerprint 기록 |
 | Security | `CsrfTokenProviderInterface` | 폼·AJAX용 CSRF 토큰 발급 |
 | Security | `SensitiveValueCodecInterface` | 민감 값 암호화 + 검색 인덱스(암호화된 값의 동등 검색) |
 | Extension | `ExtensionCatalogInterface` | 현재 도메인의 활성 Plugin·Package 이름 목록 |
@@ -323,6 +331,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | `Promotion/PromotionQueryInterface` | 1:1 | Promotion Plugin → 블록·다른 Package 스킨 |
 | `Sitemap/SitemapUrlProviderInterface` | 1:N | Package/Plugin → 코어 `SitemapController` |
 | `Tracking/ConversionRecordedEvent`, `ConversionSourceTypes` | Event·상수 | 전환 기록 통지와 출처 타입 상수 ([26장](26-tracking.md)) |
+| `Tracking/ConversionStatusChangedEvent`, `CampaignKeyLabelsEvent`, `VisitorRefererLookupEvent` | Event | 기록된 전환의 상태 변경 통지, 캠페인 키 표시 이름·방문 유입경로 질의 ([26장](26-tracking.md)) |
 | `Notification/NotificationChannelTreeBuilderInterface`, `NotificationTemplateContextInterface`, `EmailTemplateProviderInterface` | 컨테이너 1:1 | 코어 → 알림 Plugin·Package |
 
 ### 요약표
@@ -331,7 +340,9 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 |---|---|---|---|---|
 | 결제 | `PaymentGatewayInterface` | 1:N | PayApp, TossPay, IniPay, Kcp, NicePay, TestPay | Shop |
 | 결제(반대 방향) | `PaymentConsumerInterface` | 1:N | 주문을 가진 Package | 결제 Plugin의 콜백 |
-| 푸시 | `Fcm/` 2종 | 미정 | 없음 | 현재 저장소 내 소비자 없음 |
+| 푸시 | `FcmMessageServiceInterface`, `TopicSubscriptionInterface` | 미정 | 없음 | 현재 저장소 내 소비자 없음 |
+| 푸시(업무 기기) | `DeviceBindingInterface`, `ContactSaveInterface` | 1:1 | 없음 | 주문·상담을 가진 Package |
+| API 토큰 | `Auth/ApiTokenValidatorInterface` | 1:1 | 없음 | 앱 API 를 받는 확장 |
 | 외부 알림 | `NotificationGatewayInterface` | 1:N | EmailNotify, SendonSms, SendonTalk | Shop |
 | 회원 내부 알림 | `MemberNotificationPublisherInterface`, `MemberNotification` | 컨테이너 | Core `MemberNotificationService` | Board |
 | 알림 이벤트 | `CollectNotificationVariablesEvent`, `MemberNotificationPublishedEvent` | Event | — | 알림 Plugin ↔ Package |
@@ -341,7 +352,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | FAQ | `FaqQueryInterface` | 1:1 | Faq Plugin | Package |
 | 캐시 | `CachePurgerInterface` | 1:1 | 없음 | — |
 | 데이터 리셋 | `DataResettableInterface`, `DataResetFilesystemInterface` | Provider 노출 + Resetter 위임 | Provider 20곳 + Core | 관리자 데이터 초기화 |
-| 추적 | `TrackingKeys`, `ConversionSourceTypes`, `ConversionRecordedEvent` | 상수·Event | — | VisitorStats ↔ Shop |
+| 추적 | `TrackingKeys`, `ConversionSourceTypes`, `ConversionRecordedEvent`, `ConversionStatusChangedEvent`, `CampaignKeyLabelsEvent`, `VisitorRefererLookupEvent` | 상수·Event | VisitorStats(구독) | VisitorStats ↔ Shop·주문을 가진 Package |
 | 코어 제공 계약 | Auth·Member·CustomField·Block·Site·Security·Extension·Frame 등 | 컨테이너 1:1 | Core | 모든 확장 |
 | Provisioning | `SiteProvisioningInterface` 외 6종 | 컨테이너 1:1 | Core·기능 소유 확장 | 시작 킷·설치 마법사 |
 | 조회 | `ManualQueryInterface`, `PromotionQueryInterface` | 1:1 | Manual, Promotion Plugin | 코어·Package 스킨 |
