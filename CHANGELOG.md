@@ -12,6 +12,18 @@
 - Core: schema.org JSON-LD 생성 헬퍼 `Mublo\Helper\Seo\StructuredDataHelper` 를 추가했습니다 — `organization()`(상호·로고·주소·고객센터·사업자등록번호·공식 SNS), `webSite()`(사이트 검색 액션), `breadcrumbList()`, `faqPage()`/`faqPageFromGrouped()`, `article()`(비밀·미게시 글 제외), `toScriptTag()`(`</script>` 조기 종료 방지). 값이 없으면 null 을 돌려 빈 마크업을 내보내지 않습니다. 코어 화면에는 아직 붙이지 않았으며 Controller·스킨에서 골라 씁니다
 - Core(블록): 위치별 블록 렌더링 직전에 `Mublo\Core\Event\Block\BlockPositionRenderingEvent` 를 발행합니다. 확장은 이번 요청에서 그 위치를 저장된 블록 대신 다른 HTML 로 그리거나(`replaceWith()` — 전파를 멈추고 우선순위가 높은 대체가 이김, 대체 HTML 은 캐시하지 않음) 블록 캐시를 끌 수 있습니다(`disableCache()`). 디자인 미리보기처럼 DB 블록을 바꾸지 않고 화면만 다르게 보여 줄 때 씁니다. 구독자가 없으면 동작은 이전과 같고, `BlockRenderService` 생성자에 선택 인자 `?EventDispatcher` 가 끝에 추가됐습니다
 - Faq: 패키지가 FAQ 항목에 자기 값(예: 연결 상품)을 붙일 수 있게 이벤트 4종을 발행합니다 — `FaqItemFormEvent`(관리자 편집 창에 확장 입력 칸), `FaqItemsLoadedEvent`(관리자 목록의 확장 값·표시, 손님 `/faq` 답변 아래 관련 링크), `FaqItemSavedEvent`(등록·수정 뒤 확장 칸 값 전달), `FaqItemDeletedEvent`(항목 삭제·카테고리 삭제로 함께 지워진 항목). 관리자 편집 창은 `#itemModal` 의 `faq:item-open`·`faq:item-collect` DOM 이벤트로 확장 칸과 값을 주고받고, basic 프론트 스킨은 관련 링크를 표시합니다. 구독하는 확장이 없으면 화면과 동작은 이전과 같습니다. 커스텀 프론트 스킨은 항목의 `related_links` 를 선택적으로 출력할 수 있습니다
+- Core: 사이트 변경 revision 기반을 추가했습니다(#135~#139, #148, #151). 블록 행·블록 순서·메뉴 항목·부모별 하위 메뉴·사이트/회사/SEO/테마/확장 설정·게시판·게시판 그룹이 바뀌면, 같은 트랜잭션에서 자원별 revision과 사이트 감사 revision이 오릅니다. 계약은 `SiteMutationContext`·`SiteMutationRecorderInterface`·`SiteMutationFingerprint`·`SiteMutationReceipt`·`SiteMutationResource`이고, 기록이 commit되면 `SiteMutationRecordedEvent`가 발행됩니다. **코어 마이그레이션 `031_create_site_mutation_revisions.sql`·`032_normalize_block_row_resource_ids.sql`을 실행해야 합니다**
+- Core: `Database::afterCommit()`·`afterRollback()`(#133). 중첩 트랜잭션에서는 최상위 commit·rollback 뒤에 실행됩니다. 블록 행 변경의 캐시 무효화·revision 정리·이미지 정리가 이 경로로 옮겨져, 바깥 트랜잭션 안에서 블록 서비스를 불러도 중첩 오류가 나지 않습니다(#134)
+- Core: 확장이 사이트 구조를 안전하게 바꾸는 관리 계약을 추가했습니다.
+  - `BlockMutationInterface`·`BlockMutationPreviewInterface`·`BlockRowSnapshot`(#142)
+  - `MenuTreeManagementInterface`(#141), `MenuManagementInterface`의 배치·스냅샷 값(#149, #153)
+  - `BoardManagementInterface`·`BoardDescriptor`(#140), `BoardGroupQueryInterface`·`BoardGroupDescriptor`(#152)
+- Core: 운영 DB를 바꾸지 않고 한 요청의 최종 상태를 실제 렌더 경로로 그리는 read overlay 계약을 추가했습니다. `BlockReadOverlayInterface`(#143), `MenuReadOverlayInterface`·`MenuTreeEntry`(#144), `BoardReadOverlayInterface`(#145), `ThemeReadOverlayInterface`·`ThemeReadSnapshot`(#146)입니다. 사이트 편집 미리보기가 사용합니다
+- Core: 사이트 편집 실행 계약을 추가했습니다(#147, #150). `SiteEditorClientAuthenticatorInterface`·`SiteEditorClientIdentity`, `SiteEditorOperationHandlerInterface`·`SiteEditorResourceRestoreHandlerInterface`·`SiteEditContext`·`SiteEditorOperationResult`입니다
+- AiSiteEditor 플러그인(#132): 앱이 만든 사이트 변경 계획을 검증·미리보기·적용·복원합니다. 활성화하면 플러그인 마이그레이션이 실행됩니다
+
+### Changed
+- Core: 블록 행 변경(`BlockRowService`)이 직접 트랜잭션 대신 `Database::transaction()`을 씁니다(#134). 바깥 트랜잭션의 일부로 실행되고, 커밋 뒤 작업은 최상위 commit 이후에 실행됩니다
 
 ## [1.11.0] - 2026-11-18
 
