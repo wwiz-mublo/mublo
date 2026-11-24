@@ -174,6 +174,11 @@ class BoardConfigController
         $boardId = (int) ($data['board_id'] ?? 0);
 
         if ($boardId > 0) {
+            // 체크를 모두 푼 카테고리 목록은 폼에 실리지 않는다 — 수정 화면은 전체 목록을 보내므로 빈 목록으로 맞춘다
+            if (!array_key_exists('category_ids', $data)) {
+                $data['category_ids'] = [];
+            }
+
             // 반응 설정에서 제거된 key 감지 (저장 전 기존 설정과 비교)
             $removedReactionKeys = $this->detectRemovedReactionKeys($boardId, $data);
 
