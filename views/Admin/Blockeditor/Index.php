@@ -31,6 +31,7 @@
     <div class="bke-topbar__divider"></div>
     <span class="bke-brand"><i class="bi bi-easel2"></i>블록 에디터</span>
     <span class="bke-context-chip" id="bkeContextChip" style="display:none;"></span>
+    <a href="/admin/block-editor?mode=shared" class="bke-btn" title="공통 편집기 미리 사용">새 편집기</a>
     <div class="bke-topbar__spacer"></div>
     <div style="position:relative;">
         <button type="button" class="bke-iconbtn" id="bkeKitBtn" title="블록 킷 — 가져오기 · 백업 · 내보내기">
