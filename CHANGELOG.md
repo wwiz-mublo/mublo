@@ -6,6 +6,20 @@
 
 ## [Unreleased]
 
+### Added
+- Core: 사이트 변경 revision 기반을 추가했습니다(#135~#139, #148, #151). 블록 행·블록 순서·메뉴 항목·부모별 하위 메뉴·사이트/회사/SEO/테마/확장 설정·게시판·게시판 그룹이 바뀌면, 같은 트랜잭션에서 자원별 revision과 사이트 감사 revision이 오릅니다. 계약은 `SiteMutationContext`·`SiteMutationRecorderInterface`·`SiteMutationFingerprint`·`SiteMutationReceipt`·`SiteMutationResource`이고, 기록이 commit되면 `SiteMutationRecordedEvent`가 발행됩니다. **코어 마이그레이션 `031_create_site_mutation_revisions.sql`·`032_normalize_block_row_resource_ids.sql`을 실행해야 합니다**
+- Core: `Database::afterCommit()`·`afterRollback()`(#133). 중첩 트랜잭션에서는 최상위 commit·rollback 뒤에 실행됩니다. 블록 행 변경의 캐시 무효화·revision 정리·이미지 정리가 이 경로로 옮겨져, 바깥 트랜잭션 안에서 블록 서비스를 불러도 중첩 오류가 나지 않습니다(#134)
+- Core: 확장이 사이트 구조를 안전하게 바꾸는 관리 계약을 추가했습니다.
+  - `BlockMutationInterface`·`BlockMutationPreviewInterface`·`BlockRowSnapshot`(#142)
+  - `MenuTreeManagementInterface`(#141), `MenuManagementInterface`의 배치·스냅샷 값(#149, #153)
+  - `BoardManagementInterface`·`BoardDescriptor`(#140), `BoardGroupQueryInterface`·`BoardGroupDescriptor`(#152)
+- Core: 운영 DB를 바꾸지 않고 한 요청의 최종 상태를 실제 렌더 경로로 그리는 read overlay 계약을 추가했습니다. `BlockReadOverlayInterface`(#143), `MenuReadOverlayInterface`·`MenuTreeEntry`(#144), `BoardReadOverlayInterface`(#145), `ThemeReadOverlayInterface`·`ThemeReadSnapshot`(#146)입니다. 사이트 편집 미리보기가 사용합니다
+- Core: 사이트 편집 실행 계약을 추가했습니다(#147, #150). `SiteEditorClientAuthenticatorInterface`·`SiteEditorClientIdentity`, `SiteEditorOperationHandlerInterface`·`SiteEditorResourceRestoreHandlerInterface`·`SiteEditContext`·`SiteEditorOperationResult`입니다
+- AiSiteEditor 플러그인(#132): 앱이 만든 사이트 변경 계획을 검증·미리보기·적용·복원합니다. 활성화하면 플러그인 마이그레이션이 실행됩니다
+
+### Changed
+- Core: 블록 행 변경(`BlockRowService`)이 직접 트랜잭션 대신 `Database::transaction()`을 씁니다(#134). 바깥 트랜잭션의 일부로 실행되고, 커밋 뒤 작업은 최상위 commit 이후에 실행됩니다
+
 ## [1.11.0] - 2026-11-18
 
 ### Added
