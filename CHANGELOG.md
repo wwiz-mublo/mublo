@@ -29,7 +29,7 @@
 ### Changed
 - Core: 안정 계약 메서드 끝에 선택 인자 `?SiteMutationContext $mutationContext = null`을 추가했습니다. 바깥 트랜잭션과 같은 revision으로 기록하려는 호출자가 넘깁니다 — `SiteProvisioningInterface`(`createMenuItem`·`placeMenuItem`·`ensureMenuItem`·`ensureMenuPlacement`·`ensurePageMenuPlacement`·`setPackageFrameOverride`·`updateCompanyConfig`·`updateSiteConfig`·`updateThemeConfig`·`updateSeoConfig`·`applyScreen`), `BlockKitGatewayInterface`(`applyPage`·`applyPosition`), `MenuManagementInterface`(`updateMenu`·`removeMenu`), `BoardProvisioningInterface`(`ensureGroup`·`ensureBoard`). 호출하는 쪽은 그대로 동작하지만, **이 인터페이스를 직접 구현한 확장은 시그니처에 같은 인자를 추가해야 합니다**
 - Core: 블록 행 변경(`BlockRowService`)과 블록 킷 적용(`BlockKitApplier`)이 직접 트랜잭션 대신 `Database::transaction()`을 씁니다. 바깥 트랜잭션의 일부로 실행되고, 커밋 뒤 작업은 최상위 commit 이후에 실행됩니다
-- VisitorStats: 관리자 메뉴에서 방문자 통계를 1단 메뉴로 올렸습니다. 클릭하면 대시보드로 이동합니다. 메뉴 코드가 `002_P_VisitorStats_001`에서 `P_VisitorStats_001`로 바뀌어, **회원 등급별 관리자 메뉴 권한에서 방문자 통계를 막아 두었다면 업그레이드 후 다시 설정해야 합니다**
+- VisitorStats: 관리자 메뉴에서 방문자 통계를 1단 메뉴로 올렸습니다. 클릭하면 대시보드로 이동합니다. 메뉴 코드가 `002_P_VisitorStats_001`에서 `P_VisitorStats_001`로 바뀌었습니다. VisitorStats 마이그레이션 `004_move_admin_menu_permission_code.sql`이 회원 등급별 관리자 메뉴 차단 설정을 새 코드로 옮깁니다. **기존 설치본은 마이그레이션이 자동으로 적용되지 않으니 실행해야 합니다.** 실행하기 전에는 방문자 통계를 막아 둔 등급도 방문자 통계 화면에 들어갈 수 있습니다
 
 ### Removed
 - Core: `BlockColumnService`에서 호출처가 없고 revision을 남기지 않던 칸 단위 쓰기 메서드(`createColumn`·`updateColumn`·`deleteColumn`·`updateContent`·`updateTitleConfig`·`updateStyleConfig`)를 지웠습니다. 생성자에서 `BlockColumnPayloadNormalizer`·`BlockRenderService` 의존성도 빠졌습니다. 칸 쓰기는 `BlockRowService`의 행 단위 저장이나 `BlockMutationInterface`를 쓰세요. 읽기 메서드는 그대로입니다
