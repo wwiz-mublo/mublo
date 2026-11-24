@@ -387,6 +387,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Menu\MenuManagementGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Menu\MenuRevisionCollectorInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Contract\Menu\MenuManagementInterface::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Menu\MenuTreeManagementInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Menu\MenuTreeManagementGateway::class)
         );
@@ -672,7 +676,10 @@ class ServiceProvider
                 $c->get(EventDispatcher::class),
                 $c->get(\Mublo\Repository\Block\BlockRowRevisionRepository::class),
                 $c->get(BlockImageProcessor::class),
-                $c->get(\Mublo\Service\Block\BlockColumnContentService::class)
+                $c->get(\Mublo\Service\Block\BlockColumnContentService::class),
+                // 킷이 바꾼 행을 블록 편집과 같은 규칙으로 사이트 변경 revision에 남긴다
+                $c->get(\Mublo\Service\Block\BlockRowService::class),
+                $c->get(\Mublo\Contract\Site\SiteMutationRecorderInterface::class)
             );
         });
         $container->singleton(\Mublo\Service\Block\BlockKitLibrary::class, function (DependencyContainer $c) {

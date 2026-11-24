@@ -287,6 +287,10 @@ class BoardGroupServiceTest extends TestCase
     public function testUpdateOrderSuccess(): void
     {
         $groupIds = [3, 1, 2];
+        // 정렬할 그룹은 모두 이 도메인 그룹이어야 한다(다른 도메인 그룹은 쓰기 전에 거절)
+        $this->repositoryMock->method('find')->willReturnCallback(
+            fn (int $groupId): BoardGroup => $this->createBoardGroupMock($groupId, 'group-' . $groupId, '그룹')
+        );
 
         $this->repositoryMock->expects($this->once())
             ->method('updateOrder')

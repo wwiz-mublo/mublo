@@ -522,12 +522,17 @@ class DomainService
         }
 
         // 커밋 이후 확장 패키지·시작 킷 등 선택 후처리를 best-effort로 실행한다.
-        $this->dispatch(new DomainCreatedEvent(
-            $domainId,
-            $newDomainGroup,
-            $ownerId ?: null,
-            $createdBy
-        ));
+        // 기본 메뉴·게시판·블록 시드는 사람이 한 편집이 아니라 자동 운영 변경으로 기록한다.
+        \Mublo\Contract\Site\SiteMutationScope::run(
+            \Mublo\Contract\Site\SiteMutationContext::SOURCE_AUTOMATION,
+            'domain:' . $domainId . ':created',
+            fn () => $this->dispatch(new DomainCreatedEvent(
+                $domainId,
+                $newDomainGroup,
+                $ownerId ?: null,
+                $createdBy
+            ))
+        );
 
         return $this->success(
             ['domain_id' => $domainId, 'domain_group' => $newDomainGroup],

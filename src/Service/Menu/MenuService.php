@@ -70,6 +70,17 @@ class MenuService
     }
 
     /**
+     * 이 서비스를 거치지 않고 메뉴 항목을 만든 경로(패키지 설치 시드)가 같은 지문 규칙으로 문맥에 담는다.
+     * 쓰기와 같은 트랜잭션 안에서 부른다.
+     *
+     * @param list<string> $menuCodes
+     */
+    public function collectExternalChanges(SiteMutationContext $context, array $menuCodes): void
+    {
+        $this->recordMenuItems($context->domainId, $menuCodes, $context);
+    }
+
+    /**
      * @param list<string> $menuCodes
      * @param list<string> $deletedCodes
      */
@@ -87,7 +98,7 @@ class MenuService
         }
 
         $ownsContext = $context === null;
-        $context ??= SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        $context ??= \Mublo\Contract\Site\SiteMutationScope::context($domainId);
         $deleted = array_fill_keys($deletedCodes, true);
 
         foreach (array_values(array_unique($menuCodes)) as $menuCode) {
@@ -121,7 +132,7 @@ class MenuService
         }
 
         $ownsContext = $context === null;
-        $context ??= SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        $context ??= \Mublo\Contract\Site\SiteMutationScope::context($domainId);
         $keys = [];
         foreach ($parentCodes as $parentCode) {
             $keys[$parentCode ?? ''] = $parentCode;
@@ -191,7 +202,7 @@ class MenuService
         if ($context === null && $this->mutationRecorder === null) {
             return null;
         }
-        return $context ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
     }
 
     private function finishMutation(?SiteMutationContext $context, bool $ownsContext): void

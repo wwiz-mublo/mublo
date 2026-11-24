@@ -73,6 +73,20 @@ class BlockPageService implements BlockPageQueryInterface
     }
 
     /**
+     * 페이지 변경 이벤트(메뉴 동기화 등 후속 변경을 일으킨다)를 최상위 commit 뒤에 발행한다.
+     * 바깥 트랜잭션이 롤백되면 발행하지 않고, 발행할 때는 지금 변경의 주체를 물려준다.
+     * 트랜잭션 밖이면 바로 발행된다.
+     */
+    private function dispatchAfterCommit(int $domainId, EventInterface $event): void
+    {
+        $origin = \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+        $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+            $origin,
+            fn () => $this->dispatch($event)
+        ));
+    }
+
+    /**
      * 도메인별 페이지 목록 조회
      *
      * @param int $domainId 도메인 ID
@@ -163,7 +177,7 @@ class BlockPageService implements BlockPageQueryInterface
         $pageId = $this->repository->create($insertData);
 
         if ($pageId) {
-            $this->dispatch(new BlockPageCreatedEvent(
+            $this->dispatchAfterCommit($domainId, new BlockPageCreatedEvent(
                 $domainId,
                 $pageId,
                 $insertData['page_code'],
@@ -212,7 +226,7 @@ class BlockPageService implements BlockPageQueryInterface
         $affected = $this->repository->update($pageId, $updateData);
 
         if ($affected >= 0) {
-            $this->dispatch(new BlockPageUpdatedEvent(
+            $this->dispatchAfterCommit($page->getDomainId(), new BlockPageUpdatedEvent(
                 $page->getDomainId(),
                 $pageId,
                 $page->getPageCode(),
@@ -251,7 +265,7 @@ class BlockPageService implements BlockPageQueryInterface
         $affected = $this->repository->delete($pageId);
 
         if ($affected > 0) {
-            $this->dispatch(new BlockPageDeletedEvent($domainId, $pageCode));
+            $this->dispatchAfterCommit($domainId, new BlockPageDeletedEvent($domainId, $pageCode));
             return Result::success('페이지가 삭제되었습니다.');
         }
 
@@ -274,7 +288,7 @@ class BlockPageService implements BlockPageQueryInterface
         $affected = $this->repository->update($pageId, ['is_deleted' => 1]);
 
         if ($affected > 0) {
-            $this->dispatch(new BlockPageDeletedEvent($domainId, $page->getPageCode()));
+            $this->dispatchAfterCommit($domainId, new BlockPageDeletedEvent($domainId, $page->getPageCode()));
             return Result::success('페이지가 삭제되었습니다.');
         }
 

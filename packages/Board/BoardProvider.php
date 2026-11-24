@@ -392,7 +392,8 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
 
         // 도메인 생성 시 기본 게시판 자동 시딩
         $eventDispatcher->addSubscriber(new DomainEventSubscriber(
-            $container->get(Database::class)
+            $container->get(Database::class),
+            self::seedRecorder($container)
         ));
 
         // 포인트 이벤트 구독자 등록
@@ -490,8 +491,35 @@ class BoardProvider implements ExtensionProviderInterface, InstallableExtensionI
     {
         DomainEventSubscriber::seedBoards(
             $container->get(Database::class),
-            $context->getDomainId()
+            $context->getDomainId(),
+            self::seedRecorder($container)
         );
+    }
+
+    /**
+     * 기본 데이터 시딩이 새로 만든 그룹·게시판·메뉴를 각 서비스의 지문 규칙으로 사이트 변경 revision에 남긴다.
+     * 기록 장치가 없는 구성에서는 null(시딩만 한다).
+     *
+     * @return (callable(int, array{groups:list<int>,boards:list<int>,menus:list<string>}): void)|null
+     */
+    private static function seedRecorder(DependencyContainer $container): ?callable
+    {
+        if (!$container->has(\Mublo\Contract\Site\SiteMutationRecorderInterface::class)) {
+            return null;
+        }
+        return static function (int $domainId, array $created) use ($container): void {
+            // 주체는 호출 범위를 따른다: 설치 훅은 extension(설치 상관 ID), 새 도메인 생성은 automation
+            $context = \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+            $container->get(BoardGroupService::class)->collectExternalChanges($context, $created['groups']);
+            $container->get(BoardConfigService::class)->collectExternalChanges($context, $created['boards']);
+            if ($created['menus'] !== [] && $container->has(\Mublo\Contract\Menu\MenuRevisionCollectorInterface::class)) {
+                $container->get(\Mublo\Contract\Menu\MenuRevisionCollectorInterface::class)
+                    ->collectMenuItems($context, $created['menus']);
+            }
+            if (!$context->isEmpty()) {
+                $container->get(\Mublo\Contract\Site\SiteMutationRecorderInterface::class)->record($context);
+            }
+        };
     }
 
     /**
