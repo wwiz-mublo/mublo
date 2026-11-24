@@ -39,7 +39,8 @@ final class BoardReadOverlay implements BoardReadOverlayInterface
             }
             $slug = trim($board->slug);
             $name = trim($board->name);
-            if ($slug === '' || $name === '' || $board->groupId <= 0 || $board->articleCount < 0) {
+            // 음수 그룹 ID는 같은 미리보기에서 함께 만들 아직 저장되지 않은 그룹이다.
+            if ($slug === '' || $name === '' || $board->groupId === 0 || $board->articleCount < 0) {
                 return Result::failure('게시판 슬러그, 이름, 그룹은 필수입니다.');
             }
             if (preg_match('/^[a-z0-9-]+$/', $slug) !== 1) {

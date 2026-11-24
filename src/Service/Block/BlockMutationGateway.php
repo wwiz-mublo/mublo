@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace Mublo\Service\Block;
 
 use Mublo\Contract\Block\BlockMutationInterface;
+use Mublo\Contract\Block\BlockRestoreInterface;
 use Mublo\Contract\Block\BlockRowSnapshot;
 use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
@@ -11,7 +12,7 @@ use Mublo\Entity\Block\BlockRow;
 use Mublo\Repository\Block\BlockColumnRepository;
 use Mublo\Repository\Block\BlockRowRepository;
 
-final class BlockMutationGateway implements BlockMutationInterface
+final class BlockMutationGateway implements BlockMutationInterface, BlockRestoreInterface
 {
     private const ROW_FIELDS = [
         'page_id', 'position', 'position_menu', 'section_id', 'admin_title',
@@ -63,14 +64,33 @@ final class BlockMutationGateway implements BlockMutationInterface
         array $columns,
         ?SiteMutationContext $mutationContext = null
     ): Result {
-        $row = $this->sanitizeRow($row);
-        return $this->rows->createRow(
-            $domainId,
-            $row,
-            $columns,
-            BlockColumnWriteContext::interactive($domainId),
-            $mutationContext
+        return $this->create($domainId, $row, $columns, BlockColumnWriteContext::interactive($domainId), $mutationContext);
+    }
+
+    public function restoreRow(int $domainId, array $row, array $columns, ?SiteMutationContext $mutationContext = null): Result
+    {
+        // 리비전 복구와 같은 정책 — 몰이 기록한 원래 내용(관리자 스크립트·include 포함)을 되살린다
+        return $this->create($domainId, $row, $columns, BlockColumnWriteContext::revisionRestore($domainId, true), $mutationContext);
+    }
+
+    public function restoreRowContent(
+        int $domainId,
+        int $rowId,
+        array $rowPatch,
+        array $columns,
+        int $expectedRevision,
+        ?SiteMutationContext $mutationContext = null
+    ): Result {
+        return $this->update(
+            $domainId, $rowId, $rowPatch, $columns, $expectedRevision, $mutationContext,
+            BlockColumnWriteContext::revisionRestore($domainId, true)
         );
+    }
+
+    /** @param array<string, mixed> $row @param list<array<string, mixed>> $columns */
+    private function create(int $domainId, array $row, array $columns, BlockColumnWriteContext $write, ?SiteMutationContext $mutationContext): Result
+    {
+        return $this->rows->createRow($domainId, $this->sanitizeRow($row), $columns, $write, $mutationContext);
     }
 
     public function updateRow(
@@ -80,6 +100,22 @@ final class BlockMutationGateway implements BlockMutationInterface
         ?array $columns,
         int $expectedRevision,
         ?SiteMutationContext $mutationContext = null
+    ): Result {
+        return $this->update(
+            $domainId, $rowId, $rowPatch, $columns, $expectedRevision, $mutationContext,
+            BlockColumnWriteContext::interactive($domainId)
+        );
+    }
+
+    /** @param array<string, mixed> $rowPatch @param list<array<string, mixed>>|null $columns */
+    private function update(
+        int $domainId,
+        int $rowId,
+        array $rowPatch,
+        ?array $columns,
+        int $expectedRevision,
+        ?SiteMutationContext $mutationContext,
+        BlockColumnWriteContext $write
     ): Result {
         $current = $this->rowRepository->find($rowId);
         if ($current === null || $current->getDomainId() !== $domainId) {
@@ -100,7 +136,7 @@ final class BlockMutationGateway implements BlockMutationInterface
             $rowPatch,
             $columns ?? [],
             $domainId,
-            BlockColumnWriteContext::interactive($domainId),
+            $write,
             $expectedRevision,
             null,
             $mutationContext

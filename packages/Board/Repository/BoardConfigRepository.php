@@ -2,6 +2,8 @@
 declare(strict_types=1);
 namespace Mublo\Packages\Board\Repository;
 
+use Mublo\Contract\Board\BoardDescriptor;
+use Mublo\Contract\Board\BoardReadOverlayInterface;
 use Mublo\Packages\Board\Entity\BoardConfig;
 use Mublo\Infrastructure\Database\Database;
 use Mublo\Repository\BaseRepository;
@@ -14,6 +16,9 @@ use Mublo\Repository\BaseRepository;
  * 책임:
  * - board_configs 테이블 CRUD
  * - BoardConfig Entity 반환
+ * - 요청 단위 read overlay가 있으면 프론트 조회(find·findBySlug·findAccessibleById·findActiveByDomain)를
+ *   overlay의 최종 설정으로 응답. 글·댓글·파일·커뮤니티·블록 렌더러가 모두 이 조회를 거치므로
+ *   미리보기 게시판 설정이 한 요청 안에서 어긋나지 않는다.
  *
  * 금지:
  * - 비즈니스 로직 (Service 담당)
@@ -24,9 +29,41 @@ class BoardConfigRepository extends BaseRepository
     protected string $entityClass = BoardConfig::class;
     protected string $primaryKey = 'board_id';
 
-    public function __construct(Database $db)
+    private ?BoardReadOverlayInterface $readOverlay;
+
+    public function __construct(Database $db, ?BoardReadOverlayInterface $readOverlay = null)
     {
         parent::__construct($db);
+        $this->readOverlay = $readOverlay;
+    }
+
+    /**
+     * ID로 게시판 조회. overlay에 있는 게시판(음수 임시 ID 포함)은 overlay 설정을 돌려준다.
+     */
+    public function find(int|string $id): ?object
+    {
+        $overlay = $this->readOverlay?->findById((int) $id);
+        return $overlay !== null ? $this->fromDescriptor($overlay) : parent::find($id);
+    }
+
+    private function fromDescriptor(BoardDescriptor $board): BoardConfig
+    {
+        return BoardConfig::fromArray($board->values + [
+            'board_id' => $board->boardId,
+            'board_slug' => $board->slug,
+            'board_name' => $board->name,
+            'group_id' => $board->groupId,
+            'is_active' => $board->active ? 1 : 0,
+        ]);
+    }
+
+    /**
+     * @param list<BoardDescriptor> $boards
+     * @return BoardConfig[]
+     */
+    private function fromDescriptors(array $boards): array
+    {
+        return array_map(fn(BoardDescriptor $board): BoardConfig => $this->fromDescriptor($board), $boards);
     }
 
     /**
@@ -66,10 +103,38 @@ class BoardConfigRepository extends BaseRepository
     }
 
     /**
+     * 이 도메인의 그룹별 게시판 목록. overlay가 있으면 overlay의 최종 게시판(그룹 이동·새 게시판·음수 임시 그룹 포함)을 쓴다.
+     *
+     * @return BoardConfig[]
+     */
+    public function findByGroupForDomain(int $domainId, int $groupId): array
+    {
+        $overlay = $this->readOverlay?->boards($domainId);
+        if ($overlay !== null) {
+            $boards = array_values(array_filter($overlay, static fn($board): bool => $board->groupId === $groupId));
+            usort($boards, static fn($a, $b): int =>
+                (int) ($a->values['sort_order'] ?? 0) <=> (int) ($b->values['sort_order'] ?? 0));
+            return $this->fromDescriptors($boards);
+        }
+        $rows = $this->getDb()->table($this->table)
+            ->where('domain_id', '=', $domainId)
+            ->where('group_id', '=', $groupId)
+            ->orderBy('sort_order', 'ASC')
+            ->get();
+
+        return $this->toEntities($rows);
+    }
+
+    /**
      * 도메인+슬러그로 게시판 조회
      */
     public function findBySlug(int $domainId, string $slug): ?BoardConfig
     {
+        // overlay가 있는 도메인은 overlay 목록이 최종 상태다. 없는 슬러그는 미리보기에서 없는 게시판이다.
+        if ($this->readOverlay?->boards($domainId) !== null) {
+            $overlay = $this->readOverlay->findBySlug($domainId, $slug);
+            return $overlay !== null ? $this->fromDescriptor($overlay) : null;
+        }
         $row = $this->getDb()->table($this->table)
             ->whereRaw('(domain_id = ? OR is_global = 1)', [$domainId])
             ->where('board_slug', '=', $slug)
@@ -86,6 +151,15 @@ class BoardConfigRepository extends BaseRepository
      */
     public function findAccessibleById(int $domainId, int $boardId): ?BoardConfig
     {
+        $overlay = $this->readOverlay?->boards($domainId);
+        if ($overlay !== null) {
+            foreach ($overlay as $board) {
+                if ($board->boardId === $boardId) {
+                    return $this->fromDescriptor($board);
+                }
+            }
+            return null;
+        }
         $row = $this->getDb()->table($this->table)
             ->where('board_id', '=', $boardId)
             ->whereRaw('(domain_id = ? OR is_global = 1)', [$domainId])
@@ -146,6 +220,10 @@ class BoardConfigRepository extends BaseRepository
      */
     public function findActiveByDomain(int $domainId): array
     {
+        $overlay = $this->readOverlay?->boards($domainId, true);
+        if ($overlay !== null) {
+            return $this->fromDescriptors($overlay);
+        }
         $rows = $this->getDb()->table($this->table)
             ->whereRaw('(domain_id = ? OR is_global = 1)', [$domainId])
             ->where('is_active', '=', 1)

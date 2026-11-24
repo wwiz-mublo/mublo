@@ -340,6 +340,17 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\BlockRestoreInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationGateway::class)
+        );
+        $container->singleton(
+            \Mublo\Contract\Block\HtmlBlockDraftInterface::class,
+            fn (DependencyContainer $c) => new \Mublo\Service\AI\HtmlBlockDraftGateway(
+                $c->get(\Mublo\Service\AI\HtmlBlockAiService::class),
+                $c->get(\Mublo\Service\Domain\DomainSettingsService::class)
+            )
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockMutationPreviewInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationPreviewGateway::class)
         );
@@ -348,12 +359,20 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockReadOverlay::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\BlockImageCleanupInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockImageCleanupGateway::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockRenderContextInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockRenderContext::class)
         );
         $container->singleton(
             \Mublo\Contract\Board\BoardReadOverlayInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Board\BoardReadOverlay::class)
+        );
+        $container->singleton(
+            \Mublo\Contract\Board\BoardGroupReadOverlayInterface::class,
+            fn () => new \Mublo\Service\Board\BoardGroupReadOverlay()
         );
         $container->singleton(
             \Mublo\Contract\Site\CompanyInfoInterface::class,
@@ -374,6 +393,10 @@ class ServiceProvider
         $container->singleton(
             \Mublo\Contract\Menu\MenuManagementInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Menu\MenuManagementGateway::class)
+        );
+        $container->singleton(
+            \Mublo\Contract\Menu\MenuRevisionCollectorInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Contract\Menu\MenuManagementInterface::class)
         );
         $container->singleton(
             \Mublo\Contract\Menu\MenuTreeManagementInterface::class,
@@ -661,7 +684,10 @@ class ServiceProvider
                 $c->get(EventDispatcher::class),
                 $c->get(\Mublo\Repository\Block\BlockRowRevisionRepository::class),
                 $c->get(BlockImageProcessor::class),
-                $c->get(\Mublo\Service\Block\BlockColumnContentService::class)
+                $c->get(\Mublo\Service\Block\BlockColumnContentService::class),
+                // 킷이 바꾼 행을 블록 편집과 같은 규칙으로 사이트 변경 revision에 남긴다
+                $c->get(\Mublo\Service\Block\BlockRowService::class),
+                $c->get(\Mublo\Contract\Site\SiteMutationRecorderInterface::class)
             );
         });
         $container->singleton(\Mublo\Service\Block\BlockKitLibrary::class, function (DependencyContainer $c) {
@@ -688,7 +714,8 @@ class ServiceProvider
                 $c->get(CacheInterface::class),
                 $c,
                 $c->get(\Mublo\Repository\Block\BlockColumnContentRepository::class),
-                $c->get(\Mublo\Contract\Block\BlockReadOverlayInterface::class)
+                $c->get(\Mublo\Contract\Block\BlockReadOverlayInterface::class),
+                $c->get(EventDispatcher::class)
             );
         });
 

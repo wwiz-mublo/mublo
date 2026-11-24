@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Mublo\Service\Block;
 
 use Mublo\Contract\Block\BlockKitGatewayInterface;
+use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Core\Result\Result;
 use Mublo\Entity\Block\BlockKit;
 use Mublo\Infrastructure\Database\Database;
@@ -122,14 +123,14 @@ class BlockKitGateway implements BlockKitGatewayInterface
         ]);
     }
 
-    public function applyPage(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result
+    public function applyPage(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result
     {
-        return $this->applyTarget($domainId, $kit, $mode, BlockKit::TARGET_PAGE, 'page');
+        return $this->applyTarget($domainId, $kit, $mode, BlockKit::TARGET_PAGE, 'page', $mutationContext);
     }
 
-    public function applyPosition(int $domainId, array $kit, string $mode = self::MODE_REPLACE): Result
+    public function applyPosition(int $domainId, array $kit, string $mode = self::MODE_REPLACE, ?SiteMutationContext $mutationContext = null): Result
     {
-        return $this->applyTarget($domainId, $kit, $mode, BlockKit::TARGET_POSITION, 'position');
+        return $this->applyTarget($domainId, $kit, $mode, BlockKit::TARGET_POSITION, 'position', $mutationContext);
     }
 
     /**
@@ -144,7 +145,8 @@ class BlockKitGateway implements BlockKitGatewayInterface
         array $kit,
         string $mode,
         string $expectedKind,
-        string $label
+        string $label,
+        ?SiteMutationContext $mutationContext = null
     ): Result {
         if (($kit['target']['kind'] ?? null) !== $expectedKind) {
             return Result::failure("{$label} 타깃 블록 킷이 아닙니다.");
@@ -154,7 +156,7 @@ class BlockKitGateway implements BlockKitGatewayInterface
             return Result::failure("지원하지 않는 적용 모드입니다: {$mode}");
         }
 
-        $result = $this->applier->apply($domainId, $kit, $mode);
+        $result = $this->applier->apply($domainId, $kit, $mode, false, true, null, $mutationContext);
 
         if (empty($result['ok'])) {
             return Result::failure(implode(' / ', $result['errors'] ?? ['블록 킷 적용에 실패했습니다.']));

@@ -90,6 +90,63 @@ final class BlockMutationGatewayTest extends TestCase
         $this->assertSame($updated, $result);
     }
 
+    /**
+     * 편집 쓰기는 앱·AI 편집 정책(스크립트·include 금지)을 따르고, 복원은 몰이 기록한 원래 내용을
+     * 리비전 복구와 같은 정책으로 되살린다.
+     */
+    public function testRestoreWritesUseTheRevisionRestorePolicyButEditsStayInteractive(): void
+    {
+        $service = $this->createMock(BlockRowService::class);
+        $writes = [];
+        $capture = static function (BlockColumnWriteContext $write) use (&$writes): bool {
+            $writes[] = [$write->allowRawJs, $write->allowInclude, $write->allowUnresolvedExtension];
+            return true;
+        };
+        $service->expects($this->exactly(2))->method('createRow')
+            ->with(7, $this->anything(), [], $this->callback($capture), null)
+            ->willReturn(Result::success('created'));
+        $service->expects($this->once())->method('updateRow')
+            ->with(10, $this->anything(), [], 7, $this->callback($capture), 3, null, null)
+            ->willReturn(Result::success('updated'));
+        $rows = $this->createMock(BlockRowRepository::class);
+        $rows->method('find')->with(10)->willReturn($this->row(10, 7, 3));
+        $columns = $this->createStub(BlockColumnRepository::class);
+        $gateway = new BlockMutationGateway(
+            $service,
+            $rows,
+            $columns,
+            new BlockColumnContentService($columns, $this->createStub(BlockColumnContentRepository::class))
+        );
+        $row = ['position' => 'index', 'admin_title' => '배너'];
+
+        $this->assertTrue($gateway->createRow(7, $row, [])->isSuccess());
+        $this->assertTrue($gateway->restoreRow(7, $row, [])->isSuccess());
+        $this->assertTrue($gateway->restoreRowContent(7, 10, ['admin_title' => '배너'], [], 3)->isSuccess());
+
+        $this->assertSame([
+            [false, false, false],
+            [true, true, true],
+            [true, true, true],
+        ], $writes);
+    }
+
+    public function testRestoreContentRejectsRowsOfAnotherDomain(): void
+    {
+        $service = $this->createMock(BlockRowService::class);
+        $service->expects($this->never())->method('updateRow');
+        $rows = $this->createMock(BlockRowRepository::class);
+        $rows->method('find')->with(10)->willReturn($this->row(10, 8, 3));
+        $columns = $this->createStub(BlockColumnRepository::class);
+        $gateway = new BlockMutationGateway(
+            $service,
+            $rows,
+            $columns,
+            new BlockColumnContentService($columns, $this->createStub(BlockColumnContentRepository::class))
+        );
+
+        $this->assertTrue($gateway->restoreRowContent(7, 10, [], [], 3)->isFailure());
+    }
+
     public function testReorderRejectsPartialSlotBeforeMutation(): void
     {
         $service = $this->createMock(BlockRowService::class);

@@ -18,8 +18,6 @@ use Mublo\Helper\Form\FormHelper;
 use Mublo\Contract\Site\SiteMutationContext;
 use Mublo\Contract\Site\SiteMutationFingerprint;
 use Mublo\Contract\Site\SiteMutationRecorderInterface;
-use Mublo\Contract\Board\BoardDescriptor;
-use Mublo\Contract\Board\BoardReadOverlayInterface;
 
 /**
  * BoardConfig Service
@@ -44,7 +42,6 @@ class BoardConfigService
     private ?EventDispatcher $eventDispatcher;
     private ?AuthContextInterface $authService;
     private ?SiteMutationRecorderInterface $mutationRecorder;
-    private ?BoardReadOverlayInterface $readOverlay;
 
     /**
      * 슬러그 예약어 목록
@@ -87,8 +84,7 @@ class BoardConfigService
         BoardArticleRepository $articleRepository,
         ?EventDispatcher $eventDispatcher = null,
         ?AuthContextInterface $authService = null,
-        ?SiteMutationRecorderInterface $mutationRecorder = null,
-        ?BoardReadOverlayInterface $readOverlay = null
+        ?SiteMutationRecorderInterface $mutationRecorder = null
     ) {
         $this->repository = $repository;
         $this->groupRepository = $groupRepository;
@@ -97,7 +93,6 @@ class BoardConfigService
         $this->eventDispatcher = $eventDispatcher;
         $this->authService = $authService;
         $this->mutationRecorder = $mutationRecorder;
-        $this->readOverlay = $readOverlay;
     }
 
     private function mutationContext(int $domainId, ?SiteMutationContext $context): ?SiteMutationContext
@@ -108,7 +103,20 @@ class BoardConfigService
         if ($context === null && $this->mutationRecorder === null) {
             return null;
         }
-        return $context ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
+    }
+
+    /**
+     * 이 서비스를 거치지 않고 게시판을 만든 경로(설치 시드)가 같은 지문 규칙으로 문맥에 담는다.
+     * 쓰기와 같은 트랜잭션 안에서 부른다.
+     *
+     * @param list<int> $boardIds
+     */
+    public function collectExternalChanges(SiteMutationContext $context, array $boardIds): void
+    {
+        foreach (array_unique($boardIds) as $boardId) {
+            $this->recordBoardMutation($context->domainId, (int) $boardId, $context);
+        }
     }
 
     private function recordBoardMutation(
@@ -282,46 +290,23 @@ class BoardConfigService
      */
     public function getActiveBoards(int $domainId): array
     {
-        $overlay = $this->readOverlay?->boards($domainId, true);
-        if ($overlay !== null) {
-            return array_map(fn(BoardDescriptor $board): BoardConfig => $this->fromDescriptor($board), $overlay);
-        }
         return $this->repository->findActiveByDomain($domainId);
     }
 
     /**
-     * 단일 게시판 조회
+     * 단일 게시판 조회 (미리보기 read overlay는 저장소가 반영한다)
      */
     public function getBoard(int $boardId): ?BoardConfig
     {
-        $overlay = $this->readOverlay?->findById($boardId);
-        if ($overlay !== null) {
-            return $this->fromDescriptor($overlay);
-        }
         return $this->repository->find($boardId);
     }
 
     /**
-     * 슬러그로 게시판 조회
+     * 슬러그로 게시판 조회 (미리보기 read overlay는 저장소가 반영한다)
      */
     public function getBoardBySlug(int $domainId, string $slug): ?BoardConfig
     {
-        if ($this->readOverlay?->boards($domainId) !== null) {
-            $overlay = $this->readOverlay->findBySlug($domainId, $slug);
-            return $overlay !== null ? $this->fromDescriptor($overlay) : null;
-        }
         return $this->repository->findBySlug($domainId, $slug);
-    }
-
-    private function fromDescriptor(BoardDescriptor $board): BoardConfig
-    {
-        return BoardConfig::fromArray($board->values + [
-            'board_id' => $board->boardId,
-            'board_slug' => $board->slug,
-            'board_name' => $board->name,
-            'group_id' => $board->groupId,
-            'is_active' => $board->active ? 1 : 0,
-        ]);
     }
 
     /**
@@ -431,7 +416,11 @@ class BoardConfigService
             $this->recordBoardMutation($domainId, $boardId, $mutationContext);
             $this->finishMutation($mutationContext, $ownsMutationContext);
             $event = new BoardConfigCreatedEvent($boardConfig);
-            $this->repository->getDb()->afterCommit(fn () => $this->dispatch($event));
+            // 후속 작업(메뉴 자동 등록·삭제 등)은 이 변경의 주체(관리자·사이트 편집·확장)를 물려받아 기록한다
+            $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+                $mutationContext,
+                fn () => $this->dispatch($event)
+            ));
             return $boardId;
         });
 
@@ -601,7 +590,11 @@ class BoardConfigService
             $this->recordBoardMutation($domainId, $boardId, $mutationContext, true);
             $this->finishMutation($mutationContext, $ownsMutationContext);
             $event = new BoardConfigDeletedEvent($domainId, $boardId, $boardSlug, $boardName);
-            $this->repository->getDb()->afterCommit(fn () => $this->dispatch($event));
+            // 후속 작업(메뉴 자동 등록·삭제 등)은 이 변경의 주체(관리자·사이트 편집·확장)를 물려받아 기록한다
+            $this->repository->getDb()->afterCommit(fn () => \Mublo\Contract\Site\SiteMutationScope::inherit(
+                $mutationContext,
+                fn () => $this->dispatch($event)
+            ));
             return $affected;
         });
 
@@ -786,7 +779,7 @@ class BoardConfigService
                 $board = $operation['board'];
                 $domainId = $board->getDomainId();
                 $contexts[$domainId] ??= $mutationContext
-                    ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+                    ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
                 $this->repository->update($board->getBoardId(), $operation['data']);
                 $this->recordBoardMutation(
                     $domainId,

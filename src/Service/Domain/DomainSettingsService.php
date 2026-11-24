@@ -105,7 +105,7 @@ class DomainSettingsService implements CompanyInfoInterface
         if ($context === null && $this->mutationRecorder === null) {
             return null;
         }
-        return $context ?? SiteMutationContext::create($domainId, SiteMutationContext::SOURCE_ADMIN);
+        return $context ?? \Mublo\Contract\Site\SiteMutationScope::context($domainId);
     }
 
     private function recordConfigMutation(

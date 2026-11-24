@@ -276,6 +276,30 @@ class BoardPermissionServiceTest extends TestCase
         $this->assertTrue($result);
     }
 
+    /**
+     * 비회원 댓글은 글쓰기와 같이 레벨로 정한다. 없는 allow_guest 컬럼 때문에 comment_level 0이어도
+     * 비회원 댓글이 막히던 문제의 회귀 시험.
+     */
+    #[Test]
+    public function testGuestCanCommentOnlyWhereTheCommentLevelIsZero(): void
+    {
+        $this->setupAuthUser(null);
+        $context = $this->createContext(null);
+
+        $this->assertTrue($this->permissionService->canComment(
+            $this->createBoardConfig(['use_comment' => 1, 'comment_level' => 0]),
+            $context
+        ));
+        $this->assertFalse($this->permissionService->canComment(
+            $this->createBoardConfig(['use_comment' => 1, 'comment_level' => 1]),
+            $context
+        ), '회원 레벨이 필요한 게시판은 지금처럼 막는다');
+        $this->assertFalse($this->permissionService->canComment(
+            $this->createBoardConfig(['use_comment' => 0, 'comment_level' => 0]),
+            $context
+        ), '댓글을 끈 게시판은 막는다');
+    }
+
     // --- Helper Methods for creating mocks ---
 
     private function createBoardConfig(array $overrides = []): BoardConfig

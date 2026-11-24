@@ -105,4 +105,27 @@ class VisitorCampaignKeyRepository
 
         return $this->db->select($sql, [$domainId]);
     }
+
+    /**
+     * 여러 키의 그룹명·메모 (CampaignKeyLabelsEvent 응답용)
+     *
+     * @param string[] $campaignKeys
+     * @return array<int, array{campaign_key: string, group_name: string, memo: ?string}>
+     */
+    public function findByKeys(int $domainId, array $campaignKeys): array
+    {
+        $campaignKeys = array_values(array_unique(array_filter(
+            array_map('strval', $campaignKeys),
+            static fn(string $key): bool => $key !== ''
+        )));
+        if ($campaignKeys === []) {
+            return [];
+        }
+
+        return $this->db->table($this->table)
+            ->select(['campaign_key', 'group_name', 'memo'])
+            ->where('domain_id', '=', $domainId)
+            ->whereIn('campaign_key', $campaignKeys)
+            ->get();
+    }
 }

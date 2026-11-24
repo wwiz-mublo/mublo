@@ -141,11 +141,9 @@ class BoardPermissionService
             return true;
         }
 
-        // 비회원 댓글 허용 체크 (글쓰기와 동일하게 처리)
-        if ($this->authService->guest() && !$board->isAllowGuest()) {
-            return false;
-        }
-
+        // 비회원 허용은 글쓰기(canWrite)와 같이 레벨로 판단한다: comment_level 0이면 비회원도 쓸 수 있다.
+        // (allow_guest는 board_configs에 컬럼이 없어 항상 false였고, 그 때문에 레벨 0 게시판에서도 비회원 댓글이 막혔다.
+        //  비회원 댓글의 이름·비밀번호 검증과 IP 기준 하루 한도는 BoardCommentService가 맡는다.)
         $requiredLevel = $this->getRequiredLevelWithCategory($board, $categoryId, 'comment', $categoryMapping);
         $memberLevel = $this->getMemberLevel($context);
 

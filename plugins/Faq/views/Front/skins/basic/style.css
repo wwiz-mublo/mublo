@@ -93,3 +93,13 @@
 
 /* 빈 상태 */
 .faq-empty { text-align: center; padding: 60px 20px; color: var(--muted-foreground); font-size: 15px; }
+
+/* 관련 링크 (확장이 FaqItemsLoadedEvent 로 단다) */
+.faq-related { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.faq-related__title { font-size: 12px; font-weight: 700; color: var(--muted-foreground); margin-right: 2px; }
+.faq-related__link {
+    display: inline-block; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px;
+    font-size: 12px; color: var(--foreground); text-decoration: none; background: var(--background);
+}
+.faq-related__link:hover { border-color: var(--muted-foreground); text-decoration: none; }
+@media (min-width: 768px) { .faq-related__title, .faq-related__link { font-size: 13px; } }
