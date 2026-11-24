@@ -66,7 +66,7 @@ class HtmlBlockAiService
         $currentJs = (string) ($input['current_js'] ?? '');
         $assetIds = is_array($input['asset_ids'] ?? null) ? $input['asset_ids'] : [];
         $hash = substr(hash('sha256', "{$domainId}:{$rowId}:{$columnIndex}"), 0, 12);
-        $scope = 'mublo-block-' . $hash;
+        $scope = self::scopeFor("{$domainId}:{$rowId}:{$columnIndex}");
         $legacyScope = 'mublo-ai-' . $hash;
         $hasManagedCss = str_contains($currentCss, '/* mublo-generated */')
             || str_contains($currentCss, '/* mublo-ai-managed */');
@@ -120,6 +120,60 @@ class HtmlBlockAiService
             ]);
             throw $e;
         }
+        $final = $this->finalize(
+            $scope,
+            $prompt,
+            $result,
+            $mode,
+            $hasManagedCss,
+            (string) ($input['current_css'] ?? ''),
+            $currentJs
+        );
+        ['html' => $html, 'css' => $css, 'js' => $js, 'notes' => $notes, 'audit' => $audit] = $final;
+        $this->usage->addOutput($domainId, mb_strlen($html . $css . $js));
+        $this->record($domainId, $rowId, $columnIndex, $mode, $runtime, $prompt, $assetIds, [
+            'status' => 'success', 'result_html' => $html, 'result_css' => $css, 'result_js' => $js,
+            'notes' => $notes, 'member_id' => $input['member_id'] ?? null,
+        ]);
+        return ['html' => $html, 'css' => $css, 'js' => $js, 'notes' => $notes, 'audit' => $audit];
+    }
+
+
+    /**
+     * 이 서비스가 만드는 블록 스코프 클래스. 같은 키면 언제나 같은 스코프다.
+     */
+    public static function scopeFor(string $key): string
+    {
+        return 'mublo-block-' . substr(hash('sha256', $key), 0, 12);
+    }
+
+    /**
+     * AI 요청 프롬프트. 다른 AI 실행기(예: 사이트 편집 앱)도 같은 규칙으로 생성하도록 공개한다.
+     *
+     * @param array{site_name?:string} $site
+     * @return array{system:string,user:string}
+     */
+    public function prompts(string $mode, string $prompt, string $currentHtml = '', string $currentCss = '', array $site = []): array
+    {
+        return $this->promptBuilder->build($mode === 'modify' ? 'modify' : 'create', $prompt, $currentHtml, $currentCss, $site);
+    }
+
+    /**
+     * AI 결과를 정제·스코프 제한·인터랙션 빌드·반응형 검사로 마무리한다. 어떤 AI가 만들었든 같은 경로를 거친다.
+     *
+     * @param array{html:string,css:string,notes?:string,behavior?:array<string,mixed>} $result
+     * @return array{html:string,css:string,js:string,notes:string,audit:array<string,mixed>,warnings:list<string>}
+     */
+    public function finalize(
+        string $scope,
+        string $prompt,
+        array $result,
+        string $mode = 'create',
+        bool $hasManagedCss = false,
+        string $originalCss = '',
+        string $currentJs = ''
+    ): array {
+        $result += ['notes' => '', 'behavior' => ['types' => [], 'autoplay_seconds' => 0, 'slider_preset' => 'none']];
         [$resultHtml, $resultCss] = $this->normalizeGeneratedClassNames($result['html'], $result['css']);
         $html = $this->htmlSanitizer->sanitize($resultHtml);
         $copyResult = $this->visibleCopyFilter->filter($html);
@@ -150,11 +204,10 @@ class HtmlBlockAiService
             [$layoutCss, $modelCssResult['css'], $behaviorCssResult['css']]
         ));
         $css = $cssBodies ? "/* mublo-generated */\n" . implode("\n", $cssBodies) : '';
-        if ($mode === 'modify' && !$hasManagedCss && trim((string) ($input['current_css'] ?? '')) !== '') {
-            $css = rtrim((string) $input['current_css']) . "\n\n" . $css;
+        if ($mode === 'modify' && !$hasManagedCss && trim($originalCss) !== '') {
+            $css = rtrim($originalCss) . "\n\n" . $css;
         }
         $js = $this->behaviorBuilder->mergeJs($currentJs, $behaviorAssets['js']);
-        $this->usage->addOutput($domainId, mb_strlen($html . $css . $js));
 
         $notes = $result['notes'];
         $copyWarnings = $copyResult['removed']
@@ -181,11 +234,10 @@ class HtmlBlockAiService
             );
         }
         if ($warnings) $notes = trim($notes . ' ' . implode(' ', array_unique($warnings)));
-        $this->record($domainId, $rowId, $columnIndex, $mode, $runtime, $prompt, $assetIds, [
-            'status' => 'success', 'result_html' => $html, 'result_css' => $css, 'result_js' => $js,
-            'notes' => $notes, 'member_id' => $input['member_id'] ?? null,
-        ]);
-        return ['html' => $html, 'css' => $css, 'js' => $js, 'notes' => $notes, 'audit' => $audit];
+        return [
+            'html' => $html, 'css' => $css, 'js' => $js, 'notes' => $notes, 'audit' => $audit,
+            'warnings' => array_values(array_unique($warnings)),
+        ];
     }
 
     /** @return array{string,string} */
