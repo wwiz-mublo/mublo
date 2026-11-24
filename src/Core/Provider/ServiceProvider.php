@@ -340,6 +340,10 @@ class ServiceProvider
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationGateway::class)
         );
         $container->singleton(
+            \Mublo\Contract\Block\BlockRestoreInterface::class,
+            fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationGateway::class)
+        );
+        $container->singleton(
             \Mublo\Contract\Block\BlockMutationPreviewInterface::class,
             fn (DependencyContainer $c) => $c->get(\Mublo\Service\Block\BlockMutationPreviewGateway::class)
         );
