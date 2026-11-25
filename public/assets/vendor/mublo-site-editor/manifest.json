@@ -3,12 +3,12 @@
   "package": "@mublo/site-editor-react",
   "files": {
     "site-editor.css": {
-      "bytes": 16349,
-      "sha256": "c19ee49d8d618d76159789d137848204c8a4ac38981130f5dc7a106fd42338fb"
+      "bytes": 17212,
+      "sha256": "6f405dc277505184f77d6ef83602d2fd31792105caf9d4ee34e8f00d60c365b3"
     },
     "site-editor.js": {
-      "bytes": 499875,
-      "sha256": "9611f71f231d43f1139cf0785d5e6317c7b2d5a4551f5b7c2a097d68d540addc"
+      "bytes": 500228,
+      "sha256": "24e8daf8a67867113fbf96d7db79d528b8d2ffc1409ecadba4499232030feda6"
     }
   }
 }
