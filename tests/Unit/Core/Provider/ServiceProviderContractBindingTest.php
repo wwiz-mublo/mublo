@@ -22,6 +22,7 @@ use Mublo\Contract\Auth\ReauthenticationInterface;
 use Mublo\Contract\Member\MemberAccountGatewayInterface;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
 use Mublo\Contract\Member\MemberActionQueryInterface;
+use Mublo\Contract\Member\MemberPublicAppearanceQueryInterface;
 use Mublo\Contract\Security\SensitiveValueCodecInterface;
 use Mublo\Contract\CustomField\CustomFieldValueValidatorInterface;
 use Mublo\Contract\CustomField\CustomFieldFileManagerInterface;
@@ -66,6 +67,7 @@ class ServiceProviderContractBindingTest extends TestCase
             ReauthenticationInterface::class,
             MemberLevelCatalogInterface::class,
             MemberActionQueryInterface::class,
+            MemberPublicAppearanceQueryInterface::class,
             SensitiveValueCodecInterface::class,
             CustomFieldValueValidatorInterface::class,
             CustomFieldFileManagerInterface::class,

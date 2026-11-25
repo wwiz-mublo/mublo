@@ -291,6 +291,7 @@ PayApp·TossPay는 도메인별 결제 설정만 소유하고 TestPay는 영속 
 | Auth | `AuthContextInterface` | 현재 요청의 인증 상태 읽기(`AuthService` 직접 참조 대체) |
 | Auth | `MemberAuthenticatorInterface`, `AuthenticatedUser` | 신뢰 확장(SNS 로그인 등)이 기존 회원 세션을 시작 |
 | Member | `MemberQueryInterface`, `MemberProfile`, `MemberIdentity`, `MemberExtensionIdentity` | 내부 Member Entity·Repository 없이 읽기 전용 회원 조회·활성 회원 닉네임 검색과 안전한 확장 이벤트 식별 정보 |
+| Member Appearance | `MemberPublicAppearanceQueryInterface`, `MemberPublicAppearance` | 내부 회원 ID·추가필드 테이블을 뷰에 노출하지 않고 공개 식별자·아바타·최고관리자 표시를 일괄 제공 |
 | Member Action | `MemberActionQueryInterface`, Definition·Variant·Scope·View·StateResolver | 확장이 회원 문맥 액션을 등록하고 소비 화면이 일괄 조회 |
 | Member | `MemberAccountGatewayInterface`, `MemberRegistrationRequest` | 가입·자격 검증·커스텀 필드 저장 |
 | Member | `MemberSegmentQueryInterface` | 사이트·등급·가입일로 정상 일반 회원 ID 조회. `afterMemberId`와 `limit`으로 회원 ID 오름차순 페이지 조회 (쿠폰 일괄 지급 대상 선정) |

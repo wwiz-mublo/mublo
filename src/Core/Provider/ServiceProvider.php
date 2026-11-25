@@ -207,8 +207,8 @@ class ServiceProvider
         $container->singleton(DomainResolver::class, function (DependencyContainer $c) {
             return new DomainResolver(
                 $c->get(DomainCache::class),
-                $c->get(DomainRepository::class),
-                $c->get(DomainAliasRepository::class)
+                fn(): DomainRepository => $c->get(DomainRepository::class),
+                fn(): DomainAliasRepository => $c->get(DomainAliasRepository::class)
             );
         });
 
@@ -501,6 +501,13 @@ class ServiceProvider
         $container->singleton(MemberQueryInterface::class, function (DependencyContainer $c) {
             return new MemberQueryService($c->get(MemberRepository::class));
         });
+
+        $container->singleton(
+            \Mublo\Contract\Member\MemberPublicAppearanceQueryInterface::class,
+            fn (DependencyContainer $c) => new \Mublo\Service\Member\MemberPublicAppearanceQueryService(
+                $c->get(Database::class)
+            )
+        );
 
         // 조건으로 회원 고르기 (쿠폰 일괄 지급 등 대상 선정)
         $container->singleton(\Mublo\Contract\Member\MemberSegmentQueryInterface::class, fn(DependencyContainer $c) =>
@@ -980,8 +987,8 @@ class ServiceProvider
         // 회원 조회 이벤트 구독자 (Package/Plugin → Core 회원 데이터 조회)
         $eventDispatcher->addSubscriber(
             new MemberQuerySubscriber(
-                $container->get(MemberRepository::class),
-                $container->get(MemberLevelRepository::class),
+                fn(): MemberRepository => $container->get(MemberRepository::class),
+                fn(): MemberLevelRepository => $container->get(MemberLevelRepository::class),
             )
         );
 
@@ -995,14 +1002,14 @@ class ServiceProvider
         $registry->register('core.system_info', new SystemInfoWidget(), 0);
         $registry->register(
             'core.member_stats',
-            new MemberStatsWidget($container->get(MemberRepository::class), $domainIdResolver),
+            new MemberStatsWidget(fn(): MemberRepository => $container->get(MemberRepository::class), $domainIdResolver),
             1
         );
         // 번들 시작 킷 안내 — 설치 직후 "메인을 어떻게 채우지?"의 답
         $registry->register(
             'core.starter_kits',
             new \Mublo\Core\Dashboard\Widget\StarterKitWidget(
-                $container->get(\Mublo\Infrastructure\Database\Database::class),
+                fn(): \Mublo\Infrastructure\Database\Database => $container->get(\Mublo\Infrastructure\Database\Database::class),
                 $domainIdResolver
             ),
             2
@@ -1015,7 +1022,9 @@ class ServiceProvider
 
         // 회원 활동 기록 (사이트 설정에서 켠 경우만 쌓음) + 관리자 회원 화면 "최근 활동"
         $eventDispatcher->addSubscriber(new \Mublo\Subscriber\MemberActivitySubscriber(
-            new \Mublo\Repository\Member\MemberActivityRepository($container->get(Database::class)),
+            fn(): \Mublo\Repository\Member\MemberActivityRepository => new \Mublo\Repository\Member\MemberActivityRepository(
+                $container->get(Database::class)
+            ),
             fn() => $container->has(Context::class) ? $container->get(Context::class)->getDomainInfo() : null,
             $container->has(Logger::class) ? $container->get(Logger::class) : null
         ));

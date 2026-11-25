@@ -23,6 +23,9 @@ use Mublo\Service\Member\Event\MemberWithdrawnEvent;
  */
 class MemberActivitySubscriber implements EventSubscriberInterface
 {
+    /** @var MemberActivityRepository|\Closure(): MemberActivityRepository */
+    private MemberActivityRepository|\Closure $repository;
+
     /** 남기지 않는 페이지 유형 (로그인·가입, 내 정보) */
     private const SKIP_PAGE_TYPES = ['auth', 'member'];
 
@@ -40,11 +43,12 @@ class MemberActivitySubscriber implements EventSubscriberInterface
      * @param \Closure(): int     $random         0~99 난수 (테스트 주입용)
      */
     public function __construct(
-        private MemberActivityRepository $repository,
+        MemberActivityRepository|\Closure $repository,
         private \Closure $domainResolver,
         private ?Logger $logger = null,
         private ?\Closure $random = null,
     ) {
+        $this->repository = $repository;
     }
 
     public static function getSubscribedEvents(): array
@@ -78,7 +82,7 @@ class MemberActivitySubscriber implements EventSubscriberInterface
         $url = mb_substr($url, 0, 500);
 
         try {
-            $latest = $this->repository->findLatest($domainId, $memberId);
+            $latest = $this->repository()->findLatest($domainId, $memberId);
             if ($latest !== null
                 && $latest['page_url'] === $url
                 && time() - (int) strtotime((string) $latest['created_at']) < self::DEDUPE_SECONDS
@@ -86,7 +90,7 @@ class MemberActivitySubscriber implements EventSubscriberInterface
                 return;
             }
 
-            $this->repository->insert(
+            $this->repository()->insert(
                 $domainId,
                 $memberId,
                 mb_substr($event->getPageType(), 0, 30),
@@ -97,7 +101,7 @@ class MemberActivitySubscriber implements EventSubscriberInterface
             $roll = $this->random !== null ? ($this->random)() : random_int(0, 99);
             if ($roll === 0) {
                 $before = date('Y-m-d H:i:s', time() - $domain->getMemberActivityRetentionDays() * 86400);
-                $this->repository->purgeOlderThan($domainId, $before);
+                $this->repository()->purgeOlderThan($domainId, $before);
             }
         } catch (\Throwable $e) {
             $this->logger?->warning('회원 활동 기록 실패', [
@@ -123,7 +127,7 @@ class MemberActivitySubscriber implements EventSubscriberInterface
 
         $enabled = $domain->isMemberActivityLogEnabled();
         try {
-            $rows = $this->repository->findRecent($domainId, $memberId, self::RECENT_LIMIT);
+            $rows = $this->repository()->findRecent($domainId, $memberId, self::RECENT_LIMIT);
         } catch (\Throwable) {
             // 마이그레이션 전 — 켜 두지 않았다면 조용히 넘어간다
             $rows = [];
@@ -139,13 +143,21 @@ class MemberActivitySubscriber implements EventSubscriberInterface
     public function onMemberWithdrawn(MemberWithdrawnEvent $event): void
     {
         try {
-            $this->repository->deleteByMember($event->getMemberId());
+            $this->repository()->deleteByMember($event->getMemberId());
         } catch (\Throwable $e) {
             $this->logger?->error('탈퇴 회원 활동 기록 삭제 실패 — 수동 정리 필요', [
                 'member_id' => $event->getMemberId(),
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function repository(): MemberActivityRepository
+    {
+        if ($this->repository instanceof \Closure) {
+            $this->repository = ($this->repository)();
+        }
+        return $this->repository;
     }
 
     /**

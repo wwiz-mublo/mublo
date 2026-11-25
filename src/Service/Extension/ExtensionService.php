@@ -40,6 +40,12 @@ class ExtensionService
     private string $pluginPath;
     private string $packagePath;
 
+    /** @var array<string, array>|null 요청 중 한 번만 디스크를 탐색한다. */
+    private ?array $pluginManifestsCache = null;
+
+    /** @var array<string, array>|null 요청 중 한 번만 디스크를 탐색한다. */
+    private ?array $packageManifestsCache = null;
+
     /** reconcile 설치 실패 후 다음 재시도까지의 backoff(초) — 매 요청 재시도·로그 스팸 방지 */
     private const RECONCILE_BACKOFF_TTL = 300;
 
@@ -84,8 +90,12 @@ class ExtensionService
      */
     public function getPluginManifests(): array
     {
-        return $this->scanManifests($this->pluginPath, 'plugin')
-            + $this->scanNestedPluginManifests();
+        if ($this->pluginManifestsCache === null) {
+            $this->pluginManifestsCache = $this->scanManifests($this->pluginPath, 'plugin')
+                + $this->scanNestedPluginManifests();
+        }
+
+        return $this->pluginManifestsCache;
     }
 
     /**
@@ -141,7 +151,11 @@ class ExtensionService
      */
     public function getPackageManifests(): array
     {
-        return $this->scanManifests($this->packagePath, 'package');
+        if ($this->packageManifestsCache === null) {
+            $this->packageManifestsCache = $this->scanManifests($this->packagePath, 'package');
+        }
+
+        return $this->packageManifestsCache;
     }
 
     /**

@@ -103,6 +103,12 @@ class ContextBuilder
         $domainName = $request->getHost();
         $context->setDomain($domainName);
 
+        // 프레임/뷰/블록 자산은 도메인 설정·스킨·메뉴를 사용하지 않는다.
+        // 단, package/plugin 자산은 활성화 여부를 도메인 설정으로 검증하므로 제외한다.
+        if ($this->isDomainIndependentAssetServeRequest($request)) {
+            return $context;
+        }
+
         // 도메인 정보 로드 (캐시 → DB)
         $this->applyDomain($context, $request, $this->resolveDomain($domainName));
 
@@ -235,6 +241,17 @@ class ContextBuilder
         return $path === '/api' || str_starts_with($path, '/api/');
     }
 
+    protected function isDomainIndependentAssetServeRequest(Request $request): bool
+    {
+        $path = $request->getPath();
+        if (!str_starts_with($path, '/serve/')) {
+            return false;
+        }
+
+        return !str_starts_with($path, '/serve/package/')
+            && !str_starts_with($path, '/serve/plugin/');
+    }
+
     /* =========================================================
      * Domain 해결
      * ========================================================= */
@@ -270,8 +287,8 @@ class ContextBuilder
         if ($this->domainResolver === null) {
             $this->domainResolver = new DomainResolver(
                 new DomainCache(),
-                new DomainRepository(),
-                new DomainAliasRepository()
+                static fn(): DomainRepository => new DomainRepository(),
+                static fn(): DomainAliasRepository => new DomainAliasRepository()
             );
         }
 
