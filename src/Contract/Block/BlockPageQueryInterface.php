@@ -15,6 +15,9 @@ use Mublo\Entity\Block\BlockPage;
  */
 interface BlockPageQueryInterface
 {
+    /** @return BlockPage[] 도메인의 삭제되지 않은 블록 페이지 */
+    public function listByDomain(int $domainId): array;
+
     /**
      * 활성(삭제되지 않은) 블록 페이지를 코드로 조회
      */
