@@ -30,6 +30,12 @@ use Mublo\Helper\Form\FormHelper;
  */
 class BlockPageService implements BlockPageQueryInterface
 {
+    /** @return BlockPage[] */
+    public function listByDomain(int $domainId): array
+    {
+        return $this->getPages($domainId);
+    }
+
     private BlockPageRepository $repository;
     private BlockRowRepository $rowRepository;
     private ?EventDispatcher $eventDispatcher;
