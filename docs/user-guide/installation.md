@@ -199,6 +199,13 @@ server {
         fastcgi_hide_header X-Powered-By;
     }
 
+    # /.well-known/ 은 아래 점 파일 차단보다 먼저 연다 (^~ 는 정규식 블록보다 우선한다).
+    # 도메인 변경·별칭의 연결 확인(/.well-known/mublo-domain-verify)과
+    # 인증서 발급(/.well-known/acme-challenge/)이 이 경로를 쓴다.
+    location ^~ /.well-known/ {
+        try_files $uri /index.php?$query_string;
+    }
+
     # 점으로 시작하는 파일 차단 (.env, .git 등)
     location ~ /\. {
         deny all;

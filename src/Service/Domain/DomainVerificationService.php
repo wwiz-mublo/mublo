@@ -243,7 +243,10 @@ class DomainVerificationService
         return match (true) {
             $code === 200 => '응답은 왔지만 이 설치본이 아닙니다. 그 호스트명이 다른 사이트로 연결되고 있습니다.',
             $code === 404 => '다른 서버가 응답했거나, 연결된 오리진에 이 버전이 배포되지 않았습니다.',
-            in_array($code, [401, 403, 429, 503], true)
+            // 웹서버의 점 파일 차단(nginx `location ~ /\.`)이 /.well-known/ 까지 막는 경우가 흔하다 — 프록시보다 먼저 본다
+            $code === 403
+                => '웹서버의 점 파일 차단(nginx 의 location ~ /\. 등)이나 프록시·보안 설정(Cloudflare 봇 차단/챌린지, IP 제한 등)에 막혔을 수 있습니다. /.well-known/ 경로를 예외로 두고 다시 시도하세요.',
+            in_array($code, [401, 429, 503], true)
                 => '프록시·보안 설정(Cloudflare 봇 차단/챌린지, IP 제한 등)에 막혔을 수 있습니다. ' . self::PROBE_PATH . ' 경로를 예외로 두고 다시 시도하세요.',
             in_array($code, [502, 521, 522, 523, 525], true)
                 => '프록시가 오리진 서버에 연결하지 못했습니다. 오리진 주소·포트·인증서 설정을 확인하세요.',

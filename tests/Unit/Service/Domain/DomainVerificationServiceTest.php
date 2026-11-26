@@ -114,7 +114,7 @@ class DomainVerificationServiceTest extends TestCase
         $cases = [
             200 => '이 설치본이 아닙니다',   // 응답은 왔지만 nonce 불일치 = 다른 사이트
             404 => '배포되지 않았습니다',     // 오리진에 이 버전이 없음
-            403 => '봇 차단',                // CF WAF/챌린지
+            403 => '점 파일 차단',           // 웹서버의 dot-file deny 가 /.well-known/ 까지 막는 경우 (CF WAF 도 함께 안내)
             503 => '봇 차단',
             522 => '오리진 서버에 연결하지 못했습니다',
         ];
