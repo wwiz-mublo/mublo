@@ -141,6 +141,20 @@ $snsChannels = $seoConfig['sns_channels'] ?? [];
                 <input type="text" name="formData[seo][google_analytics]" value="" id="google_analytics" class="form-control" placeholder="G-XXXXXXXXXX">
             </div>
             <div class="col-12 col-md-6 col-lg-3">
+                <label for="adsense_publisher_id" class="form-label">Google AdSense 게시자 ID</label>
+                <input type="text"
+                       name="formData[seo][adsense_publisher_id]"
+                       value=""
+                       id="adsense_publisher_id"
+                       class="form-control"
+                       inputmode="text"
+                       pattern="pub-[0-9]{16}"
+                       placeholder="pub-0000000000000000">
+                <div class="form-text">
+                    승인 전에는 비워두어도 <code>/ads.txt</code> 경로가 기본 제공됩니다.
+                </div>
+            </div>
+            <div class="col-12 col-md-6 col-lg-3">
                 <label for="meta_pixel_id" class="form-label">Meta (Facebook) Pixel</label>
                 <input type="text" name="formData[seo][meta_pixel_id]" value="" id="meta_pixel_id" class="form-control" placeholder="픽셀 ID">
             </div>

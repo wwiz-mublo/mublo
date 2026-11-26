@@ -660,6 +660,13 @@ class Router
             'middleware' => [],
         ]);
 
+        // ads.txt (승인 전에도 경로 제공, 게시자 ID 등록 시 Google 표준 레코드 출력)
+        $r->addRoute('GET', '/ads.txt', [
+            'controller' => \Mublo\Controller\Front\AdsTxtController::class,
+            'method'     => 'index',
+            'middleware' => [],
+        ]);
+
         // sitemap.xml (메뉴 + 블록페이지 + 확장 Provider 기여분)
         $r->addRoute('GET', '/sitemap.xml', [
             'controller' => \Mublo\Controller\Front\SitemapController::class,
