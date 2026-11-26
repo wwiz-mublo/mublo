@@ -114,7 +114,18 @@ shop.example.com  → A 레코드 → 서버 IP
 |---|---|
 | 200 (nonce 불일치) | 응답은 왔지만 이 설치본이 아님 — 그 호스트명이 다른 사이트로 연결됨 |
 | 404 | 다른 서버가 응답했거나, 연결된 오리진에 이 버전이 배포되지 않음 |
-| 401 / 403 / 429 / 503 | 프록시·보안 설정(Cloudflare 봇 차단·챌린지, IP 제한)에 막힘 → `/.well-known/mublo-domain-verify`를 예외 처리 |
+| 403 | 웹서버의 점 파일 차단(nginx `location ~ /\.`) 또는 프록시·보안 설정에 막힘 → `/.well-known/`을 예외 처리 (아래 참고) |
+| 401 / 429 / 503 | 프록시·보안 설정(Cloudflare 봇 차단·챌린지, IP 제한)에 막힘 → `/.well-known/mublo-domain-verify`를 예외 처리 |
+
+**403은 웹서버부터 확인하세요.** nginx 에 `.env`·`.git` 을 막는 `location ~ /\. { deny all; }` 이 있으면
+`/.well-known/` 도 같이 막힙니다. 응답 본문에 `nginx/버전`이 찍혀 있으면 이 경우입니다(Cloudflare가 막은 것이면
+Cloudflare 차단 화면이 나옵니다). [설치 안내의 nginx 예시](installation.md)처럼 그 블록 앞에 예외를 둡니다.
+
+```nginx
+location ^~ /.well-known/ {
+    try_files $uri /index.php?$query_string;
+}
+```
 | 502 / 521 / 522 / 523 / 525 | 프록시가 오리진 서버에 연결하지 못함 |
 | 3xx | 리다이렉트 반복 — 프록시의 HTTPS 강제 설정 확인 |
 
