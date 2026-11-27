@@ -66,6 +66,7 @@ class DomainSettingsService implements CompanyInfoInterface
         'logo_pc', 'logo_mobile', 'favicon', 'app_icon', 'og_image',
         'meta_title', 'meta_description', 'meta_keywords',
         'google_analytics', 'google_site_verification', 'naver_site_verification',
+        'adsense_publisher_id',
         'meta_pixel_id', 'kakao_pixel_id', 'naver_analytics_id',
         'custom_head_script', 'custom_body_script',
         'sns_channels',
@@ -342,6 +343,7 @@ class DomainSettingsService implements CompanyInfoInterface
             'meta_description' => '',
             'meta_keywords' => '',
             'google_analytics' => '',
+            'adsense_publisher_id' => '',
             'google_site_verification' => '',
             'naver_site_verification' => '',
             'meta_pixel_id' => '',
@@ -834,6 +836,9 @@ class DomainSettingsService implements CompanyInfoInterface
             'meta_description' => trim($data['meta_description'] ?? ''),
             'meta_keywords' => trim($data['meta_keywords'] ?? ''),
             'google_analytics' => trim($data['google_analytics'] ?? ''),
+            'adsense_publisher_id' => $this->sanitizeAdsensePublisherId(
+                $data['adsense_publisher_id'] ?? ''
+            ),
             'google_site_verification' => trim($data['google_site_verification'] ?? ''),
             'naver_site_verification' => trim($data['naver_site_verification'] ?? ''),
             // 트래킹 픽셀 ID
@@ -846,6 +851,18 @@ class DomainSettingsService implements CompanyInfoInterface
             'sns_channels' => $data['sns_channels'] ?? [],
             'robots_txt' => trim($data['robots_txt'] ?? ''),
         ];
+    }
+
+    private function sanitizeAdsensePublisherId(mixed $value): string
+    {
+        $publisherId = trim((string) $value);
+        if ($publisherId === '' || preg_match('/\Apub-[0-9]{16}\z/', $publisherId) === 1) {
+            return $publisherId;
+        }
+
+        throw new \InvalidArgumentException(
+            'AdSense 게시자 ID는 pub- 다음에 숫자 16자리가 오는 형식이어야 합니다.'
+        );
     }
 
     protected function sanitizeThemeConfig(array $data): array

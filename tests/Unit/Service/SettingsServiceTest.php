@@ -48,6 +48,14 @@ class SettingsServiceTest extends TestCase
         $this->assertEquals('ko', $config['language']);
     }
 
+    public function testDefaultSeoConfigIncludesEmptyAdsensePublisherId(): void
+    {
+        $config = $this->settingsService->getDefaultSeoConfig();
+
+        $this->assertArrayHasKey('adsense_publisher_id', $config);
+        $this->assertSame('', $config['adsense_publisher_id']);
+    }
+
     /**
      * 도메인별 사이트 설정 조회 (도메인 없음)
      */

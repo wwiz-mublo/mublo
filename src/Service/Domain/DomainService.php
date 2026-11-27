@@ -1368,6 +1368,7 @@ class DomainService
             'meta_description' => trim($data['meta_description'] ?? ''),
             'meta_keywords' => trim($data['meta_keywords'] ?? ''),
             'google_analytics' => trim($data['google_analytics'] ?? ''),
+            'adsense_publisher_id' => trim($data['adsense_publisher_id'] ?? ''),
             'google_site_verification' => trim($data['google_site_verification'] ?? ''),
             'naver_site_verification' => trim($data['naver_site_verification'] ?? ''),
             'sns_channels' => $data['sns_channels'] ?? [],
