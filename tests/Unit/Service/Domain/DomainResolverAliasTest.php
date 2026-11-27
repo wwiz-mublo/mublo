@@ -93,6 +93,34 @@ class DomainResolverAliasTest extends TestCase
         $this->assertSame(1, $domain?->getDomainId());
     }
 
+    public function testRepositoriesAreResolvedLazilyAndMemoized(): void
+    {
+        $repositoryResolutions = 0;
+        $aliasResolutions = 0;
+        $resolver = new DomainResolver(
+            $this->cache,
+            function () use (&$repositoryResolutions): DomainRepository {
+                $repositoryResolutions++;
+                return $this->repository;
+            },
+            function () use (&$aliasResolutions): DomainAliasRepository {
+                $aliasResolutions++;
+                return $this->aliasRepository;
+            }
+        );
+
+        self::assertSame(0, $repositoryResolutions);
+        self::assertSame(0, $aliasResolutions);
+
+        self::assertSame(1, $resolver->resolve('wizcoin.kr')?->getDomainId());
+        self::assertSame(1, $repositoryResolutions);
+        self::assertSame(0, $aliasResolutions, '대표 주소 조회 성공 시 별칭 저장소는 만들지 않는다');
+
+        self::assertNull($resolver->resolve('unknown.kr'));
+        self::assertSame(1, $repositoryResolutions, '저장소 인스턴스는 resolver 안에서 재사용한다');
+        self::assertSame(1, $aliasResolutions);
+    }
+
     public function testAliasHostResolvesToItsSite(): void
     {
         $this->useAliasTable();

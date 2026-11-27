@@ -4,7 +4,7 @@ namespace Tests\Board\Unit\Controller;
 
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Contract\Member\MemberActionQueryInterface;
-use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\MemberPublicAppearanceQueryInterface;
 use Mublo\Core\Context\Context;
 use Mublo\Core\Event\EventDispatcher;
 use Mublo\Core\Http\Request;
@@ -126,7 +126,7 @@ class BoardFileDownloadResponseTest extends TestCase
             $this->createMock(SessionInterface::class),
             $this->createMock(EventDispatcher::class),
             $this->createMock(MemberActionQueryInterface::class),
-            $this->createMock(MemberQueryInterface::class),
+            $this->createMock(MemberPublicAppearanceQueryInterface::class),
         );
     }
 

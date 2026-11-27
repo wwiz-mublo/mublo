@@ -28,8 +28,10 @@ use Mublo\Repository\Domain\DomainRepository;
 class DomainResolver
 {
     protected DomainCache $cache;
-    protected DomainRepository $repository;
-    protected ?DomainAliasRepository $aliasRepository;
+    /** @var DomainRepository|\Closure(): DomainRepository */
+    protected DomainRepository|\Closure $repository;
+    /** @var DomainAliasRepository|\Closure(): DomainAliasRepository|null */
+    protected DomainAliasRepository|\Closure|null $aliasRepository;
 
     /**
      * 메모리 캐시 (같은 요청 내 재사용)
@@ -43,8 +45,8 @@ class DomainResolver
 
     public function __construct(
         DomainCache $cache,
-        DomainRepository $repository,
-        ?DomainAliasRepository $aliasRepository = null
+        DomainRepository|\Closure $repository,
+        DomainAliasRepository|\Closure|null $aliasRepository = null
     ) {
         $this->cache = $cache;
         $this->repository = $repository;
@@ -143,7 +145,7 @@ class DomainResolver
 
     private function findCanonicalInDb(string $domainName): ?Domain
     {
-        $domain = $this->repository->findByDomain($domainName);
+        $domain = $this->repository()->findByDomain($domainName);
 
         if ($domain !== null) {
             $this->cache->set($domain);
@@ -185,12 +187,12 @@ class DomainResolver
             return null;
         }
 
-        $domainId = $this->aliasRepository->findDomainIdByHost($host);
+        $domainId = $this->aliasRepository()->findDomainIdByHost($host);
         if ($domainId === null) {
             return null;
         }
 
-        $domain = $this->repository->findById($domainId);
+        $domain = $this->repository()->findById($domainId);
         if ($domain === null) {
             return null;
         }
@@ -199,6 +201,38 @@ class DomainResolver
         $this->cache->setAlias($host, $domain);
 
         return $domain;
+    }
+
+    /** 캐시 미스 전에는 PDO를 여는 Repository를 만들지 않는다. */
+    private function repository(): DomainRepository
+    {
+        if ($this->repository instanceof \Closure) {
+            $repository = ($this->repository)();
+            if (!$repository instanceof DomainRepository) {
+                throw new \RuntimeException('Domain repository resolver must return DomainRepository');
+            }
+            $this->repository = $repository;
+        }
+
+        return $this->repository;
+    }
+
+    /** 별칭 DB 조회가 실제로 필요할 때만 Repository를 만든다. */
+    private function aliasRepository(): DomainAliasRepository
+    {
+        if ($this->aliasRepository instanceof \Closure) {
+            $repository = ($this->aliasRepository)();
+            if (!$repository instanceof DomainAliasRepository) {
+                throw new \RuntimeException('Domain alias repository resolver must return DomainAliasRepository');
+            }
+            $this->aliasRepository = $repository;
+        }
+
+        if (!$this->aliasRepository instanceof DomainAliasRepository) {
+            throw new \RuntimeException('Domain alias repository is not configured');
+        }
+
+        return $this->aliasRepository;
     }
 
     /**

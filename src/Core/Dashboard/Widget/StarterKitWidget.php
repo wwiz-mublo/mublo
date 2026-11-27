@@ -23,11 +23,15 @@ use Mublo\Infrastructure\Database\Database;
  */
 class StarterKitWidget extends AbstractDashboardWidget
 {
+    /** @var Database|Closure(): Database */
+    private Database|Closure $db;
+
     /** @param Closure(): ?int $domainIdResolver boot 시점에는 Context 미존재 → 지연 해석 */
     public function __construct(
-        private Database $db,
+        Database|Closure $db,
         private Closure $domainIdResolver
     ) {
+        $this->db = $db;
     }
 
     public function id(): string
@@ -102,7 +106,7 @@ class StarterKitWidget extends AbstractDashboardWidget
         }
 
         try {
-            $rows = $this->db->select(
+            $rows = $this->database()->select(
                 "SELECT kit_name, screenshot_path FROM block_kits
                  WHERE domain_id = ? AND source_type = 'bundled' AND is_deleted = 0",
                 [$domainId]
@@ -120,6 +124,14 @@ class StarterKitWidget extends AbstractDashboardWidget
         }
 
         return $map;
+    }
+
+    private function database(): Database
+    {
+        if ($this->db instanceof Closure) {
+            $this->db = ($this->db)();
+        }
+        return $this->db;
     }
 
     /**

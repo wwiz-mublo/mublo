@@ -13,6 +13,7 @@ define('MUBLO_PUBLIC_PATH', __DIR__);
 
 // Bootstrap
 $app = require __DIR__ . '/../bootstrap.php';
+$app->setPhpStartedAtNs($__startTimeNs);
 
 // 설치 여부 확인 및 라우팅
 $requestUri = $_SERVER['REQUEST_URI'] ?? '/';

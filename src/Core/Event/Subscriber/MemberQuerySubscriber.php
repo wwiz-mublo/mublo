@@ -19,10 +19,18 @@ use Mublo\Repository\Member\MemberRepository;
  */
 class MemberQuerySubscriber implements EventSubscriberInterface
 {
+    /** @var MemberRepository|\Closure(): MemberRepository */
+    private MemberRepository|\Closure $memberRepository;
+    /** @var MemberLevelRepository|\Closure(): MemberLevelRepository */
+    private MemberLevelRepository|\Closure $memberLevelRepository;
+
     public function __construct(
-        private MemberRepository $memberRepository,
-        private MemberLevelRepository $memberLevelRepository,
-    ) {}
+        MemberRepository|\Closure $memberRepository,
+        MemberLevelRepository|\Closure $memberLevelRepository,
+    ) {
+        $this->memberRepository = $memberRepository;
+        $this->memberLevelRepository = $memberLevelRepository;
+    }
 
     public static function getSubscribedEvents(): array
     {
@@ -37,7 +45,7 @@ class MemberQuerySubscriber implements EventSubscriberInterface
      */
     public function onMemberListQuery(MemberListQueryEvent $event): void
     {
-        $members = $this->memberRepository->findByCriteria(
+        $members = $this->memberRepository()->findByCriteria(
             $event->getDomainId(),
             $event->getCriteria()
         );
@@ -54,8 +62,8 @@ class MemberQuerySubscriber implements EventSubscriberInterface
             || ($event->getFilter('exclude_admin') && $event->getFilter('exclude_super'));
 
         $entities = $memberOnly
-            ? $this->memberLevelRepository->getMemberLevels()   // is_admin=0 AND is_super=0
-            : $this->memberLevelRepository->getAll();
+            ? $this->memberLevelRepository()->getMemberLevels()   // is_admin=0 AND is_super=0
+            : $this->memberLevelRepository()->getAll();
 
         $levelType = $event->getFilter('level_type');
 
@@ -76,5 +84,21 @@ class MemberQuerySubscriber implements EventSubscriberInterface
         }
 
         $event->setLevels($levels);
+    }
+
+    private function memberRepository(): MemberRepository
+    {
+        if ($this->memberRepository instanceof \Closure) {
+            $this->memberRepository = ($this->memberRepository)();
+        }
+        return $this->memberRepository;
+    }
+
+    private function memberLevelRepository(): MemberLevelRepository
+    {
+        if ($this->memberLevelRepository instanceof \Closure) {
+            $this->memberLevelRepository = ($this->memberLevelRepository)();
+        }
+        return $this->memberLevelRepository;
     }
 }

@@ -56,6 +56,12 @@ use Mublo\Core\Event\Rendering\SiteContextReadyEvent;
  */
 class Application
 {
+    protected int $applicationStartedAtNs;
+    protected ?int $phpStartedAtNs = null;
+
+    /** @var array<string, float> milliseconds */
+    protected array $serverTimings = [];
+
     /**
      * 배포물 버전 (단일 진실원천, SSOT)
      *
@@ -96,11 +102,19 @@ class Application
 
     public function __construct()
     {
+        $this->applicationStartedAtNs = hrtime(true);
+
         /**
          * 컨테이너는 Application 생성 시점에 준비만 한다.
          * (서비스 등록은 boot 단계에서)
          */
         $this->container = DependencyContainer::getInstance();
+    }
+
+    /** public/index.php 진입부터 bootstrap 시간을 포함해 계측한다. */
+    public function setPhpStartedAtNs(int $startedAtNs): void
+    {
+        $this->phpStartedAtNs = $startedAtNs;
     }
 
     /**
@@ -124,6 +138,8 @@ class Application
      */
     public function boot(): void
     {
+        $bootStartedAtNs = hrtime(true);
+
         // 0. 환경 변수 로드 (.env 파일)
         $this->loadEnv();
 
@@ -144,6 +160,8 @@ class Application
 
         // 3. Core 이벤트 구독자 등록
         $provider->bootSubscribers($this->container);
+
+        $this->serverTimings['boot'] = $this->elapsedMilliseconds($bootStartedAtNs);
 
         // Note: 확장(Plugin/Package)의 이벤트 구독자 등록은
         // loadEnabledExtensions()에서 ExtensionManager가 담당
@@ -232,7 +250,9 @@ class Application
         // 2. Context 생성
         // - Request를 해석한 "애플리케이션 상태"
         // ==================================================
+        $contextStartedAtNs = hrtime(true);
         $this->context = $this->createContext($this->request);
+        $this->serverTimings['context'] = $this->elapsedMilliseconds($contextStartedAtNs);
 
         // Context를 Container에 등록 (다른 서비스에서 주입받을 수 있도록)
         $this->container->set(Context::class, $this->context);
@@ -256,11 +276,15 @@ class Application
         // 3.5. 활성화된 확장(Plugin/Package) 로딩
         // - 도메인의 extension_config에 따라 활성화된 것만 로딩
         // ==================================================
+        $extensionsStartedAtNs = hrtime(true);
         $this->loadEnabledExtensions();
 
         // 3.6. 확장 로드 후 Core 이벤트 구독자 등록
         // - PolicyService, ExtensionService 등 Package 의존 서비스 필요
-        ServiceProvider::bootPostExtensionSubscribers($this->container);
+        if (!$this->isInstallRequest() && !$this->isPublicApiRequest()) {
+            ServiceProvider::bootPostExtensionSubscribers($this->container);
+        }
+        $this->serverTimings['extensions'] = $this->elapsedMilliseconds($extensionsStartedAtNs);
 
         // 확장 속성 잠금 (boot() 이후 setAttribute() 차단)
         $this->context->lockAttributes();
@@ -270,14 +294,17 @@ class Application
         // - Session 시작 등 모든 요청에 공통 적용
         // ==================================================
         $globalPipeline = new MiddlewarePipeline($this->container);
-        $globalPipeline->through([
-            // 가장 바깥에서 실행되어 CSRF/Auth가 조기 반환한 관리자 HTML에도 적용된다.
-            SecurityHeadersMiddleware::class,
-            SessionMiddleware::class,
-            CsrfMiddleware::class,
-        ]);
+        $globalPipeline->through($this->isAssetServeRequest()
+            ? [SecurityHeadersMiddleware::class]
+            : [
+                // 가장 바깥에서 실행되어 CSRF/Auth가 조기 반환한 관리자 HTML에도 적용된다.
+                SecurityHeadersMiddleware::class,
+                SessionMiddleware::class,
+                CsrfMiddleware::class,
+            ]);
 
         try {
+            $dispatchStartedAtNs = hrtime(true);
             $response = $globalPipeline->run(
                 $this->request,
                 $this->context,
@@ -321,6 +348,11 @@ class Application
                     return $dispatcher->dispatch($route, $context);
                 }
             );
+
+            $this->serverTimings['dispatch'] = $this->elapsedMilliseconds($dispatchStartedAtNs);
+            $this->serverTimings['app'] = $this->elapsedMilliseconds($this->applicationStartedAtNs);
+            $this->recordPhpTiming();
+            $this->emitServerTimingHeader();
 
             // ==================================================
             // 7. Response 처리
@@ -514,6 +546,43 @@ class Application
         }
 
         return false;
+    }
+
+    protected function isAssetServeRequest(): bool
+    {
+        return str_starts_with($this->request->getPath(), '/serve/');
+    }
+
+    protected function elapsedMilliseconds(int $startedAtNs): float
+    {
+        return (hrtime(true) - $startedAtNs) / 1_000_000;
+    }
+
+    protected function recordPhpTiming(): void
+    {
+        if ($this->phpStartedAtNs !== null) {
+            $this->serverTimings['php'] = $this->elapsedMilliseconds($this->phpStartedAtNs);
+        }
+    }
+
+    protected function emitServerTimingHeader(): void
+    {
+        if (Env::get('SERVER_TIMING_ENABLED', false) !== true || headers_sent()) {
+            return;
+        }
+
+        header('Server-Timing: ' . $this->formatServerTiming($this->serverTimings));
+    }
+
+    /** @param array<string, float|int> $timings */
+    protected function formatServerTiming(array $timings): string
+    {
+        $parts = [];
+        foreach ($timings as $name => $duration) {
+            $parts[] = $name . ';dur=' . number_format(max(0.0, (float) $duration), 1, '.', '');
+        }
+
+        return implode(', ', $parts);
     }
 
     /**

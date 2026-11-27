@@ -9,13 +9,32 @@ use Mublo\Contract\Member\MemberActionQueryInterface;
 use Mublo\Contract\Member\MemberActionScope;
 use Mublo\Contract\Member\MemberActionTargetTransport;
 use Mublo\Contract\Member\MemberActionView;
-use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\MemberPublicAppearance;
+use Mublo\Contract\Member\MemberPublicAppearanceQueryInterface;
 use Mublo\Packages\Board\Controller\Front\BoardController;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 
 final class BoardMemberActionIntegrationTest extends TestCase
 {
+    public function testListDecorationExposesAppearanceWithoutInternalMemberId(): void
+    {
+        $controller = (new ReflectionClass(BoardController::class))->newInstanceWithoutConstructor();
+        $method = (new ReflectionClass(BoardController::class))->getMethod('decorateListAuthorAppearances');
+
+        $result = $method->invoke(
+            $controller,
+            [['article_id' => 1, 'author_name' => '작성자']],
+            [['article_id' => 1, 'member_id' => 77]],
+            [77 => new MemberPublicAppearance('a3f9c2e81b47d06f5a92c1', '/storage/avatar.webp', true)],
+        );
+
+        self::assertArrayNotHasKey('member_id', $result[0]);
+        self::assertSame('/storage/avatar.webp', $result[0]['author_avatar_url']);
+        self::assertTrue($result[0]['author_is_super']);
+        self::assertSame('a3f9c2e81b47d06f5a92c1', $result[0]['author_public_id']);
+    }
+
     public function testItBatchesAuthorsAndRemovesInternalIdsFromViewData(): void
     {
         $publicIds = [
@@ -29,12 +48,6 @@ final class BoardMemberActionIntegrationTest extends TestCase
             '/direct-message/compose',
             MemberActionTargetTransport::PrivateBody,
         );
-
-        $members = $this->createMock(MemberQueryInterface::class);
-        $members->expects($this->once())
-            ->method('publicIdsFor')
-            ->with(1, [77, 88])
-            ->willReturn($publicIds);
 
         $actions = $this->createMock(MemberActionQueryInterface::class);
         $actions->expects($this->once())
@@ -58,6 +71,15 @@ final class BoardMemberActionIntegrationTest extends TestCase
             )
             ->willReturn([88 => [$action], 77 => []]);
 
+        $appearances = $this->createMock(MemberPublicAppearanceQueryInterface::class);
+        $appearances->expects($this->once())
+            ->method('forMembers')
+            ->with(1, [77, 88])
+            ->willReturn([
+                77 => new MemberPublicAppearance($publicIds[77], '/storage/avatar/77.webp', true),
+                88 => new MemberPublicAppearance($publicIds[88], '/storage/avatar/88.webp', false),
+            ]);
+
         $auth = $this->createMock(AuthContextInterface::class);
         $auth->method('currentUser')->willReturn(new AuthenticatedUser(
             5,
@@ -73,8 +95,8 @@ final class BoardMemberActionIntegrationTest extends TestCase
         $auth->method('isProxyLogin')->willReturn(false);
 
         $controller = (new ReflectionClass(BoardController::class))->newInstanceWithoutConstructor();
-        $this->setProperty($controller, 'memberQueries', $members);
         $this->setProperty($controller, 'memberActions', $actions);
+        $this->setProperty($controller, 'memberAppearances', $appearances);
         $this->setProperty($controller, 'authService', $auth);
 
         $method = (new ReflectionClass(BoardController::class))->getMethod('decorateMemberAuthors');
@@ -88,9 +110,13 @@ final class BoardMemberActionIntegrationTest extends TestCase
         self::assertArrayNotHasKey('member_id', $result['article']);
         self::assertSame($publicIds[77], $result['article']['author_public_id']);
         self::assertSame([$action], $result['article']['author_actions']);
+        self::assertSame('/storage/avatar/77.webp', $result['article']['author_avatar_url']);
+        self::assertTrue($result['article']['author_is_super']);
 
         self::assertSame($publicIds[88], $result['comments'][0]['author_public_id']);
         self::assertSame([$action], $result['comments'][0]['author_actions']);
+        self::assertSame('/storage/avatar/88.webp', $result['comments'][0]['author_avatar_url']);
+        self::assertFalse($result['comments'][0]['author_is_super']);
         self::assertSame([$action], $result['comments'][1]['author_actions']);
         self::assertSame([], $result['comments'][2]['author_actions']);
         self::assertSame('', $result['comments'][3]['author_public_id']);

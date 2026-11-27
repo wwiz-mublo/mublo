@@ -14,10 +14,11 @@ class MemberStatsWidget extends AbstractDashboardWidget
         return true;
     }
 
-    private MemberRepository $memberRepo;
+    /** @var MemberRepository|\Closure(): MemberRepository */
+    private MemberRepository|\Closure $memberRepo;
     private \Closure|int|null $domainIdResolver;
 
-    public function __construct(MemberRepository $memberRepo, \Closure|int|null $domainId = null)
+    public function __construct(MemberRepository|\Closure $memberRepo, \Closure|int|null $domainId = null)
     {
         $this->memberRepo = $memberRepo;
         $this->domainIdResolver = $domainId;
@@ -51,7 +52,7 @@ class MemberStatsWidget extends AbstractDashboardWidget
         $domainId = $this->getDomainId();
         $conditions = $domainId ? ['domain_id' => $domainId] : [];
 
-        $totalMembers = $this->memberRepo->countBy($conditions);
+        $totalMembers = $this->memberRepository()->countBy($conditions);
         $todayCount = $this->countByDate(date('Y-m-d'));
         $monthCount = $this->countSinceDate(date('Y-m-01'));
 
@@ -79,7 +80,7 @@ class MemberStatsWidget extends AbstractDashboardWidget
     private function countByDate(string $date): int
     {
         try {
-            $db = $this->memberRepo->getDb();
+            $db = $this->memberRepository()->getDb();
             $query = $db->table('members')
                 ->whereRaw('DATE(created_at) = ?', [$date]);
 
@@ -96,7 +97,7 @@ class MemberStatsWidget extends AbstractDashboardWidget
     private function countSinceDate(string $date): int
     {
         try {
-            $db = $this->memberRepo->getDb();
+            $db = $this->memberRepository()->getDb();
             $query = $db->table('members')
                 ->where('created_at', '>=', $date);
 
@@ -108,5 +109,13 @@ class MemberStatsWidget extends AbstractDashboardWidget
         } catch (\Throwable $e) {
             return 0;
         }
+    }
+
+    private function memberRepository(): MemberRepository
+    {
+        if ($this->memberRepo instanceof \Closure) {
+            $this->memberRepo = ($this->memberRepo)();
+        }
+        return $this->memberRepo;
     }
 }

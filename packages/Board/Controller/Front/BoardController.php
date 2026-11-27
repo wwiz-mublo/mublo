@@ -17,7 +17,8 @@ use Mublo\Packages\Board\Service\BoardReactionService;
 use Mublo\Contract\Auth\AuthContextInterface;
 use Mublo\Contract\Member\MemberActionQueryInterface;
 use Mublo\Contract\Member\MemberActionScope;
-use Mublo\Contract\Member\MemberQueryInterface;
+use Mublo\Contract\Member\MemberPublicAppearance;
+use Mublo\Contract\Member\MemberPublicAppearanceQueryInterface;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Helper\Form\FormHelper;
 use Mublo\Packages\Board\Helper\ArticlePresenter;
@@ -60,7 +61,7 @@ class BoardController
     private SessionInterface $session;
     private EventDispatcher $eventDispatcher;
     private MemberActionQueryInterface $memberActions;
-    private MemberQueryInterface $memberQueries;
+    private MemberPublicAppearanceQueryInterface $memberAppearances;
     private ?RateLimiter $rateLimiter;
 
     public function __construct(
@@ -75,7 +76,7 @@ class BoardController
         SessionInterface $session,
         EventDispatcher $eventDispatcher,
         MemberActionQueryInterface $memberActions,
-        MemberQueryInterface $memberQueries,
+        MemberPublicAppearanceQueryInterface $memberAppearances,
         ?RateLimiter $rateLimiter = null
     ) {
         $this->articleService = $articleService;
@@ -89,7 +90,7 @@ class BoardController
         $this->session = $session;
         $this->eventDispatcher = $eventDispatcher;
         $this->memberActions = $memberActions;
-        $this->memberQueries = $memberQueries;
+        $this->memberAppearances = $memberAppearances;
         $this->rateLimiter = $rateLimiter;
     }
 
@@ -159,10 +160,21 @@ class BoardController
 
         $data = $result->getData();
 
+        $itemAuthorIds = $this->authorIds([...$notices, ...$data['items']]);
+        $itemAppearances = $this->memberAppearances->forMembers($domainId, $itemAuthorIds);
+
         // Presenter: 목록용 데이터 변환
         $presenter = new ArticlePresenter($data['board']);
-        $items = $presenter->toList($data['items'], $slug);
-        $noticeItems = $presenter->toList($notices, $slug);
+        $items = $this->decorateListAuthorAppearances(
+            $presenter->toList($data['items'], $slug),
+            $data['items'],
+            $itemAppearances
+        );
+        $noticeItems = $this->decorateListAuthorAppearances(
+            $presenter->toList($notices, $slug),
+            $notices,
+            $itemAppearances
+        );
 
         $pagination = $data['pagination'];
         $pagination['pageNums'] = 10;
@@ -437,9 +449,9 @@ class BoardController
             $articleAuthorId,
             ...$commentAuthorIds,
         ])));
-        $authorPublicIds = $this->memberQueries->publicIdsFor($domainId, $authorIds);
+        $appearances = $this->memberAppearances->forMembers($domainId, $authorIds);
 
-        $article['author_public_id'] = $authorPublicIds[$articleAuthorId] ?? '';
+        $article = $this->withAuthorAppearance($article, $appearances[$articleAuthorId] ?? null);
         $article['author_actions'] = $articleAuthorId > 0
             ? $this->memberActions->forMember(
                 $this->memberActionScope($domainId, ['board.article_author', 'member.author']),
@@ -455,13 +467,51 @@ class BoardController
             : [];
         foreach ($comments as &$comment) {
             $authorId = (int) ($comment['member_id'] ?? 0);
-            $comment['author_public_id'] = $authorPublicIds[$authorId] ?? '';
+            $comment = $this->withAuthorAppearance($comment, $appearances[$authorId] ?? null);
             $comment['author_actions'] = $commentActions[$authorId] ?? [];
             unset($comment['member_id']);
         }
         unset($comment);
 
         return ['article' => $article, 'comments' => $comments];
+    }
+
+    /** @param list<array<string, mixed>> $rows @return list<int> */
+    private function authorIds(array $rows): array
+    {
+        return array_values(array_unique(array_filter(array_map(
+            static fn (array $row): int => (int) ($row['member_id'] ?? 0),
+            $rows
+        ))));
+    }
+
+    /**
+     * @param list<array<string, mixed>> $presented
+     * @param list<array<string, mixed>> $source
+     * @param array<int, MemberPublicAppearance> $appearances
+     * @return list<array<string, mixed>>
+     */
+    private function decorateListAuthorAppearances(
+        array $presented,
+        array $source,
+        array $appearances
+    ): array {
+        foreach ($presented as $index => &$item) {
+            $memberId = (int) ($source[$index]['member_id'] ?? 0);
+            $item = $this->withAuthorAppearance($item, $appearances[$memberId] ?? null);
+        }
+        unset($item);
+
+        return $presented;
+    }
+
+    /** @param array<string, mixed> $item @return array<string, mixed> */
+    private function withAuthorAppearance(array $item, ?MemberPublicAppearance $appearance): array
+    {
+        $item['author_public_id'] = $appearance?->publicId ?? '';
+        $item['author_avatar_url'] = $appearance?->avatarUrl ?? '';
+        $item['author_is_super'] = $appearance?->super ?? false;
+        return $item;
     }
 
     /** @param list<string> $placements */

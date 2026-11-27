@@ -68,15 +68,16 @@ class ControllerDependencyBoundaryTest extends TestCase
         }
     }
 
-    public function testDetailControllerBatchesPublicMemberIdentifiersOncePerPage(): void
+    public function testControllerBatchesPublicMemberDataPerPage(): void
     {
         $source = (string) file_get_contents(
             dirname(__DIR__, 2) . '/Controller/Front/BoardController.php'
         );
 
-        $this->assertSame(1, substr_count($source, '->publicIdsFor('));
-        $this->assertSame(1, substr_count($source, '->forMembers('));
+        $this->assertSame(2, substr_count($source, 'memberAppearances->forMembers('), '목록·상세에서 각각 한 번만 조회');
+        $this->assertSame(1, substr_count($source, 'memberActions->forMembers('), '댓글 액션은 한 번에 조회');
         $this->assertStringContainsString("['board.article_author', 'member.author']", $source);
         $this->assertStringContainsString("['board.comment_author', 'member.author']", $source);
     }
+
 }

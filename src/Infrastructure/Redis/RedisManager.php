@@ -5,7 +5,6 @@ namespace Mublo\Infrastructure\Redis;
 
 use Mublo\Core\ConfigFile;
 use Redis;
-use RedisException;
 
 /**
  * RedisManager
@@ -19,12 +18,17 @@ class RedisManager
 {
     private static ?Redis $instance = null;
     private static array $config = [];
+    private static bool $connectionFailed = false;
 
     /**
      * Redis 인스턴스 반환 (싱글톤)
      */
     public static function getInstance(): Redis
     {
+        if (self::$connectionFailed) {
+            throw new \RuntimeException('Redis connection already failed in this request');
+        }
+
         if (self::$instance === null) {
             self::$instance = self::createConnection();
         }
@@ -38,19 +42,23 @@ class RedisManager
     private static function createConnection(): Redis
     {
         $config = self::getConfig();
+        $timeout = (float) ($_ENV['REDIS_CONNECT_TIMEOUT'] ?? ($config['timeout'] ?? 0.2));
 
         $redis = new Redis();
 
         try {
-            $redis->connect(
+            $connected = $redis->connect(
                 $config['host'],
                 $config['port'],
-                2.0  // timeout 2초
+                max(0.05, $timeout)
             );
+            if ($connected !== true) {
+                throw new \RuntimeException('Redis connect returned false');
+            }
 
             // 비밀번호가 있으면 인증
-            if (!empty($config['password'])) {
-                $redis->auth($config['password']);
+            if (!empty($config['password']) && $redis->auth($config['password']) !== true) {
+                throw new \RuntimeException('Redis authentication failed');
             }
 
             // 기본 옵션 설정
@@ -62,9 +70,12 @@ class RedisManager
             $redis->setOption(Redis::OPT_SERIALIZER, Redis::SERIALIZER_NONE);
             $redis->setOption(Redis::OPT_PREFIX, 'wz:');
 
-        } catch (RedisException $e) {
+        } catch (\Throwable $e) {
+            self::$connectionFailed = true;
             throw new \RuntimeException(
-                'Redis 연결 실패: ' . $e->getMessage()
+                'Redis 연결 실패: ' . $e->getMessage(),
+                0,
+                $e
             );
         }
 
@@ -95,6 +106,7 @@ class RedisManager
             'host' => '127.0.0.1',
             'port' => 6379,
             'password' => '',
+            'timeout' => 0.2,
         ];
     }
 
@@ -103,9 +115,14 @@ class RedisManager
      */
     public static function isConnected(): bool
     {
+        if (self::$connectionFailed) {
+            return false;
+        }
+
         try {
             $redis = self::getInstance();
-            return $redis->ping() === true || $redis->ping() === '+PONG';
+            $pong = $redis->ping();
+            return $pong === true || $pong === '+PONG';
         } catch (\Throwable $e) {
             return false;
         }
@@ -124,6 +141,7 @@ class RedisManager
             }
             self::$instance = null;
         }
+        self::$connectionFailed = false;
     }
 
     /**

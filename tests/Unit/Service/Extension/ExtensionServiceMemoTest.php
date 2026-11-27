@@ -8,6 +8,7 @@ use Mublo\Repository\Domain\DomainRepository;
 use Mublo\Infrastructure\Cache\DomainCache;
 use Mublo\Infrastructure\Database\Database;
 use PHPUnit\Framework\TestCase;
+use ReflectionClass;
 
 /**
  * ExtensionService의 요청 스코프 도메인 by-id 메모이즈 검증.
@@ -123,5 +124,39 @@ class ExtensionServiceMemoTest extends TestCase
 
         $this->assertSame(['Board/BoardReport'], $svc->getEnabledPlugins(1));
         $this->assertSame([], $svc->getEnabledPlugins(2));
+    }
+
+    public function testManifestDirectoriesAreScannedOnlyOncePerServiceInstance(): void
+    {
+        $root = sys_get_temp_dir() . '/mublo-extension-memo-' . uniqid('', true);
+        $pluginPath = $root . '/plugins';
+        $packagePath = $root . '/packages';
+        mkdir($pluginPath . '/Alpha', 0777, true);
+        mkdir($packagePath . '/Suite', 0777, true);
+        file_put_contents($pluginPath . '/Alpha/manifest.json', '{}');
+        file_put_contents($packagePath . '/Suite/manifest.json', '{}');
+
+        try {
+            $repo = $this->createMock(DomainRepository::class);
+            $service = $this->makeService($repo);
+            $reflection = new ReflectionClass($service);
+            $reflection->getProperty('pluginPath')->setValue($service, $pluginPath);
+            $reflection->getProperty('packagePath')->setValue($service, $packagePath);
+
+            self::assertArrayHasKey('Alpha', $service->getPluginManifests());
+            self::assertArrayHasKey('Suite', $service->getPackageManifests());
+
+            unlink($pluginPath . '/Alpha/manifest.json');
+            unlink($packagePath . '/Suite/manifest.json');
+
+            self::assertArrayHasKey('Alpha', $service->getPluginManifests());
+            self::assertArrayHasKey('Suite', $service->getPackageManifests());
+        } finally {
+            @rmdir($pluginPath . '/Alpha');
+            @rmdir($packagePath . '/Suite');
+            @rmdir($pluginPath);
+            @rmdir($packagePath);
+            @rmdir($root);
+        }
     }
 }

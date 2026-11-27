@@ -17,6 +17,7 @@
 | `AuthContextInterface` | 현재 사용자, 관리자·SUPER 권한, 대리 로그인 여부를 세션 배열 없이 조회 | Board, Mshop, Rental, Reservation, Shop, SiteKit, AutoForm, Promotion, Qna, Survey |
 | `ReauthenticationInterface` | 민감한 작업 앞의 본인 재확인 사실을 남기고 조회 — 확인 수단은 확장이 정한다 | SnsLogin |
 | `MemberQueryInterface` | 내부 Member Entity 없이 단건·일괄 프로필 및 활성 회원 닉네임 검색 | Board, Mshop, Rental, MemberPoint, SnsLogin, DirectMessage |
+| `MemberPublicAppearanceQueryInterface` | 회원 내부 ID·추가필드 저장 구조를 숨기고 공개 식별자·아바타 URL·최고관리자 표시를 도메인 단위로 일괄 조회 | Board 작성자 스킨 |
 | `MemberActionQueryInterface` | 로그인·자기 자신·위치·상태 정책을 공통 적용한 회원 액션 단건/일괄 조회 | Board 및 회원 작성자 화면 |
 | `MemberAccountGatewayInterface` | 가입(코어 트랜잭션·완료 이벤트 포함)·자격 검증·커스텀 필드 저장·등급 변경을 회원 테이블과 해시 형식 없이 수행 | Rental, SnsLogin |
 | `MemberLevelCatalogInterface` | 내부 레벨 Entity를 `MemberLevelDescriptor`로 변환해 조회 | Board, Mshop, Shop, MemberPoint |

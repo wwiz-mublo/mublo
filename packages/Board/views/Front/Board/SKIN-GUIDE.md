@@ -192,6 +192,8 @@ if (isLoggedIn) {
 | `content` | 내용 |
 | `author_name` | 작성자명 |
 | `author_public_id` | 공개 회원 식별자 (비회원은 빈 문자열) |
+| `author_avatar_url` | 공개 아바타 URL (없거나 비회원이면 빈 문자열) |
+| `author_is_super` | 최고관리자 표시 여부 |
 | `author_actions` | 코어 정책 검증을 마친 회원 액션 DTO 목록 |
 | `is_own` | 현재 로그인 회원이 작성한 댓글인지 여부 |
 | `created_at` | 작성일시 |
@@ -212,7 +214,9 @@ if (isLoggedIn) {
 | `author_name` / `author_name_masked` | 글쓴이 (원본 / 마스킹). 이스케이프 완료 |
 | `author_id` / `author_id_masked` | 아이디 (비회원은 null) |
 | `is_member` | 회원 여부 |
-| `author_public_id` | 공개 회원 식별자 (상세 화면에서만 제공) |
+| `author_public_id` | 공개 회원 식별자 (비회원은 빈 문자열) |
+| `author_avatar_url` | 공개 아바타 URL (없으면 빈 문자열) |
+| `author_is_super` | 최고관리자 표시 여부 |
 | `author_actions` | 코어 정책 검증을 마친 회원 액션 DTO 목록 (상세 화면에서만 제공) |
 | `url` / `edit_url` | 상세·수정 URL |
 | `date_short` / `date_relative` / `date_compact` | 날짜 포맷 3종 |
