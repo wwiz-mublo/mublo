@@ -516,7 +516,7 @@ HTML,
 <ul>
 <li>사진은 최대 3장까지 등록할 수 있습니다.</li>
 <li>지원 형식은 JPG, PNG, WEBP, GIF입니다.</li>
-<li>파일당 최대 크기는 5MB입니다.</li>
+<li>파일당 최대 크기는 기본 10MB입니다. 서버의 <code>config/upload.php</code> 에서 <code>shop_image.max_size_mb</code> 로 바꿀 수 있습니다(상품·분류·기획전 이미지도 같은 값).</li>
 </ul>
 <p>관리자 답변은 별도로 저장되어 즉시 반영됩니다.<br>후기 본문 수정 저장과 혼동하지 마십시오.</p>
 <ul>

@@ -40,7 +40,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Review/basic/_assets/css/
                 </div>
                 <?php endfor; ?>
             </div>
-            <div class="text-muted mt-1" style="font-size:0.8rem">JPG, PNG, WEBP 파일 (각 5MB 이하)</div>
+            <div class="text-muted mt-1" style="font-size:0.8rem">JPG, PNG, WEBP 파일 (각 <?= round(\Mublo\Core\UploadConfig::shopImageMaxBytes() / 1048576, 1) ?>MB 이하)</div>
         </div>
 
         <button type="submit" class="btn btn-primary w-100">후기 등록하기</button>

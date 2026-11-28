@@ -419,7 +419,7 @@ $anchor = [
                     <h5 class="mb-4">이미지</h5>
                     <div class="card">
                         <div class="card-hero">
-                            <span>첫 번째 이미지가 대표 이미지로 사용됩니다. (최대 5MB)</span>
+                            <span>첫 번째 이미지가 대표 이미지로 사용됩니다. (한 장 최대 <?= round(\Mublo\Core\UploadConfig::shopImageMaxBytes() / 1048576, 1) ?>MB)</span>
                             <button type="button" class="btn btn-xs btn-outline-primary ms-auto" onclick="ShopProductForm.addImage()">
                                 <i class="bi bi-plus-lg"></i> 이미지 추가
                             </button>
@@ -1009,8 +1009,9 @@ const ShopProductForm = {
         if (!img) return;
         if (input.files && input.files[0]) {
             const file = input.files[0];
-            if (file.size > 5 * 1024 * 1024) {
-                alert('파일이 너무 큽니다 (최대 5MB).');
+            const maxBytes = <?= \Mublo\Core\UploadConfig::shopImageMaxBytes() ?>;
+            if (file.size > maxBytes) {
+                alert('파일이 너무 큽니다 (최대 ' + (Math.round(maxBytes / 1048576 * 10) / 10) + 'MB).');
                 input.value = '';
                 return;
             }

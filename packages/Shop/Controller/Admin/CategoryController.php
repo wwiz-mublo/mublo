@@ -10,6 +10,7 @@ use Mublo\Packages\Shop\Helper\CategoryUrl;
 use Mublo\Contract\Member\MemberLevelCatalogInterface;
 use Mublo\Contract\Menu\MenuManagementInterface;
 use Mublo\Contract\Site\SiteProvisioningInterface;
+use Mublo\Core\UploadConfig;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Infrastructure\Storage\UploadedFile;
 
@@ -162,7 +163,7 @@ class CategoryController
             'subdirectory'       => 'shop/category',
             'include_date'       => false,
             'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-            'max_size'           => 5 * 1024 * 1024,
+            'max_size'           => UploadConfig::shopImageMaxBytes(),
         ]);
 
         if (!$result->isSuccess()) {

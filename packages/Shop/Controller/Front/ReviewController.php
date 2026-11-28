@@ -9,6 +9,7 @@ use Mublo\Core\Response\RedirectResponse;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Session\SessionInterface;
 use Mublo\Helper\Form\FormHelper;
+use Mublo\Core\UploadConfig;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use Mublo\Contract\Auth\AuthContextInterface;
@@ -307,7 +308,7 @@ class ReviewController
             $uploadResult = $this->fileUploader->upload($file, $domainId, [
                 'subdirectory'       => 'shop/review',
                 'allowed_extensions' => ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-                'max_size'           => 5 * 1024 * 1024,
+                'max_size'           => UploadConfig::shopImageMaxBytes(),
             ]);
 
             if ($uploadResult->isSuccess()) {

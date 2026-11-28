@@ -94,7 +94,7 @@ $contentText = trim(html_entity_decode(strip_tags(
                                     </div>
                                     <?php endfor; ?>
                                 </div>
-                                <div class="form-text">JPG, PNG, WEBP, GIF (각 5MB 이하) · 신규 업로드는 좌상단 "신규" 배지, 삭제 예정은 흐리게 표시됩니다.</div>
+                                <div class="form-text">JPG, PNG, WEBP, GIF (각 <?= round(\Mublo\Core\UploadConfig::shopImageMaxBytes() / 1048576, 1) ?>MB 이하) · 신규 업로드는 좌상단 "신규" 배지, 삭제 예정은 흐리게 표시됩니다.</div>
                             </div>
                         </div>
                     </div>

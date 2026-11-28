@@ -161,6 +161,39 @@ class UploadConfigTest extends TestCase
         $this->assertFileExists($this->dir . '/upload.php');
     }
 
+    public function testShopImageLimitDefaultsTo10MbWhenOldConfigLacksTheSection(): void
+    {
+        // 운영 서버의 기존 upload.php 에는 shop_image 항목이 없다 — 배포만으로 10MB 가 되어야 한다.
+        $this->writeConfig("<?php\nreturn ['editor_image' => ['max_size_mb' => 20]];\n");
+
+        [$status, $out] = $this->runChild('echo UploadConfig::shopImageMaxBytes();');
+
+        $this->assertSame(0, $status, $out);
+        $this->assertSame((string) (10 * 1024 * 1024), $out);
+    }
+
+    public function testShopImageLimitFollowsOperatorValue(): void
+    {
+        $this->writeConfig("<?php\nreturn ['shop_image' => ['max_size_mb' => 15]];\n");
+
+        [$status, $out] = $this->runChild('echo UploadConfig::shopImageMaxBytes();');
+
+        $this->assertSame(0, $status, $out);
+        $this->assertSame((string) (15 * 1024 * 1024), $out);
+    }
+
+    public function testInstallerConfigIncludesShopImageDefault(): void
+    {
+        [$status, $out] = $this->runChild(
+            '(new \\Mublo\\Core\\Install\\Installer())->generateUploadConfig();'
+            . 'ConfigFile::reset();'
+            . 'echo ConfigFile::load("upload")["shop_image"]["max_size_mb"] ?? "none";'
+        );
+
+        $this->assertSame(0, $status, $out);
+        $this->assertSame('10', $out);
+    }
+
     public function testInstallerDoesNotOverwriteExistingOperatorConfig(): void
     {
         $this->writeConfig("<?php\nreturn ['editor_image' => ['max_size_mb' => 7]];\n");
