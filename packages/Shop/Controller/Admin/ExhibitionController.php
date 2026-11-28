@@ -8,6 +8,7 @@ use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
 use Mublo\Helper\Form\FormHelper;
 use Mublo\Infrastructure\Storage\UploadedFile;
+use Mublo\Core\UploadConfig;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Packages\Shop\Service\ExhibitionService;
 use Mublo\Packages\Shop\Service\ProductService;
@@ -139,7 +140,7 @@ class ExhibitionController
             'subdirectory'       => 'shop/exhibition',
             'include_date'       => false,
             'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-            'max_size'           => 5 * 1024 * 1024,
+            'max_size'           => UploadConfig::shopImageMaxBytes(),
         ]);
 
         if (!$result->isSuccess()) {

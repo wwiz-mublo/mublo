@@ -1020,6 +1020,15 @@ PHP;
             . "        // 값을 올리기 전에 정리 주기를 함께 정해두시길 권합니다.\n"
             . "        'guest_max_size_mb' => " . UploadConfig::DEFAULT_EDITOR_GUEST_MAX_SIZE_MB . ",\n"
             . "    ],\n"
+            . "\n"
+            . "    // 쇼핑몰 이미지 (상품·분류 안내·기획전·구매후기)\n"
+            . "    'shop_image' => [\n"
+            . "        // 이미지 한 장의 최대 크기(MB)\n"
+            . "        //\n"
+            . "        // 상품 이미지는 저장할 때 여러 장이 한 요청으로 함께 갑니다.\n"
+            . "        // 값을 올리면 php.ini 의 post_max_size 도 (장수 × 이 값) 이상으로 함께 올리세요.\n"
+            . "        'max_size_mb' => " . UploadConfig::DEFAULT_SHOP_IMAGE_MAX_SIZE_MB . ",\n"
+            . "    ],\n"
             . "];\n";
 
         $result = file_put_contents($configPath, $content);

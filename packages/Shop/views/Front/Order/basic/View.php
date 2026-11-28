@@ -642,7 +642,7 @@ $this->assets->addCss('/serve/package/Shop/views/Front/Order/basic/_assets/css/o
                 </label>
                 <?php endfor; ?>
             </div>
-            <div style="font-size:0.78rem;color:#9ca3af">JPG·PNG·WEBP, 각 5MB 이하 (선택)</div>
+            <div style="font-size:0.78rem;color:#9ca3af">JPG·PNG·WEBP, 각 <?= round(\Mublo\Core\UploadConfig::shopImageMaxBytes() / 1048576, 1) ?>MB 이하 (선택)</div>
             <div class="spv-rv-actions">
                 <button type="button" class="spv-rv-cancel" id="spvRvCancel">취소</button>
                 <button type="submit" class="spv-rv-submit">등록하기</button>

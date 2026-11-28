@@ -5,6 +5,7 @@ namespace Mublo\Packages\Shop\Controller\Admin;
 use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
+use Mublo\Core\UploadConfig;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use Mublo\Packages\Shop\Service\ProductService;
@@ -513,7 +514,7 @@ class ProductController
                     'subdirectory' => $storagePath,
                     'include_date' => false,
                     'allowed_extensions' => ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-                    'max_size' => 5 * 1024 * 1024,
+                    'max_size' => UploadConfig::shopImageMaxBytes(),
                 ]);
 
                 if ($uploadResult->isSuccess()) {

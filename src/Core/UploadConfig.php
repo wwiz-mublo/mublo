@@ -25,18 +25,42 @@ final class UploadConfig
     public const DEFAULT_EDITOR_GUEST_MAX_SIZE_MB = 5;
 
     /**
+     * 쇼핑몰 이미지(상품·분류 안내·기획전·후기) 상한(MB)
+     *
+     * 상품 이미지는 저장할 때 여러 장이 한 요청으로 함께 가므로, 한 장 상한을 너무 크게 잡으면
+     * post_max_size 에 먼저 걸려 저장 전체가 실패한다. 휴대폰 사진(3~12MB)을 받으면서
+     * post_max_size 64M 에서 여러 장을 함께 올릴 수 있는 값으로 둔다.
+     */
+    public const DEFAULT_SHOP_IMAGE_MAX_SIZE_MB = 10;
+
+    /**
      * 에디터 본문 이미지 한 장의 최대 크기(bytes)
      *
      * @param bool $isGuest 비로그인 방문자인가. 판단할 수 없으면 true(fail-closed)로 넘긴다.
      */
     public static function editorImageMaxBytes(bool $isGuest): int
     {
-        $section = ConfigFile::load('upload')['editor_image'] ?? [];
+        return self::megabytesToBytes(
+            'editor_image',
+            $isGuest ? 'guest_max_size_mb' : 'max_size_mb',
+            $isGuest ? self::DEFAULT_EDITOR_GUEST_MAX_SIZE_MB : self::DEFAULT_EDITOR_MAX_SIZE_MB
+        );
+    }
 
-        $key = $isGuest ? 'guest_max_size_mb' : 'max_size_mb';
-        $default = $isGuest
-            ? self::DEFAULT_EDITOR_GUEST_MAX_SIZE_MB
-            : self::DEFAULT_EDITOR_MAX_SIZE_MB;
+    /**
+     * 쇼핑몰 이미지(상품·분류 안내·기획전·후기) 한 장의 최대 크기(bytes)
+     */
+    public static function shopImageMaxBytes(): int
+    {
+        return self::megabytesToBytes('shop_image', 'max_size_mb', self::DEFAULT_SHOP_IMAGE_MAX_SIZE_MB);
+    }
+
+    /**
+     * config/upload.php 의 [$sectionName][$key] (MB) 를 bytes 로 — 없거나 잘못된 값이면 기본값
+     */
+    private static function megabytesToBytes(string $sectionName, string $key, int $default): int
+    {
+        $section = ConfigFile::load('upload')[$sectionName] ?? [];
 
         $megabytes = is_array($section) ? ($section[$key] ?? $default) : $default;
 

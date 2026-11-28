@@ -7,6 +7,7 @@ use Mublo\Core\Response\ViewResponse;
 use Mublo\Core\Response\JsonResponse;
 use Mublo\Core\Context\Context;
 use Mublo\Helper\Form\FormHelper;
+use Mublo\Core\UploadConfig;
 use Mublo\Infrastructure\Storage\FileUploader;
 use Mublo\Infrastructure\Storage\UploadedFile;
 use Mublo\Packages\Shop\Service\ReviewService;
@@ -151,7 +152,7 @@ class ReviewController
             $uploadResult = $this->fileUploader->upload($file, $domainId, [
                 'subdirectory'       => 'shop/review',
                 'allowed_extensions' => ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-                'max_size'           => 5 * 1024 * 1024,
+                'max_size'           => UploadConfig::shopImageMaxBytes(),
             ]);
             if ($uploadResult->isSuccess()) {
                 $data["image{$i}"] = $this->fileUploader->getUrl(
